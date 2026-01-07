@@ -1,0 +1,10 @@
+# OpenSpec stuff
+.agent
+.claude
+.clinerules
+.github/prompts
+CLAUDE.md
+CLINE.md
+
+# IntelliJ
+.idea/
