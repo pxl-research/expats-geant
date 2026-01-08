@@ -185,19 +185,24 @@ The platform operates "privacy by default" with on-premise deployment options, s
 ## External Dependencies
 
 **LLM Services:**
+
 - **OpenRouter** (primary): LLM API gateway providing access to multiple models with cost optimization and reliability
 - **OpenAI-compatible APIs**: Fallback support for OpenAI, Anthropic, or other OpenAI-compatible endpoints
 - **Local LLM support**: Ollama, LM Studio, or other self-hosted models for privacy-first on-premise deployments
 
 **Vector Database:**
+
 - **ChromaDB**: Lightweight vector DB for semantic search and RAG; embedded SQLite backend for session-scoped isolation
 
 **Document Processing:**
+
 - **MarkItDown** (0.1.4): Multi-format document extraction (PDF, DOCX, images, audio transcription); note: still in beta; evaluate alternatives (Unstructured.io, pdfplumber, pytesseract) if stability issues arise
 
 **Infrastructure & Runtime:**
+
 - **Docker & Docker Compose**: Containerization and local orchestration
 - **PostgreSQL**: Relational database (future; may be integrated at a later phase)
 
 **Integration & Standards:**
+
 - **QTI 3.0**: Questionnaire interchange standard; specific tools and integrations TBD during pilot based on partner institutional systems

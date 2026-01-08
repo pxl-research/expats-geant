@@ -87,12 +87,13 @@ See [Git Workflow](openspec/project.md#git-workflow) for branching and review pr
 
 To be determined; restricted open-source license planned for community reuse.
 
-## Pilot & Evaluation
+## Deliverables & Roadmap
 
-- **Pilot institutions**: PXL University College, Belnet-connected partners
-- **Timeline**: Jan–Jun 2026
-- **Demo**: GÉANT TNC conference (June 2026)
-- **Metrics**: Time saved for authors/respondents, citation accuracy, response completeness, edit/acceptance rates
+- **Pilot & evaluation**: Implement at PXL + Belnet partner; measure authoring time, respondent time, citation accuracy, acceptance/edit rates
+- **Demo & dissemination**: Live demo at GÉANT TNC (June 2026); online showcase with architecture & results
+- **Reusable outputs**: Containerized Docker images, REST APIs, SDK, deployment recipes, admin templates, evaluation scripts
+- **Documentation**: Deployment guides, integration docs, style guides for institutional reuse
+- **Timeline**: Jan–Jun 2026 (PoC), final report by 31 July 2026
 
 ## Contact & Support
 
