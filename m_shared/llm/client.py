@@ -17,7 +17,7 @@ class LLMClient(OpenAI):
         self,
         api_key: str,
         base_url: str = "https://openrouter.ai/api/v1",
-        model_name: str = "anthropic/claude-3.5-haiku",
+        model_name: str = "anthropic/claude-haiku-4.5",
         tools_list: Optional[Iterable] = None,
         temperature: float = 0.7,
         custom_headers: Optional[dict] = None,
@@ -28,7 +28,7 @@ class LLMClient(OpenAI):
         Args:
             api_key: API key for the LLM service
             base_url: Base URL for the API endpoint (default: OpenRouter)
-            model_name: Model identifier (e.g., 'anthropic/claude-3.5-haiku', 'mistral/mixtral-8x7b')
+            model_name: Model identifier (e.g., 'anthropic/claude-haiku-4.5', 'mistral/mixtral-8x7b')
             tools_list: Optional list of tool definitions for function calling
             temperature: Sampling temperature (0.0-2.0); lower = deterministic, higher = creative
             custom_headers: Custom headers to include in API requests
@@ -37,8 +37,8 @@ class LLMClient(OpenAI):
 
         if custom_headers is None:
             custom_headers = {
-                "HTTP-Referer": "https://pxl-research.be/",
-                "X-Title": "PXL Expat-GÉANT",
+                "HTTP-Referer": "https://pxl-research.be/expats",
+                "X-Title": "PXL Expats-GEANT",
             }
 
         self.model_name: str = model_name

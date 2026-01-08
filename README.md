@@ -1,15 +1,16 @@
-# Expat-GÉANT: Privacy-First AI-Assisted Survey Platform
+# Expats (GÉANT): Explainable Autofill for Trustworthy Surveys
 
-An open-source platform providing two AI co-pilots that improve questionnaire quality and response completeness while prioritizing privacy, transparency, and user control.
+An platform providing two AI co-pilots that improve questionnaire quality and response completeness while prioritizing privacy, transparency, and user control.
+All code is open-source for non-commercial use only.
 
 ## Overview
 
-**Expat-GÉANT** is a six-month proof-of-concept (Jan–Jun 2026) developed by PXL University College to build and evaluate privacy-first, standalone AI modules for the European research and education community.
+**Expat-GÉANT** is a proof-of-concept developed by PXL University College to build and evaluate privacy-first, standalone AI modules for the European research and education community.
 
 ### Core Components
 
-- **M-Chat**: Administrator co-pilot for questionnaire design—accelerates creation with guardrails, consistency checks, tagging, and summarization
-- **M-Autofill**: Respondent assistant for evidence-based answer suggestions—retrieves relevant passages from user documents, proposes concise answers with citations, and explains reasoning
+- **M-Chat**: Administrator co-pilot for questionnaire design — accelerates creation with guardrails, consistency checks, tagging, and summarization
+- **M-Autofill**: Respondent assistant for evidence - based answer suggestions—retrieves relevant passages from user documents, proposes concise answers with citations, and explains reasoning
 - **M-Shared**: Common utilities and foundational infrastructure for both modules
 
 ## Key Features

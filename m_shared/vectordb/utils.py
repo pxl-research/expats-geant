@@ -178,10 +178,44 @@ def split_on_threshold(text: str, max_chars: int = 1024, overlap_pct: float = 0.
     return chunks
 
 
+def merge_small_chunks(small_chunks: list[str], max_size: int = 1024) -> list[str]:
+    """
+    Merge consecutive small chunks if their combined size is <= max_size.
+    Reduces fragmentation from aggressive chunking strategies.
+
+    Args:
+        small_chunks: List of chunks to merge
+        max_size: Maximum size per merged chunk
+
+    Returns:
+        List of merged chunks, optimized for size
+    """
+    if not small_chunks:
+        return []
+
+    merged = []
+    current = ""
+
+    for chunk in small_chunks:
+        # If adding chunk keeps total size under max_size, merge
+        if len(current) + len(chunk) <= max_size:
+            current = (current + " " + chunk).strip() if current else chunk
+        else:
+            if current:
+                merged.append(current)
+            current = chunk
+
+    if current:
+        merged.append(current)
+
+    return merged
+
+
 def iterative_chunking(md_text: str, max_size: int = 1024) -> list[str]:
     """
     Iteratively chunk Markdown text using multiple strategies until all chunks are under max_size.
-    Strategies progress from coarse (headers) to fine (threshold-based).
+    Applies strategies progressively from coarse (headers) to fine (threshold-based).
+    Merges small chunks to avoid fragmentation.
 
     Args:
         md_text: Markdown text to chunk
@@ -208,17 +242,26 @@ def iterative_chunking(md_text: str, max_size: int = 1024) -> list[str]:
         lambda text: split_on_threshold(text, max_chars=max_size, overlap_pct=0.1),
     ]
 
-    for strategy in strategies:
+    strat_idx = 0
+
+    while strat_idx < len(strategies):
+        # Check if all chunks are within size limit
+        if all(len(chunk) <= max_size for chunk in chunks):
+            return chunks
+
+        # Apply current strategy to oversized chunks
         new_chunks = []
         for chunk in chunks:
             if len(chunk) > max_size:
-                new_chunks.extend(strategy(chunk))
+                split_result = strategies[strat_idx](chunk)
+                if len(split_result) > 1:
+                    # Merge small chunks to reduce fragmentation
+                    split_result = merge_small_chunks(split_result, max_size=max_size)
+                new_chunks.extend(split_result)
             else:
                 new_chunks.append(chunk)
-        chunks = new_chunks
 
-        # Check if all chunks are now under max_size
-        if all(len(chunk) <= max_size for chunk in chunks):
-            break
+        chunks = new_chunks
+        strat_idx += 1
 
     return chunks

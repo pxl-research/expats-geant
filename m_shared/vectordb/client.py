@@ -1,8 +1,6 @@
-"""
-ChromaDB wrapper with session-based isolation and document management.
-"""
+"""ChromaDB wrapper for document storage and retrieval."""
 
-from typing import Any, Optional
+from typing import Optional
 
 import chromadb
 from chromadb import QueryResult
@@ -40,23 +38,25 @@ def repack_query_results(results: QueryResult) -> list[dict]:
 
 class ChromaDocumentStore:
     """
-    ChromaDB wrapper for document storage and retrieval with session-based isolation.
-    Each session can have its own ephemeral ChromaDB instance.
+    ChromaDB wrapper for document storage and retrieval.
+
+    Note: For MVP simplicity this mirrors the demo behavior:
+    - One Chroma client (in-memory if no path is provided)
+    - One collection per ingested document
+    - Query searches across all collections and returns the top-N results
     """
 
-    def __init__(self, path: Optional[str] = None, session_id: Optional[str] = None):
+    def __init__(self, path: Optional[str] = None):
         """
         Initialize ChromaDB document store.
 
         Args:
             path: Path for persistent storage. If None, uses in-memory storage.
-            session_id: Optional session identifier for isolation. Used in collection naming.
         """
-        self.session_id = session_id
         self.path = path
 
         if path is None:
-            self.cdb_client: chromadb.ClientAPI = chromadb.EphemeralClient()
+            self.cdb_client: chromadb.ClientAPI = chromadb.Client()  # in memory
         else:
             self.cdb_client = chromadb.PersistentClient(path=path)
 
@@ -64,8 +64,8 @@ class ChromaDocumentStore:
         self,
         document_name: str,
         chunks: list[str],
-        metadatas: list[dict],
-        progress_bar: bool = True,
+        meta_infos: list[dict],
+        tqdm_func=tqdm,
     ) -> None:
         """
         Add a document to the store as a collection of chunks.
@@ -73,28 +73,28 @@ class ChromaDocumentStore:
         Args:
             document_name: Name of the document
             chunks: List of text chunks
-            metadatas: List of metadata dicts (one per chunk)
-            progress_bar: Whether to show progress bar (default: True)
-
-        Raises:
-            ValueError: If document already exists
+            meta_infos: List of metadata dicts (one per chunk)
+            tqdm_func: Progress iterator factory (defaults to tqdm)
         """
         collection_name = clean_up_string(document_name)
 
         if collection_name in self.list_documents():
-            raise ValueError(f"Document already exists: {collection_name}")
+            print(f"A document with this name is already in the collection: {collection_name}")
+            return
 
         collection = self.cdb_client.create_collection(name=collection_name)
 
-        # Add chunks to collection
-        iterator = tqdm(range(len(chunks)), disable=not progress_bar)
-        iterator.set_description(f"Adding {collection_name}")
+        iterator = tqdm_func(range(len(chunks)))
+        if hasattr(iterator, "set_description"):
+            iterator.set_description(desc=collection_name)
 
         for i in iterator:
+            metadata = meta_infos[i] if i < len(meta_infos) else {}
+            chunk_id = metadata.get("id", f"chunk-{i}")
             collection.add(
                 documents=[chunks[i]],
-                ids=[metadatas[i].get("id", f"chunk-{i}")],
-                metadatas=[metadatas[i]],
+                ids=[chunk_id],
+                metadatas=[metadata],
             )
 
     def remove_document(self, document_name: str) -> None:
@@ -122,16 +122,7 @@ class ChromaDocumentStore:
         return sorted(names)
 
     def query(self, query_text: str, n_results: int = 5) -> list[dict]:
-        """
-        Search across all collections for the most relevant chunks.
-
-        Args:
-            query_text: Query string
-            n_results: Number of results to return (default: 5)
-
-        Returns:
-            List of results sorted by distance (similarity)
-        """
+        """Search across all collections for the most relevant chunks."""
         all_results = []
         collections = self.cdb_client.list_collections()
 
