@@ -49,6 +49,9 @@ The platform operates "privacy by default" with on-premise deployment options, s
 
 ## Project Conventions
 
+We are using python inside a virtual environment (source .venv/bin/activate)
+Our executables are pip3 and python3 (not pip and python)
+
 ### Code Style
 
 - **Priority**: Simplicity, clarity, and maintainability over completeness; this is a proof of concept
