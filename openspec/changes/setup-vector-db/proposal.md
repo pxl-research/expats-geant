@@ -17,8 +17,9 @@ M-Autofill's RAG pipeline requires semantic search capabilities to find relevant
 
 - Affected specs: `specs/vector-db/spec.md`
 - Affected code: New file `m_shared/vectordb/client.py`; updates to `requirements.txt` (chromadb dependency)
-- Dependencies: Phase 1 (LLM client for embeddings) and Phase 2.1 (document processor outputs)
+- Dependencies: Phase 1 (Session model) and Phase 2.1 (document processor outputs)
 - Blocking: Phase 3 (RAG pipeline)
+- Note: Uses ChromaDB's built-in embedding function (MVP simplicity); OpenRouter embeddings deferred to future phases
 
 ## Acceptance Criteria
 
