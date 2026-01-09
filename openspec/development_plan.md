@@ -17,10 +17,10 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 - ✅ [Baseline capability specs](specs/) defined
 - ✅ Data models (Survey, Section, Question, Response, Citation, Session) — [specs/data-models](specs/data-models/spec.md)
-- [ ] LLM client (OpenRouter integration) — [specs/llm-integration](specs/llm-integration/spec.md)
+- ✅ LLM client (OpenRouter integration) — [specs/llm-integration](specs/llm-integration/spec.md)
 - [ ] Basic auth (JWT token generation & validation) — [specs/auth-security](specs/auth-security/spec.md)
-- [ ] Unit tests for models and LLM client
-- [ ] Development environment setup (Docker, requirements.txt, .env example)
+- ✅ Unit tests for models and LLM client
+- ⏳ Development environment setup (Docker, requirements.txt, .env example)
 
 **Key Files:**
 
