@@ -167,11 +167,14 @@ def split_on_threshold(text: str, max_chars: int = 1024, overlap_pct: float = 0.
             chunks.append(chunk)
 
         # Set next start with optional overlap
-        if overlap > 0 and chunk_end - overlap >= 0:
-            start = chunk_end - overlap
-            last_whitespace = text.rfind(" ", 0, start)
-            if last_whitespace != -1:
+        if overlap > 0 and chunk_end - overlap > start:
+            # Try to set overlap position at a word boundary
+            overlap_start = chunk_end - overlap
+            last_whitespace = text.rfind(" ", start, overlap_start)
+            if last_whitespace > start:
                 start = last_whitespace
+            else:
+                start = chunk_end
         else:
             start = chunk_end
 
