@@ -18,24 +18,25 @@ This document outlines the phased approach to building Expat-GÉANT from January
 - ✅ [Baseline capability specs](specs/) defined
 - ✅ Data models (Survey, Section, Question, Response, Citation, Session) — [specs/data-models](specs/data-models/spec.md)
 - ✅ LLM client (OpenRouter integration) — [specs/llm-integration](specs/llm-integration/spec.md)
-- [ ] Basic auth (JWT token generation & validation) — [specs/auth-security](specs/auth-security/spec.md)
-- ✅ Unit tests for models and LLM client
-- ⏳ Development environment setup (Docker, requirements.txt, .env example)
+- ✅ Basic auth (JWT token generation & validation) — [specs/auth-security](specs/auth-security/spec.md)
+- ✅ Unit tests for models, LLM client, and auth
+- ✅ Development environment setup (requirements.txt, .env example)
 
 **Key Files:**
 
 - ✅ `m_shared/models/*.py` (Survey, Section, Question, AnswerOption, Response, Citation, Session)
-- [ ] `m_shared/llm/client.py` (OpenRouter client with retries)
-- [ ] `m_shared/auth/jwt_handler.py` (Token creation/validation)
+- ✅ `m_shared/llm/client.py` (OpenRouter client with retries)
+- ✅ `m_shared/auth/jwt_handler.py` (Token creation/validation)
+- ✅ `m_shared/auth/validators.py` (Input validation & sanitization)
 
 **Dependencies:** None (foundation layer)
 
 **Success Criteria:**
 
 - ✅ Models serialize/deserialize correctly with validation
-- [ ] LLM client successfully calls OpenRouter
-- [ ] JWT tokens can be created and validated
-- [ ] All unit tests passing
+- ✅ LLM client successfully calls OpenRouter
+- ✅ JWT tokens can be created and validated
+- ✅ All unit tests passing (46 tests across auth, validators, models, LLM)
 
 ---
 

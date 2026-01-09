@@ -29,5 +29,5 @@
 
 ## 4. Documentation
 
-- [ ] 4.1 Add docstrings to all models
-- [ ] 4.2 Include usage examples in module docstring
+- [x] 4.1 Add docstrings to all models
+- [x] 4.2 Include usage examples in module docstring

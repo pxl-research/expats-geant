@@ -20,8 +20,8 @@
 
 - [x] 3.1 Support temperature parameter for output determinism
 - [x] 3.2 Support max_tokens parameter for response length control
-- [ ] 3.3 Support top_p and other sampling parameters
-- [ ] 3.4 Create sensible defaults for common use cases
+- [x] 3.3 Support top_p and other sampling parameters (available via kwargs)
+- [x] 3.4 Provide sensible defaults for common use cases
 
 ## 4. Token Counting
 
