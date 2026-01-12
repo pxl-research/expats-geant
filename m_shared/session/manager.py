@@ -1,0 +1,296 @@
+"""Session manager for handling user sessions with TTL and isolated storage."""
+
+import hashlib
+import json
+import shutil
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Optional
+
+from m_shared.models.session import Session
+from m_shared.vectordb import ChromaDocumentStore
+
+
+class SessionManager:
+    """Manages user sessions with isolated ChromaDB storage and TTL-based cleanup.
+    
+    Each session gets its own folder with:
+    - metadata.json: Session info (created_at, expires_at, user_id)
+    - chroma_store/: ChromaDB SQLite files
+    - documents/: Optional uploaded file storage
+    
+    Session IDs are derived from hashed JWT tokens for stability and security.
+    
+    Examples:
+        >>> manager = SessionManager(base_path="./sessions")
+        >>> session = manager.create_session(user_id="user_123", jwt_token="abc...")
+        >>> store = manager.get_vector_store(session.session_id)
+        >>> store.add_document(...)
+    """
+    
+    def __init__(self, base_path: str = "./sessions"):
+        """Initialize session manager.
+        
+        Args:
+            base_path: Base directory for all session folders
+        """
+        self.base_path = Path(base_path)
+        self.base_path.mkdir(parents=True, exist_ok=True)
+    
+    def _hash_token(self, jwt_token: str) -> str:
+        """Generate stable session_id from JWT token.
+        
+        Args:
+            jwt_token: JWT token string
+            
+        Returns:
+            16-character hex hash of the token
+        """
+        return hashlib.sha256(jwt_token.encode()).hexdigest()[:16]
+    
+    def _get_session_path(self, session_id: str) -> Path:
+        """Get path to session folder.
+        
+        Args:
+            session_id: Unique session identifier
+            
+        Returns:
+            Path to session directory
+        """
+        return self.base_path / session_id
+    
+    def _save_session_metadata(self, session: Session) -> None:
+        """Save session metadata to JSON file.
+        
+        Args:
+            session: Session object to save
+        """
+        session_path = self._get_session_path(session.session_id)
+        metadata_path = session_path / "metadata.json"
+        
+        metadata = {
+            "session_id": session.session_id,
+            "user_id": session.user_id,
+            "created_at": session.created_at.isoformat(),
+            "expires_at": session.expires_at.isoformat(),
+            "isolation_scope": session.isolation_scope,
+            "metadata": session.metadata,
+        }
+        
+        with open(metadata_path, "w") as f:
+            json.dump(metadata, f, indent=2)
+    
+    def _load_session_metadata(self, session_id: str) -> Optional[Session]:
+        """Load session metadata from JSON file.
+        
+        Args:
+            session_id: Session identifier
+            
+        Returns:
+            Session object if exists, None otherwise
+        """
+        session_path = self._get_session_path(session_id)
+        metadata_path = session_path / "metadata.json"
+        
+        if not metadata_path.exists():
+            return None
+        
+        with open(metadata_path, "r") as f:
+            data = json.load(f)
+        
+        # Parse datetime strings
+        data["created_at"] = datetime.fromisoformat(data["created_at"])
+        data["expires_at"] = datetime.fromisoformat(data["expires_at"])
+        
+        return Session(**data)
+    
+    def create_session(
+        self,
+        user_id: str,
+        jwt_token: str,
+        ttl_hours: int = 24,
+        isolation_scope: str = "user"
+    ) -> Session:
+        """Create a new session with isolated storage.
+        
+        Args:
+            user_id: ID of the user owning this session
+            jwt_token: JWT token to hash for session_id
+            ttl_hours: Time-to-live in hours (default: 24)
+            isolation_scope: Data isolation scope (default: "user")
+            
+        Returns:
+            Created Session object
+            
+        Raises:
+            FileExistsError: If session already exists and is not expired
+        """
+        session_id = self._hash_token(jwt_token)
+        session_path = self._get_session_path(session_id)
+        
+        # Check if session already exists
+        if session_path.exists():
+            existing = self._load_session_metadata(session_id)
+            if existing and not existing.is_expired():
+                # Session still valid, return it
+                return existing
+            # Expired session, clean it up
+            self.delete_session(session_id)
+        
+        # Create session folder structure
+        session_path.mkdir(parents=True, exist_ok=True)
+        (session_path / "chroma_store").mkdir(exist_ok=True)
+        (session_path / "documents").mkdir(exist_ok=True)
+        
+        # Create session object
+        created_at = datetime.utcnow()
+        expires_at = created_at + timedelta(hours=ttl_hours)
+        
+        session = Session(
+            session_id=session_id,
+            user_id=user_id,
+            created_at=created_at,
+            expires_at=expires_at,
+            isolation_scope=isolation_scope,
+            metadata={"ttl_hours": ttl_hours}
+        )
+        
+        # Save metadata
+        self._save_session_metadata(session)
+        
+        return session
+    
+    def get_session(self, session_id: str) -> Optional[Session]:
+        """Get session by ID.
+        
+        Args:
+            session_id: Session identifier
+            
+        Returns:
+            Session object if exists and not expired, None otherwise
+        """
+        session = self._load_session_metadata(session_id)
+        if session and session.is_expired():
+            return None
+        return session
+    
+    def get_vector_store(self, session_id: str) -> ChromaDocumentStore:
+        """Get ChromaDB store for a session.
+        
+        Args:
+            session_id: Session identifier
+            
+        Returns:
+            ChromaDocumentStore instance for this session
+            
+        Raises:
+            FileNotFoundError: If session doesn't exist
+        """
+        session_path = self._get_session_path(session_id)
+        if not session_path.exists():
+            raise FileNotFoundError(f"Session {session_id} does not exist")
+        
+        chroma_path = session_path / "chroma_store"
+        return ChromaDocumentStore(path=str(chroma_path))
+    
+    def get_documents_path(self, session_id: str) -> Path:
+        """Get path to documents folder for a session.
+        
+        Args:
+            session_id: Session identifier
+            
+        Returns:
+            Path to documents directory
+        """
+        return self._get_session_path(session_id) / "documents"
+    
+    def delete_session(self, session_id: str) -> bool:
+        """Delete a session and all its data.
+        
+        Args:
+            session_id: Session identifier
+            
+        Returns:
+            True if session was deleted, False if it didn't exist
+        """
+        session_path = self._get_session_path(session_id)
+        if not session_path.exists():
+            return False
+        
+        shutil.rmtree(session_path)
+        return True
+    
+    def list_sessions(self, include_expired: bool = False) -> list[Session]:
+        """List all sessions.
+        
+        Args:
+            include_expired: Whether to include expired sessions
+            
+        Returns:
+            List of Session objects
+        """
+        sessions = []
+        
+        for session_dir in self.base_path.iterdir():
+            if not session_dir.is_dir():
+                continue
+            
+            session = self._load_session_metadata(session_dir.name)
+            if session:
+                if include_expired or not session.is_expired():
+                    sessions.append(session)
+        
+        return sessions
+    
+    def cleanup_expired_sessions(self) -> list[str]:
+        """Remove all expired sessions.
+        
+        Returns:
+            List of deleted session IDs
+        """
+        expired_sessions = [
+            s for s in self.list_sessions(include_expired=True)
+            if s.is_expired()
+        ]
+        
+        deleted = []
+        for session in expired_sessions:
+            if self.delete_session(session.session_id):
+                deleted.append(session.session_id)
+        
+        return deleted
+    
+    def get_session_stats(self, session_id: str) -> Optional[dict]:
+        """Get statistics for a session.
+        
+        Args:
+            session_id: Session identifier
+            
+        Returns:
+            Dict with session statistics or None if session doesn't exist
+        """
+        session = self.get_session(session_id)
+        if not session:
+            return None
+        
+        session_path = self._get_session_path(session_id)
+        docs_path = session_path / "documents"
+        
+        # Calculate remaining TTL
+        now = datetime.utcnow()
+        remaining = session.expires_at - now
+        remaining_hours = max(0, remaining.total_seconds() / 3600)
+        
+        # Count documents
+        doc_count = len(list(docs_path.iterdir())) if docs_path.exists() else 0
+        
+        return {
+            "session_id": session.session_id,
+            "user_id": session.user_id,
+            "created_at": session.created_at.isoformat(),
+            "expires_at": session.expires_at.isoformat(),
+            "remaining_hours": round(remaining_hours, 2),
+            "is_expired": session.is_expired(),
+            "document_count": doc_count,
+            "isolation_scope": session.isolation_scope,
+        }

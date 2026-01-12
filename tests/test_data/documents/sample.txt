@@ -1,0 +1,7 @@
+This is a sample text document for testing the document ingestion pipeline.
+
+It contains multiple paragraphs to test chunking behavior. This paragraph is the first one and establishes baseline functionality.
+
+The second paragraph tests boundary detection. It should be properly identified as a separate unit during the chunking process.
+
+This is the final paragraph. It validates that the text extraction and chunking pipeline correctly handles multi-paragraph documents with proper metadata preservation.

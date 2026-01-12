@@ -11,3 +11,7 @@ CLINE.md
 
 # project specific
 demo_code
+
+# Python
+
+__pycache__/

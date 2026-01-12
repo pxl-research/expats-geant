@@ -2,9 +2,12 @@
 Unified LLM client abstraction supporting OpenRouter, OpenAI-compatible APIs, and local LLMs.
 """
 
+import os
+import time
 from typing import Iterable, Optional
 
-from openai import OpenAI
+import tiktoken
+from openai import APIError, OpenAI, RateLimitError
 
 
 class LLMClient(OpenAI):
@@ -15,24 +18,36 @@ class LLMClient(OpenAI):
 
     def __init__(
         self,
-        api_key: str,
-        base_url: str = "https://openrouter.ai/api/v1",
-        model_name: str = "anthropic/claude-haiku-4.5",
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        model_name: Optional[str] = None,
         tools_list: Optional[Iterable] = None,
         temperature: float = 0.7,
         custom_headers: Optional[dict] = None,
+        max_retries: int = 3,
+        retry_backoff_factor: float = 2.0,
     ):
         """
         Initialize LLM client.
 
         Args:
-            api_key: API key for the LLM service
-            base_url: Base URL for the API endpoint (default: OpenRouter)
-            model_name: Model identifier (e.g., 'anthropic/claude-haiku-4.5', 'mistral/mixtral-8x7b')
+            api_key: API key for the LLM service (defaults to OPENROUTER_API_KEY env var)
+            base_url: Base URL for the API endpoint (defaults to OpenRouter)
+            model_name: Model identifier (defaults to DEFAULT_LLM_MODEL env var)
             tools_list: Optional list of tool definitions for function calling
             temperature: Sampling temperature (0.0-2.0); lower = deterministic, higher = creative
             custom_headers: Custom headers to include in API requests
+            max_retries: Maximum number of retries for rate limit/transient errors
+            retry_backoff_factor: Exponential backoff multiplier for retries
         """
+        # Load from environment if not provided
+        api_key = api_key or os.getenv("OPENROUTER_API_KEY")
+        if not api_key:
+            raise ValueError("API key must be provided or set in OPENROUTER_API_KEY environment variable")
+        
+        base_url = base_url or os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+        model_name = model_name or os.getenv("DEFAULT_LLM_MODEL", "anthropic/claude-haiku-4.5")
+
         super().__init__(base_url=base_url, api_key=api_key)
 
         if custom_headers is None:
@@ -45,12 +60,15 @@ class LLMClient(OpenAI):
         self.tools_list: Optional[Iterable] = tools_list
         self.temperature: float = temperature
         self.extra_headers: dict = custom_headers
+        self.max_retries: int = max_retries
+        self.retry_backoff_factor: float = retry_backoff_factor
+        self._tokenizer = None  # Lazy load tokenizer
 
     def create_completion_stream(
         self, messages: list[dict], stream: bool = True, **kwargs
     ):
         """
-        Create a streaming chat completion.
+        Create a streaming chat completion with automatic retries.
 
         Args:
             messages: List of message dicts for the chat API
@@ -60,7 +78,8 @@ class LLMClient(OpenAI):
         Returns:
             Streaming response from the LLM
         """
-        return self.chat.completions.create(
+        return self._retry_with_backoff(
+            self.chat.completions.create,
             model=self.model_name,
             messages=messages,
             tools=self.tools_list,
@@ -72,7 +91,7 @@ class LLMClient(OpenAI):
 
     def create_completion(self, messages: list[dict], **kwargs) -> str:
         """
-        Create a non-streaming chat completion.
+        Create a non-streaming chat completion with automatic retries.
 
         Args:
             messages: List of message dicts for the chat API
@@ -81,7 +100,8 @@ class LLMClient(OpenAI):
         Returns:
             Generated response text
         """
-        response = self.chat.completions.create(
+        response = self._retry_with_backoff(
+            self.chat.completions.create,
             model=self.model_name,
             messages=messages,
             tools=self.tools_list,
@@ -109,3 +129,73 @@ class LLMClient(OpenAI):
             temperature: New temperature value (0.0-2.0)
         """
         self.temperature = temperature
+
+    def _get_tokenizer(self):
+        """Lazy load tokenizer for token counting."""
+        if self._tokenizer is None:
+            # Use cl100k_base encoding (GPT-4, GPT-3.5-turbo)
+            # This is a reasonable approximation for most models
+            try:
+                self._tokenizer = tiktoken.get_encoding("cl100k_base")
+            except Exception:
+                # Fallback to basic encoding if cl100k_base not available
+                self._tokenizer = tiktoken.get_encoding("gpt2")
+        return self._tokenizer
+
+    def count_tokens(self, text: str) -> int:
+        """
+        Estimate token count for given text.
+
+        Args:
+            text: Text to count tokens for
+
+        Returns:
+            Estimated token count
+        """
+        if not text:
+            return 0
+        tokenizer = self._get_tokenizer()
+        return len(tokenizer.encode(text))
+
+    def _retry_with_backoff(self, fn, *args, **kwargs):
+        """
+        Execute function with exponential backoff retry logic.
+
+        Args:
+            fn: Function to execute
+            *args: Positional arguments for function
+            **kwargs: Keyword arguments for function
+
+        Returns:
+            Result from function
+
+        Raises:
+            Last exception if all retries exhausted
+        """
+        last_exception = None
+        for attempt in range(self.max_retries):
+            try:
+                return fn(*args, **kwargs)
+            except RateLimitError as e:
+                last_exception = e
+                if attempt < self.max_retries - 1:
+                    wait_time = self.retry_backoff_factor ** attempt
+                    time.sleep(wait_time)
+                    continue
+                raise
+            except APIError as e:
+                # Only retry on 5xx errors (server errors)
+                if e.status_code and 500 <= e.status_code < 600:
+                    last_exception = e
+                    if attempt < self.max_retries - 1:
+                        wait_time = self.retry_backoff_factor ** attempt
+                        time.sleep(wait_time)
+                        continue
+                raise
+            except Exception as e:
+                # Don't retry on other exceptions
+                raise
+        
+        # If we exhausted all retries
+        if last_exception:
+            raise last_exception
