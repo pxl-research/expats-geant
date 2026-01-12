@@ -114,14 +114,60 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 ## Phase 3: M-Autofill (Answer Suggestion Module) (Mar–Apr)
 
-**Goal:** Complete RAG pipeline with answer suggestions, citations, and audit logging.
+**Goal:** Complete RAG pipeline with answer suggestions, citations, audit logging, and REST API endpoints.
+
+### Change 3.1: `implement-autofill-rag-citations` (Mar, Week 1-2)
 
 **Deliverables:**
 
-- [ ] RAG pipeline (retrieval + LLM generation) — [specs/answer-suggestion](specs/answer-suggestion/spec.md)
-- [ ] Citation system (track sources, metadata, highlights)
-- [ ] Session audit trail & report generation — [specs/audit-compliance](specs/audit-compliance/spec.md)
-- [ ] REST API endpoints (upload, suggest, audit, cleanup)
+- [ ] RAG pipeline (semantic retrieval + LLM generation) — [specs/answer-suggestion](specs/answer-suggestion/spec.md)
+- [ ] Citation system (track sources, metadata, text highlights)
+- [ ] Unit tests for retrieval, generation, citation formatting
+
+**Key Files:**
+
+- `m_autofill/rag_pipeline.py` (Retrieval, generation, citations)
+
+**Dependencies:** Phase 1, Phase 2
+
+**Success Criteria:**
+
+- Suggestions generated with cited sources
+- Citations include source metadata (filename, position, timestamp, text excerpt)
+- All unit tests passing
+
+---
+
+### Change 3.2: `implement-autofill-audit-logging` (Mar, Week 2-3)
+
+**Deliverables:**
+
+- [ ] Session audit trail (log uploads, suggestions, user edits) — [specs/audit-compliance](specs/audit-compliance/spec.md)
+- [ ] Audit report generation (complete session summary with sources)
+- [ ] Retention policy (auto-delete unclaimed reports after ~1 year)
+- [ ] Consent/privacy capture at session start
+- [ ] Unit tests for logging, report structure, retention logic
+
+**Key Files:**
+
+- `m_shared/utils/audit.py` or `m_autofill/audit.py` (Audit logging & reports)
+
+**Dependencies:** Phase 1, Phase 2, 3.1
+
+**Success Criteria:**
+
+- Audit trail captures all session activity
+- Reports include all suggestions, sources, user edits with timestamps
+- Retention policy enforced
+- All unit tests passing
+
+---
+
+### Change 3.3: `implement-autofill-api-endpoints` (Mar Week 3 – Apr Week 1)
+
+**Deliverables:**
+
+- [ ] REST API endpoints (upload, suggest, audit report retrieval, cleanup)
 - [ ] FastAPI integration with session/auth middleware
 - [ ] Manual testing of suggestion quality & citation accuracy
 - [ ] Integration tests: full user session flow
@@ -129,20 +175,18 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 **Key Files:**
 
-- `m_autofill/rag_pipeline.py` (Retrieval, generation, citations)
 - `m_autofill/api.py` (FastAPI endpoints)
-- `m_shared/utils/audit.py` or `m_autofill/audit.py` (Audit logging)
+- `Dockerfile` and related deployment configs
 
-**Dependencies:** Phase 1, Phase 2
+**Dependencies:** Phase 1, Phase 2, 3.1, 3.2
 
 **Success Criteria:**
 
-- Suggestions generated with cited sources
-- Citations include source metadata (filename, position, timestamp)
-- Audit trail captures all session activity
 - API endpoints respond correctly
+- Session isolation & middleware working
 - Manual review: citation accuracy ≥ 90%
-- All unit, integration, and manual tests passing
+- All integration tests passing
+- Docker container builds and runs
 
 ---
 
@@ -265,7 +309,10 @@ Each phase will be implemented via change proposals (stored in `openspec/changes
 
 - **Phase 1:** `setup-shared-infrastructure` (models, LLM, auth)
 - **Phase 2:** `setup-document-processing` (ingestion, vector DB, chunking)
-- **Phase 3:** `implement-autofill-rag` (RAG, citations, audit)
+- **Phase 3:**
+  - `implement-autofill-rag-citations` (RAG, citations)
+  - `implement-autofill-audit-logging` (audit trail, reports, retention)
+  - `implement-autofill-api-endpoints` (API, middleware, integration)
 - **Phase 4:** `implement-chat-design` (suggestions, validation, tagging, QTI)
 - **Phase 5:** `integrate-and-deploy` (Docker, OAuth, monitoring)
 - **Phase 6:** `finalize-and-release` (docs, demo, open-source)

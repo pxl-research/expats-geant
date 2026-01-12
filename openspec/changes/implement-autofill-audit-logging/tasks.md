@@ -1,0 +1,143 @@
+# Tasks: Implement M-Autofill Audit Logging & Compliance
+
+## 1. Audit Trail & Data Structures
+
+- [ ] 1.1 Design audit trail schema
+
+  - [ ] 1.1a Define AuditLogEntry data structure (event type, timestamp, user_id, session_id, details)
+  - [ ] 1.1b Define event types (UPLOAD, SUGGEST, EDIT_SUGGESTION, SESSION_START, SESSION_END)
+  - [ ] 1.1c Decide storage: in-memory list per session or file-based (JSON per session)
+
+- [ ] 1.2 Create `m_shared/utils/audit.py` or `m_autofill/audit.py`
+  - [ ] 1.2a Define AuditLogger class with methods: log_upload(), log_suggestion(), log_edit(), log_session_event()
+  - [ ] 1.2b Implement thread-safe logging (session-scoped, no cross-session leaks)
+  - [ ] 1.2c Each audit entry includes: event_type, timestamp, session_id, details (dict with relevant data)
+
+## 2. Integration with Existing Modules
+
+- [ ] 2.1 Integrate logging into document upload flow
+
+  - [ ] 2.1a Modify `m_autofill/ingest.py` to call AuditLogger.log_upload()
+  - [ ] 2.1b Capture: filename, file size, upload timestamp, session_id
+  - [ ] 2.1c Ensure no performance degradation from logging
+
+- [ ] 2.2 Integrate logging into suggestion generation
+
+  - [ ] 2.2a Modify `m_autofill/rag_pipeline.py` to call AuditLogger.log_suggestion()
+  - [ ] 2.2b Capture: question, suggested_answer, sources_used (list of source names), generation timestamp
+  - [ ] 2.2c Handle edge cases (LLM errors, no results)
+
+- [ ] 2.3 Integrate logging into user edits
+  - [ ] 2.3a Create hook for user editing suggestions (pre-implementation of 3.3)
+  - [ ] 2.3b Capture: original suggestion, user's edited version, edit timestamp
+  - [ ] 2.3c Note: API endpoint will call this in phase 3.3
+
+## 3. Audit Report Generation
+
+- [ ] 3.1 Implement report compilation function
+
+  - [ ] 3.1a Create AuditReport class with structure: session metadata + all log entries + summary stats
+  - [ ] 3.1b Implement generate_audit_report(session_id) function
+  - [ ] 3.1c Report includes: session_id, creation_date, all uploads, all suggestions + sources, all edits, timestamps
+
+- [ ] 3.2 Implement report formatting
+
+  - [ ] 3.2a Format report as human-readable summary (Markdown or plaintext)
+  - [ ] 3.2b Include: Documents uploaded (count, names), Suggestions generated (count, count of user edits)
+  - [ ] 3.2c Include: Source citations (which documents informed which suggestions)
+  - [ ] 3.2d Format report for user download (can be JSON or plaintext)
+
+- [ ] 3.3 Implement report storage
+  - [ ] 3.3a Decide storage location: filesystem (reports/{session_id}/) or in-memory until cleanup
+  - [ ] 3.3b Track report metadata: generation_timestamp, retention_until (1 year from now), is_claimed
+
+## 4. Retention Policy & Cleanup
+
+- [ ] 4.1 Implement TTL tracking
+
+  - [ ] 4.1a Each report has retention_until timestamp (session_end + 1 year)
+  - [ ] 4.1b Track which reports have been claimed (user download = claimed)
+  - [ ] 4.1c Expose remaining_time in session status (for API in phase 3.3)
+
+- [ ] 4.2 Implement retention cleanup job (initial: manual/test-only, later: scheduled)
+
+  - [ ] 4.2a Scan audit reports directory (or in-memory list)
+  - [ ] 4.2b Delete unclaimed reports past retention_until
+  - [ ] 4.2c Log cleanup actions (what was deleted, when)
+  - [ ] 4.2c Note: Scheduled background job deferred; manual cleanup sufficient for MVP
+
+- [ ] 4.3 Implement Right to Be Forgotten (RTBF) support
+  - [ ] 4.3a Allow explicit user request to delete audit report immediately
+  - [ ] 4.3b Log deletion action for compliance
+  - [ ] 4.3c Note: API endpoint in phase 3.3
+
+## 5. Consent & Privacy Capture
+
+- [ ] 5.1 Define consent structure
+
+  - [ ] 5.1a Create Consent data model: session_id, accepted_at, terms_version, privacy_version
+  - [ ] 5.1b Store consent record with audit logs
+
+- [ ] 5.2 Capture consent at session creation
+
+  - [ ] 5.2a Modify SessionManager to record consent on session initialization
+  - [ ] 5.2b Consent is captured before any document uploads allowed
+
+- [ ] 5.3 Implement privacy/terms endpoint (static content, no logic required here)
+  - [ ] 5.3a Note: REST endpoint in phase 3.3
+  - [ ] 5.3b Define privacy statement content (data handling, retention, user rights)
+
+## 6. Testing
+
+- [ ] 6.1 Unit tests for audit logging
+
+  - [ ] 6.1a Test AuditLogger.log_upload() with various file types and sizes
+  - [ ] 6.1b Test AuditLogger.log_suggestion() with multiple sources
+  - [ ] 6.1c Test AuditLogger.log_edit() with original vs. edited answers
+  - [ ] 6.1d Test thread safety (concurrent log calls in same session)
+
+- [ ] 6.2 Unit tests for report generation
+
+  - [ ] 6.2a Test generate_audit_report() with various log patterns
+  - [ ] 6.2b Test report includes all expected fields and metadata
+  - [ ] 6.2c Test formatting (plaintext, JSON, etc.)
+
+- [ ] 6.3 Unit tests for retention policy
+
+  - [ ] 6.3a Test TTL calculation (1 year from session end)
+  - [ ] 6.3b Test cleanup: delete unclaimed reports past TTL
+  - [ ] 6.3c Test RTBF: immediate deletion on user request
+  - [ ] 6.3d Test edge cases (claimed reports not deleted, future reports retained)
+
+- [ ] 6.4 Unit tests for consent capture
+
+  - [ ] 6.4a Test consent recorded on session initialization
+  - [ ] 6.4b Test consent version tracking
+  - [ ] 6.4c Test edge cases (consent missing, version mismatch)
+
+- [ ] 6.5 Integration tests
+  - [ ] 6.5a Full session flow: initialize → upload → suggest → edit → generate report
+  - [ ] 6.5b Multiple documents → multiple suggestions → audit report captures all
+  - [ ] 6.5c Session isolation: audits from session A don't appear in session B
+
+## 7. Manual Testing & Validation
+
+- [ ] 7.1 Audit accuracy review
+
+  - [ ] 7.1a Verify audit logs match actual events (uploads, suggestions, edits)
+  - [ ] 7.1b Check timestamps are accurate
+  - [ ] 7.1c Verify no data leakage between sessions
+
+- [ ] 7.2 Report quality review
+  - [ ] 7.2a Generate sample audit report and review for completeness
+  - [ ] 7.2b Verify sources are correctly attributed in report
+  - [ ] 7.2c Test retention policy manually (mark old reports, verify deletion)
+
+## Definition of Done
+
+- ✅ All implementation tasks complete
+- ✅ All unit tests passing (minimum: 25+ tests)
+- ✅ All integration tests passing
+- ✅ Manual testing confirms audit accuracy and report quality
+- ✅ No critical issues from code review
+- ✅ Ready to hand off to 3.3 (API endpoints)
