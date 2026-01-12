@@ -37,13 +37,103 @@ M-Autofill is a RAG (Retrieval-Augmented Generation) module that helps responden
 ```
 m_autofill/
 ├── __init__.py
-├── document_processor.py    # File upload, text extraction, chunking
-├── rag_pipeline.py          # Retrieval, generation, citation logic
-├── api.py                   # FastAPI endpoints
+├── ingest.py                # Document upload and ingestion pipeline
+├── rag_pipeline.py          # RAG orchestration: retrieval, generation, citations
+├── rag_tools.py             # RAG tool wrappers for LLM tool calling
+├── validation.py            # Input validation and sanitization
+├── api.py                   # FastAPI endpoints (Phase 3.3)
 └── tests/
-    ├── test_document_processor.py
+    ├── test_document_ingestion.py
+    ├── test_chunking.py
     ├── test_rag_pipeline.py
-    └── fixtures/            # Sample documents for testing
+    ├── test_rag_integration.py
+    └── test_data/           # Sample documents for testing
+```
+
+## RAG Pipeline Architecture
+
+### Core Components
+
+**1. Retrieval (`retrieve()`)**
+
+- Semantic search using ChromaDB vector store
+- Session-scoped: only searches documents within the user's session
+- Returns top-k chunks (default: 5) with full metadata
+- Metadata includes: source filename, chunk index, position/percentage, timestamp
+
+**2. Answer Generation (`generate_answer()`)**
+
+- LLM-based generation from retrieved passages
+- Temperature control (0.3–0.5 for slightly deterministic output)
+- Max token limit: 500 tokens (configurable)
+- Graceful error handling for API failures, rate limits, timeouts
+
+**3. Citation Formatting (`format_citations()`)**
+
+- Extracts source metadata from retrieved chunks
+- Creates structured `Citation` objects with:
+  - Source document name
+  - Position in document (character offsets, percentage)
+  - Upload timestamp
+  - Text excerpts (50–200 chars) for verification
+- Handles missing metadata gracefully
+
+**4. Orchestration (`suggest_answer()`)**
+
+- End-to-end pipeline: retrieve → generate → format citations
+- Input validation (question, session_id)
+- Returns structured result: `{answer, citations, metadata}`
+- Handles edge cases: no documents, no results, session not found
+
+### Design Decisions
+
+**Temperature: 0.4** (default)
+
+- Balances consistency with slight creativity
+- Slightly deterministic output for reproducibility
+- Can be overridden per request
+
+**Top-K Retrieval: 5** (default)
+
+- Provides enough context without overwhelming the LLM
+- ChromaDB returns results sorted by semantic similarity
+- No re-ranking in MVP; direct similarity-based ordering
+
+**Session Isolation**
+
+- Each session has its own ChromaDB instance (folder-based)
+- Session manager handles creation, TTL, and cleanup
+- Sessions tied to JWT tokens for security
+
+**Citation Strategy**
+
+- Citations linked to retrieved chunks (1:1 mapping)
+- Text excerpts break at sentence/word boundaries when possible
+- Position percentage calculated from chunk_index / total_chunks if not in metadata
+
+### Testing
+
+**Unit Tests** (`tests/test_rag_pipeline.py`)
+
+- 31 tests covering all functions and edge cases
+- Mocked dependencies (SessionManager, LLMClient, ChromaDB)
+- Tests for: retrieval, generation, citations, orchestration, error handling
+
+**Integration Tests** (`tests/test_rag_integration.py`)
+
+- 8 end-to-end tests with real document ingestion
+- Session isolation validation
+- Multi-document scenarios
+- Requires `OPENROUTER_API_KEY` environment variable
+
+Run tests:
+
+```bash
+# Unit tests (no API key required)
+pytest tests/test_rag_pipeline.py -v
+
+# Integration tests (requires API key)
+OPENROUTER_API_KEY=your_key pytest tests/test_rag_integration.py -v
 ```
 
 ## API Endpoints
