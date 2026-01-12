@@ -116,25 +116,28 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 **Goal:** Complete RAG pipeline with answer suggestions, citations, audit logging, and REST API endpoints.
 
-### Change 3.1: `implement-autofill-rag-citations` (Mar, Week 1-2)
+### Change 3.1: `implement-autofill-rag-citations` ✅ **COMPLETE** (Mar, Week 1-2)
 
 **Deliverables:**
 
-- [ ] RAG pipeline (semantic retrieval + LLM generation) — [specs/answer-suggestion](specs/answer-suggestion/spec.md)
-- [ ] Citation system (track sources, metadata, text highlights)
-- [ ] Unit tests for retrieval, generation, citation formatting
+- [x] RAG pipeline (semantic retrieval + LLM generation) — [specs/answer-suggestion](specs/answer-suggestion/spec.md)
+- [x] Citation system (track sources, metadata, text highlights)
+- [x] Unit tests for retrieval, generation, citation formatting
 
 **Key Files:**
 
-- `m_autofill/rag_pipeline.py` (Retrieval, generation, citations)
+- `m_autofill/rag_pipeline.py` (Retrieval, generation, citations) — 392 lines
+- `tests/test_rag_pipeline.py` — 31 unit tests
+- `tests/test_rag_integration.py` — 8 integration tests
 
 **Dependencies:** Phase 1, Phase 2
 
 **Success Criteria:**
 
-- Suggestions generated with cited sources
-- Citations include source metadata (filename, position, timestamp, text excerpt)
-- All unit tests passing
+- [x] Suggestions generated with cited sources
+- [x] Citations include source metadata (filename, position, timestamp, text excerpt)
+- [x] All unit tests passing (31/31 unit tests + 8/8 integration tests)
+- [x] 248/248 total tests passing (no regressions)
 
 ---
 
