@@ -8,7 +8,8 @@ then stores chunks in Chroma.
 
 from __future__ import annotations
 
-from typing import Iterable
+import os
+from typing import Iterable, Optional
 
 from tqdm import tqdm
 
@@ -18,6 +19,7 @@ from m_shared.vectordb import (
     iterative_chunking,
     sanitize_filename,
 )
+from m_shared.utils import AuditLogger
 
 
 def ingest_files_into_store(
@@ -25,6 +27,9 @@ def ingest_files_into_store(
     file_paths: Iterable[str],
     store: ChromaDocumentStore,
     max_chunk_size: int = 1024,
+    session_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    audit_logger: Optional[AuditLogger] = None,
 ) -> list[str]:
     """Ingest documents into a Chroma-backed store.
 
@@ -32,6 +37,9 @@ def ingest_files_into_store(
         file_paths: Paths to documents (pdf/docx/pptx/xlsx/etc.)
         store: ChromaDocumentStore instance
         max_chunk_size: Chunk size in characters
+        session_id: Optional session ID for audit logging
+        user_id: Optional user ID for audit logging
+        audit_logger: Optional audit logger instance
 
     Returns:
         List of document (collection) names added
@@ -66,5 +74,20 @@ def ingest_files_into_store(
 
         added.append(collection_name)
         current_documents.add(collection_name)
+        
+        # Log upload to audit trail
+        if audit_logger and session_id:
+            file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+            file_ext = os.path.splitext(file_path)[1]
+            
+            audit_logger.log_upload(
+                session_id=session_id,
+                filename=os.path.basename(file_path),
+                file_size=file_size,
+                file_type=file_ext,
+                user_id=user_id
+            )
+
+    return added
 
     return added

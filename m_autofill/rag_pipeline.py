@@ -15,6 +15,7 @@ from m_shared.llm import LLMClient
 from m_shared.models.citation import Citation
 from m_shared.session import SessionManager
 from m_shared.vectordb import ChromaDocumentStore
+from m_shared.utils import AuditLogger
 
 
 class RAGPipeline:
@@ -38,6 +39,7 @@ class RAGPipeline:
         default_top_k: int = 5,
         default_temperature: float = 0.4,
         max_tokens: int = 500,
+        audit_logger: Optional[AuditLogger] = None,
     ):
         """Initialize RAG pipeline.
         
@@ -47,12 +49,14 @@ class RAGPipeline:
             default_top_k: Default number of chunks to retrieve
             default_temperature: Temperature for LLM generation (0.3-0.5 for determinism)
             max_tokens: Maximum tokens for generated answer
+            audit_logger: Optional audit logger for tracking suggestions
         """
         self.session_manager = session_manager
         self.llm_client = llm_client
         self.default_top_k = default_top_k
         self.default_temperature = default_temperature
         self.max_tokens = max_tokens
+        self.audit_logger = audit_logger
     
     def retrieve(
         self,
@@ -286,6 +290,8 @@ Answer:"""
         session_id: str,
         top_k: Optional[int] = None,
         temperature: Optional[float] = None,
+        user_id: Optional[str] = None,
+        question_id: Optional[str] = None,
     ) -> dict:
         """Generate answer suggestion with citations (full RAG pipeline).
         
@@ -294,12 +300,15 @@ Answer:"""
         2. Retrieve relevant chunks
         3. Generate answer from chunks
         4. Format citations
+        5. Log to audit trail (if logger configured)
         
         Args:
             question: User's question
             session_id: Session identifier
             top_k: Number of chunks to retrieve (optional)
             temperature: LLM temperature (optional)
+            user_id: Optional user ID for audit logging
+            question_id: Optional question ID for audit logging
             
         Returns:
             Dictionary with:
@@ -354,6 +363,19 @@ Answer:"""
             citations = self.format_citations(chunks, question, answer)
         except Exception as e:
             raise RuntimeError(f"Citation formatting failed: {str(e)}") from e
+        
+        # Step 4: Log to audit trail
+        if self.audit_logger:
+            sources_used = [c.source_id for c in citations]
+            self.audit_logger.log_suggestion(
+                session_id=session_id,
+                question=question,
+                suggested_answer=answer,
+                sources_used=sources_used,
+                model=self.llm_client.model,
+                user_id=user_id,
+                question_id=question_id,
+            )
         
         # Return structured result
         return {
