@@ -11,7 +11,7 @@ CLINE.md
 
 # project specific
 demo_code
+.env
 
 # Python
-
 __pycache__/

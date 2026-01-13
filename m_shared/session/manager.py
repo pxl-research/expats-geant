@@ -9,6 +9,7 @@ from typing import Optional
 
 from m_shared.models.session import Session
 from m_shared.vectordb import ChromaDocumentStore
+from m_shared.utils import AuditLogger, AuditEventType, Consent
 
 
 class SessionManager:
@@ -36,6 +37,7 @@ class SessionManager:
         """
         self.base_path = Path(base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
+        self.audit_logger = AuditLogger(base_path=base_path)
     
     def _hash_token(self, jwt_token: str) -> str:
         """Generate stable session_id from JWT token.
@@ -109,7 +111,10 @@ class SessionManager:
         user_id: str,
         jwt_token: str,
         ttl_hours: int = 24,
-        isolation_scope: str = "user"
+        isolation_scope: str = "user",
+        consent: Optional[Consent] = None,
+        terms_version: str = "1.0",
+        privacy_version: str = "1.0"
     ) -> Session:
         """Create a new session with isolated storage.
         
@@ -118,6 +123,9 @@ class SessionManager:
             jwt_token: JWT token to hash for session_id
             ttl_hours: Time-to-live in hours (default: 24)
             isolation_scope: Data isolation scope (default: "user")
+            consent: Optional pre-created Consent object
+            terms_version: Terms version if consent not provided (default: "1.0")
+            privacy_version: Privacy policy version if consent not provided (default: "1.0")
             
         Returns:
             Created Session object
@@ -157,6 +165,27 @@ class SessionManager:
         
         # Save metadata
         self._save_session_metadata(session)
+        
+        # Log session start
+        self.audit_logger.log_session_event(
+            session_id=session_id,
+            event_type=AuditEventType.SESSION_START,
+            user_id=user_id
+        )
+        
+        # Log consent
+        if consent is None:
+            consent = Consent(
+                session_id=session_id,
+                accepted_at=created_at,
+                terms_version=terms_version,
+                privacy_version=privacy_version
+            )
+        self.audit_logger.log_consent(
+            session_id=session_id,
+            consent=consent,
+            user_id=user_id
+        )
         
         return session
     
@@ -204,11 +233,12 @@ class SessionManager:
         """
         return self._get_session_path(session_id) / "documents"
     
-    def delete_session(self, session_id: str) -> bool:
+    def delete_session(self, session_id: str, reason: Optional[str] = None) -> bool:
         """Delete a session and all its data.
         
         Args:
             session_id: Session identifier
+            reason: Optional reason for deletion (e.g., "user_request", "expired")
             
         Returns:
             True if session was deleted, False if it didn't exist
@@ -216,6 +246,16 @@ class SessionManager:
         session_path = self._get_session_path(session_id)
         if not session_path.exists():
             return False
+        
+        # Log session end before deletion
+        session = self.get_session(session_id)
+        if session:
+            self.audit_logger.log_session_event(
+                session_id=session_id,
+                event_type=AuditEventType.SESSION_END,
+                user_id=session.user_id,
+                reason=reason
+            )
         
         shutil.rmtree(session_path)
         return True
@@ -245,6 +285,8 @@ class SessionManager:
     def cleanup_expired_sessions(self) -> list[str]:
         """Remove all expired sessions.
         
+        Also cleans up unclaimed audit reports past retention period (1 year).
+        
         Returns:
             List of deleted session IDs
         """
@@ -255,10 +297,49 @@ class SessionManager:
         
         deleted = []
         for session in expired_sessions:
-            if self.delete_session(session.session_id):
+            if self.delete_session(session.session_id, reason="expired"):
                 deleted.append(session.session_id)
         
+        # Also cleanup old unclaimed audit reports
+        deleted.extend(self._cleanup_old_reports())
+        
         return deleted
+    
+    def _cleanup_old_reports(self, retention_years: int = 1) -> list[str]:
+        """Clean up unclaimed audit reports past retention period.
+        
+        Args:
+            retention_years: Years to retain reports (default: 1)
+            
+        Returns:
+            List of cleaned up session IDs
+        """
+        cleaned = []
+        cutoff_date = datetime.utcnow() - timedelta(days=365 * retention_years)
+        
+        for session_dir in self.base_path.iterdir():
+            if not session_dir.is_dir():
+                continue
+            
+            session_id = session_dir.name
+            
+            # Check if report is claimed
+            if self.audit_logger.is_claimed(session_id):
+                continue
+            
+            # Check report age (use last modified time of audit_log.json)
+            audit_log_path = self.audit_logger._get_audit_log_path(session_id)
+            if not audit_log_path.exists():
+                continue
+            
+            last_modified = datetime.fromtimestamp(audit_log_path.stat().st_mtime)
+            
+            if last_modified < cutoff_date:
+                # Report is old and unclaimed, delete it
+                if self.delete_session(session_id, reason="retention_policy"):
+                    cleaned.append(session_id)
+        
+        return cleaned
     
     def get_session_stats(self, session_id: str) -> Optional[dict]:
         """Get statistics for a session.
