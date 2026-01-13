@@ -372,7 +372,7 @@ Answer:"""
                 question=question,
                 suggested_answer=answer,
                 sources_used=sources_used,
-                model=self.llm_client.model,
+                model=self.llm_client.model_name,
                 user_id=user_id,
                 question_id=question_id,
             )
