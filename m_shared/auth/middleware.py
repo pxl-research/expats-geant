@@ -159,5 +159,6 @@ class SessionMiddleware(BaseHTTPMiddleware):
             "/openapi.json",
             "/redoc",
             "/privacy",
+            "/dev/token",
         ]
         return path in public_paths

@@ -357,20 +357,19 @@ def create_app(
                 question=suggest_request.question,
                 session_id=session.session_id,
                 user_id=claims.get("user_id"),
-                context=suggest_request.context,
             )
             
             # Format citations
             citations = [
                 CitationResponse(
                     source=cit.source_id,
-                    position=cit.position,
+                    position=f"{cit.position_percentage:.1%}" if cit.position_percentage else "unknown",
                     position_range={
-                        "start_percentage": cit.metadata.get("start_percentage", 0),
-                        "end_percentage": cit.metadata.get("end_percentage", 0),
+                        "start_percentage": cit.position_start or 0,
+                        "end_percentage": cit.position_end or 0,
                     },
                     timestamp=cit.timestamp.isoformat() if cit.timestamp else "",
-                    excerpt=cit.text_excerpt,
+                    excerpt=cit.highlights[0] if cit.highlights else "",
                 )
                 for cit in result["citations"]
             ]
