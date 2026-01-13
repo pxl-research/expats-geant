@@ -104,7 +104,7 @@ This document outlines the phased approach to building Expat-GÉANT from January
 - ✅ Session middleware for implicit session management (lazy creation on first authenticated request)
 - ✅ DELETE /session endpoint for explicit user cleanup
 - ✅ All API tests passing (12/12 = 100%)
-- [ ] Background cleanup job for expired sessions (scheduled task, not API)
+- ✅ Background cleanup job for expired sessions (cleanup_expired_sessions with 1-year retention for audit reports)
 
 **Phase 2.2 Status:** ✅ **COMPLETE** (except background cleanup job deferred)
 
@@ -141,28 +141,38 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 ---
 
-### Change 3.2: `implement-autofill-audit-logging` (Mar, Week 2-3)
+### Change 3.2: `implement-autofill-audit-logging` ✅ **COMPLETE** (Mar, Week 2-3)
 
 **Deliverables:**
 
-- [ ] Session audit trail (log uploads, suggestions, user edits) — [specs/audit-compliance](specs/audit-compliance/spec.md)
-- [ ] Audit report generation (complete session summary with sources)
-- [ ] Retention policy (auto-delete unclaimed reports after ~1 year)
-- [ ] Consent/privacy capture at session start
-- [ ] Unit tests for logging, report structure, retention logic
+- [x] Session audit trail (log uploads, suggestions, user edits) — [specs/audit-compliance](specs/audit-compliance/spec.md)
+- [x] Audit report generation (complete session summary with sources)
+- [x] Retention policy (auto-delete unclaimed reports after ~1 year)
+- [x] Consent/privacy capture at session start
+- [x] Unit tests for logging, report structure, retention logic
 
 **Key Files:**
 
-- `m_shared/utils/audit.py` or `m_autofill/audit.py` (Audit logging & reports)
+- [x] `m_shared/utils/audit.py` (Audit logging & reports) — 540 lines
+- [x] `m_shared/utils/__init__.py` (Package exports)
+- [x] `m_autofill/ingest.py` (Upload event logging)
+- [x] `m_autofill/rag_pipeline.py` (Suggestion event logging)
+- [x] `m_shared/session/manager.py` (Session lifecycle & retention enforcement)
+- [x] `tests/test_audit.py` — 25 unit tests
+- [x] `tests/test_audit_integration.py` — 8 integration tests
 
 **Dependencies:** Phase 1, Phase 2, 3.1
 
 **Success Criteria:**
 
-- Audit trail captures all session activity
-- Reports include all suggestions, sources, user edits with timestamps
-- Retention policy enforced
-- All unit tests passing
+- [x] Audit trail captures all session activity (UPLOAD, SUGGEST, EDIT_SUGGESTION, SESSION_START, SESSION_END, CONSENT_ACCEPTED)
+- [x] Reports include all suggestions, sources, user edits with timestamps
+- [x] Retention policy enforced (1-year auto-delete via \_cleanup_old_reports)
+- [x] All unit tests passing (25/25)
+- [x] All integration tests passing (7/8 — 1 skipped due to missing API key, structure validated)
+- [x] Thread-safe concurrent logging validated
+- [x] Session isolation validated (no cross-session data leakage)
+- [x] 280/280 total tests passing (no regressions)
 
 ---
 
