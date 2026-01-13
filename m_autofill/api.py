@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from m_shared.session.manager import SessionManager
 from m_shared.llm.client import LLMClient
 from m_shared.utils.audit import AuditLogger
+from m_shared.auth.jwt_handler import create_token
 from m_autofill.validation import validate_file_upload, FileValidationError
 from m_autofill.ingest import ingest_files_into_store
 from m_autofill.rag_pipeline import RAGPipeline
@@ -68,6 +69,21 @@ class SessionDeleteResponse(BaseModel):
     message: str
 
 
+class DevTokenRequest(BaseModel):
+    """Request for development token generation."""
+    user_id: str = Field(default="dev_user", description="User ID for token")
+    org: str = Field(default="dev_org", description="Organization ID")
+    roles: list[str] = Field(default=["respondent"], description="User roles")
+
+
+class DevTokenResponse(BaseModel):
+    """Development token response."""
+    token: str
+    user_id: str
+    expires_in_hours: int
+    message: str
+
+
 def create_app(
     session_manager: SessionManager,
     llm_client: Optional[LLMClient] = None,
@@ -119,6 +135,57 @@ def create_app(
     async def health():
         """Health check endpoint."""
         return {"status": "healthy"}
+    
+    @app.post("/dev/token", response_model=DevTokenResponse, tags=["Development"])
+    async def generate_dev_token(request: DevTokenRequest):
+        """Generate JWT token for development/testing (disabled in production).
+        
+        This endpoint allows developers to easily generate valid JWT tokens for testing
+        the API without needing to set up a full authentication infrastructure.
+        
+        **IMPORTANT**: This endpoint is only available when ENVIRONMENT != "production"
+        
+        Args:
+            request: Token generation parameters (user_id, org, roles)
+            
+        Returns:
+            JWT token and metadata
+            
+        Raises:
+            HTTPException: 403 if called in production environment
+        """
+        # Check environment - block in production
+        environment = os.getenv("ENVIRONMENT", "development").lower()
+        if environment == "production":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Token generation endpoint disabled in production"
+            )
+        
+        # Generate session ID from user_id for consistency
+        session_id = f"dev_session_{request.user_id}"
+        
+        # Create token with requested parameters
+        try:
+            token = create_token(
+                user_id=request.user_id,
+                session_id=session_id,
+                org=request.org,
+                roles=request.roles,
+                expiration_hours=int(os.getenv("JWT_EXPIRATION_HOURS", "24"))
+            )
+            
+            return DevTokenResponse(
+                token=token,
+                user_id=request.user_id,
+                expires_in_hours=int(os.getenv("JWT_EXPIRATION_HOURS", "24")),
+                message="Token generated successfully. Use in Authorization header: Bearer <token>"
+            )
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Token generation failed: {str(e)}"
+            )
     
     @app.get("/session/stats", response_model=SessionStatsResponse)
     async def get_session_stats(request: Request):
