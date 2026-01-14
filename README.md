@@ -155,7 +155,29 @@ See [Git Workflow](openspec/project.md#git-workflow) for branching and review pr
 
 ## License
 
-To be determined; restricted open-source license planned for community reuse.
+This software is licensed under the **[PolyForm Noncommercial License 1.0.0](LICENSE)**.
+
+### What This Means
+
+✅ **You can:**
+
+- Use, modify, and distribute this software for **non-commercial purposes**
+- Deploy in educational institutions, research organizations, and public sector organizations
+- Contribute improvements and reuse within the GÉANT community
+
+❌ **You cannot:**
+
+- Use this software for commercial purposes or generate commercial advantage without permission
+
+### Commercial Use
+
+Organizations interested in commercial use, deployment, or licensing should contact:
+
+**Servaas Tilkin**  
+PXL University College  
+📧 servaas.tilkin@pxl.be
+
+For inquiries regarding commercial licensing, integration partnerships, or deployment arrangements, please reach out to discuss your needs.
 
 ## Deliverables & Roadmap
 
