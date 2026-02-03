@@ -5,9 +5,9 @@ This document outlines the phased approach to building Expat-GÉANT from January
 ## Project Timeline
 
 - **Start:** January 2026
-- **Pilot & Evaluation:** January–May 2026 (PXL + Belnet partners)
-- **Demo & Dissemination:** June 2026 (GÉANT TNC)
-- **Final Report:** 31 July 2026
+- **Pilot & Evaluation:** January–April 2026 (PXL + Belnet partners)
+- **Demo & Dissemination:** May 2026 (GÉANT TNC)
+- **Final Report:** 30 June 2026
 
 ## Phase 1: Foundation & Shared Infrastructure (Jan–Feb)
 
@@ -212,7 +212,7 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 ---
 
-## Phase 4: M-Chat (Questionnaire Design Module) (Apr–May)
+## Phase 4: M-Chat (Questionnaire Design Module) (Feb–Mar)
 
 **Goal:** Complete questionnaire design assistant with validation, suggestions, tagging, and QTI support.
 
@@ -248,7 +248,7 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 ---
 
-## Phase 5: Integration & Pilot (May)
+## Phase 5: Integration & Pilot (Apr)
 
 **Goal:** Integrate both modules, deploy to pilot sites, begin evaluation.
 
@@ -281,7 +281,7 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 ---
 
-## Phase 6: Refinement & Dissemination (Jun)
+## Phase 6: Refinement & Dissemination (May)
 
 **Goal:** Finalize, document, and demonstrate for GÉANT TNC.
 
@@ -292,7 +292,7 @@ This document outlines the phased approach to building Expat-GÉANT from January
 - [ ] Deployment documentation (Docker, environment, setup)
 - [ ] Integration documentation (SDK examples, API reference)
 - [ ] Admin templates & institutional reuse guides
-- [ ] Live demo for GÉANT TNC (June 2026)
+- [ ] Live demo for GÉANT TNC (May 2026)
 - [ ] Open-source release (restricted license TBD)
 - [ ] Architecture & lessons-learned writeup
 
