@@ -7,7 +7,7 @@ An AI-assisted survey platform designed to improve questionnaire quality and res
 - **M-Chat**: Assists administrators in designing better questionnaires faster (suggestions, style guidelines, evaluation rules)
 - **M-Autofill**: Supports respondents with evidence-based answer suggestions drawn from their uploaded documents, with full citations and transparency
 
-The platform operates "privacy by default" with on-premise deployment options, strict tenant isolation, and minimal data processing. Pilot runs Jan-Jun 2026 at PXL University College and partner institutions, with results shared at GÉANT TNC and core components released as open-source for the GÉANT community.
+The platform operates "privacy by default" with on-premise deployment options, strict tenant isolation, and minimal data processing. Pilot runs Jan-May 2026 at PXL University College and partner institutions, with results shared at GÉANT TNC and core components released as open-source for the GÉANT community.
 
 ## Tech Stack
 
@@ -146,7 +146,7 @@ Our executables are pip3 and python3 (not pip and python)
 
 - Semantic Versioning (semver): `MAJOR.MINOR.PATCH` (e.g., `0.1.0` → `0.2.0` → `0.2.1`)
 - Version bumped on `main` merges; tag releases with `v` prefix (e.g., `v0.1.0`)
-- During PoC phase (Jan-Jun 2026): Stay on `0.x.y`; `1.0.0` post-pilot evaluation
+- During PoC phase (Jan-May 2026): Stay on `0.x.y`; `1.0.0` post-pilot evaluation
 
 ## Domain Context
 
@@ -179,7 +179,7 @@ Our executables are pip3 and python3 (not pip and python)
 
 ## Important Constraints
 
-- **Timeline**: Pilot phase Jan-Jun 2026; prototype must be production-ready for institutional deployment and GÉANT TNC demo by end of June
+- **Timeline**: Pilot phase Jan-May 2026; prototype must be production-ready for institutional deployment and GÉANT TNC demo by end of May
 - **Team**: 3 part-time research/developers; AI-assisted development (code generation, debugging, documentation) expected as force multiplier
 - **Budget**: OpenRouter API costs; careful cost management for token usage during pilot phase
 - **Data locality**: All data processing and storage exclusive to EU during pilot; no data transfer or processing outside EU
