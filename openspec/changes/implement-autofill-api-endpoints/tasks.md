@@ -39,7 +39,7 @@
 - [x] 2.2 Implement error handling & status codes
   - [x] 2.2a Define error response schema (error_code, message, timestamp)
   - [x] 2.2b Handle 400 (validation error), 401 (auth), 404 (not found), 500 (internal)
-  - [ ] 2.2c Ensure all errors logged to audit trail
+  - [x] 2.2c ~~Ensure all errors logged to audit trail~~ — out of scope: application errors belong in server-side logs, not the user audit trail. Audit captures successful user-affecting events only (uploads, suggestions, edits).
 
 ## 3. Endpoint Implementation
 
