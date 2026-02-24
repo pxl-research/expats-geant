@@ -125,25 +125,38 @@ class TestParseStructuredResponse:
 
     def test_parses_answer_and_reasoning(self, pipeline):
         raw = "ANSWER: Yes, we comply.\nREASONING: The policy document clearly states compliance."
-        answer, reasoning = pipeline._parse_structured_response(raw)
+        answer, reasoning, selected_raw = pipeline._parse_structured_response(raw)
         assert answer == "Yes, we comply."
         assert reasoning == "The policy document clearly states compliance."
+        assert selected_raw is None
+
+    def test_parses_selected_field(self, pipeline):
+        raw = "ANSWER: Yes.\nSELECTED: yes\nREASONING:"
+        answer, reasoning, selected_raw = pipeline._parse_structured_response(raw)
+        assert answer == "Yes."
+        assert selected_raw == "yes"
+        assert reasoning is None
+
+    def test_selected_none_returns_none(self, pipeline):
+        raw = "ANSWER: Unclear.\nSELECTED: NONE\nREASONING: Ambiguous."
+        answer, reasoning, selected_raw = pipeline._parse_structured_response(raw)
+        assert selected_raw is None
 
     def test_blank_reasoning_returns_none(self, pipeline):
         raw = "ANSWER: We retain data for 3 years.\nREASONING:"
-        answer, reasoning = pipeline._parse_structured_response(raw)
+        answer, reasoning, selected_raw = pipeline._parse_structured_response(raw)
         assert answer == "We retain data for 3 years."
         assert reasoning is None
 
     def test_missing_reasoning_returns_none(self, pipeline):
         raw = "ANSWER: Partial compliance."
-        answer, reasoning = pipeline._parse_structured_response(raw)
+        answer, reasoning, selected_raw = pipeline._parse_structured_response(raw)
         assert answer == "Partial compliance."
         assert reasoning is None
 
     def test_fallback_when_no_answer_prefix(self, pipeline):
         raw = "Some unstructured response."
-        answer, reasoning = pipeline._parse_structured_response(raw)
+        answer, reasoning, selected_raw = pipeline._parse_structured_response(raw)
         assert answer == "Some unstructured response."
         assert reasoning is None
 
@@ -168,28 +181,23 @@ class TestParseSelectedId:
         return [BatchChoice(id="yes", label="Yes"), BatchChoice(id="no", label="No"), BatchChoice(id="partial", label="Partially")]
 
     def test_single_choice_valid_id(self, pipeline, choices):
-        raw = "ANSWER: Yes.\nSELECTED: yes\nREASONING:"
-        selected_id, selected_ids = pipeline._parse_selected_id(raw, choices, multi=False)
+        selected_id, selected_ids = pipeline._parse_selected_id("yes", choices, multi=False)
         assert selected_id == "yes"
         assert selected_ids is None
 
     def test_single_choice_none(self, pipeline, choices):
-        raw = "ANSWER: Unclear.\nSELECTED: NONE\nREASONING: Ambiguous."
-        selected_id, selected_ids = pipeline._parse_selected_id(raw, choices, multi=False)
+        selected_id, selected_ids = pipeline._parse_selected_id(None, choices, multi=False)
         assert selected_id is None
 
     def test_single_choice_invalid_id_falls_back_to_none(self, pipeline, choices):
-        raw = "ANSWER: Maybe.\nSELECTED: maybe\nREASONING:"
-        selected_id, selected_ids = pipeline._parse_selected_id(raw, choices, multi=False)
+        selected_id, selected_ids = pipeline._parse_selected_id("maybe", choices, multi=False)
         assert selected_id is None
 
     def test_multi_choice_valid_ids(self, pipeline, choices):
-        raw = "ANSWER: Yes and partial.\nSELECTED: yes, partial\nREASONING:"
-        selected_id, selected_ids = pipeline._parse_selected_id(raw, choices, multi=True)
+        selected_id, selected_ids = pipeline._parse_selected_id("yes, partial", choices, multi=True)
         assert selected_id is None
         assert set(selected_ids) == {"yes", "partial"}
 
     def test_multi_choice_none(self, pipeline, choices):
-        raw = "ANSWER: Unknown.\nSELECTED: NONE\nREASONING: No evidence."
-        selected_id, selected_ids = pipeline._parse_selected_id(raw, choices, multi=True)
+        selected_id, selected_ids = pipeline._parse_selected_id(None, choices, multi=True)
         assert selected_ids is None

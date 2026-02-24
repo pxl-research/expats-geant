@@ -278,21 +278,28 @@ ANSWER: <your answer>
 
         return self._parse_structured_response(raw.strip())
 
-    def _parse_structured_response(self, raw: str) -> tuple[str, Optional[str]]:
-        """Parse ANSWER/REASONING from structured LLM output.
+    def _parse_structured_response(self, raw: str) -> tuple[str, Optional[str], Optional[str]]:
+        """Parse ANSWER/SELECTED/REASONING from structured LLM output.
 
         Args:
             raw: Raw LLM output string
 
         Returns:
-            Tuple of (answer, reasoning) — reasoning is None if blank
+            Tuple of (answer, reasoning, selected_raw) — reasoning and selected_raw
+            are None if absent or blank. selected_raw is the bare value after
+            SELECTED: before any choice validation.
         """
         answer = ""
         reasoning = None
+        selected_raw = None
 
         for line in raw.splitlines():
             if line.startswith("ANSWER:"):
                 answer = line[len("ANSWER:"):].strip()
+            elif line.startswith("SELECTED:"):
+                value = line[len("SELECTED:"):].strip()
+                if value and value.upper() != "NONE":
+                    selected_raw = value
             elif line.startswith("REASONING:"):
                 value = line[len("REASONING:"):].strip()
                 if value:
@@ -302,37 +309,31 @@ ANSWER: <your answer>
         if not answer:
             answer = raw
 
-        return answer, reasoning
+        return answer, reasoning, selected_raw
 
-    def _parse_selected_id(self, raw: str, choices: list, multi: bool) -> tuple[Optional[str], Optional[list[str]]]:
-        """Extract and validate SELECTED field from structured LLM output.
+    def _parse_selected_id(self, selected_raw: Optional[str], choices: list, multi: bool) -> tuple[Optional[str], Optional[list[str]]]:
+        """Validate a SELECTED value against the available choices.
 
         Args:
-            raw: Raw LLM output string
+            selected_raw: Bare selected value extracted by _parse_structured_response,
+                          or None if the LLM returned no selection.
             choices: List of BatchChoice objects to validate against
             multi: True for multiple_choice, False for single_choice
 
         Returns:
             Tuple of (selected_id, selected_ids) — only one is set based on multi
         """
+        if not selected_raw:
+            return None, None
+
         valid_ids = {c.id for c in choices}
-        selected_line = ""
-
-        for line in raw.splitlines():
-            if line.startswith("SELECTED:"):
-                selected_line = line[len("SELECTED:"):].strip()
-                break
-
-        if not selected_line or selected_line.upper() == "NONE":
-            return (None, None) if not multi else (None, None)
 
         if multi:
-            # Comma-separated or space-separated ids
-            candidates = [s.strip().strip(",") for s in selected_line.replace(",", " ").split()]
+            candidates = [s.strip().strip(",") for s in selected_raw.replace(",", " ").split()]
             matched = [s for s in candidates if s in valid_ids]
             return None, matched if matched else None
         else:
-            return (selected_line if selected_line in valid_ids else None), None
+            return (selected_raw if selected_raw in valid_ids else None), None
     
     def format_citations(
         self,
@@ -502,7 +503,7 @@ ANSWER: <your answer>
         
         # Step 2: Generate answer with reasoning
         try:
-            answer, reasoning = self._generate_answer_with_reasoning(question, chunks, temperature=temperature)
+            answer, reasoning, _ = self._generate_answer_with_reasoning(question, chunks, temperature=temperature)
         except Exception as e:
             raise RuntimeError(f"Answer generation failed: {str(e)}") from e
         
@@ -594,7 +595,7 @@ ANSWER: <your answer>
                 choices = item.choices if is_choice else None
 
                 try:
-                    answer, reasoning = self._generate_answer_with_reasoning(
+                    answer, reasoning, selected_raw = self._generate_answer_with_reasoning(
                         question=item.prompt,
                         retrieved_chunks=chunks,
                         section_context=section.title,
@@ -614,12 +615,9 @@ ANSWER: <your answer>
                     })
                     continue
 
-                # Parse choice selection from the raw LLM output (re-generate if needed)
                 selected_id, selected_ids = None, None
                 if is_choice:
-                    # Re-retrieve raw output via structured response — use reasoning call's raw
-                    # We call _parse_selected_id on the answer as fallback text
-                    selected_id, selected_ids = self._parse_selected_id(answer, item.choices, multi=is_multi)
+                    selected_id, selected_ids = self._parse_selected_id(selected_raw, item.choices, multi=is_multi)
 
                 citations = self.format_citations(chunks, item.prompt, answer)
 
