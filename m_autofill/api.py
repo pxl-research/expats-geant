@@ -91,22 +91,25 @@ def create_app(
     llm_client: Optional[LLMClient] = None,
     audit_logger: Optional[AuditLogger] = None,
     max_file_size_mb: int = 50,
+    lifespan=None,
 ) -> FastAPI:
     """Create FastAPI application with M-Autofill endpoints.
-    
+
     Args:
         session_manager: SessionManager instance
         llm_client: LLM client for answer generation (optional for session-only endpoints)
         audit_logger: Audit logger for compliance tracking
         max_file_size_mb: Maximum file size in MB (default: 50)
-        
+        lifespan: Optional AsyncContextManager for startup/shutdown hooks (e.g. cleanup job)
+
     Returns:
         Configured FastAPI app
     """
     app = FastAPI(
         title="M-Autofill API",
         description="Evidence-based answer suggestion service",
-        version="0.1.0"
+        version="0.1.0",
+        lifespan=lifespan,
     )
     
     # Initialize RAG pipeline if LLM client provided

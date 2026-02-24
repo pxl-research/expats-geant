@@ -32,12 +32,12 @@
 - [x] 4.2 Temporary files cleaned up when session is deleted (cascading delete)
 - [x] 4.3 Unit tests for document cleanup on session deletion
 
-## 5. Scheduled Job Setup ⏳ IN PROGRESS
+## 5. Scheduled Job Setup ✅ COMPLETE
 
-- [ ] 5.1 Implement `ScheduledCleanupRunner` to periodically invoke `session_manager.cleanup_expired_sessions()`
-- [ ] 5.2 Add environment variable: `CLEANUP_JOB_INTERVAL_MINUTES` (default 60) to `.env.example`
-- [ ] 5.3 Add APScheduler dependency and initialize background scheduler in `run_api.py`
-- [ ] 5.4 Start cleanup job on application initialization (startup event)
+- [x] 5.1 Implement `ScheduledCleanupRunner` in `run_api.py` — asyncio background task that calls `cleanup_expired_sessions()` at a fixed interval
+- [x] 5.2 Add `CLEANUP_JOB_INTERVAL_MINUTES` (default 60) to `.env.example`
+- [x] 5.3 No additional dependency needed — used FastAPI lifespan + `asyncio.create_task` instead of APScheduler (simpler, no extra dependency, idiomatic for single-instance on-premise deployment)
+- [x] 5.4 Cleanup job started/stopped via FastAPI `lifespan` context manager passed to `create_app()`
 
 ## 6. API Response Enhancement ✅ COMPLETE
 
@@ -54,18 +54,18 @@
 - [x] 7.5 Error handling tested
 - [x] 7.6 All existing tests passing (280+ passing)
 
-## 8. Configuration & Monitoring ⏳ IN PROGRESS
+## 8. Configuration & Monitoring ✅ COMPLETE
 
 - [x] 8.1 `SESSION_TTL_HOURS` in `.env.example` ✓
-- [ ] 8.2 `CLEANUP_JOB_INTERVAL_MINUTES` not yet in `.env.example` — needs addition
+- [x] 8.2 `CLEANUP_JOB_INTERVAL_MINUTES` added to `.env.example` under Session & Storage section
 - [x] 8.3 Logging present in `SessionManager.cleanup_expired_sessions()` and `_cleanup_old_reports()`
 - [x] 8.4 Implicit metrics: deleted session count returned from cleanup methods
 
-## 9. Documentation ⏳ IN PROGRESS
+## 9. Documentation ✅ COMPLETE
 
 - [x] 9.1 Comprehensive docstrings present for SessionManager, delete_session, cleanup_expired_sessions
 - [x] 9.2 TTL behavior documented in `m_autofill/README.md` (mentions ephemeral storage, TTL cleanup)
-- [ ] 9.3 Operational documentation on cleanup job scheduling — needs inline comments in ScheduledCleanupRunner
+- [x] 9.3 `ScheduledCleanupRunner` in `run_api.py` has class docstring explaining design (sleep-first loop, asyncio task, lifespan integration) and inline comments
 
 ## SUMMARY
 

@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Startup script for M-Autofill API service."""
 
+import asyncio
+import logging
 import os
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Optional
 
 import uvicorn
 
@@ -13,26 +17,72 @@ from m_shared.utils.audit import AuditLogger
 from m_shared.auth.middleware import SessionMiddleware
 from m_autofill.api import create_app
 
+logger = logging.getLogger(__name__)
+
+
+class ScheduledCleanupRunner:
+    """Periodically invokes SessionManager.cleanup_expired_sessions().
+
+    Runs as an asyncio background task alongside the FastAPI server. The loop
+    sleeps first, then cleans up — so a freshly started server won't trigger
+    cleanup immediately on startup.
+
+    Usage (via lifespan, see main() below):
+        runner = ScheduledCleanupRunner(session_manager, interval_minutes=60)
+        runner.start()   # call inside lifespan startup
+        ...
+        runner.stop()    # call inside lifespan shutdown
+    """
+
+    def __init__(self, session_manager: SessionManager, interval_minutes: int = 60):
+        self.session_manager = session_manager
+        self.interval_seconds = interval_minutes * 60
+        self._task: Optional[asyncio.Task] = None
+
+    async def _loop(self) -> None:
+        """Background loop: sleep for the interval, then clean up expired sessions."""
+        while True:
+            await asyncio.sleep(self.interval_seconds)
+            try:
+                deleted = self.session_manager.cleanup_expired_sessions()
+                if deleted:
+                    logger.info("Cleanup job: removed %d expired session(s)", len(deleted))
+                else:
+                    logger.debug("Cleanup job: no expired sessions found")
+            except Exception as e:
+                # Log and continue — a failed cleanup run should not crash the API
+                logger.error("Cleanup job failed: %s", e)
+
+    def start(self) -> None:
+        """Schedule the cleanup loop as an asyncio background task."""
+        self._task = asyncio.create_task(self._loop())
+
+    def stop(self) -> None:
+        """Cancel the background task on shutdown."""
+        if self._task:
+            self._task.cancel()
+
 
 def main():
     """Initialize and run the M-Autofill API."""
-    
+
     # Configuration from environment
     sessions_base_path = os.getenv("SESSIONS_BASE_PATH", "./data/sessions")
     chroma_base_path = os.getenv("CHROMA_BASE_PATH", "./data/chroma")
     port = int(os.getenv("PORT", "8001"))
     host = os.getenv("HOST", "0.0.0.0")
-    
+    cleanup_interval = int(os.getenv("CLEANUP_JOB_INTERVAL_MINUTES", "60"))
+
     # Create base directories
     Path(sessions_base_path).mkdir(parents=True, exist_ok=True)
     Path(chroma_base_path).mkdir(parents=True, exist_ok=True)
-    
+
     # Initialize components
     print("Initializing M-Autofill service...")
-    
+
     session_manager = SessionManager(base_path=sessions_base_path)
     print(f"✓ SessionManager initialized (base: {sessions_base_path})")
-    
+
     # LLM client (optional - some endpoints work without it)
     llm_client = None
     if os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY"):
@@ -45,30 +95,44 @@ def main():
     else:
         print("⚠ No LLM API key found (set OPENROUTER_API_KEY or OPENAI_API_KEY)")
         print("  Suggestion endpoints will not work")
-    
+
     # Audit logger
     audit_logger = AuditLogger(base_path=sessions_base_path)
     print("✓ AuditLogger initialized")
-    
+
+    # Background cleanup job
+    cleanup_runner = ScheduledCleanupRunner(session_manager, interval_minutes=cleanup_interval)
+
+    @asynccontextmanager
+    async def lifespan(app):
+        # Startup: launch background cleanup task
+        cleanup_runner.start()
+        print(f"✓ Cleanup job started (interval: {cleanup_interval}m)")
+        yield
+        # Shutdown: cancel background task cleanly
+        cleanup_runner.stop()
+        print("✓ Cleanup job stopped")
+
     # Create FastAPI app
     app = create_app(
         session_manager=session_manager,
         llm_client=llm_client,
         audit_logger=audit_logger,
-        max_file_size_mb=int(os.getenv("MAX_FILE_SIZE_MB", "50"))
+        max_file_size_mb=int(os.getenv("MAX_FILE_SIZE_MB", "50")),
+        lifespan=lifespan,
     )
-    
+
     # Add session middleware
     app.add_middleware(
         SessionMiddleware,
         session_manager=session_manager,
         ttl_hours=int(os.getenv("SESSION_TTL_HOURS", "24"))
     )
-    
+
     print("✓ FastAPI app configured")
     print(f"\nStarting server on {host}:{port}...")
     print(f"API docs available at: http://{host}:{port}/docs\n")
-    
+
     # Run server
     uvicorn.run(app, host=host, port=port)
 
