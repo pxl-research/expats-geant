@@ -21,10 +21,10 @@
 
 - [x] 3.1 Add `POST /suggest/batch` endpoint to `m_autofill/api.py`
 - [x] 3.2 Wire request parsing, session lookup, RAG pipeline call, and response serialization
-- [ ] 3.3 Add audit logging for batch suggest events (one event per item, or one batch event)
+- [x] 3.3 Add audit logging for batch suggest events (one event per item, or one batch event)
 - [x] 3.4 Write integration tests for full batch flow (upload → batch suggest → verify response structure)
 
 ## 4. Documentation
 
-- [ ] 4.1 Update `m_autofill/README.md` with batch endpoint usage and example request/response
-- [ ] 4.2 Add example input/output JSON files to `docs/` or `test_data/`
+- [x] 4.1 Update `m_autofill/README.md` with batch endpoint usage and example request/response
+- [x] 4.2 Add example input/output JSON files to `docs/` or `test_data/`
