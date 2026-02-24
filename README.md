@@ -182,10 +182,10 @@ For inquiries regarding commercial licensing, integration partnerships, or deplo
 ## Deliverables & Roadmap
 
 - **Pilot & evaluation**: Implement at PXL + Belnet partner; measure authoring time, respondent time, citation accuracy, acceptance/edit rates
-- **Demo & dissemination**: Live demo at GÉANT TNC (June 2026); online showcase with architecture & results
+- **Demo & dissemination**: Live demo at GÉANT TNC (May 2026); online showcase with architecture & results
 - **Reusable outputs**: Containerized Docker images, REST APIs, SDK, deployment recipes, admin templates, evaluation scripts
 - **Documentation**: Deployment guides, integration docs, style guides for institutional reuse
-- **Timeline**: Jan–Jun 2026 (PoC), final report by 31 July 2026
+- **Timeline**: Jan–May 2026 (PoC), final report by 30 June 2026
 
 ## Contact & Support
 

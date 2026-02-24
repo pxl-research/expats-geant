@@ -1,0 +1,195 @@
+"""Unit tests for batch suggest models, normalization, and RAG pipeline extensions."""
+
+import pytest
+
+from m_autofill.models import (
+    BatchChoice,
+    BatchSuggestItem,
+    BatchSuggestRequest,
+    BatchSuggestSection,
+    normalize_to_sections,
+)
+from m_autofill.rag_pipeline import RAGPipeline
+from m_shared.models.question import QuestionType
+
+
+# ---------------------------------------------------------------------------
+# Model validation
+# ---------------------------------------------------------------------------
+
+class TestBatchSuggestRequest:
+    def test_sections_input_valid(self):
+        req = BatchSuggestRequest(
+            assessment_id="test",
+            sections=[
+                BatchSuggestSection(
+                    id="s1",
+                    items=[BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="What?")]
+                )
+            ]
+        )
+        assert req.assessment_id == "test"
+        assert len(req.sections) == 1
+
+    def test_flat_items_input_valid(self):
+        req = BatchSuggestRequest(
+            assessment_id="test",
+            items=[BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="What?")]
+        )
+        assert len(req.items) == 1
+
+    def test_both_sections_and_items_raises(self):
+        with pytest.raises(ValueError, match="not both"):
+            BatchSuggestRequest(
+                assessment_id="test",
+                sections=[BatchSuggestSection(id="s1", items=[BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="?")])],
+                items=[BatchSuggestItem(id="q2", type=QuestionType.OPEN_ENDED, prompt="?")],
+            )
+
+    def test_neither_sections_nor_items_raises(self):
+        with pytest.raises(ValueError, match="either"):
+            BatchSuggestRequest(assessment_id="test")
+
+    def test_optional_context(self):
+        req = BatchSuggestRequest(
+            assessment_id="test",
+            context="GDPR questionnaire",
+            items=[BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="What?")]
+        )
+        assert req.context == "GDPR questionnaire"
+
+    def test_optional_section_title(self):
+        section = BatchSuggestSection(
+            id="s1",
+            items=[BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="What?")]
+        )
+        assert section.title is None
+
+
+# ---------------------------------------------------------------------------
+# Normalization
+# ---------------------------------------------------------------------------
+
+class TestNormalizeToSections:
+    def test_sections_returned_as_is(self):
+        section = BatchSuggestSection(
+            id="s1",
+            title="Data",
+            items=[BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="What?")]
+        )
+        req = BatchSuggestRequest(assessment_id="a", sections=[section])
+        result = normalize_to_sections(req)
+        assert len(result) == 1
+        assert result[0].id == "s1"
+
+    def test_flat_items_wrapped_in_implicit_section(self):
+        req = BatchSuggestRequest(
+            assessment_id="a",
+            items=[
+                BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="A?"),
+                BatchSuggestItem(id="q2", type=QuestionType.OPEN_ENDED, prompt="B?"),
+            ]
+        )
+        result = normalize_to_sections(req)
+        assert len(result) == 1
+        assert result[0].id == "_implicit"
+        assert result[0].title is None
+        assert len(result[0].items) == 2
+
+    def test_multiple_sections_preserved(self):
+        req = BatchSuggestRequest(
+            assessment_id="a",
+            sections=[
+                BatchSuggestSection(id="s1", items=[BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="A?")]),
+                BatchSuggestSection(id="s2", items=[BatchSuggestItem(id="q2", type=QuestionType.OPEN_ENDED, prompt="B?")]),
+            ]
+        )
+        result = normalize_to_sections(req)
+        assert len(result) == 2
+
+
+# ---------------------------------------------------------------------------
+# RAGPipeline._parse_structured_response
+# ---------------------------------------------------------------------------
+
+class TestParseStructuredResponse:
+    @pytest.fixture
+    def pipeline(self, tmp_path):
+        from unittest.mock import MagicMock
+        from m_shared.session.manager import SessionManager
+        manager = SessionManager(base_path=str(tmp_path))
+        llm = MagicMock()
+        llm.model_name = "test-model"
+        llm.temperature = 0.4
+        return RAGPipeline(session_manager=manager, llm_client=llm)
+
+    def test_parses_answer_and_reasoning(self, pipeline):
+        raw = "ANSWER: Yes, we comply.\nREASONING: The policy document clearly states compliance."
+        answer, reasoning = pipeline._parse_structured_response(raw)
+        assert answer == "Yes, we comply."
+        assert reasoning == "The policy document clearly states compliance."
+
+    def test_blank_reasoning_returns_none(self, pipeline):
+        raw = "ANSWER: We retain data for 3 years.\nREASONING:"
+        answer, reasoning = pipeline._parse_structured_response(raw)
+        assert answer == "We retain data for 3 years."
+        assert reasoning is None
+
+    def test_missing_reasoning_returns_none(self, pipeline):
+        raw = "ANSWER: Partial compliance."
+        answer, reasoning = pipeline._parse_structured_response(raw)
+        assert answer == "Partial compliance."
+        assert reasoning is None
+
+    def test_fallback_when_no_answer_prefix(self, pipeline):
+        raw = "Some unstructured response."
+        answer, reasoning = pipeline._parse_structured_response(raw)
+        assert answer == "Some unstructured response."
+        assert reasoning is None
+
+
+# ---------------------------------------------------------------------------
+# RAGPipeline._parse_selected_id
+# ---------------------------------------------------------------------------
+
+class TestParseSelectedId:
+    @pytest.fixture
+    def pipeline(self, tmp_path):
+        from unittest.mock import MagicMock
+        from m_shared.session.manager import SessionManager
+        manager = SessionManager(base_path=str(tmp_path))
+        llm = MagicMock()
+        llm.model_name = "test-model"
+        llm.temperature = 0.4
+        return RAGPipeline(session_manager=manager, llm_client=llm)
+
+    @pytest.fixture
+    def choices(self):
+        return [BatchChoice(id="yes", label="Yes"), BatchChoice(id="no", label="No"), BatchChoice(id="partial", label="Partially")]
+
+    def test_single_choice_valid_id(self, pipeline, choices):
+        raw = "ANSWER: Yes.\nSELECTED: yes\nREASONING:"
+        selected_id, selected_ids = pipeline._parse_selected_id(raw, choices, multi=False)
+        assert selected_id == "yes"
+        assert selected_ids is None
+
+    def test_single_choice_none(self, pipeline, choices):
+        raw = "ANSWER: Unclear.\nSELECTED: NONE\nREASONING: Ambiguous."
+        selected_id, selected_ids = pipeline._parse_selected_id(raw, choices, multi=False)
+        assert selected_id is None
+
+    def test_single_choice_invalid_id_falls_back_to_none(self, pipeline, choices):
+        raw = "ANSWER: Maybe.\nSELECTED: maybe\nREASONING:"
+        selected_id, selected_ids = pipeline._parse_selected_id(raw, choices, multi=False)
+        assert selected_id is None
+
+    def test_multi_choice_valid_ids(self, pipeline, choices):
+        raw = "ANSWER: Yes and partial.\nSELECTED: yes, partial\nREASONING:"
+        selected_id, selected_ids = pipeline._parse_selected_id(raw, choices, multi=True)
+        assert selected_id is None
+        assert set(selected_ids) == {"yes", "partial"}
+
+    def test_multi_choice_none(self, pipeline, choices):
+        raw = "ANSWER: Unknown.\nSELECTED: NONE\nREASONING: No evidence."
+        selected_id, selected_ids = pipeline._parse_selected_id(raw, choices, multi=True)
+        assert selected_ids is None

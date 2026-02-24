@@ -15,6 +15,7 @@ from m_shared.auth.jwt_handler import create_token
 from m_autofill.validation import validate_file_upload, FileValidationError
 from m_autofill.ingest import ingest_files_into_store
 from m_autofill.rag_pipeline import RAGPipeline
+from m_autofill.models import BatchSuggestRequest, BatchSuggestResponse, CitationResult, ItemSuggestion, normalize_to_sections
 
 
 # Request models
@@ -46,6 +47,7 @@ class CitationResponse(BaseModel):
 class SuggestResponse(BaseModel):
     """Answer suggestion response."""
     answer: str
+    reasoning: Optional[str] = Field(None, description="LLM explanation of confidence, source interpretation, or uncertainty")
     citations: list[CitationResponse]
     metadata: dict
 
@@ -376,6 +378,7 @@ def create_app(
             
             return SuggestResponse(
                 answer=result["answer"],
+                reasoning=result.get("reasoning"),
                 citations=citations,
                 metadata=result.get("metadata", {}),
             )
@@ -391,6 +394,81 @@ def create_app(
                 detail=f"Suggestion failed: {e}"
             )
     
+    @app.post("/suggest/batch", response_model=BatchSuggestResponse)
+    async def suggest_answer_batch(
+        request: Request,
+        batch_request: BatchSuggestRequest,
+    ):
+        """Generate answer suggestions for multiple questionnaire items.
+
+        Accepts a QTI-inspired JSON payload with sections (grouped) or a flat
+        item list. Items within the same section share context, improving
+        suggestion quality for related questions.
+
+        Session is automatically identified from JWT token via middleware.
+
+        Args:
+            batch_request: Assessment payload with sections or items
+
+        Returns:
+            Structured suggestions per item with citations and reasoning
+
+        Raises:
+            HTTPException: 404 if session not found, 500 if LLM error
+        """
+        if not rag_pipeline:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="RAG pipeline not initialized (LLM client missing)",
+            )
+
+        session = request.state.session
+        claims = request.state.claims
+
+        try:
+            sections = normalize_to_sections(batch_request)
+            raw_responses = rag_pipeline.suggest_batch(
+                sections=sections,
+                session_id=session.session_id,
+                assessment_id=batch_request.assessment_id,
+                user_id=claims.get("user_id"),
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Batch suggestion failed: {e}",
+            )
+
+        responses = []
+        for r in raw_responses:
+            citations = [
+                CitationResult(
+                    source=c.source_id,
+                    excerpt=c.highlights[0] if c.highlights else "",
+                    position=c.position_percentage or 0.0,
+                )
+                for c in r["citations"]
+            ]
+            responses.append(ItemSuggestion(
+                item_id=r["item_id"],
+                type=r["type"],
+                suggestion=r["suggestion"],
+                selected_id=r.get("selected_id"),
+                selected_ids=r.get("selected_ids"),
+                reasoning=r.get("reasoning"),
+                citations=citations,
+            ))
+
+        return BatchSuggestResponse(
+            assessment_id=batch_request.assessment_id,
+            session_id=session.session_id,
+            generated_at=datetime.now(timezone.utc).isoformat(),
+            model=rag_pipeline.llm_client.model_name,
+            responses=responses,
+        )
+
     @app.get("/audit-report")
     async def get_audit_report(
         request: Request,

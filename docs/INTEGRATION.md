@@ -11,7 +11,6 @@ This guide explains how to integrate M-Autofill with institutional authenticatio
 - [Session Lifecycle](#session-lifecycle)
 - [API Endpoints](#api-endpoints)
 - [Troubleshooting](#troubleshooting)
-
 ---
 
 ## Authentication Model
@@ -285,6 +284,15 @@ sessions/
 
 All endpoints except `/`, `/health`, `/privacy`, and `/dev/token` require authentication.
 
+| Endpoint | Method | Description |
+|---|---|---|
+| `/upload` | POST | Upload evidence document (PDF, DOCX, TXT, MD) |
+| `/suggest` | POST | Single-question answer suggestion with citations and reasoning |
+| `/suggest/batch` | POST | Multi-question batch suggestions from QTI-inspired JSON payload |
+| `/session/stats` | GET | Session TTL, document count, isolation info |
+| `/audit-report` | GET | Full session audit trail (JSON or plaintext) |
+| `/session` | DELETE | Delete session and all associated data immediately |
+
 #### Upload Document
 
 ```bash
@@ -307,6 +315,131 @@ Content-Type: application/json
   "context": "As of 2024"
 }
 ```
+
+**Response:**
+
+```json
+{
+  "answer": "Based on your contract, you are employed full-time as a Senior Researcher.",
+  "reasoning": "The employment contract clearly states the position and contract type. No ambiguity found.",
+  "citations": [
+    {
+      "source": "employment_contract.pdf",
+      "excerpt": "Employee is engaged on a full-time permanent basis as Senior Researcher.",
+      "position": "23.0%",
+      "position_range": { "start_percentage": 0.21, "end_percentage": 0.25 },
+      "timestamp": "2026-02-24T10:00:00Z"
+    }
+  ],
+  "metadata": { "num_chunks": 3, "temperature": 0.4 }
+}
+```
+
+> **`reasoning`**: Optional field — the LLM explains its confidence, how it interpreted the sources, or why it is uncertain. Present on all suggest responses; `null` when the answer is straightforward.
+
+#### Get Batch Answer Suggestions
+
+Submit multiple related questions in one request. Questions grouped in the same section share context, improving suggestion quality.
+
+```bash
+POST /suggest/batch
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "assessment_id": "gdpr-survey-2026",
+  "context": "Annual GDPR compliance questionnaire for EU research institutions",
+  "sections": [
+    {
+      "id": "sec-retention",
+      "title": "Data Retention",
+      "items": [
+        {
+          "id": "q1",
+          "type": "open_ended",
+          "prompt": "Describe your organisation's data retention policy for personal data."
+        },
+        {
+          "id": "q2",
+          "type": "single_choice",
+          "prompt": "Do you conduct annual GDPR compliance audits?",
+          "choices": [
+            { "id": "yes",     "label": "Yes"       },
+            { "id": "no",      "label": "No"        },
+            { "id": "partial", "label": "Partially" }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+A flat `items` list (no `sections`) is also accepted — items are treated as a single implicit section:
+
+```json
+{
+  "assessment_id": "quick-check",
+  "items": [
+    { "id": "q1", "type": "open_ended", "prompt": "What is your data retention period?" }
+  ]
+}
+```
+
+**Response:**
+
+```json
+{
+  "assessment_id": "gdpr-survey-2026",
+  "session_id": "sess_abc123",
+  "generated_at": "2026-02-24T10:00:00Z",
+  "model": "anthropic/claude-haiku-4.5",
+  "responses": [
+    {
+      "item_id": "q1",
+      "type": "open_ended",
+      "suggestion": "Personal data is retained for 36 months following contract termination, then securely deleted.",
+      "selected_id": null,
+      "selected_ids": null,
+      "reasoning": null,
+      "citations": [
+        {
+          "source": "data_policy_2024.pdf",
+          "excerpt": "Personal data shall be retained for no longer than 36 months from contract termination.",
+          "position": 0.23
+        }
+      ]
+    },
+    {
+      "item_id": "q2",
+      "type": "single_choice",
+      "suggestion": "Partially",
+      "selected_id": "partial",
+      "selected_ids": null,
+      "reasoning": "The documents mention an internal privacy review but do not confirm a formal annual audit.",
+      "citations": [
+        {
+          "source": "annual_report_2025.pdf",
+          "excerpt": "An internal privacy review was completed in Q3 2025.",
+          "position": 0.67
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Response field reference:**
+
+| Field | Type | Notes |
+|---|---|---|
+| `suggestion` | string | Human-readable answer, always present, safe to display |
+| `selected_id` | string \| null | Matched choice id for `single_choice`; null if uncertain |
+| `selected_ids` | list \| null | Matched choice ids for `multiple_choice`; null if uncertain |
+| `reasoning` | string \| null | LLM explanation of confidence or uncertainty; null if straightforward |
+| `citations[].position` | float | Normalised document position (0.0–1.0) |
+
+> **Input format** is inspired by [QTI 3.0](https://www.imsglobal.org/spec/qti/v3p0/impl) (IMS Global). Supported types: `open_ended`, `single_choice`, `multiple_choice`, `ranking`, `slider`. See `openspec/specs/interchange-formats/` for full standards alignment documentation.
 
 #### Get Session Statistics
 
@@ -465,5 +598,5 @@ These features will be added in Phase 5 (May 2026) based on pilot feedback.
 
 ---
 
-**Last Updated**: January 2026  
-**Version**: 0.1.0 (Pilot Phase)
+**Last Updated**: February 2026  
+**Version**: 0.2.0 (Batch Suggest + Reasoning)

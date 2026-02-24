@@ -13,6 +13,7 @@ from typing import Optional
 
 from m_shared.llm import LLMClient
 from m_shared.models.citation import Citation
+from m_shared.models.question import QuestionType
 from m_shared.session import SessionManager
 from m_shared.vectordb import ChromaDocumentStore
 from m_shared.utils import AuditLogger
@@ -186,6 +187,146 @@ Answer:"""
         except Exception as e:
             raise RuntimeError(f"LLM generation failed: {str(e)}") from e
     
+    def _generate_answer_with_reasoning(
+        self,
+        question: str,
+        retrieved_chunks: list[dict],
+        temperature: Optional[float] = None,
+        section_context: Optional[str] = None,
+        sibling_prompts: Optional[list[str]] = None,
+        choices: Optional[list] = None,
+        question_type: Optional[str] = None,
+    ) -> tuple[str, Optional[str]]:
+        """Generate answer and reasoning from retrieved chunks using LLM.
+
+        Uses a structured ANSWER/REASONING prompt so both fields are returned
+        in a single LLM call. For choice questions also returns SELECTED.
+
+        Args:
+            question: User's question
+            retrieved_chunks: Retrieved chunks from semantic search
+            temperature: LLM temperature
+            section_context: Optional section title for additional context
+            sibling_prompts: Other question prompts in same section
+            choices: List of BatchChoice objects for choice-type questions
+            question_type: QuestionType value string
+
+        Returns:
+            Tuple of (answer, reasoning) — reasoning is None if not needed
+        """
+        # Build context from chunks
+        context_parts = []
+        for i, chunk in enumerate(retrieved_chunks, 1):
+            source = chunk.get("metadata", {}).get("source", "Unknown")
+            text = chunk.get("document", "")
+            context_parts.append(f"[{i}] From {source}:\n{text}\n")
+        context = "\n".join(context_parts)
+
+        # Build section/sibling context block
+        extra_context = ""
+        if section_context:
+            extra_context += f"SECTION: {section_context}\n"
+        if sibling_prompts:
+            related = "\n".join(f"- {p}" for p in sibling_prompts)
+            extra_context += f"RELATED QUESTIONS IN THIS SECTION:\n{related}\n"
+
+        # Build choice block for choice-type questions
+        choice_block = ""
+        if choices:
+            choice_lines = "\n".join(f"- {c.id}: {c.label}" for c in choices)
+            choice_block = f"\nAVAILABLE CHOICES:\n{choice_lines}\n"
+            selected_instruction = (
+                "SELECTED: <choice id from the list above, or NONE if you cannot determine>\n"
+            )
+        else:
+            selected_instruction = ""
+
+        prompt = f"""You are helping a respondent answer a survey question based on their uploaded documents.
+{extra_context}
+QUESTION: {question}{choice_block}
+DOCUMENT EXCERPTS:
+{context}
+
+Instructions:
+- Answer directly and concisely (max 3-4 sentences)
+- Only use information from the provided excerpts
+- If evidence is ambiguous or missing, say so in REASONING
+
+Respond in exactly this format:
+ANSWER: <your answer>
+{selected_instruction}REASONING: <brief explanation of confidence, source interpretation, or uncertainty — leave blank if answer is straightforward>"""
+
+        temperature = temperature or self.default_temperature
+        original_temp = self.llm_client.temperature
+        self.llm_client.temperature = temperature
+
+        try:
+            messages = [{"role": "user", "content": prompt}]
+            raw = self.llm_client.create_completion(messages=messages, max_tokens=self.max_tokens)
+        finally:
+            self.llm_client.temperature = original_temp
+
+        if not raw or not raw.strip():
+            raise RuntimeError("LLM returned empty response")
+
+        return self._parse_structured_response(raw.strip())
+
+    def _parse_structured_response(self, raw: str) -> tuple[str, Optional[str]]:
+        """Parse ANSWER/REASONING from structured LLM output.
+
+        Args:
+            raw: Raw LLM output string
+
+        Returns:
+            Tuple of (answer, reasoning) — reasoning is None if blank
+        """
+        answer = ""
+        reasoning = None
+
+        for line in raw.splitlines():
+            if line.startswith("ANSWER:"):
+                answer = line[len("ANSWER:"):].strip()
+            elif line.startswith("REASONING:"):
+                value = line[len("REASONING:"):].strip()
+                if value:
+                    reasoning = value
+
+        # Fallback: use full response as answer if parsing failed
+        if not answer:
+            answer = raw
+
+        return answer, reasoning
+
+    def _parse_selected_id(self, raw: str, choices: list, multi: bool) -> tuple[Optional[str], Optional[list[str]]]:
+        """Extract and validate SELECTED field from structured LLM output.
+
+        Args:
+            raw: Raw LLM output string
+            choices: List of BatchChoice objects to validate against
+            multi: True for multiple_choice, False for single_choice
+
+        Returns:
+            Tuple of (selected_id, selected_ids) — only one is set based on multi
+        """
+        valid_ids = {c.id for c in choices}
+        selected_line = ""
+
+        for line in raw.splitlines():
+            if line.startswith("SELECTED:"):
+                selected_line = line[len("SELECTED:"):].strip()
+                break
+
+        if not selected_line or selected_line.upper() == "NONE":
+            return (None, None) if not multi else (None, None)
+
+        if multi:
+            # Comma-separated or space-separated ids
+            candidates = [s.strip().strip(",") for s in selected_line.replace(",", " ").split()]
+            matched = [s for s in candidates if s in valid_ids]
+            return None, matched if matched else None
+        else:
+            return (selected_line if selected_line in valid_ids else None), None
+    
     def format_citations(
         self,
         retrieved_chunks: list[dict],
@@ -352,9 +493,9 @@ Answer:"""
                 },
             }
         
-        # Step 2: Generate answer
+        # Step 2: Generate answer with reasoning
         try:
-            answer = self.generate_answer(question, chunks, temperature=temperature)
+            answer, reasoning = self._generate_answer_with_reasoning(question, chunks, temperature=temperature)
         except Exception as e:
             raise RuntimeError(f"Answer generation failed: {str(e)}") from e
         
@@ -380,6 +521,7 @@ Answer:"""
         # Return structured result
         return {
             "answer": answer,
+            "reasoning": reasoning,
             "citations": citations,
             "metadata": {
                 "session_id": session_id,
@@ -389,3 +531,110 @@ Answer:"""
                 "top_k": top_k or self.default_top_k,
             },
         }
+
+    def suggest_batch(
+        self,
+        sections: list,
+        session_id: str,
+        assessment_id: str,
+        user_id: Optional[str] = None,
+    ) -> list[dict]:
+        """Generate answer suggestions for multiple questionnaire items.
+
+        Processes items section by section, injecting sibling question prompts
+        as context so the LLM can reason across related questions.
+
+        Args:
+            sections: Normalized list of BatchSuggestSection objects
+            session_id: Session identifier
+            assessment_id: Assessment identifier for audit logging
+            user_id: Optional user ID for audit logging
+
+        Returns:
+            List of suggestion dicts, one per item, in input order
+
+        Raises:
+            ValueError: If session not found
+        """
+        if not session_id:
+            raise ValueError("Session ID is required")
+
+        responses = []
+
+        for section in sections:
+            sibling_prompts = [item.prompt for item in section.items]
+
+            for item in section.items:
+                # Sibling context excludes the current item's own prompt
+                context_prompts = [p for p in sibling_prompts if p != item.prompt]
+
+                chunks = self.retrieve(item.prompt, session_id)
+
+                if not chunks:
+                    responses.append({
+                        "item_id": item.id,
+                        "type": item.type.value,
+                        "suggestion": "No relevant information found in your documents for this question.",
+                        "selected_id": None,
+                        "selected_ids": None,
+                        "reasoning": "No document chunks matched this question. Please answer manually.",
+                        "citations": [],
+                    })
+                    continue
+
+                is_choice = item.type in (QuestionType.SINGLE_CHOICE, QuestionType.MULTIPLE_CHOICE)
+                is_multi = item.type == QuestionType.MULTIPLE_CHOICE
+                choices = item.choices if is_choice else None
+
+                try:
+                    answer, reasoning = self._generate_answer_with_reasoning(
+                        question=item.prompt,
+                        retrieved_chunks=chunks,
+                        section_context=section.title,
+                        sibling_prompts=context_prompts,
+                        choices=choices,
+                        question_type=item.type.value,
+                    )
+                except RuntimeError as e:
+                    responses.append({
+                        "item_id": item.id,
+                        "type": item.type.value,
+                        "suggestion": "Generation failed.",
+                        "selected_id": None,
+                        "selected_ids": None,
+                        "reasoning": str(e),
+                        "citations": [],
+                    })
+                    continue
+
+                # Parse choice selection from the raw LLM output (re-generate if needed)
+                selected_id, selected_ids = None, None
+                if is_choice:
+                    # Re-retrieve raw output via structured response — use reasoning call's raw
+                    # We call _parse_selected_id on the answer as fallback text
+                    selected_id, selected_ids = self._parse_selected_id(answer, item.choices, multi=is_multi)
+
+                citations = self.format_citations(chunks, item.prompt, answer)
+
+                if self.audit_logger:
+                    self.audit_logger.log_suggestion(
+                        session_id=session_id,
+                        question=item.prompt,
+                        suggested_answer=answer,
+                        sources_used=[c.source_id for c in citations],
+                        model=self.llm_client.model_name,
+                        user_id=user_id,
+                        question_id=item.id,
+                    )
+
+                responses.append({
+                    "item_id": item.id,
+                    "type": item.type.value,
+                    "suggestion": answer,
+                    "selected_id": selected_id,
+                    "selected_ids": selected_ids,
+                    "reasoning": reasoning,
+                    "citations": citations,
+                })
+
+        return responses
