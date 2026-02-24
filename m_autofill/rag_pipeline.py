@@ -64,42 +64,49 @@ class RAGPipeline:
         question: str,
         session_id: str,
         top_k: Optional[int] = None,
+        filters: Optional[dict] = None,
     ) -> list[dict]:
         """Retrieve relevant document chunks via semantic search.
-        
+
         Args:
             question: User's question to search for
             session_id: Session identifier for isolated retrieval
             top_k: Number of chunks to retrieve (defaults to pipeline default)
-            
+            filters: Optional metadata filters passed to ``query_with_filter``.
+                Supported keys:
+                - ``source``: str or list[str] — restrict to specific document(s)
+                - ``ingested_at``: ChromaDB where-clause dict for time-range filtering,
+                  e.g. ``{"$gte": "2026-01-01T00:00:00"}``
+
         Returns:
             List of retrieved chunks with metadata:
                 - id: Chunk identifier
                 - document: Chunk text content
-                - metadata: Dict with source, chunk_index, position, timestamp, etc.
+                - metadata: Dict with source, chunk_index, ingested_at, etc.
                 - distance: Semantic similarity distance
-                
+
         Raises:
             ValueError: If question is empty or session not found
-            
+
         Examples:
             >>> chunks = pipeline.retrieve("What is my job title?", "session_123")
-            >>> print(chunks[0]["metadata"]["source"])
-            'employment_contract.pdf'
+            >>> chunks = pipeline.retrieve(
+            ...     "What is my salary?", "session_123",
+            ...     filters={"source": "contract.pdf"},
+            ... )
         """
         if not question or not question.strip():
             raise ValueError("Question cannot be empty")
-        
-        # Get session's vector store
+
         store = self.session_manager.get_vector_store(session_id)
         if store is None:
             raise ValueError(f"Session not found or expired: {session_id}")
-        
-        # Perform semantic search
+
         top_k = top_k or self.default_top_k
-        results = store.query(query_text=question, n_results=top_k)
-        
-        return results
+
+        if filters:
+            return store.query_with_filter(query_text=question, filters=filters, n_results=top_k)
+        return store.query(query_text=question, n_results=top_k)
     
     def generate_answer(
         self,

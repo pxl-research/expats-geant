@@ -9,6 +9,7 @@ then stores chunks in Chroma.
 from __future__ import annotations
 
 import os
+from datetime import datetime
 from typing import Iterable, Optional
 
 from tqdm import tqdm
@@ -56,11 +57,13 @@ def ingest_files_into_store(
 
         md_text = document_to_markdown(file_path)
         chunks = iterative_chunking(md_text, max_size=max_chunk_size)
+        ingested_at = datetime.utcnow().timestamp()  # Unix timestamp for ChromaDB range filtering
         meta_info = [
             {
                 "source": file_path,
                 "id": f"chunk_{i}",
                 "chunk_index": i,
+                "ingested_at": ingested_at,
             }
             for i in range(len(chunks))
         ]
