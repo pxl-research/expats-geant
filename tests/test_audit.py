@@ -470,6 +470,71 @@ class TestAuditReport:
         """Test checking claimed status for nonexistent session."""
         assert not logger.is_claimed("nonexistent_session")
 
+    def test_delete_report_removes_audit_log(self, logger):
+        """delete_report() removes audit_log.json."""
+        logger.log_upload(session_id="sess_123", filename="doc.pdf", file_size=1000, file_type=".pdf")
+        log_path = logger._get_audit_log_path("sess_123")
+        assert log_path.exists()
+
+        logger.delete_report("sess_123")
+
+        assert not log_path.exists()
+
+    def test_delete_report_removes_claimed_marker(self, logger):
+        """delete_report() also removes report_claimed.json."""
+        logger.log_upload(session_id="sess_123", filename="doc.pdf", file_size=1000, file_type=".pdf")
+        logger.mark_claimed("sess_123")
+        assert logger.is_claimed("sess_123")
+
+        logger.delete_report("sess_123")
+
+        assert not logger.is_claimed("sess_123")
+
+    def test_delete_report_writes_tombstone(self, logger, temp_dir):
+        """delete_report() writes report_deleted.json tombstone."""
+        logger.log_upload(session_id="sess_123", filename="doc.pdf", file_size=1000, file_type=".pdf")
+
+        logger.delete_report("sess_123")
+
+        tombstone_path = Path(temp_dir) / "sess_123" / "report_deleted.json"
+        assert tombstone_path.exists()
+        data = json.loads(tombstone_path.read_text())
+        assert data["session_id"] == "sess_123"
+        assert "deleted_at" in data
+
+    def test_delete_report_tombstone_contains_no_personal_data(self, logger, temp_dir):
+        """Tombstone must not contain audit entries or user content."""
+        logger.log_suggestion(
+            session_id="sess_123",
+            question="What is my salary?",
+            suggested_answer="€50,000",
+            sources_used=["contract.pdf"],
+            model="test-model",
+        )
+
+        logger.delete_report("sess_123")
+
+        tombstone_path = Path(temp_dir) / "sess_123" / "report_deleted.json"
+        tombstone_text = tombstone_path.read_text()
+        assert "salary" not in tombstone_text
+        assert "50,000" not in tombstone_text
+        assert "contract.pdf" not in tombstone_text
+
+    def test_is_deleted_false_by_default(self, logger):
+        """is_deleted() returns False when no deletion has occurred."""
+        assert not logger.is_deleted("sess_123")
+
+    def test_is_deleted_true_after_delete_report(self, logger):
+        """is_deleted() returns True after delete_report() is called."""
+        logger.log_upload(session_id="sess_123", filename="doc.pdf", file_size=1000, file_type=".pdf")
+        logger.delete_report("sess_123")
+        assert logger.is_deleted("sess_123")
+
+    def test_delete_report_idempotent_when_no_log(self, logger):
+        """delete_report() is safe to call even when no audit log exists."""
+        logger.delete_report("sess_no_log")
+        assert logger.is_deleted("sess_no_log")
+
 
 class TestAuditReportModel:
     """Tests for AuditReport Pydantic model."""

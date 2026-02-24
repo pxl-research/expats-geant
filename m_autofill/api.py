@@ -71,6 +71,13 @@ class SessionDeleteResponse(BaseModel):
     message: str
 
 
+class AuditDeleteResponse(BaseModel):
+    """Audit report deletion response."""
+    session_id: str
+    deleted: bool
+    message: str
+
+
 class DevTokenRequest(BaseModel):
     """Request for development token generation."""
     user_id: str = Field(default="dev_user", description="User ID for token")
@@ -497,7 +504,13 @@ def create_app(
             )
         
         session = request.state.session
-        
+
+        if audit_logger.is_deleted(session.session_id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Audit report has been deleted (erasure request honoured)"
+            )
+
         try:
             report = audit_logger.generate_report(session.session_id)
             
@@ -539,6 +552,39 @@ DOCUMENTS UPLOADED ({report['summary']['total_documents']}):
                 detail=f"Report generation failed: {e}"
             )
     
+    @app.delete("/audit-report", response_model=AuditDeleteResponse)
+    async def delete_audit_report(request: Request):
+        """Delete the session audit report (GDPR Right to Erasure).
+
+        Permanently removes the audit log for this session. A tombstone is
+        written recording the deletion timestamp, but contains no personal data.
+
+        If the session remains active after deletion, a new audit log will be
+        created by subsequent activity. This is intentional.
+
+        Session is automatically identified from JWT token via middleware.
+
+        Returns:
+            Confirmation of deletion
+
+        Raises:
+            HTTPException: 500 if audit logging not enabled
+        """
+        if not audit_logger:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Audit logging not enabled"
+            )
+
+        session = request.state.session
+        audit_logger.delete_report(session.session_id)
+
+        return AuditDeleteResponse(
+            session_id=session.session_id,
+            deleted=True,
+            message="Audit report deleted. No personal data is retained."
+        )
+
     @app.get("/privacy", response_class=PlainTextResponse)
     async def get_privacy_statement():
         """Return privacy and GDPR disclosure statement.

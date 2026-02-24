@@ -488,9 +488,82 @@ class TestAuditReportEndpoint:
             assert response.status_code in [200, 500]
 
 
+class TestAuditReportDeletion:
+    """Tests for DELETE /audit-report endpoint (GDPR RTBF)."""
+
+    @pytest.fixture
+    def app_with_audit(self, session_manager):
+        from m_shared.utils.audit import AuditLogger
+        from m_autofill.api import create_app
+        from m_shared.auth.middleware import SessionMiddleware
+
+        audit_logger = AuditLogger(base_path=str(session_manager.base_path))
+        app = create_app(session_manager=session_manager, audit_logger=audit_logger)
+        app.add_middleware(SessionMiddleware, session_manager=session_manager, ttl_hours=24)
+        return app
+
+    @pytest.fixture
+    def client_with_audit(self, app_with_audit):
+        return TestClient(app_with_audit, raise_server_exceptions=False)
+
+    def test_delete_audit_report_requires_auth(self, client_with_audit):
+        """DELETE /audit-report without auth should fail."""
+        response = client_with_audit.delete("/audit-report")
+        assert response.status_code == 401
+
+    def test_delete_audit_report_returns_200(self, client_with_audit, valid_token):
+        """DELETE /audit-report returns success response."""
+        # Ensure session exists first
+        client_with_audit.get(
+            "/session/stats",
+            headers={"Authorization": f"Bearer {valid_token}"}
+        )
+
+        response = client_with_audit.delete(
+            "/audit-report",
+            headers={"Authorization": f"Bearer {valid_token}"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["deleted"] is True
+        assert "session_id" in data
+
+    def test_get_audit_report_after_delete_returns_404(self, client_with_audit, valid_token):
+        """GET /audit-report returns 404 after RTBF deletion."""
+        # Ensure session exists
+        client_with_audit.get(
+            "/session/stats",
+            headers={"Authorization": f"Bearer {valid_token}"}
+        )
+
+        # Delete the audit report
+        client_with_audit.delete(
+            "/audit-report",
+            headers={"Authorization": f"Bearer {valid_token}"}
+        )
+
+        # Subsequent GET should return 404
+        response = client_with_audit.get(
+            "/audit-report",
+            headers={"Authorization": f"Bearer {valid_token}"}
+        )
+        assert response.status_code == 404
+
+    def test_delete_audit_report_idempotent(self, client_with_audit, valid_token):
+        """DELETE /audit-report can be called twice without error."""
+        client_with_audit.get(
+            "/session/stats",
+            headers={"Authorization": f"Bearer {valid_token}"}
+        )
+
+        client_with_audit.delete("/audit-report", headers={"Authorization": f"Bearer {valid_token}"})
+        response = client_with_audit.delete("/audit-report", headers={"Authorization": f"Bearer {valid_token}"})
+        assert response.status_code == 200
+
+
 class TestPrivacyEndpoint:
     """Tests for GET /privacy endpoint."""
-    
+
     def test_privacy_statement_public(self, client):
         """Privacy statement should be public."""
         response = client.get("/privacy")

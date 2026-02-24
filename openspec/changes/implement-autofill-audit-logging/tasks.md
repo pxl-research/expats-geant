@@ -66,10 +66,10 @@
   - [x] 4.2c Log cleanup actions (what was deleted, when)
   - [x] 4.2c Note: Scheduled background job deferred; manual cleanup sufficient for MVP
 
-- [ ] 4.3 Implement Right to Be Forgotten (RTBF) support
-  - [ ] 4.3a Allow explicit user request to delete audit report immediately
-  - [ ] 4.3b Log deletion action for compliance
-  - [ ] 4.3c Note: API endpoint in phase 3.3
+- [x] 4.3 Implement Right to Be Forgotten (RTBF) support
+  - [x] 4.3a Allow explicit user request to delete audit report immediately
+  - [x] 4.3b Log deletion action for compliance (tombstone with session_id + timestamp, no personal data)
+  - [x] 4.3c Note: API endpoint in phase 3.3
 
 ## 5. Consent & Privacy Capture
 
@@ -106,7 +106,7 @@
 
   - [x] 6.3a Test TTL calculation (1 year from session end)
   - [x] 6.3b Test cleanup: delete unclaimed reports past TTL
-  - [ ] 6.3c Test RTBF: immediate deletion on user request
+  - [x] 6.3c Test RTBF: immediate deletion on user request
   - [x] 6.3d Test edge cases (claimed reports not deleted, future reports retained)
 
 - [x] 6.4 Unit tests for consent capture
