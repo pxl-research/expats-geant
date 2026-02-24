@@ -154,6 +154,20 @@ class TestParseStructuredResponse:
         assert answer == "Partial compliance."
         assert reasoning is None
 
+    def test_multiline_answer_preserved(self, pipeline):
+        raw = "ANSWER: We retain data for 5 years after project completion,\nconsistent with our research data management policy.\nREASONING: Policy document section 3 states this clearly."
+        answer, reasoning, selected_raw = pipeline._parse_structured_response(raw)
+        assert "5 years" in answer
+        assert "consistent with our research" in answer
+        assert reasoning == "Policy document section 3 states this clearly."
+
+    def test_multiline_reasoning_preserved(self, pipeline):
+        raw = "ANSWER: Yes.\nREASONING: The evidence is strong.\nMultiple sources confirm this."
+        answer, reasoning, selected_raw = pipeline._parse_structured_response(raw)
+        assert answer == "Yes."
+        assert "The evidence is strong." in reasoning
+        assert "Multiple sources confirm this." in reasoning
+
     def test_fallback_when_no_answer_prefix(self, pipeline):
         raw = "Some unstructured response."
         answer, reasoning, selected_raw = pipeline._parse_structured_response(raw)

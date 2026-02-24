@@ -281,6 +281,10 @@ ANSWER: <your answer>
     def _parse_structured_response(self, raw: str) -> tuple[str, Optional[str], Optional[str]]:
         """Parse ANSWER/SELECTED/REASONING from structured LLM output.
 
+        Collects all lines belonging to each block, so multi-line answers and
+        reasoning are preserved. A new block starts when a line begins with a
+        known prefix (ANSWER:, SELECTED:, REASONING:).
+
         Args:
             raw: Raw LLM output string
 
@@ -289,25 +293,30 @@ ANSWER: <your answer>
             are None if absent or blank. selected_raw is the bare value after
             SELECTED: before any choice validation.
         """
-        answer = ""
-        reasoning = None
-        selected_raw = None
+        PREFIXES = ("ANSWER:", "SELECTED:", "REASONING:")
+
+        blocks: dict[str, list[str]] = {}
+        current_key: Optional[str] = None
 
         for line in raw.splitlines():
-            if line.startswith("ANSWER:"):
-                answer = line[len("ANSWER:"):].strip()
-            elif line.startswith("SELECTED:"):
-                value = line[len("SELECTED:"):].strip()
-                if value and value.upper() != "NONE":
-                    selected_raw = value
-            elif line.startswith("REASONING:"):
-                value = line[len("REASONING:"):].strip()
-                if value:
-                    reasoning = value
+            matched = next((p for p in PREFIXES if line.startswith(p)), None)
+            if matched:
+                current_key = matched.rstrip(":")
+                blocks[current_key] = [line[len(matched):].strip()]
+            elif current_key is not None:
+                blocks[current_key].append(line)
 
-        # Fallback: use full response as answer if parsing failed
-        if not answer:
-            answer = raw
+        def get_block(key: str) -> Optional[str]:
+            lines = blocks.get(key, [])
+            value = "\n".join(lines).strip()
+            return value if value else None
+
+        answer = get_block("ANSWER") or raw
+        reasoning = get_block("REASONING")
+
+        selected_raw = get_block("SELECTED")
+        if selected_raw and selected_raw.upper() == "NONE":
+            selected_raw = None
 
         return answer, reasoning, selected_raw
 
