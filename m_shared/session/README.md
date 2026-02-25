@@ -93,7 +93,7 @@ print(f"TTL remaining: {stats['ttl_hours']} hours")
 
 ## Filtered Search
 
-Documents ingested via `ingest_files_into_store` automatically receive an `ingested_at` ISO timestamp in their chunk metadata. This enables two filtering modes via `ChromaDocumentStore.query_with_filter()`:
+Documents ingested via `ingest_files_into_store` automatically receive an `ingested_at` Unix timestamp float (seconds since epoch) in their chunk metadata. This enables two filtering modes via `ChromaDocumentStore.query_with_filter()`:
 
 ```python
 store = manager.get_vector_store(session.session_id)

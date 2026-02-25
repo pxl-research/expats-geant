@@ -143,7 +143,7 @@ class ChromaDocumentStore:
           matched by filename (without path or extension). More efficient than a
           metadata ``where`` clause because non-matching collections are skipped entirely.
         - Any other key: passed directly as a ChromaDB ``where`` clause, e.g.
-          ``{"ingested_at": {"$gte": "2026-01-01T00:00:00"}}`` for time-range filtering.
+          ``{"ingested_at": {"$gte": 1735689600.0}}`` for time-range filtering (Unix timestamp float).
 
         Args:
             query_text: Semantic search query
@@ -159,7 +159,7 @@ class ChromaDocumentStore:
             >>> # Filter by ingestion time range
             >>> results = store.query_with_filter(
             ...     "leave policy",
-            ...     {"ingested_at": {"$gte": "2026-01-01T00:00:00"}},
+            ...     {"ingested_at": {"$gte": 1735689600.0}},  # Unix timestamp float
             ... )
         """
         all_results = []
