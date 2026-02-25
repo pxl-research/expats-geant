@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AnswerOption(BaseModel):
@@ -23,8 +23,8 @@ class AnswerOption(BaseModel):
         default_factory=dict, description="Additional metadata for this option"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "opt_1",
                 "text": "Strongly Agree",
@@ -32,3 +32,4 @@ class AnswerOption(BaseModel):
                 "metadata": {"color": "green"},
             }
         }
+    )

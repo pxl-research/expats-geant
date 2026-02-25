@@ -12,3 +12,13 @@ repos:
       - id: mypy
         args: [--ignore-missing-imports]
         additional_dependencies: []
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: .venv/bin/pytest tests/ -q
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

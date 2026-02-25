@@ -110,6 +110,40 @@ class TestValidateFileUpload:
         assert not is_valid
         assert "unsupported" in error.lower()
 
+    def test_directory_path_fails(self, tmp_path):
+        """Test validation fails when path points to a directory, not a file."""
+        is_valid, error = validate_file_upload(str(tmp_path))
+        assert not is_valid
+        assert "not a file" in error.lower()
+
+    def test_unreadable_file_fails(self, tmp_path):
+        """Test validation fails for a file with no read permissions."""
+        file_path = tmp_path / "locked.txt"
+        file_path.write_text("content")
+        file_path.chmod(0o000)
+        try:
+            is_valid, error = validate_file_upload(str(file_path))
+            assert not is_valid
+            assert "not readable" in error.lower()
+        finally:
+            file_path.chmod(0o644)
+
+    def test_oserror_on_stat_returns_error(self, tmp_path):
+        """Test validation handles OSError during file size check."""
+        from pathlib import Path
+        from unittest.mock import patch
+
+        file_path = tmp_path / "sample.txt"
+        file_path.write_text("content")
+
+        # exists() and is_file() also call Path.stat() internally, so allow
+        # those calls to succeed and only raise on the explicit size check call.
+        real_stat = file_path.stat()
+        with patch.object(Path, "stat", side_effect=[real_stat, real_stat, OSError("disk error")]):
+            is_valid, error = validate_file_upload(str(file_path))
+        assert not is_valid
+        assert "error reading file size" in error.lower()
+
 
 class TestValidateFileType:
     """Tests for validate_file_type function."""

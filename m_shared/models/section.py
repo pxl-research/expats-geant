@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from m_shared.models.question import Question
 
@@ -36,8 +36,8 @@ class Section(BaseModel):
         default_factory=dict, description="Additional metadata for this section"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "sec_1",
                 "title": "Demographics",
@@ -47,3 +47,4 @@ class Section(BaseModel):
                 "metadata": {},
             }
         }
+    )

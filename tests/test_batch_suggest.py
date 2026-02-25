@@ -184,45 +184,50 @@ class TestParseStructuredResponse:
         return RAGPipeline(session_manager=manager, llm_client=llm)
 
     def test_parses_answer_and_reasoning(self, pipeline):
-        raw = "ANSWER: Yes, we comply.\nREASONING: The policy document clearly states compliance."
+        raw = '{"answer": "Yes, we comply.", "reasoning": "The policy document clearly states compliance."}'
         answer, reasoning, selected_raw = pipeline._parse_structured_response(raw)
         assert answer == "Yes, we comply."
         assert reasoning == "The policy document clearly states compliance."
         assert selected_raw is None
 
     def test_parses_selected_field(self, pipeline):
-        raw = "ANSWER: Yes.\nSELECTED: yes\nREASONING:"
+        raw = '{"answer": "Yes.", "selected": "yes", "reasoning": null}'
         answer, reasoning, selected_raw = pipeline._parse_structured_response(raw)
         assert answer == "Yes."
         assert selected_raw == "yes"
         assert reasoning is None
 
-    def test_selected_none_returns_none(self, pipeline):
-        raw = "ANSWER: Unclear.\nSELECTED: NONE\nREASONING: Ambiguous."
+    def test_selected_none_string_returns_none(self, pipeline):
+        raw = '{"answer": "Unclear.", "selected": "NONE", "reasoning": "Ambiguous."}'
+        answer, reasoning, selected_raw = pipeline._parse_structured_response(raw)
+        assert selected_raw is None
+
+    def test_selected_null_returns_none(self, pipeline):
+        raw = '{"answer": "Unclear.", "selected": null, "reasoning": "Ambiguous."}'
         answer, reasoning, selected_raw = pipeline._parse_structured_response(raw)
         assert selected_raw is None
 
     def test_blank_reasoning_returns_none(self, pipeline):
-        raw = "ANSWER: We retain data for 3 years.\nREASONING:"
+        raw = '{"answer": "We retain data for 3 years.", "reasoning": null}'
         answer, reasoning, selected_raw = pipeline._parse_structured_response(raw)
         assert answer == "We retain data for 3 years."
         assert reasoning is None
 
     def test_missing_reasoning_returns_none(self, pipeline):
-        raw = "ANSWER: Partial compliance."
+        raw = '{"answer": "Partial compliance."}'
         answer, reasoning, selected_raw = pipeline._parse_structured_response(raw)
         assert answer == "Partial compliance."
         assert reasoning is None
 
     def test_multiline_answer_preserved(self, pipeline):
-        raw = "ANSWER: We retain data for 5 years after project completion,\nconsistent with our research data management policy.\nREASONING: Policy document section 3 states this clearly."
+        raw = '{"answer": "We retain data for 5 years after project completion,\\nconsistent with our research data management policy.", "reasoning": "Policy document section 3 states this clearly."}'
         answer, reasoning, selected_raw = pipeline._parse_structured_response(raw)
         assert "5 years" in answer
         assert "consistent with our research" in answer
         assert reasoning == "Policy document section 3 states this clearly."
 
     def test_multiline_reasoning_preserved(self, pipeline):
-        raw = "ANSWER: Yes.\nREASONING: The evidence is strong.\nMultiple sources confirm this."
+        raw = '{"answer": "Yes.", "reasoning": "The evidence is strong.\\nMultiple sources confirm this."}'
         answer, reasoning, selected_raw = pipeline._parse_structured_response(raw)
         assert answer == "Yes."
         assert "The evidence is strong." in reasoning
@@ -232,6 +237,44 @@ class TestParseStructuredResponse:
         raw = "Some unstructured response."
         answer, reasoning, selected_raw = pipeline._parse_structured_response(raw)
         assert answer == "Some unstructured response."
+        assert reasoning is None
+
+    # --- New tests (3.2–3.6) ---
+
+    def test_valid_json_all_fields_present(self, pipeline):
+        raw = '{"answer": "Full-time employment.", "selected": "opt_a", "reasoning": "Contract section 1 confirms this."}'
+        answer, reasoning, selected_raw = pipeline._parse_structured_response(raw)
+        assert answer == "Full-time employment."
+        assert selected_raw == "opt_a"
+        assert reasoning == "Contract section 1 confirms this."
+
+    def test_valid_json_with_null_selected_and_reasoning(self, pipeline):
+        raw = '{"answer": "Based on the documents, yes.", "selected": null, "reasoning": null}'
+        answer, reasoning, selected_raw = pipeline._parse_structured_response(raw)
+        assert answer == "Based on the documents, yes."
+        assert selected_raw is None
+        assert reasoning is None
+
+    def test_fenced_json_handled(self, pipeline):
+        raw = '```json\n{"answer": "Fenced answer.", "reasoning": "Source is clear."}\n```'
+        answer, reasoning, selected_raw = pipeline._parse_structured_response(raw)
+        assert answer == "Fenced answer."
+        assert reasoning == "Source is clear."
+        assert selected_raw is None
+
+    def test_malformed_json_falls_back_gracefully(self, pipeline):
+        raw = '{"answer": "Broken JSON'
+        answer, reasoning, selected_raw = pipeline._parse_structured_response(raw)
+        assert answer == raw
+        assert reasoning is None
+        assert selected_raw is None
+
+    def test_multiline_answer_in_json_value(self, pipeline):
+        raw = '{"answer": "Line one.\\nLine two.\\nLine three.", "reasoning": null}'
+        answer, reasoning, selected_raw = pipeline._parse_structured_response(raw)
+        assert "Line one." in answer
+        assert "Line two." in answer
+        assert "Line three." in answer
         assert reasoning is None
 
 

@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Citation(BaseModel):
@@ -44,8 +44,8 @@ class Citation(BaseModel):
         default_factory=dict, description="Additional metadata (relevance score, context, etc.)"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "cite_1",
                 "source_id": "doc_abc",
@@ -58,3 +58,4 @@ class Citation(BaseModel):
                 "metadata": {"relevance_score": 0.92},
             }
         }
+    )

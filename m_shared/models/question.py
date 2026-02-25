@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from m_shared.models.answer_option import AnswerOption
 
@@ -92,8 +92,8 @@ class Question(BaseModel):
                 raise ValueError("Slider questions must have min_value and max_value")
         return self
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "q1",
                 "text": "How satisfied are you with this service?",
@@ -107,3 +107,4 @@ class Question(BaseModel):
                 "metadata": {"category": "satisfaction"},
             }
         }
+    )

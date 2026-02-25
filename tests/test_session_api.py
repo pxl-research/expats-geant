@@ -133,6 +133,31 @@ class TestSessionMiddleware:
         sessions = session_manager.list_sessions()
         assert len(sessions) == 1
 
+    def test_invalid_token_signature_rejected(self, client, jwt_secret):
+        """Token signed with wrong secret should be rejected with 401."""
+        import os
+        from unittest.mock import patch
+
+        with patch.dict(os.environ, {"JWT_SECRET": "wrong-secret"}):
+            bad_token = create_token("user", "session")
+        response = client.get("/session/stats", headers={"Authorization": f"Bearer {bad_token}"})
+        assert response.status_code == 401
+        assert "invalid" in response.json()["detail"].lower()
+
+    def test_session_manager_error_returns_500(self, client, valid_token):
+        """Unexpected error in session management should return 500."""
+        from unittest.mock import patch
+
+        with patch(
+            "m_shared.session.manager.SessionManager.get_session",
+            side_effect=RuntimeError("storage failure"),
+        ):
+            response = client.get(
+                "/session/stats", headers={"Authorization": f"Bearer {valid_token}"}
+            )
+        assert response.status_code == 500
+        assert "session management error" in response.json()["detail"].lower()
+
 
 class TestSessionEndpoints:
     """Tests for session management endpoints."""
@@ -338,15 +363,17 @@ class TestSuggestEndpoint:
         response = client_with_llm.post("/suggest", json={"question": "What is the answer?"})
         assert response.status_code == 401
 
-    def test_suggest_requires_documents(self, client_with_llm, valid_token):
-        """Suggest without uploaded documents should fail."""
+    def test_suggest_without_documents_returns_graceful_response(
+        self, client_with_llm, valid_token
+    ):
+        """Suggest without uploaded documents should return a graceful 200 with a fallback message."""
         response = client_with_llm.post(
             "/suggest",
             headers={"Authorization": f"Bearer {valid_token}"},
             json={"question": "What is the answer?"},
         )
-        # Should fail because no documents uploaded
-        assert response.status_code in [404, 500]
+        assert response.status_code == 200
+        assert "couldn't find" in response.json()["answer"].lower()
 
     def test_suggest_invalid_question(self, client_with_llm, valid_token):
         """Suggest with empty question should fail."""
