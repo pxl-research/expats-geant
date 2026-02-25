@@ -91,6 +91,44 @@ print(f"Chunks: {stats['chunk_count']}")
 print(f"TTL remaining: {stats['ttl_hours']} hours")
 ```
 
+## Filtered Search
+
+Documents ingested via `ingest_files_into_store` automatically receive an `ingested_at` Unix timestamp float (seconds since epoch) in their chunk metadata. This enables two filtering modes via `ChromaDocumentStore.query_with_filter()`:
+
+```python
+store = manager.get_vector_store(session.session_id)
+
+# Filter by source document (restricts to that document's collection)
+results = store.query_with_filter(
+    query_text="What is my salary?",
+    filters={"source": "contract.pdf"},
+    n_results=5,
+)
+
+# Filter by ingestion time range (Unix timestamp float, supports $gte/$lte/$gt/$lt)
+from datetime import datetime, timedelta
+since_yesterday = (datetime.utcnow() - timedelta(days=1)).timestamp()
+results = store.query_with_filter(
+    query_text="leave policy",
+    filters={"ingested_at": {"$gte": since_yesterday}},
+    n_results=5,
+)
+```
+
+When using `RAGPipeline`, pass filters through `retrieve()`:
+
+```python
+chunks = pipeline.retrieve(
+    question="What is my salary?",
+    session_id=session.session_id,
+    filters={"source": "contract.pdf"},
+)
+```
+
+Supported filter keys:
+- `source`: `str` or `list[str]` — restrict to specific document(s) by filename (without path/extension)
+- Any ChromaDB `where`-compatible key (e.g. `ingested_at`) with operators `$gte`, `$lte`, `$eq`, `$in`, etc.
+
 ## Integration with Document Ingestion
 
 ```python
@@ -141,12 +179,12 @@ The session module has comprehensive test coverage:
 
 - `tests/test_session_manager.py`: 27 unit tests
 - `tests/test_session_isolation.py`: 8 integration tests
+- `tests/test_filtered_search.py`: filtered search (source and time-range)
 
 Run tests:
 
 ```bash
-pytest tests/test_session_manager.py -v
-pytest tests/test_session_isolation.py -v
+pytest tests/test_session_manager.py tests/test_session_isolation.py tests/test_filtered_search.py -v
 ```
 
 ## Design Decisions

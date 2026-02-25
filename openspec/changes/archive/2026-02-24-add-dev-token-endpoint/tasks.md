@@ -101,9 +101,9 @@
   - [x] 5.3d Run with ENVIRONMENT=production
   - [x] 5.3e Verify /dev/token returns 403
 
-- [ ] 5.4 OpenSpec validation (deferred - will do after completion)
-  - [ ] 5.4a Run `openspec validate add-dev-token-endpoint --strict`
-  - [ ] 5.4b Fix any validation errors
+- [x] 5.4 OpenSpec validation (deferred - will do after completion)
+  - [x] 5.4a Run `openspec validate add-dev-token-endpoint --strict`
+  - [x] 5.4b Fix any validation errors
 
 ## 6. Documentation Review ✅ COMPLETE
 

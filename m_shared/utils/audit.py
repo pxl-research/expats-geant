@@ -526,12 +526,55 @@ class AuditLogger:
     
     def is_claimed(self, session_id: str) -> bool:
         """Check if audit report has been claimed.
-        
+
         Args:
             session_id: Session identifier
-            
+
         Returns:
             True if report was downloaded by user
         """
         claim_path = self.base_path / session_id / "report_claimed.json"
         return claim_path.exists()
+
+    def delete_report(self, session_id: str) -> None:
+        """Delete audit report for a session (GDPR Right to Erasure).
+
+        Removes the audit log and any claimed marker, then writes a tombstone
+        recording that erasure was requested. The tombstone contains no personal
+        data — only the session_id and deletion timestamp.
+
+        A new audit log will be created if the session continues to be used
+        after deletion; this is intentional (working as designed for PoC).
+
+        Args:
+            session_id: Session identifier
+        """
+        with self._get_lock(session_id):
+            session_dir = self.base_path / session_id
+
+            log_path = self._get_audit_log_path(session_id)
+            if log_path.exists():
+                log_path.unlink()
+
+            claim_path = session_dir / "report_claimed.json"
+            if claim_path.exists():
+                claim_path.unlink()
+
+            tombstone_path = session_dir / "report_deleted.json"
+            tombstone_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(tombstone_path, "w") as f:
+                json.dump({
+                    "session_id": session_id,
+                    "deleted_at": datetime.now(timezone.utc).isoformat(),
+                }, f)
+
+    def is_deleted(self, session_id: str) -> bool:
+        """Check if audit report has been explicitly deleted (RTBF).
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            True if delete_report() was called for this session
+        """
+        return (self.base_path / session_id / "report_deleted.json").exists()

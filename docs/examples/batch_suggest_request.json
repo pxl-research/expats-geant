@@ -1,0 +1,51 @@
+{
+  "assessment_id": "gdpr-compliance-2026",
+  "context": "Annual GDPR compliance self-assessment for research institutions",
+  "sections": [
+    {
+      "id": "s1",
+      "title": "Data Retention",
+      "items": [
+        {
+          "id": "q1",
+          "type": "open_ended",
+          "prompt": "Describe your organisation's data retention policy for research participant data."
+        },
+        {
+          "id": "q2",
+          "type": "single_choice",
+          "prompt": "How long are research participant records retained after project completion?",
+          "choices": [
+            {"id": "c1", "label": "Less than 1 year"},
+            {"id": "c2", "label": "1–3 years"},
+            {"id": "c3", "label": "3–10 years"},
+            {"id": "c4", "label": "More than 10 years"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "title": "Data Subject Rights",
+      "items": [
+        {
+          "id": "q3",
+          "type": "multiple_choice",
+          "prompt": "Which data subject rights does your organisation formally support?",
+          "choices": [
+            {"id": "r1", "label": "Right of access"},
+            {"id": "r2", "label": "Right to rectification"},
+            {"id": "r3", "label": "Right to erasure"},
+            {"id": "r4", "label": "Right to data portability"},
+            {"id": "r5", "label": "Right to object"}
+          ]
+        },
+        {
+          "id": "q4",
+          "type": "open_ended",
+          "prompt": "How does your organisation handle data subject access requests (DSARs)?"
+        }
+      ]
+    }
+  ]
+}

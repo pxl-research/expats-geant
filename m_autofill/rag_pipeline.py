@@ -13,6 +13,7 @@ from typing import Optional
 
 from m_shared.llm import LLMClient
 from m_shared.models.citation import Citation
+from m_shared.models.question import QuestionType
 from m_shared.session import SessionManager
 from m_shared.vectordb import ChromaDocumentStore
 from m_shared.utils import AuditLogger
@@ -63,42 +64,49 @@ class RAGPipeline:
         question: str,
         session_id: str,
         top_k: Optional[int] = None,
+        filters: Optional[dict] = None,
     ) -> list[dict]:
         """Retrieve relevant document chunks via semantic search.
-        
+
         Args:
             question: User's question to search for
             session_id: Session identifier for isolated retrieval
             top_k: Number of chunks to retrieve (defaults to pipeline default)
-            
+            filters: Optional metadata filters passed to ``query_with_filter``.
+                Supported keys:
+                - ``source``: str or list[str] — restrict to specific document(s)
+                - ``ingested_at``: ChromaDB where-clause dict for time-range filtering,
+                  e.g. ``{"$gte": 1735689600.0}`` (Unix timestamp float, as stored by ingest)
+
         Returns:
             List of retrieved chunks with metadata:
                 - id: Chunk identifier
                 - document: Chunk text content
-                - metadata: Dict with source, chunk_index, position, timestamp, etc.
+                - metadata: Dict with source, chunk_index, ingested_at, etc.
                 - distance: Semantic similarity distance
-                
+
         Raises:
             ValueError: If question is empty or session not found
-            
+
         Examples:
             >>> chunks = pipeline.retrieve("What is my job title?", "session_123")
-            >>> print(chunks[0]["metadata"]["source"])
-            'employment_contract.pdf'
+            >>> chunks = pipeline.retrieve(
+            ...     "What is my salary?", "session_123",
+            ...     filters={"source": "contract.pdf"},
+            ... )
         """
         if not question or not question.strip():
             raise ValueError("Question cannot be empty")
-        
-        # Get session's vector store
+
         store = self.session_manager.get_vector_store(session_id)
         if store is None:
             raise ValueError(f"Session not found or expired: {session_id}")
-        
-        # Perform semantic search
+
         top_k = top_k or self.default_top_k
-        results = store.query(query_text=question, n_results=top_k)
-        
-        return results
+
+        if filters:
+            return store.query_with_filter(query_text=question, filters=filters, n_results=top_k)
+        return store.query(query_text=question, n_results=top_k)
     
     def generate_answer(
         self,
@@ -185,6 +193,156 @@ Answer:"""
             
         except Exception as e:
             raise RuntimeError(f"LLM generation failed: {str(e)}") from e
+    
+    def _generate_answer_with_reasoning(
+        self,
+        question: str,
+        retrieved_chunks: list[dict],
+        temperature: Optional[float] = None,
+        section_context: Optional[str] = None,
+        sibling_prompts: Optional[list[str]] = None,
+        choices: Optional[list] = None,
+        question_type: Optional[str] = None,
+    ) -> tuple[str, Optional[str]]:
+        """Generate answer and reasoning from retrieved chunks using LLM.
+
+        Uses a structured ANSWER/REASONING prompt so both fields are returned
+        in a single LLM call. For choice questions also returns SELECTED.
+
+        Args:
+            question: User's question
+            retrieved_chunks: Retrieved chunks from semantic search
+            temperature: LLM temperature
+            section_context: Optional section title for additional context
+            sibling_prompts: Other question prompts in same section
+            choices: List of BatchChoice objects for choice-type questions
+            question_type: QuestionType value string
+
+        Returns:
+            Tuple of (answer, reasoning) — reasoning is None if not needed
+        """
+        # Build context from chunks
+        context_parts = []
+        for i, chunk in enumerate(retrieved_chunks, 1):
+            source = chunk.get("metadata", {}).get("source", "Unknown")
+            text = chunk.get("document", "")
+            context_parts.append(f"[{i}] From {source}:\n{text}\n")
+        context = "\n".join(context_parts)
+
+        # Build section/sibling context block
+        extra_context = ""
+        if section_context:
+            extra_context += f"SECTION: {section_context}\n"
+        if sibling_prompts:
+            related = "\n".join(f"- {p}" for p in sibling_prompts)
+            extra_context += f"RELATED QUESTIONS IN THIS SECTION:\n{related}\n"
+
+        # Build choice block for choice-type questions
+        choice_block = ""
+        if choices:
+            choice_lines = "\n".join(f"- {c.id}: {c.label}" for c in choices)
+            choice_block = f"\nAVAILABLE CHOICES:\n{choice_lines}\n"
+            selected_instruction = (
+                "SELECTED: <choice id from the list above, or NONE if you cannot determine>\n"
+            )
+        else:
+            selected_instruction = ""
+
+        prompt = f"""You are helping a respondent answer a survey question based on their uploaded documents.
+{extra_context}
+QUESTION: {question}{choice_block}
+DOCUMENT EXCERPTS:
+{context}
+
+Instructions:
+- Answer directly and concisely (max 3-4 sentences)
+- Only use information from the provided excerpts
+- If evidence is ambiguous or missing, say so in REASONING
+
+Respond in exactly this format:
+ANSWER: <your answer>
+{selected_instruction}REASONING: <brief explanation of confidence, source interpretation, or uncertainty — leave blank if answer is straightforward>"""
+
+        temperature = temperature or self.default_temperature
+        original_temp = self.llm_client.temperature
+        self.llm_client.temperature = temperature
+
+        try:
+            messages = [{"role": "user", "content": prompt}]
+            raw = self.llm_client.create_completion(messages=messages, max_tokens=self.max_tokens)
+        finally:
+            self.llm_client.temperature = original_temp
+
+        if not raw or not raw.strip():
+            raise RuntimeError("LLM returned empty response")
+
+        return self._parse_structured_response(raw.strip())
+
+    def _parse_structured_response(self, raw: str) -> tuple[str, Optional[str], Optional[str]]:
+        """Parse ANSWER/SELECTED/REASONING from structured LLM output.
+
+        Collects all lines belonging to each block, so multi-line answers and
+        reasoning are preserved. A new block starts when a line begins with a
+        known prefix (ANSWER:, SELECTED:, REASONING:).
+
+        Args:
+            raw: Raw LLM output string
+
+        Returns:
+            Tuple of (answer, reasoning, selected_raw) — reasoning and selected_raw
+            are None if absent or blank. selected_raw is the bare value after
+            SELECTED: before any choice validation.
+        """
+        PREFIXES = ("ANSWER:", "SELECTED:", "REASONING:")
+
+        blocks: dict[str, list[str]] = {}
+        current_key: Optional[str] = None
+
+        for line in raw.splitlines():
+            matched = next((p for p in PREFIXES if line.startswith(p)), None)
+            if matched:
+                current_key = matched.rstrip(":")
+                blocks[current_key] = [line[len(matched):].strip()]
+            elif current_key is not None:
+                blocks[current_key].append(line)
+
+        def get_block(key: str) -> Optional[str]:
+            lines = blocks.get(key, [])
+            value = "\n".join(lines).strip()
+            return value if value else None
+
+        answer = get_block("ANSWER") or raw
+        reasoning = get_block("REASONING")
+
+        selected_raw = get_block("SELECTED")
+        if selected_raw and selected_raw.upper() == "NONE":
+            selected_raw = None
+
+        return answer, reasoning, selected_raw
+
+    def _parse_selected_id(self, selected_raw: Optional[str], choices: list, multi: bool) -> tuple[Optional[str], Optional[list[str]]]:
+        """Validate a SELECTED value against the available choices.
+
+        Args:
+            selected_raw: Bare selected value extracted by _parse_structured_response,
+                          or None if the LLM returned no selection.
+            choices: List of BatchChoice objects to validate against
+            multi: True for multiple_choice, False for single_choice
+
+        Returns:
+            Tuple of (selected_id, selected_ids) — only one is set based on multi
+        """
+        if not selected_raw:
+            return None, None
+
+        valid_ids = {c.id for c in choices}
+
+        if multi:
+            candidates = [s.strip().strip(",") for s in selected_raw.replace(",", " ").split()]
+            matched = [s for s in candidates if s in valid_ids]
+            return None, matched if matched else None
+        else:
+            return (selected_raw if selected_raw in valid_ids else None), None
     
     def format_citations(
         self,
@@ -352,9 +510,9 @@ Answer:"""
                 },
             }
         
-        # Step 2: Generate answer
+        # Step 2: Generate answer with reasoning
         try:
-            answer = self.generate_answer(question, chunks, temperature=temperature)
+            answer, reasoning, _ = self._generate_answer_with_reasoning(question, chunks, temperature=temperature)
         except Exception as e:
             raise RuntimeError(f"Answer generation failed: {str(e)}") from e
         
@@ -380,6 +538,7 @@ Answer:"""
         # Return structured result
         return {
             "answer": answer,
+            "reasoning": reasoning,
             "citations": citations,
             "metadata": {
                 "session_id": session_id,
@@ -389,3 +548,107 @@ Answer:"""
                 "top_k": top_k or self.default_top_k,
             },
         }
+
+    def suggest_batch(
+        self,
+        sections: list,
+        session_id: str,
+        assessment_id: str,
+        user_id: Optional[str] = None,
+    ) -> list[dict]:
+        """Generate answer suggestions for multiple questionnaire items.
+
+        Processes items section by section, injecting sibling question prompts
+        as context so the LLM can reason across related questions.
+
+        Args:
+            sections: Normalized list of BatchSuggestSection objects
+            session_id: Session identifier
+            assessment_id: Assessment identifier for audit logging
+            user_id: Optional user ID for audit logging
+
+        Returns:
+            List of suggestion dicts, one per item, in input order
+
+        Raises:
+            ValueError: If session not found
+        """
+        if not session_id:
+            raise ValueError("Session ID is required")
+
+        responses = []
+
+        for section in sections:
+            sibling_prompts = [item.prompt for item in section.items]
+
+            for item in section.items:
+                # Sibling context excludes the current item's own prompt
+                context_prompts = [p for p in sibling_prompts if p != item.prompt]
+
+                chunks = self.retrieve(item.prompt, session_id)
+
+                if not chunks:
+                    responses.append({
+                        "item_id": item.id,
+                        "type": item.type.value,
+                        "suggestion": "No relevant information found in your documents for this question.",
+                        "selected_id": None,
+                        "selected_ids": None,
+                        "reasoning": "No document chunks matched this question. Please answer manually.",
+                        "citations": [],
+                    })
+                    continue
+
+                is_choice = item.type in (QuestionType.SINGLE_CHOICE, QuestionType.MULTIPLE_CHOICE)
+                is_multi = item.type == QuestionType.MULTIPLE_CHOICE
+                choices = item.choices if is_choice else None
+
+                try:
+                    answer, reasoning, selected_raw = self._generate_answer_with_reasoning(
+                        question=item.prompt,
+                        retrieved_chunks=chunks,
+                        section_context=section.title,
+                        sibling_prompts=context_prompts,
+                        choices=choices,
+                        question_type=item.type.value,
+                    )
+                except RuntimeError as e:
+                    responses.append({
+                        "item_id": item.id,
+                        "type": item.type.value,
+                        "suggestion": "Generation failed.",
+                        "selected_id": None,
+                        "selected_ids": None,
+                        "reasoning": str(e),
+                        "citations": [],
+                    })
+                    continue
+
+                selected_id, selected_ids = None, None
+                if is_choice:
+                    selected_id, selected_ids = self._parse_selected_id(selected_raw, item.choices, multi=is_multi)
+
+                citations = self.format_citations(chunks, item.prompt, answer)
+
+                if self.audit_logger:
+                    self.audit_logger.log_suggestion(
+                        session_id=session_id,
+                        question=item.prompt,
+                        suggested_answer=answer,
+                        sources_used=[c.source_id for c in citations],
+                        model=self.llm_client.model_name,
+                        user_id=user_id,
+                        question_id=item.id,
+                    )
+
+                responses.append({
+                    "item_id": item.id,
+                    "type": item.type.value,
+                    "suggestion": answer,
+                    "selected_id": selected_id,
+                    "selected_ids": selected_ids,
+                    "reasoning": reasoning,
+                    "citations": citations,
+                })
+
+        return responses

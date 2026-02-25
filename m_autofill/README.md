@@ -138,24 +138,131 @@ OPENROUTER_API_KEY=your_key pytest tests/test_rag_integration.py -v
 
 ## API Endpoints
 
-(Examples; final design TBD)
+Session identity is carried in the JWT token (Authorization header). All endpoints below are session-scoped automatically.
 
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/upload` | Upload a document into the session |
+| `POST` | `/suggest` | Single-question answer suggestion |
+| `POST` | `/suggest/batch` | Multi-question batch suggestion (QTI-inspired input) |
+| `GET` | `/session/stats` | Session status, TTL, document count |
+| `DELETE` | `/session` | End session and delete all data |
+| `GET` | `/audit-report` | Download session audit report (JSON or plaintext) |
+| `GET` | `/privacy` | Data handling transparency statement |
+
+### POST /suggest
+
+Generate a suggestion for a single question.
+
+**Request:**
+```json
+{
+  "question": "What is our organisation's current data retention policy for employee records?",
+  "context": "Completing a GDPR compliance questionnaire"
+}
 ```
-POST /sessions/{session_id}/documents/upload
-  - Upload document(s) for a respondent session
-  - Returns: document_id, chunk count, storage location
 
-POST /sessions/{session_id}/suggest
-  - Generate answer suggestion for a question
-  - Input: question text, optional context
-  - Returns: suggested_answer, citations (with source metadata), reasoning
-
-GET /sessions/{session_id}/audit
-  - Retrieve session audit report (reasoning, sources used, decisions)
-
-DELETE /sessions/{session_id}
-  - Explicitly end session and delete all data
+**Response:**
+```json
+{
+  "answer": "Employee records are retained for 7 years after contract termination, in line with Belgian labour law requirements.",
+  "reasoning": null,
+  "citations": [
+    {
+      "source": "hr_policy_2024.pdf",
+      "position": "62%",
+      "position_range": {"start_percentage": 0.61, "end_percentage": 0.64},
+      "timestamp": "2026-02-20T09:14:00Z",
+      "excerpt": "employee personal data shall be retained for a period of seven years following termination"
+    }
+  ],
+  "metadata": {}
+}
 ```
+
+### POST /suggest/batch
+
+Generate suggestions for multiple questionnaire items in a single request. Items within the same section share context, improving suggestion quality for related questions.
+
+Accepts either a structured `sections` list or a flat `items` list — flat items are normalized to an implicit single section internally.
+
+**Supported question types:** `open_ended`, `single_choice`, `multiple_choice`, `ranking`, `slider`
+
+**Request (sectioned):**
+```json
+{
+  "assessment_id": "gdpr-compliance-2026",
+  "context": "Annual GDPR compliance self-assessment for research institutions",
+  "sections": [
+    {
+      "id": "s1",
+      "title": "Data Retention",
+      "items": [
+        {
+          "id": "q1",
+          "type": "open_ended",
+          "prompt": "Describe your organisation's data retention policy for research participant data."
+        },
+        {
+          "id": "q2",
+          "type": "single_choice",
+          "prompt": "How long are research participant records retained after project completion?",
+          "choices": [
+            {"id": "c1", "label": "Less than 1 year"},
+            {"id": "c2", "label": "1–3 years"},
+            {"id": "c3", "label": "3–10 years"},
+            {"id": "c4", "label": "More than 10 years"}
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "assessment_id": "gdpr-compliance-2026",
+  "session_id": "sess_abc123",
+  "generated_at": "2026-02-24T10:30:00Z",
+  "model": "openai/gpt-4o-mini",
+  "responses": [
+    {
+      "item_id": "q1",
+      "type": "open_ended",
+      "suggestion": "Research participant data is retained for 5 years after project completion, consistent with the institution's research data management policy and funder requirements.",
+      "selected_id": null,
+      "selected_ids": null,
+      "reasoning": null,
+      "citations": [
+        {
+          "source": "rdm_policy_v3.pdf",
+          "excerpt": "personal data collected during research projects shall be retained for a minimum of five years",
+          "position": 0.34
+        }
+      ]
+    },
+    {
+      "item_id": "q2",
+      "type": "single_choice",
+      "suggestion": "Research participant records are retained for 3–10 years after project completion.",
+      "selected_id": "c3",
+      "selected_ids": null,
+      "reasoning": "The policy states a 5-year retention period, which falls within the 3–10 year bracket. Selected c3 accordingly.",
+      "citations": [
+        {
+          "source": "rdm_policy_v3.pdf",
+          "excerpt": "personal data collected during research projects shall be retained for a minimum of five years",
+          "position": 0.34
+        }
+      ]
+    }
+  ]
+}
+```
+
+See [`docs/examples/`](../docs/examples/) for complete request/response JSON files.
 
 ## Configuration
 

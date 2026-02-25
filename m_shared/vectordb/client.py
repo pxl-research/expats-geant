@@ -6,7 +6,7 @@ import chromadb
 from chromadb import QueryResult
 from tqdm import tqdm
 
-from m_shared.vectordb.utils import clean_up_string
+from m_shared.vectordb.utils import clean_up_string, sanitize_filename
 
 
 def repack_query_results(results: QueryResult) -> list[dict]:
@@ -132,6 +132,68 @@ class ChromaDocumentStore:
             all_results.extend(cleaned)
 
         # Sort by distance and return top n_results
+        all_results.sort(key=lambda r: r.get("distance", float("inf")))
+        return all_results[:n_results]
+
+    def query_with_filter(self, query_text: str, filters: dict, n_results: int = 5) -> list[dict]:
+        """Search with optional metadata filters.
+
+        Supports two types of filtering:
+        - ``source``: str or list[str] — restrict retrieval to specific document(s),
+          matched by filename (without path or extension). More efficient than a
+          metadata ``where`` clause because non-matching collections are skipped entirely.
+        - Any other key: passed directly as a ChromaDB ``where`` clause, e.g.
+          ``{"ingested_at": {"$gte": 1735689600.0}}`` for time-range filtering (Unix timestamp float).
+
+        Args:
+            query_text: Semantic search query
+            filters: Dict of filter criteria (see above)
+            n_results: Maximum number of results to return
+
+        Returns:
+            List of matching chunks, ranked by semantic similarity
+
+        Examples:
+            >>> # Filter by document source
+            >>> results = store.query_with_filter("salary", {"source": "contract.pdf"})
+            >>> # Filter by ingestion time range
+            >>> results = store.query_with_filter(
+            ...     "leave policy",
+            ...     {"ingested_at": {"$gte": 1735689600.0}},  # Unix timestamp float
+            ... )
+        """
+        all_results = []
+        collections = self.cdb_client.list_collections()
+
+        # Source filter: restrict to matching collections (skip others entirely)
+        source_filter = filters.get("source")
+        where_filters = {k: v for k, v in filters.items() if k != "source"}
+
+        if source_filter:
+            sources = [source_filter] if isinstance(source_filter, str) else list(source_filter)
+            allowed_names = {sanitize_filename(s) for s in sources}
+        else:
+            allowed_names = None
+
+        for collection in collections:
+            if allowed_names is not None and collection.name not in allowed_names:
+                continue
+
+            count = collection.count()
+            if count == 0:
+                continue
+            actual_n = min(n_results, count)
+
+            query_kwargs = {"query_texts": [query_text], "n_results": actual_n}
+            if where_filters:
+                query_kwargs["where"] = where_filters
+
+            try:
+                results = collection.query(**query_kwargs)
+                all_results.extend(repack_query_results(results))
+            except Exception:
+                continue
+
         all_results.sort(key=lambda r: r.get("distance", float("inf")))
         return all_results[:n_results]
 

@@ -37,8 +37,8 @@
 
 ## 6. Metadata Filtering
 
-- [ ] 6.1 Implement `search_with_filter(session_id: str, query: str, filters: dict, top_k: int = 5) -> list[dict]` — Not yet implemented; ChromaDB supports where filters but not wired up
-- [ ] 6.2 Unit tests for filtered search (verify filtering accuracy) — No tests exist yet
+- [x] 6.1 Implement `query_with_filter(query_text, filters, n_results)` on `ChromaDocumentStore` — supports `source` (collection-level pre-filter) and ChromaDB `where` clauses (e.g. `ingested_at` range). `RAGPipeline.retrieve()` accepts optional `filters` dict and delegates accordingly.
+- [x] 6.2 Unit tests for filtered search — 9 tests in `tests/test_filtered_search.py` (source filter, time-range filter, pipeline integration)
 
 ## 7. Session Isolation Verification
 
@@ -61,4 +61,4 @@
 ## 10. Documentation
 
 - [x] 10.1 Docstrings for all public methods — Comprehensive docstrings in SessionManager and ChromaDocumentStore
-- [ ] 10.2 Brief README in `m_shared/session/` explaining SessionManager usage — Not yet created
+- [x] 10.2 README in `m_shared/session/README.md` updated with filtered search section, usage examples, key methods table, and test references

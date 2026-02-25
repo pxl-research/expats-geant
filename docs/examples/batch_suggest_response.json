@@ -1,0 +1,78 @@
+{
+  "assessment_id": "gdpr-compliance-2026",
+  "session_id": "sess_abc123",
+  "generated_at": "2026-02-24T10:30:00Z",
+  "model": "openai/gpt-4o-mini",
+  "responses": [
+    {
+      "item_id": "q1",
+      "type": "open_ended",
+      "suggestion": "Research participant data is retained for 5 years after project completion, consistent with the institution's research data management policy and applicable funder requirements. Anonymised datasets may be retained indefinitely for reproducibility purposes.",
+      "selected_id": null,
+      "selected_ids": null,
+      "reasoning": null,
+      "citations": [
+        {
+          "source": "rdm_policy_v3.pdf",
+          "excerpt": "personal data collected during research projects shall be retained for a minimum of five years following project completion",
+          "position": 0.34
+        },
+        {
+          "source": "rdm_policy_v3.pdf",
+          "excerpt": "anonymised datasets are exempt from retention limits and may be archived indefinitely",
+          "position": 0.36
+        }
+      ]
+    },
+    {
+      "item_id": "q2",
+      "type": "single_choice",
+      "suggestion": "Research participant records are retained for 3–10 years after project completion.",
+      "selected_id": "c3",
+      "selected_ids": null,
+      "reasoning": "The policy states a 5-year retention period, which falls within the 3–10 year bracket. Selected c3 accordingly.",
+      "citations": [
+        {
+          "source": "rdm_policy_v3.pdf",
+          "excerpt": "personal data collected during research projects shall be retained for a minimum of five years following project completion",
+          "position": 0.34
+        }
+      ]
+    },
+    {
+      "item_id": "q3",
+      "type": "multiple_choice",
+      "suggestion": "The organisation formally supports the right of access, right to rectification, right to erasure, and right to object.",
+      "selected_id": null,
+      "selected_ids": ["r1", "r2", "r3", "r5"],
+      "reasoning": "The privacy policy explicitly lists these four rights. Right to data portability (r4) is not mentioned in the uploaded documents.",
+      "citations": [
+        {
+          "source": "privacy_policy_2025.pdf",
+          "excerpt": "data subjects may exercise their rights of access, rectification, erasure, and objection by contacting the DPO",
+          "position": 0.71
+        }
+      ]
+    },
+    {
+      "item_id": "q4",
+      "type": "open_ended",
+      "suggestion": "Data subject access requests are handled by the Data Protection Officer within 30 days of receipt. Requests must be submitted in writing via the institutional DSAR portal or by email to dpo@institution.eu.",
+      "selected_id": null,
+      "selected_ids": null,
+      "reasoning": null,
+      "citations": [
+        {
+          "source": "privacy_policy_2025.pdf",
+          "excerpt": "all data subject requests must be submitted to the Data Protection Officer and will be processed within 30 calendar days",
+          "position": 0.73
+        },
+        {
+          "source": "dpo_procedures_2024.docx",
+          "excerpt": "requests may be submitted via the DSAR portal at dsar.institution.eu or by emailing dpo@institution.eu",
+          "position": 0.12
+        }
+      ]
+    }
+  ]
+}
