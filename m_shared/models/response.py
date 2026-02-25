@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Response(BaseModel):
@@ -32,8 +32,8 @@ class Response(BaseModel):
         default_factory=dict, description="Additional metadata (edit history, confidence, etc.)"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "resp_1",
                 "question_id": "q1",
@@ -43,3 +43,4 @@ class Response(BaseModel):
                 "metadata": {},
             }
         }
+    )

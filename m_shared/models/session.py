@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class Session(BaseModel):
@@ -61,8 +61,8 @@ class Session(BaseModel):
         """Calculate time remaining until expiration."""
         return self.expires_at - datetime.utcnow()
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "session_id": "sess_abc123",
                 "user_id": "user_456",
@@ -72,3 +72,4 @@ class Session(BaseModel):
                 "metadata": {"ttl_hours": 24, "org": "pxl"},
             }
         }
+    )
