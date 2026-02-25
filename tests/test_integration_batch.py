@@ -62,7 +62,7 @@ class TestSuggestReasoning:
         ingest_files_into_store(file_paths=[str(doc)], store=store, session_id=session.session_id)
 
         mock_llm.create_completion.return_value = (
-            "ANSWER: 36 months.\nREASONING: The policy document states this clearly."
+            '{"answer": "36 months.", "reasoning": "The policy document states this clearly."}'
         )
 
         resp = client.post(
@@ -89,7 +89,7 @@ class TestSuggestReasoning:
         ingest_files_into_store(file_paths=[str(doc)], store=store, session_id=session.session_id)
 
         mock_llm.create_completion.return_value = (
-            "ANSWER: Yes.\nREASONING: The report confirms Q3 audits annually."
+            '{"answer": "Yes.", "reasoning": "The report confirms Q3 audits annually."}'
         )
 
         resp = client.post(
@@ -120,7 +120,9 @@ class TestBatchSuggestEndpoint:
 
     def test_batch_flat_items(self, client, auth_token, tmp_path, tmp_session_manager, mock_llm):
         self._seed_doc(tmp_path, tmp_session_manager, auth_token)
-        mock_llm.create_completion.return_value = "ANSWER: 36 months.\nREASONING: Clearly stated."
+        mock_llm.create_completion.return_value = (
+            '{"answer": "36 months.", "reasoning": "Clearly stated."}'
+        )
 
         resp = client.post(
             "/suggest/batch",
@@ -145,7 +147,7 @@ class TestBatchSuggestEndpoint:
     ):
         self._seed_doc(tmp_path, tmp_session_manager, auth_token)
         mock_llm.create_completion.return_value = (
-            "ANSWER: Yes.\nSELECTED: yes\nREASONING: Evidence found."
+            '{"answer": "Yes.", "selected": "yes", "reasoning": "Evidence found."}'
         )
 
         resp = client.post(
@@ -220,7 +222,7 @@ class TestBatchSuggestEndpoint:
         assert len(r["citations"]) == 0
 
     def test_batch_assessment_id_echoed(self, client, auth_token, mock_llm):
-        mock_llm.create_completion.return_value = "ANSWER: N/A.\nREASONING:"
+        mock_llm.create_completion.return_value = '{"answer": "N/A.", "reasoning": null}'
         resp = client.post(
             "/suggest/batch",
             json={
