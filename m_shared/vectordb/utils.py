@@ -3,7 +3,7 @@ Text processing utilities: chunking, conversion, and string sanitization.
 """
 
 import re
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from markitdown import MarkItDown
 

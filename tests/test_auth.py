@@ -1,7 +1,7 @@
 """Unit tests for JWT authentication."""
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
@@ -57,8 +57,8 @@ class TestCreateToken:
             claims = validate_token(token)
             
             # Check expiration is approximately 48 hours from now
-            exp_time = datetime.fromtimestamp(claims["exp"], tz=timezone.utc)
-            now = datetime.now(timezone.utc)
+            exp_time = datetime.fromtimestamp(claims["exp"], tz=UTC)
+            now = datetime.now(UTC)
             diff = (exp_time - now).total_seconds() / 3600
             assert 47.9 < diff < 48.1  # Allow small timing variations
 
@@ -71,8 +71,8 @@ class TestCreateToken:
             token = create_token("user123", "session456")
             claims = validate_token(token)
             
-            exp_time = datetime.fromtimestamp(claims["exp"], tz=timezone.utc)
-            now = datetime.now(timezone.utc)
+            exp_time = datetime.fromtimestamp(claims["exp"], tz=UTC)
+            now = datetime.now(UTC)
             diff = (exp_time - now).total_seconds() / 3600
             assert 11.9 < diff < 12.1
 

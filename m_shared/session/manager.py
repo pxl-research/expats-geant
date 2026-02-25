@@ -5,11 +5,10 @@ import json
 import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
 
 from m_shared.models.session import Session
+from m_shared.utils import AuditEventType, AuditLogger, Consent
 from m_shared.vectordb import ChromaDocumentStore
-from m_shared.utils import AuditLogger, AuditEventType, Consent
 
 
 class SessionManager:
@@ -82,7 +81,7 @@ class SessionManager:
         with open(metadata_path, "w") as f:
             json.dump(metadata, f, indent=2)
     
-    def _load_session_metadata(self, session_id: str) -> Optional[Session]:
+    def _load_session_metadata(self, session_id: str) -> Session | None:
         """Load session metadata from JSON file.
         
         Args:
@@ -97,7 +96,7 @@ class SessionManager:
         if not metadata_path.exists():
             return None
         
-        with open(metadata_path, "r") as f:
+        with open(metadata_path) as f:
             data = json.load(f)
         
         # Parse datetime strings
@@ -112,7 +111,7 @@ class SessionManager:
         jwt_token: str,
         ttl_hours: int = 24,
         isolation_scope: str = "user",
-        consent: Optional[Consent] = None,
+        consent: Consent | None = None,
         terms_version: str = "1.0",
         privacy_version: str = "1.0"
     ) -> Session:
@@ -189,7 +188,7 @@ class SessionManager:
         
         return session
     
-    def get_session(self, session_id: str) -> Optional[Session]:
+    def get_session(self, session_id: str) -> Session | None:
         """Get session by ID.
         
         Args:
@@ -233,7 +232,7 @@ class SessionManager:
         """
         return self._get_session_path(session_id) / "documents"
     
-    def delete_session(self, session_id: str, reason: Optional[str] = None) -> bool:
+    def delete_session(self, session_id: str, reason: str | None = None) -> bool:
         """Delete a session and all its data.
         
         Args:
@@ -341,7 +340,7 @@ class SessionManager:
         
         return cleaned
     
-    def get_session_stats(self, session_id: str) -> Optional[dict]:
+    def get_session_stats(self, session_id: str) -> dict | None:
         """Get statistics for a session.
         
         Args:

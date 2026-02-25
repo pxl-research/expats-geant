@@ -1,7 +1,8 @@
 """Unit tests for RAG pipeline components."""
 
+from unittest.mock import Mock
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch
 
 from m_autofill.rag_pipeline import RAGPipeline
 from m_shared.models.citation import Citation

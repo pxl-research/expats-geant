@@ -2,13 +2,11 @@
 
 import json
 import time
-from datetime import datetime, timedelta
-from pathlib import Path
+from datetime import timedelta
 
 import pytest
 
 from m_shared.session import SessionManager
-from m_shared.models.session import Session
 
 
 class TestSessionManagerBasics:
@@ -17,7 +15,7 @@ class TestSessionManagerBasics:
     def test_init_creates_base_path(self, tmp_path):
         """Test that SessionManager creates base directory."""
         base = tmp_path / "sessions"
-        manager = SessionManager(base_path=str(base))
+        _manager = SessionManager(base_path=str(base))
         
         assert base.exists()
         assert base.is_dir()
@@ -87,7 +85,7 @@ class TestSessionCreation:
         )
         
         metadata_path = tmp_path / session.session_id / "metadata.json"
-        with open(metadata_path, "r") as f:
+        with open(metadata_path) as f:
             data = json.load(f)
         
         assert data["user_id"] == "user_456"

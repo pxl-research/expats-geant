@@ -1,6 +1,5 @@
 """ChromaDB wrapper for document storage and retrieval."""
 
-from typing import Optional
 
 import chromadb
 from chromadb import QueryResult
@@ -46,7 +45,7 @@ class ChromaDocumentStore:
     - Query searches across all collections and returns the top-N results
     """
 
-    def __init__(self, path: Optional[str] = None):
+    def __init__(self, path: str | None = None):
         """
         Initialize ChromaDB document store.
 
@@ -107,8 +106,8 @@ class ChromaDocumentStore:
         collection_name = clean_up_string(document_name)
         try:
             self.cdb_client.delete_collection(name=collection_name)
-        except Exception:
-            pass  # Silently ignore if collection doesn't exist
+        except Exception:  # noqa: S110 - delete-if-exists pattern, absence is fine
+            pass
 
     def list_documents(self) -> list[str]:
         """
@@ -191,7 +190,7 @@ class ChromaDocumentStore:
             try:
                 results = collection.query(**query_kwargs)
                 all_results.extend(repack_query_results(results))
-            except Exception:
+            except Exception:  # noqa: S112 - skip collections that fail to query
                 continue
 
         all_results.sort(key=lambda r: r.get("distance", float("inf")))

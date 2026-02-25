@@ -12,8 +12,9 @@ The goal is a small, explicit, MVP-safe tool calling loop.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable, Optional
+from typing import Any
 
 
 @dataclass
@@ -114,7 +115,7 @@ def run_chat_with_tools(
     tools: list[dict[str, Any]],
     tool_registry: dict[str, ToolFn],
     temperature: float = 0.0,
-    extra_headers: Optional[dict[str, str]] = None,
+    extra_headers: dict[str, str] | None = None,
     max_tool_rounds: int = 5,
 ) -> tuple[str, list[dict[str, Any]]]:
     """Run a chat completion that may invoke tools, until no tool calls remain.
@@ -140,7 +141,7 @@ def run_chat_with_tools(
         assistant_text, tool_calls = _collect_streamed_tool_calls(stream)
         try:
             stream.close()
-        except Exception:
+        except Exception:  # noqa: S110 - stream.close() failure is irrelevant
             pass
 
         # Record assistant text (if any)

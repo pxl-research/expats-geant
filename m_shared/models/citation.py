@@ -1,7 +1,7 @@
 """Citation model for tracking sources in answer suggestions."""
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -25,9 +25,9 @@ class Citation(BaseModel):
     id: str = Field(..., description="Unique identifier for this citation")
     source_id: str = Field(..., description="ID of the source document")
     chunk_id: str = Field(..., description="ID of the specific chunk within the document")
-    position_start: Optional[int] = Field(None, description="Character position where cited content starts")
-    position_end: Optional[int] = Field(None, description="Character position where cited content ends")
-    position_percentage: Optional[float] = Field(None, description="Position as percentage through document (0.0-1.0)")
+    position_start: int | None = Field(None, description="Character position where cited content starts")
+    position_end: int | None = Field(None, description="Character position where cited content ends")
+    position_percentage: float | None = Field(None, description="Position as percentage through document (0.0-1.0)")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="When this citation was created")
     highlights: list[str] = Field(default_factory=list, description="Highlighted excerpts from the source")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata (relevance score, context, etc.)")

@@ -1,7 +1,7 @@
 """Response model capturing user answers with metadata."""
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -23,7 +23,7 @@ class Response(BaseModel):
     question_id: str = Field(..., description="ID of the question being answered")
     answer_value: Any = Field(..., description="User's answer (text, number, list of option IDs, etc.)")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="When this response was recorded")
-    session_id: Optional[str] = Field(None, description="Session ID this response belongs to")
+    session_id: str | None = Field(None, description="Session ID this response belongs to")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata (edit history, confidence, etc.)")
     
     class Config:

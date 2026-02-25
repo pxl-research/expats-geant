@@ -12,7 +12,6 @@ from m_autofill.models import (
 from m_autofill.rag_pipeline import RAGPipeline
 from m_shared.models.question import QuestionType
 
-
 # ---------------------------------------------------------------------------
 # BatchSuggestItem validation
 # ---------------------------------------------------------------------------
@@ -155,6 +154,7 @@ class TestParseStructuredResponse:
     @pytest.fixture
     def pipeline(self, tmp_path):
         from unittest.mock import MagicMock
+
         from m_shared.session.manager import SessionManager
         manager = SessionManager(base_path=str(tmp_path))
         llm = MagicMock()
@@ -222,6 +222,7 @@ class TestParseSelectedId:
     @pytest.fixture
     def pipeline(self, tmp_path):
         from unittest.mock import MagicMock
+
         from m_shared.session.manager import SessionManager
         manager = SessionManager(base_path=str(tmp_path))
         llm = MagicMock()

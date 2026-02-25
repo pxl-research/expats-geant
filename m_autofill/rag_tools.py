@@ -11,7 +11,6 @@ from dataclasses import dataclass
 
 from m_shared.vectordb import ChromaDocumentStore
 
-
 rag_tool_descriptors = [
     {
         "type": "function",

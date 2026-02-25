@@ -1,19 +1,19 @@
 """Tests for file validation functions."""
 
-import pytest
 import tempfile
 from pathlib import Path
 
-from m_autofill.validation import (
-    validate_file_upload,
-    validate_file_type,
-    validate_file_size,
-    validate_file_or_raise,
-    FileValidationError,
-    SUPPORTED_EXTENSIONS,
-    MAX_FILE_SIZE_BYTES,
-)
+import pytest
 
+from m_autofill.validation import (
+    MAX_FILE_SIZE_BYTES,
+    SUPPORTED_EXTENSIONS,
+    FileValidationError,
+    validate_file_or_raise,
+    validate_file_size,
+    validate_file_type,
+    validate_file_upload,
+)
 
 # Test data directory
 TEST_DATA_DIR = Path(__file__).parent / "test_data" / "documents"

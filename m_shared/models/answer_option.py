@@ -1,6 +1,6 @@
 """Answer option model for questions with predefined choices."""
 
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -16,7 +16,7 @@ class AnswerOption(BaseModel):
     
     id: str = Field(..., description="Unique identifier for this answer option")
     text: str = Field(..., description="Display text for the answer option")
-    value: Optional[Any] = Field(None, description="Optional value associated with this option (e.g., numeric score)")
+    value: Any | None = Field(None, description="Optional value associated with this option (e.g., numeric score)")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata for this option")
     
     class Config:

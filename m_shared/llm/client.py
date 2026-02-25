@@ -4,7 +4,7 @@ Unified LLM client abstraction supporting OpenRouter, OpenAI-compatible APIs, an
 
 import os
 import time
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 import tiktoken
 from openai import APIError, OpenAI, RateLimitError
@@ -18,12 +18,12 @@ class LLMClient(OpenAI):
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        base_url: Optional[str] = None,
-        model_name: Optional[str] = None,
-        tools_list: Optional[Iterable] = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        model_name: str | None = None,
+        tools_list: Iterable | None = None,
         temperature: float = 0.7,
-        custom_headers: Optional[dict] = None,
+        custom_headers: dict | None = None,
         max_retries: int = 3,
         retry_backoff_factor: float = 2.0,
     ):
@@ -57,7 +57,7 @@ class LLMClient(OpenAI):
             }
 
         self.model_name: str = model_name
-        self.tools_list: Optional[Iterable] = tools_list
+        self.tools_list: Iterable | None = tools_list
         self.temperature: float = temperature
         self.extra_headers: dict = custom_headers
         self.max_retries: int = max_retries
@@ -192,7 +192,7 @@ class LLMClient(OpenAI):
                         time.sleep(wait_time)
                         continue
                 raise
-            except Exception as e:
+            except Exception:
                 # Don't retry on other exceptions
                 raise
         

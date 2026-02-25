@@ -1,11 +1,11 @@
 """FastAPI middleware for implicit session management via JWT authentication."""
 
-from typing import Callable, Optional
+from collections.abc import Callable
 
-from fastapi import Request, Response, HTTPException, status
+from fastapi import Request, Response, status
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from m_shared.auth.jwt_handler import validate_token, TokenExpiredError, TokenInvalidError
+from m_shared.auth.jwt_handler import TokenExpiredError, TokenInvalidError, validate_token
 from m_shared.session.manager import SessionManager
 
 
@@ -124,7 +124,7 @@ class SessionMiddleware(BaseHTTPMiddleware):
         
         return response
     
-    def _extract_token(self, request: Request) -> Optional[str]:
+    def _extract_token(self, request: Request) -> str | None:
         """Extract JWT from Authorization header.
         
         Args:

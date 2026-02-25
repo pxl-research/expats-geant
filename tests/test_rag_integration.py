@@ -1,8 +1,6 @@
 """Integration tests for RAG pipeline end-to-end flows."""
 
 import os
-import tempfile
-from pathlib import Path
 
 import pytest
 

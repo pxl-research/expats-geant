@@ -1,11 +1,11 @@
 """Tests for metadata preservation in document ingestion."""
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 from m_autofill.ingest import ingest_files_into_store
 from m_shared.vectordb import ChromaDocumentStore
-
 
 # Test data directory
 TEST_DATA_DIR = Path(__file__).parent / "test_data" / "documents"
@@ -150,8 +150,8 @@ class TestChunkContentIntegrity:
         file_path = str(TEST_DATA_DIR / "sample.txt")
         
         # Read original content
-        with open(file_path, "r") as f:
-            original_content = f.read()
+        with open(file_path) as f:
+            _original_content = f.read()
         
         ingest_files_into_store(
             file_paths=[file_path],

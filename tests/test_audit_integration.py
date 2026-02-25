@@ -9,7 +9,7 @@ from m_autofill.ingest import ingest_files_into_store
 from m_autofill.rag_pipeline import RAGPipeline
 from m_shared.llm import LLMClient
 from m_shared.session import SessionManager
-from m_shared.utils import AuditLogger, AuditEventType
+from m_shared.utils import AuditEventType, AuditLogger
 
 
 class TestAuditIntegration:
@@ -95,7 +95,7 @@ class TestAuditIntegration:
         
         # Note: This will fail without valid API key, but we can check structure
         try:
-            result = pipeline.suggest_answer(
+            _result = pipeline.suggest_answer(
                 question="What is mentioned in the documents?",
                 session_id=session_id,
                 user_id="test_user"

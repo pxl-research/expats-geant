@@ -1,28 +1,33 @@
 """FastAPI endpoints for M-Autofill answer suggestion service."""
 
 import os
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
-from fastapi import FastAPI, Request, HTTPException, status, UploadFile, File, Form
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
-from m_shared.session.manager import SessionManager
-from m_shared.llm.client import LLMClient
-from m_shared.utils.audit import AuditLogger
-from m_shared.auth.jwt_handler import create_token
-from m_autofill.validation import validate_file_upload, FileValidationError
 from m_autofill.ingest import ingest_files_into_store
+from m_autofill.models import (
+    BatchSuggestRequest,
+    BatchSuggestResponse,
+    CitationResult,
+    ItemSuggestion,
+    normalize_to_sections,
+)
 from m_autofill.rag_pipeline import RAGPipeline
-from m_autofill.models import BatchSuggestRequest, BatchSuggestResponse, CitationResult, ItemSuggestion, normalize_to_sections
+from m_autofill.validation import FileValidationError, validate_file_upload
+from m_shared.auth.jwt_handler import create_token
+from m_shared.llm.client import LLMClient
+from m_shared.session.manager import SessionManager
+from m_shared.utils.audit import AuditLogger
 
 
 # Request models
 class SuggestRequest(BaseModel):
     """Request for answer suggestion."""
     question: str = Field(..., min_length=1, max_length=2000, description="Question to answer")
-    context: Optional[str] = Field(None, max_length=1000, description="Optional context")
+    context: str | None = Field(None, max_length=1000, description="Optional context")
 
 
 # Response models
@@ -47,7 +52,7 @@ class CitationResponse(BaseModel):
 class SuggestResponse(BaseModel):
     """Answer suggestion response."""
     answer: str
-    reasoning: Optional[str] = Field(None, description="LLM explanation of confidence, source interpretation, or uncertainty")
+    reasoning: str | None = Field(None, description="LLM explanation of confidence, source interpretation, or uncertainty")
     citations: list[CitationResponse]
     metadata: dict
 
@@ -95,8 +100,8 @@ class DevTokenResponse(BaseModel):
 
 def create_app(
     session_manager: SessionManager,
-    llm_client: Optional[LLMClient] = None,
-    audit_logger: Optional[AuditLogger] = None,
+    llm_client: LLMClient | None = None,
+    audit_logger: AuditLogger | None = None,
     max_file_size_mb: int = 50,
     lifespan=None,
 ) -> FastAPI:
@@ -315,7 +320,7 @@ def create_app(
             )
             
             file_size = os.path.getsize(file_path)
-            upload_timestamp = datetime.now(timezone.utc).isoformat()
+            upload_timestamp = datetime.now(UTC).isoformat()
             
             return UploadResponse(
                 status="success",
@@ -474,7 +479,7 @@ def create_app(
         return BatchSuggestResponse(
             assessment_id=batch_request.assessment_id,
             session_id=session.session_id,
-            generated_at=datetime.now(timezone.utc).isoformat(),
+            generated_at=datetime.now(UTC).isoformat(),
             model=rag_pipeline.llm_client.model_name,
             responses=responses,
         )

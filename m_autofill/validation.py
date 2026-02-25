@@ -2,8 +2,6 @@
 
 import os
 from pathlib import Path
-from typing import Tuple
-
 
 # Supported file types
 SUPPORTED_EXTENSIONS = {".txt", ".pdf", ".docx", ".md"}
@@ -16,7 +14,7 @@ def validate_file_upload(
     file_path: str,
     max_size_bytes: int = MAX_FILE_SIZE_BYTES,
     allowed_extensions: set = SUPPORTED_EXTENSIONS
-) -> Tuple[bool, str]:
+) -> tuple[bool, str]:
     """
     Validate file for upload.
     

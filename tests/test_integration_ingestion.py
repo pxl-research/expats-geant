@@ -1,12 +1,12 @@
 """Integration tests for document ingestion pipeline."""
 
-import pytest
 from pathlib import Path
 
-from m_autofill.ingest import ingest_files_into_store
-from m_autofill.validation import validate_file_or_raise, FileValidationError
-from m_shared.vectordb import ChromaDocumentStore
+import pytest
 
+from m_autofill.ingest import ingest_files_into_store
+from m_autofill.validation import FileValidationError, validate_file_or_raise
+from m_shared.vectordb import ChromaDocumentStore
 
 # Test data directory
 TEST_DATA_DIR = Path(__file__).parent / "test_data" / "documents"

@@ -9,13 +9,11 @@ All operations are session-isolated to ensure user privacy and data separation.
 """
 
 from datetime import datetime
-from typing import Optional
 
 from m_shared.llm import LLMClient
 from m_shared.models.citation import Citation
 from m_shared.models.question import QuestionType
 from m_shared.session import SessionManager
-from m_shared.vectordb import ChromaDocumentStore
 from m_shared.utils import AuditLogger
 
 
@@ -40,7 +38,7 @@ class RAGPipeline:
         default_top_k: int = 5,
         default_temperature: float = 0.4,
         max_tokens: int = 500,
-        audit_logger: Optional[AuditLogger] = None,
+        audit_logger: AuditLogger | None = None,
     ):
         """Initialize RAG pipeline.
         
@@ -63,8 +61,8 @@ class RAGPipeline:
         self,
         question: str,
         session_id: str,
-        top_k: Optional[int] = None,
-        filters: Optional[dict] = None,
+        top_k: int | None = None,
+        filters: dict | None = None,
     ) -> list[dict]:
         """Retrieve relevant document chunks via semantic search.
 
@@ -112,7 +110,7 @@ class RAGPipeline:
         self,
         question: str,
         retrieved_chunks: list[dict],
-        temperature: Optional[float] = None,
+        temperature: float | None = None,
     ) -> str:
         """Generate answer from retrieved document chunks using LLM.
         
@@ -198,12 +196,12 @@ Answer:"""
         self,
         question: str,
         retrieved_chunks: list[dict],
-        temperature: Optional[float] = None,
-        section_context: Optional[str] = None,
-        sibling_prompts: Optional[list[str]] = None,
-        choices: Optional[list] = None,
-        question_type: Optional[str] = None,
-    ) -> tuple[str, Optional[str]]:
+        temperature: float | None = None,
+        section_context: str | None = None,
+        sibling_prompts: list[str] | None = None,
+        choices: list | None = None,
+        question_type: str | None = None,
+    ) -> tuple[str, str | None]:
         """Generate answer and reasoning from retrieved chunks using LLM.
 
         Uses a structured ANSWER/REASONING prompt so both fields are returned
@@ -278,7 +276,7 @@ ANSWER: <your answer>
 
         return self._parse_structured_response(raw.strip())
 
-    def _parse_structured_response(self, raw: str) -> tuple[str, Optional[str], Optional[str]]:
+    def _parse_structured_response(self, raw: str) -> tuple[str, str | None, str | None]:
         """Parse ANSWER/SELECTED/REASONING from structured LLM output.
 
         Collects all lines belonging to each block, so multi-line answers and
@@ -296,7 +294,7 @@ ANSWER: <your answer>
         PREFIXES = ("ANSWER:", "SELECTED:", "REASONING:")
 
         blocks: dict[str, list[str]] = {}
-        current_key: Optional[str] = None
+        current_key: str | None = None
 
         for line in raw.splitlines():
             matched = next((p for p in PREFIXES if line.startswith(p)), None)
@@ -306,7 +304,7 @@ ANSWER: <your answer>
             elif current_key is not None:
                 blocks[current_key].append(line)
 
-        def get_block(key: str) -> Optional[str]:
+        def get_block(key: str) -> str | None:
             lines = blocks.get(key, [])
             value = "\n".join(lines).strip()
             return value if value else None
@@ -320,7 +318,7 @@ ANSWER: <your answer>
 
         return answer, reasoning, selected_raw
 
-    def _parse_selected_id(self, selected_raw: Optional[str], choices: list, multi: bool) -> tuple[Optional[str], Optional[list[str]]]:
+    def _parse_selected_id(self, selected_raw: str | None, choices: list, multi: bool) -> tuple[str | None, list[str] | None]:
         """Validate a SELECTED value against the available choices.
 
         Args:
@@ -446,10 +444,10 @@ ANSWER: <your answer>
         self,
         question: str,
         session_id: str,
-        top_k: Optional[int] = None,
-        temperature: Optional[float] = None,
-        user_id: Optional[str] = None,
-        question_id: Optional[str] = None,
+        top_k: int | None = None,
+        temperature: float | None = None,
+        user_id: str | None = None,
+        question_id: str | None = None,
     ) -> dict:
         """Generate answer suggestion with citations (full RAG pipeline).
         
@@ -554,7 +552,7 @@ ANSWER: <your answer>
         sections: list,
         session_id: str,
         assessment_id: str,
-        user_id: Optional[str] = None,
+        user_id: str | None = None,
     ) -> list[dict]:
         """Generate answer suggestions for multiple questionnaire items.
 

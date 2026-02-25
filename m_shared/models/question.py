@@ -1,7 +1,7 @@
 """Question model supporting five core QTI 3.0-compatible question types."""
 
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -55,9 +55,9 @@ class Question(BaseModel):
     text: str = Field(..., description="Question text displayed to the user")
     type: QuestionType = Field(..., description="Question type (multiple_choice, single_choice, open_ended, ranking, slider)")
     answer_options: list[AnswerOption] = Field(default_factory=list, description="Predefined answer options (for choice/ranking questions)")
-    min_value: Optional[float] = Field(None, description="Minimum value for slider questions")
-    max_value: Optional[float] = Field(None, description="Maximum value for slider questions")
-    step: Optional[float] = Field(None, description="Step increment for slider questions")
+    min_value: float | None = Field(None, description="Minimum value for slider questions")
+    max_value: float | None = Field(None, description="Maximum value for slider questions")
+    step: float | None = Field(None, description="Step increment for slider questions")
     required: bool = Field(True, description="Whether this question requires an answer")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata (tags, hints, validation rules)")
     

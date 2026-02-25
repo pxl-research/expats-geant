@@ -1,15 +1,14 @@
 """Tests for session middleware and API endpoints."""
 
-import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
 
+from m_autofill.api import create_app
 from m_shared.auth.jwt_handler import create_token
 from m_shared.auth.middleware import SessionMiddleware
 from m_shared.session.manager import SessionManager
-from m_autofill.api import create_app
 
 
 @pytest.fixture
@@ -288,7 +287,7 @@ class TestMiddlewareEdgeCases:
         # Create token without session_id
         payload = {
             "user_id": "test_user",
-            "exp": datetime.now(timezone.utc) + timedelta(hours=1)
+            "exp": datetime.now(UTC) + timedelta(hours=1)
         }
         token = jwt.encode(payload, jwt_secret, algorithm="HS256")
         
@@ -362,10 +361,11 @@ class TestSuggestEndpoint:
     def app_with_llm(self, session_manager, monkeypatch):
         """Create app with mocked LLM client."""
         from unittest.mock import Mock
-        from m_shared.llm.client import LLMClient
-        from m_shared.utils.audit import AuditLogger
+
         from m_autofill.api import create_app
         from m_shared.auth.middleware import SessionMiddleware
+        from m_shared.llm.client import LLMClient
+        from m_shared.utils.audit import AuditLogger
         
         # Mock LLM client
         llm_client = Mock(spec=LLMClient)
@@ -426,9 +426,9 @@ class TestAuditReportEndpoint:
     @pytest.fixture
     def app_with_audit(self, session_manager):
         """Create app with audit logger."""
-        from m_shared.utils.audit import AuditLogger
         from m_autofill.api import create_app
         from m_shared.auth.middleware import SessionMiddleware
+        from m_shared.utils.audit import AuditLogger
         
         audit_logger = AuditLogger(base_path=str(session_manager.base_path))
         app = create_app(
@@ -493,9 +493,9 @@ class TestAuditReportDeletion:
 
     @pytest.fixture
     def app_with_audit(self, session_manager):
-        from m_shared.utils.audit import AuditLogger
         from m_autofill.api import create_app
         from m_shared.auth.middleware import SessionMiddleware
+        from m_shared.utils.audit import AuditLogger
 
         audit_logger = AuditLogger(base_path=str(session_manager.base_path))
         app = create_app(session_manager=session_manager, audit_logger=audit_logger)
@@ -580,10 +580,11 @@ class TestFullSessionFlow:
     def full_app(self, session_manager, tmp_path, monkeypatch):
         """Create fully configured app."""
         from unittest.mock import Mock
-        from m_shared.llm.client import LLMClient
-        from m_shared.utils.audit import AuditLogger
+
         from m_autofill.api import create_app
         from m_shared.auth.middleware import SessionMiddleware
+        from m_shared.llm.client import LLMClient
+        from m_shared.utils.audit import AuditLogger
         
         # Mock LLM
         llm_client = Mock(spec=LLMClient)

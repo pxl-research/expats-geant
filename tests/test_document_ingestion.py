@@ -1,15 +1,15 @@
 """Tests for document ingestion pipeline."""
 
 import os
-import pytest
 from pathlib import Path
 
+import pytest
+
 from m_shared.vectordb.utils import (
+    clean_up_string,
     document_to_markdown,
     sanitize_filename,
-    clean_up_string,
 )
-
 
 # Test data directory
 TEST_DATA_DIR = Path(__file__).parent / "test_data" / "documents"
@@ -110,7 +110,7 @@ class TestFileValidation:
         """Test that files can be read."""
         file_path = TEST_DATA_DIR / "sample.txt"
         
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             content = f.read()
             assert len(content) > 0
 

@@ -1,13 +1,14 @@
 """Tests for text chunking algorithms."""
 
 import pytest
+
 from m_shared.vectordb.utils import (
+    iterative_chunking,
+    merge_small_chunks,
     split_by_header,
     split_by_newlines,
     split_on_sentences,
     split_on_threshold,
-    merge_small_chunks,
-    iterative_chunking,
 )
 
 

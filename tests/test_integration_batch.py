@@ -1,12 +1,13 @@
 """Integration tests for POST /suggest/batch and reasoning field on POST /suggest."""
 
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 from m_autofill.api import create_app
-from m_shared.session.manager import SessionManager
 from m_shared.auth.jwt_handler import create_token
+from m_shared.session.manager import SessionManager
 
 
 @pytest.fixture

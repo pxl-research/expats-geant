@@ -10,12 +10,12 @@ Audit reports enable users to verify which documents informed their answers,
 supporting GDPR Right to Know and building user trust.
 """
 
-from datetime import datetime, timedelta, timezone
-from enum import Enum
-from pathlib import Path
-from typing import Any, Optional
 import json
 import threading
+from datetime import UTC, datetime, timedelta
+from enum import Enum
+from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -43,8 +43,8 @@ class AuditLogEntry(BaseModel):
     """
     event_type: AuditEventType = Field(..., description="Type of event")
     session_id: str = Field(..., description="Session identifier")
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="When event occurred")
-    user_id: Optional[str] = Field(None, description="User who triggered the event")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC), description="When event occurred")
+    user_id: str | None = Field(None, description="User who triggered the event")
     details: dict[str, Any] = Field(default_factory=dict, description="Event-specific data")
     
     model_config = ConfigDict(
@@ -77,7 +77,7 @@ class Consent(BaseModel):
         ... )
     """
     session_id: str = Field(..., description="Session identifier")
-    accepted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="When consent was given")
+    accepted_at: datetime = Field(default_factory=lambda: datetime.now(UTC), description="When consent was given")
     terms_version: str = Field(..., description="Version of terms accepted")
     privacy_version: str = Field(..., description="Version of privacy policy accepted")
     
@@ -110,14 +110,14 @@ class AuditReport(BaseModel):
         ... )
     """
     session_id: str = Field(..., description="Session identifier")
-    user_id: Optional[str] = Field(None, description="User who owned the session")
+    user_id: str | None = Field(None, description="User who owned the session")
     created_at: datetime = Field(..., description="Session start time")
-    ended_at: Optional[datetime] = Field(None, description="Session end time (if ended)")
+    ended_at: datetime | None = Field(None, description="Session end time (if ended)")
     retention_until: datetime = Field(..., description="When report will be auto-deleted")
     is_claimed: bool = Field(default=False, description="Whether user has downloaded report")
     log_entries: list[AuditLogEntry] = Field(default_factory=list, description="All audit log entries")
     summary: dict[str, Any] = Field(default_factory=dict, description="Summary statistics")
-    consent: Optional[Consent] = Field(None, description="Consent record")
+    consent: Consent | None = Field(None, description="Consent record")
     
     model_config = ConfigDict(
         json_schema_extra={
@@ -207,7 +207,7 @@ class AuditLogger:
         if not log_path.exists():
             return []
         
-        with open(log_path, "r") as f:
+        with open(log_path) as f:
             data = json.load(f)
         
         return [AuditLogEntry(**entry) for entry in data]
@@ -246,7 +246,7 @@ class AuditLogger:
         filename: str,
         file_size: int,
         file_type: str,
-        user_id: Optional[str] = None
+        user_id: str | None = None
     ) -> None:
         """Log a document upload event.
         
@@ -276,8 +276,8 @@ class AuditLogger:
         suggested_answer: str,
         sources_used: list[str],
         model: str,
-        user_id: Optional[str] = None,
-        question_id: Optional[str] = None
+        user_id: str | None = None,
+        question_id: str | None = None
     ) -> None:
         """Log an answer suggestion generation event.
         
@@ -310,8 +310,8 @@ class AuditLogger:
         session_id: str,
         original_suggestion: str,
         edited_version: str,
-        question: Optional[str] = None,
-        user_id: Optional[str] = None
+        question: str | None = None,
+        user_id: str | None = None
     ) -> None:
         """Log a user edit to a suggestion.
         
@@ -339,8 +339,8 @@ class AuditLogger:
         self,
         session_id: str,
         event_type: AuditEventType,
-        user_id: Optional[str] = None,
-        reason: Optional[str] = None
+        user_id: str | None = None,
+        reason: str | None = None
     ) -> None:
         """Log a session lifecycle event.
         
@@ -366,7 +366,7 @@ class AuditLogger:
         self,
         session_id: str,
         consent: Consent,
-        user_id: Optional[str] = None
+        user_id: str | None = None
     ) -> None:
         """Log consent acceptance.
         
@@ -401,9 +401,9 @@ class AuditLogger:
     def generate_report(
         self,
         session_id: str,
-        user_id: Optional[str] = None,
-        created_at: Optional[datetime] = None,
-        ended_at: Optional[datetime] = None,
+        user_id: str | None = None,
+        created_at: datetime | None = None,
+        ended_at: datetime | None = None,
         retention_years: int = 1
     ) -> AuditReport:
         """Generate a complete audit report for a session.
@@ -424,13 +424,13 @@ class AuditLogger:
         if not created_at and entries:
             created_at = entries[0].timestamp
         elif not created_at:
-            created_at = datetime.now(timezone.utc)
+            created_at = datetime.now(UTC)
         
         if not ended_at and entries:
             ended_at = entries[-1].timestamp
         
         # Calculate retention
-        retention_until = (ended_at or datetime.now(timezone.utc)) + timedelta(days=365 * retention_years)
+        retention_until = (ended_at or datetime.now(UTC)) + timedelta(days=365 * retention_years)
         
         # Generate summary statistics
         summary = {
@@ -520,7 +520,7 @@ class AuditLogger:
         
         with open(claim_path, "w") as f:
             json.dump({
-                "claimed_at": datetime.now(timezone.utc).isoformat(),
+                "claimed_at": datetime.now(UTC).isoformat(),
                 "session_id": session_id
             }, f)
     
@@ -565,7 +565,7 @@ class AuditLogger:
             with open(tombstone_path, "w") as f:
                 json.dump({
                     "session_id": session_id,
-                    "deleted_at": datetime.now(timezone.utc).isoformat(),
+                    "deleted_at": datetime.now(UTC).isoformat(),
                 }, f)
 
     def is_deleted(self, session_id: str) -> bool:

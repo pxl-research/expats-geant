@@ -1,11 +1,11 @@
 """Integration tests for session isolation with vector stores."""
 
-import pytest
 from pathlib import Path
 
-from m_shared.session import SessionManager
-from m_autofill.ingest import ingest_files_into_store
+import pytest
 
+from m_autofill.ingest import ingest_files_into_store
+from m_shared.session import SessionManager
 
 # Test data directory
 TEST_DATA_DIR = Path(__file__).parent / "test_data" / "documents"

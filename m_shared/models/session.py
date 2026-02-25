@@ -1,7 +1,7 @@
 """Session model representing user session context with TTL."""
 
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -30,7 +30,7 @@ class Session(BaseModel):
     
     @field_validator("expires_at", mode="before")
     @classmethod
-    def set_expiration(cls, v: Optional[datetime], info) -> datetime:
+    def set_expiration(cls, v: datetime | None, info) -> datetime:
         """Set expiration time based on TTL if not explicitly provided."""
         if v is not None:
             return v

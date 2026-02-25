@@ -1,8 +1,7 @@
 """JWT token creation and validation for session-based authentication."""
 
 import os
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 import jwt
 
@@ -26,8 +25,8 @@ def create_token(
     user_id: str,
     session_id: str,
     org: str = "default",
-    roles: Optional[list[str]] = None,
-    expiration_hours: Optional[int] = None,
+    roles: list[str] | None = None,
+    expiration_hours: int | None = None,
 ) -> str:
     """
     Create a signed JWT token for authenticated session access.
@@ -60,7 +59,7 @@ def create_token(
     if roles is None:
         roles = ["respondent"]
     
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expires_at = now + timedelta(hours=expiration_hours)
     
     payload = {
