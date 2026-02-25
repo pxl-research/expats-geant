@@ -346,7 +346,7 @@ python3 -m pytest tests/test_auth.py -v           # Auth tests
 
 For production deployments with institutional authentication, see:
 
-📖 **[docs/INTEGRATION.md](docs/INTEGRATION.md)** — Complete integration guide with:
+📖 **[docs/INTEGRATION.md](INTEGRATION.md)** — Complete integration guide with:
 
 - JWT requirements and claim structure
 - Shibboleth / Azure AD / OIDC examples
@@ -462,6 +462,7 @@ server {
 
 ## Support
 
-- Documentation: [README.md](README.md)
-- Project specs: [openspec/project.md](openspec/project.md)
+- Documentation: [README.md](../README.md)
+- Integration guide: [docs/INTEGRATION.md](INTEGRATION.md)
+- Project specs: [openspec/project.md](../openspec/project.md)
 - Issues: [GitHub Issues](https://github.com/pxl-be/expat-geant/issues)

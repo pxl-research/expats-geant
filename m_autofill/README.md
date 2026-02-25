@@ -37,18 +37,15 @@ M-Autofill is a RAG (Retrieval-Augmented Generation) module that helps responden
 ```
 m_autofill/
 ├── __init__.py
+├── api.py                   # FastAPI endpoints
 ├── ingest.py                # Document upload and ingestion pipeline
+├── models.py                # Pydantic request/response models
 ├── rag_pipeline.py          # RAG orchestration: retrieval, generation, citations
 ├── rag_tools.py             # RAG tool wrappers for LLM tool calling
-├── validation.py            # Input validation and sanitization
-├── api.py                   # FastAPI endpoints (Phase 3.3)
-└── tests/
-    ├── test_document_ingestion.py
-    ├── test_chunking.py
-    ├── test_rag_pipeline.py
-    ├── test_rag_integration.py
-    └── test_data/           # Sample documents for testing
+└── validation.py            # Input validation and sanitization
 ```
+
+Tests live in the repo root `tests/` folder.
 
 ## RAG Pipeline Architecture
 
@@ -129,7 +126,7 @@ m_autofill/
 Run tests:
 
 ```bash
-# Unit tests (no API key required)
+# Unit tests (no API key required) — run from repo root
 pytest tests/test_rag_pipeline.py -v
 
 # Integration tests (requires API key)
@@ -269,16 +266,17 @@ See [`docs/examples/`](../docs/examples/) for complete request/response JSON fil
 Environment variables:
 
 - `OPENROUTER_API_KEY` — OpenRouter API key for LLM access
-- `CHROMADB_PATH` — Path to ChromaDB storage (default: temp directory)
-- `SESSION_TTL_HOURS` — Session expiration time (default: 48)
-- `LLM_MODEL` — Default model on OpenRouter (e.g., `openai/gpt-4`)
+- `CHROMA_BASE_PATH` — Path to ChromaDB storage (default: `/app/data/chroma`)
+- `SESSION_TTL_HOURS` — Session expiration time (default: 24)
+- `LLM_MODEL` — Default model on OpenRouter (e.g., `anthropic/claude-haiku-4.5`)
 
 ## Development
 
 ### Running Tests
 
 ```bash
-pytest m_autofill/tests/ -v
+# Run from repo root
+pytest tests/ -v
 ```
 
 ### Dependencies

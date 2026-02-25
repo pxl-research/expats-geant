@@ -17,40 +17,37 @@ M-Shared provides the foundational infrastructure and utilities that both M-Chat
 ```
 m_shared/
 ├── __init__.py
-├── llm/
-│   ├── __init__.py
-│   ├── client.py             # Unified LLM client (OpenRouter, OpenAI-compat, local)
-│   ├── models.py             # Supported LLM models and configurations
-│   └── utils.py              # Prompt engineering, token counting
-├── vectordb/
-│   ├── __init__.py
-│   ├── client.py             # ChromaDB wrapper
-│   ├── session_store.py      # Per-session isolation
-│   └── utils.py              # Chunking, embedding utilities
-├── models/
-│   ├── __init__.py
-│   ├── survey.py             # Survey, Section, Question, AnswerOption
-│   ├── response.py           # Response, Citation, SourceMetadata
-│   ├── session.py            # Session, TTL, audit trail
-│   └── qti.py                # QTI 3.0 schema mappings
 ├── auth/
 │   ├── __init__.py
-│   ├── jwt_handler.py        # JWT token creation, validation
-│   ├── oauth.py              # OAuth 2.0 integration
-│   └── permissions.py        # Role-based access control (RBAC)
+│   ├── jwt_handler.py        # JWT token creation & validation
+│   ├── middleware.py         # FastAPI auth middleware
+│   └── validators.py        # Token claim validators
+├── llm/
+│   ├── __init__.py
+│   ├── client.py             # Unified LLM client (OpenRouter, OpenAI-compat)
+│   └── tool_calling.py      # LLM tool/function calling helpers
+├── models/
+│   ├── __init__.py
+│   ├── answer_option.py
+│   ├── citation.py
+│   ├── question.py
+│   ├── response.py
+│   ├── section.py
+│   ├── session.py
+│   └── survey.py
+├── session/
+│   ├── __init__.py
+│   └── manager.py            # Session lifecycle, TTL, cleanup
 ├── utils/
 │   ├── __init__.py
-│   ├── logging.py            # Structured logging
-│   ├── error_handling.py     # Custom exceptions, error formatting
-│   ├── encryption.py         # Data encryption utilities
-│   └── validators.py         # Input validation, sanitization
-└── tests/
-    ├── test_llm_client.py
-    ├── test_vectordb_client.py
-    ├── test_models.py
-    ├── test_auth.py
-    └── fixtures/
+│   └── audit.py             # Audit trail logging
+└── vectordb/
+    ├── __init__.py
+    ├── client.py             # ChromaDB wrapper with session isolation
+    └── utils.py             # Chunking & embedding utilities
 ```
+
+> Files listed in an earlier version of this README (`vectordb/session_store.py`, `utils/logging.py`, `utils/error_handling.py`, `utils/encryption.py`, `utils/validators.py`, `models/qti.py`, `auth/oauth.py`, `auth/permissions.py`, `llm/models.py`, `llm/utils.py`) are **planned for future phases** and do not yet exist.
 
 ## Key Components
 
@@ -154,15 +151,12 @@ Environment variables (see `.env.example`):
 ```bash
 # LLM Configuration
 OPENROUTER_API_KEY=sk_...
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-DEFAULT_LLM_MODEL=openai/gpt-4
-
-# Local LLM (optional)
-LOCAL_LLM_BASE_URL=http://localhost:11434
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_MODEL=anthropic/claude-haiku-4.5
 
 # Vector DB
-CHROMADB_PATH=/tmp/chromadb
-SESSION_TTL_HOURS=48
+CHROMA_BASE_PATH=/app/data/chroma
+SESSION_TTL_HOURS=24
 
 # Auth
 JWT_SECRET=your-secret-key
@@ -177,7 +171,8 @@ LOG_LEVEL=INFO
 ### Running Tests
 
 ```bash
-pytest m_shared/tests/ -v
+# Tests live in the repo root tests/ folder
+pytest tests/ -v
 ```
 
 ### Adding a New Model
@@ -220,11 +215,11 @@ class MyModel(BaseModel):
 
 See root `requirements.txt`. Key libraries:
 
-- `pydantic` — Data validation & schema generation
+- `pydantic` — Data validation & schema generation (transitive dependency via FastAPI)
 - `chromadb` — Vector database
 - `openai` — LLM client (OpenAI-compatible)
-- `python-jose` — JWT handling
-- `cryptography` — Encryption utilities
+- `PyJWT` — JWT handling
+- `fastapi` — Web framework
 
 ## Integration
 
