@@ -338,15 +338,17 @@ class TestSuggestEndpoint:
         response = client_with_llm.post("/suggest", json={"question": "What is the answer?"})
         assert response.status_code == 401
 
-    def test_suggest_requires_documents(self, client_with_llm, valid_token):
-        """Suggest without uploaded documents should fail."""
+    def test_suggest_without_documents_returns_graceful_response(
+        self, client_with_llm, valid_token
+    ):
+        """Suggest without uploaded documents should return a graceful 200 with a fallback message."""
         response = client_with_llm.post(
             "/suggest",
             headers={"Authorization": f"Bearer {valid_token}"},
             json={"question": "What is the answer?"},
         )
-        # Should fail because no documents uploaded
-        assert response.status_code in [404, 500]
+        assert response.status_code == 200
+        assert "couldn't find" in response.json()["answer"].lower()
 
     def test_suggest_invalid_question(self, client_with_llm, valid_token):
         """Suggest with empty question should fail."""
