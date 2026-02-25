@@ -14,6 +14,45 @@ from m_shared.models.question import QuestionType
 
 
 # ---------------------------------------------------------------------------
+# BatchSuggestItem validation
+# ---------------------------------------------------------------------------
+
+class TestBatchSuggestItem:
+    def test_single_choice_with_choices_valid(self):
+        item = BatchSuggestItem(
+            id="q1", type=QuestionType.SINGLE_CHOICE, prompt="Yes or no?",
+            choices=[BatchChoice(id="yes", label="Yes"), BatchChoice(id="no", label="No")]
+        )
+        assert len(item.choices) == 2
+
+    def test_multiple_choice_with_choices_valid(self):
+        item = BatchSuggestItem(
+            id="q1", type=QuestionType.MULTIPLE_CHOICE, prompt="Pick all that apply.",
+            choices=[BatchChoice(id="a", label="A"), BatchChoice(id="b", label="B")]
+        )
+        assert len(item.choices) == 2
+
+    def test_open_ended_without_choices_valid(self):
+        item = BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="Describe your role.")
+        assert item.choices == []
+
+    def test_single_choice_without_choices_raises(self):
+        with pytest.raises(ValueError, match="non-empty"):
+            BatchSuggestItem(id="q1", type=QuestionType.SINGLE_CHOICE, prompt="Yes or no?")
+
+    def test_multiple_choice_without_choices_raises(self):
+        with pytest.raises(ValueError, match="non-empty"):
+            BatchSuggestItem(id="q1", type=QuestionType.MULTIPLE_CHOICE, prompt="Pick all.")
+
+    def test_open_ended_with_choices_raises(self):
+        with pytest.raises(ValueError, match="must be empty"):
+            BatchSuggestItem(
+                id="q1", type=QuestionType.OPEN_ENDED, prompt="Describe.",
+                choices=[BatchChoice(id="a", label="A")]
+            )
+
+
+# ---------------------------------------------------------------------------
 # Model validation
 # ---------------------------------------------------------------------------
 

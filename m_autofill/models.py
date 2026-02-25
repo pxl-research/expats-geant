@@ -25,6 +25,16 @@ class BatchSuggestItem(BaseModel):
         description="Predefined choices (required for single_choice and multiple_choice types)",
     )
 
+    @model_validator(mode="after")
+    def validate_choices_for_type(self) -> "BatchSuggestItem":
+        """Enforce choices are present for choice types and absent for open-ended."""
+        choice_types = {QuestionType.SINGLE_CHOICE, QuestionType.MULTIPLE_CHOICE}
+        if self.type in choice_types and not self.choices:
+            raise ValueError(f"'choices' must be non-empty for type '{self.type}'")
+        if self.type not in choice_types and self.choices:
+            raise ValueError(f"'choices' must be empty for type '{self.type}'")
+        return self
+
 
 class BatchSuggestSection(BaseModel):
     """A group of related questionnaire items sharing context."""

@@ -76,7 +76,7 @@ class RAGPipeline:
                 Supported keys:
                 - ``source``: str or list[str] — restrict to specific document(s)
                 - ``ingested_at``: ChromaDB where-clause dict for time-range filtering,
-                  e.g. ``{"$gte": "2026-01-01T00:00:00"}``
+                  e.g. ``{"$gte": 1735689600.0}`` (Unix timestamp float, as stored by ingest)
 
         Returns:
             List of retrieved chunks with metadata:
