@@ -1,5 +1,7 @@
 # M-Chat: Administrator Questionnaire Design Co-Pilot
 
+> ⚠️ **Not yet implemented.** This module is planned for a future phase. The structure and API endpoints described below are the intended design, not current working code. Only `__init__.py` and `manager.py` exist at this stage.
+
 An AI-powered assistant that accelerates questionnaire and survey design with guardrails, consistency checks, intelligent tagging, and summarization.
 
 ## Overview
@@ -41,17 +43,11 @@ M-Chat is not a replacement for human judgment—it augments the design process,
 ```
 m_chat/
 ├── __init__.py
-├── questionnaire_parser.py  # Parse QTI 3.0 and internal formats
-├── suggestion_engine.py     # LLM-based suggestion generation
-├── validation_engine.py     # Style, grammar, compliance checks
-├── tagging_engine.py        # Auto-tagging and metadata assignment
-├── api.py                   # FastAPI endpoints
-└── tests/
-    ├── test_suggestion_engine.py
-    ├── test_validation_engine.py
-    ├── test_tagging_engine.py
-    └── fixtures/            # Sample questionnaires
+└── manager.py               # Placeholder session/state manager
 ```
+
+> The files below are **planned** (not yet created):
+> `questionnaire_parser.py`, `suggestion_engine.py`, `validation_engine.py`, `tagging_engine.py`, `api.py`
 
 ## API Endpoints
 
@@ -91,8 +87,11 @@ Environment variables:
 
 ### Running Tests
 
+> ⚠️ No tests exist yet for this module.
+
 ```bash
-pytest m_chat/tests/ -v
+# When implemented, tests will be run from the repo root:
+pytest tests/ -k "chat" -v
 ```
 
 ### Dependencies

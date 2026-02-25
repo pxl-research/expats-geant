@@ -1,6 +1,6 @@
 # Expats (GÉANT): Explainable Autofill for Trustworthy Surveys
 
-An platform providing two AI co-pilots that improve questionnaire quality and response completeness while prioritizing privacy, transparency, and user control.
+A platform providing two AI co-pilots that improve questionnaire quality and response completeness while prioritizing privacy, transparency, and user control.
 All code is open-source for non-commercial use only.
 
 ## Overview
@@ -39,9 +39,12 @@ All code is open-source for non-commercial use only.
 ```
 .
 ├── m_autofill/     # Respondent answer suggestion assistant
-├── m_chat/         # Administrator questionnaire design assistant
-├── m_shared/       # Common utilities (LLM clients, vector DB, data models)
-├── openspec/       # Project specifications and guidelines
+├── m_chat/         # Administrator questionnaire design assistant (planned)
+├── m_shared/       # Common utilities (LLM clients, vector DB, data models, auth)
+├── tests/          # All tests (pytest)
+├── docs/           # Deployment, integration, and API reference guides
+├── demo_code/      # Standalone demos and prototypes
+├── openspec/       # Project specifications and change proposals
 └── README.md       # This file
 ```
 
@@ -143,8 +146,10 @@ See [.env.example](.env.example) for full configuration options.
 ## Documentation
 
 - [Project Context](openspec/project.md) — Detailed specifications, tech stack, conventions, and constraints
-- [M-Chat Module](m_chat/README.md) — Questionnaire design assistant
+- [Deployment Guide](docs/DEPLOYMENT.md) — Docker & local setup, environment variables, testing
+- [Integration Guide](docs/INTEGRATION.md) — JWT/auth setup, institutional SSO, API endpoint reference
 - [M-Autofill Module](m_autofill/README.md) — Answer suggestion assistant
+- [M-Chat Module](m_chat/README.md) — Questionnaire design assistant *(planned)*
 - [Shared Utilities](m_shared/README.md) — Common infrastructure
 
 ## Contributing
