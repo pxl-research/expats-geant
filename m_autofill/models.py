@@ -122,4 +122,4 @@ def normalize_to_sections(request: BatchSuggestRequest) -> list[BatchSuggestSect
     """
     if request.sections:
         return request.sections
-    return [BatchSuggestSection(id="_implicit", items=request.items)]
+    return [BatchSuggestSection(id="_implicit", title=None, items=request.items or [])]

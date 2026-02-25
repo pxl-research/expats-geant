@@ -46,7 +46,7 @@ class LLMClient(OpenAI):
             raise ValueError("API key must be provided or set in OPENROUTER_API_KEY environment variable")
         
         base_url = base_url or os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
-        model_name = model_name or os.getenv("DEFAULT_LLM_MODEL", "anthropic/claude-haiku-4.5")
+        model_name = model_name or os.getenv("DEFAULT_LLM_MODEL", "anthropic/claude-haiku-4.5") or "anthropic/claude-haiku-4.5"
 
         super().__init__(base_url=base_url, api_key=api_key)
 

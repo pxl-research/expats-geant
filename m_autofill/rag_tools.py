@@ -54,7 +54,7 @@ class RAGTools:
         return self.store.list_documents()
 
     def lookup_in_documentation(self, query: str):
-        results = self.store.query_store(query, amount=5)
+        results = self.store.query(query, n_results=5)
         return results[:5]
 
     def as_registry(self) -> dict[str, object]:

@@ -324,7 +324,7 @@ def create_app(
             
             return UploadResponse(
                 status="success",
-                filename=file.filename,
+                filename=file.filename or "unknown",
                 size_bytes=file_size,
                 upload_timestamp=upload_timestamp,
                 session_id=session.session_id,
@@ -520,31 +520,41 @@ def create_app(
             report = audit_logger.generate_report(session.session_id)
             
             if format == "plaintext":
+                # Derive document and suggestion entries from log
+                from m_shared.utils.audit import AuditEventType
+                doc_entries = [e for e in report.log_entries if e.event_type == AuditEventType.UPLOAD]
+                sug_entries = [e for e in report.log_entries if e.event_type == AuditEventType.SUGGEST]
+                n_docs = report.summary.get("documents_uploaded", len(doc_entries))
+                n_sugs = report.summary.get("suggestions_generated", len(sug_entries))
+                n_edits = report.summary.get("suggestions_edited", 0)
+                source_counts = [e.details.get("source_count", 0) for e in sug_entries]
+                avg_sources = sum(source_counts) / len(source_counts) if source_counts else 0.0
+
                 # Convert to plaintext
                 plaintext = f"""AUDIT REPORT — Session {session.session_id}
-Created: {report.get('created_at', 'N/A')}
-Ended: {report.get('ended_at', 'N/A')}
+Created: {report.created_at}
+Ended: {report.ended_at or 'N/A'}
 
-DOCUMENTS UPLOADED ({report['summary']['total_documents']}):
+DOCUMENTS UPLOADED ({n_docs}):
 """
-                for doc in report.get('documents', []):
-                    plaintext += f"- {doc['filename']} ({doc['size_bytes']:,} bytes) — uploaded {doc['upload_timestamp']}\n"
-                
-                plaintext += f"\nSUGGESTIONS GENERATED ({report['summary']['total_suggestions']}):\n"
-                for i, sug in enumerate(report.get('suggestions', []), 1):
-                    plaintext += f"[{i}] Question: {sug['question']}\n"
-                    plaintext += f"    Suggestion: {sug['suggested_answer'][:100]}...\n"
-                    plaintext += f"    Sources: {', '.join(sug['sources'])}\n"
-                    plaintext += f"    Generated: {sug['generation_timestamp']}\n"
-                    if sug.get('user_edited_answer'):
-                        plaintext += f"    User Edit: {sug['user_edited_answer'][:50]}...\n"
+                for entry in doc_entries:
+                    d = entry.details
+                    plaintext += f"- {d.get('filename')} ({d.get('file_size', 0):,} bytes) — uploaded {entry.timestamp}\n"
+
+                plaintext += f"\nSUGGESTIONS GENERATED ({n_sugs}):\n"
+                for i, entry in enumerate(sug_entries, 1):
+                    s = entry.details
+                    plaintext += f"[{i}] Question: {s.get('question')}\n"
+                    plaintext += f"    Suggestion: {str(s.get('suggested_answer', ''))[:100]}...\n"
+                    plaintext += f"    Sources: {', '.join(s.get('sources_used', []))}\n"
+                    plaintext += f"    Generated: {entry.timestamp}\n"
                     plaintext += "\n"
-                
+
                 plaintext += f"""SUMMARY:
-- Total Documents: {report['summary']['total_documents']}
-- Total Suggestions: {report['summary']['total_suggestions']}
-- Total Edits: {report['summary']['total_user_edits']}
-- Avg Sources per Suggestion: {report['summary']['avg_sources_per_suggestion']:.1f}
+- Total Documents: {n_docs}
+- Total Suggestions: {n_sugs}
+- Total Edits: {n_edits}
+- Avg Sources per Suggestion: {avg_sources:.1f}
 """
                 return PlainTextResponse(content=plaintext)
             else:

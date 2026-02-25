@@ -201,7 +201,7 @@ Answer:"""
         sibling_prompts: list[str] | None = None,
         choices: list | None = None,
         question_type: str | None = None,
-    ) -> tuple[str, str | None]:
+    ) -> tuple[str, str | None, str | None]:
         """Generate answer and reasoning from retrieved chunks using LLM.
 
         Uses a structured ANSWER/REASONING prompt so both fields are returned

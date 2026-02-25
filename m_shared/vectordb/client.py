@@ -26,10 +26,10 @@ def repack_query_results(results: QueryResult) -> list[dict]:
     for r in range(length):
         repacked_result = {}
         for field in fields:
-            if results[field] is not None:
+            if results[field] is not None:  # type: ignore[literal-required]
                 # Remove trailing 's' to singularize field names
                 key = field[:-1] if field.endswith("s") else field
-                repacked_result[key] = results[field][0][r]
+                repacked_result[key] = results[field][0][r]  # type: ignore[literal-required]
         repacked.append(repacked_result)
 
     return repacked
@@ -188,7 +188,7 @@ class ChromaDocumentStore:
                 query_kwargs["where"] = where_filters
 
             try:
-                results = collection.query(**query_kwargs)
+                results = collection.query(**query_kwargs)  # type: ignore[arg-type]
                 all_results.extend(repack_query_results(results))
             except Exception:  # noqa: S112 - skip collections that fail to query
                 continue
