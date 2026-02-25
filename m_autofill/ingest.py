@@ -60,7 +60,7 @@ def ingest_files_into_store(
         ingested_at = datetime.utcnow().timestamp()  # Unix timestamp for ChromaDB range filtering
         meta_info = [
             {
-                "source": file_path,
+                "source": os.path.basename(file_path),
                 "id": f"chunk_{i}",
                 "chunk_index": i,
                 "ingested_at": ingested_at,
