@@ -1,6 +1,5 @@
 """ChromaDB wrapper for document storage and retrieval."""
 
-
 import chromadb
 from chromadb import QueryResult
 from tqdm import tqdm

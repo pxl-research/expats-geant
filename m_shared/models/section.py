@@ -9,9 +9,9 @@ from m_shared.models.question import Question
 
 class Section(BaseModel):
     """Represents a section (page or grouping) within a survey.
-    
+
     Sections enable logical grouping and pagination of questions.
-    
+
     Examples:
         >>> section = Section(
         ...     id="sec_1",
@@ -22,14 +22,20 @@ class Section(BaseModel):
         ...     ]
         ... )
     """
-    
+
     id: str = Field(..., description="Unique identifier for this section")
     title: str = Field(..., description="Section title displayed to the user")
-    description: str = Field("", description="Optional description or instructions for this section")
-    questions: list[Question] = Field(default_factory=list, description="Questions contained in this section")
+    description: str = Field(
+        "", description="Optional description or instructions for this section"
+    )
+    questions: list[Question] = Field(
+        default_factory=list, description="Questions contained in this section"
+    )
     order: int = Field(0, description="Display order of this section within the survey")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata for this section")
-    
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Additional metadata for this section"
+    )
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -38,6 +44,6 @@ class Section(BaseModel):
                 "description": "Tell us about yourself",
                 "questions": [],
                 "order": 1,
-                "metadata": {}
+                "metadata": {},
             }
         }

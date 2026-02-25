@@ -43,10 +43,16 @@ class LLMClient(OpenAI):
         # Load from environment if not provided
         api_key = api_key or os.getenv("OPENROUTER_API_KEY")
         if not api_key:
-            raise ValueError("API key must be provided or set in OPENROUTER_API_KEY environment variable")
-        
+            raise ValueError(
+                "API key must be provided or set in OPENROUTER_API_KEY environment variable"
+            )
+
         base_url = base_url or os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
-        model_name = model_name or os.getenv("DEFAULT_LLM_MODEL", "anthropic/claude-haiku-4.5") or "anthropic/claude-haiku-4.5"
+        model_name = (
+            model_name
+            or os.getenv("DEFAULT_LLM_MODEL", "anthropic/claude-haiku-4.5")
+            or "anthropic/claude-haiku-4.5"
+        )
 
         super().__init__(base_url=base_url, api_key=api_key)
 
@@ -64,9 +70,7 @@ class LLMClient(OpenAI):
         self.retry_backoff_factor: float = retry_backoff_factor
         self._tokenizer = None  # Lazy load tokenizer
 
-    def create_completion_stream(
-        self, messages: list[dict], stream: bool = True, **kwargs
-    ):
+    def create_completion_stream(self, messages: list[dict], stream: bool = True, **kwargs):
         """
         Create a streaming chat completion with automatic retries.
 
@@ -179,7 +183,7 @@ class LLMClient(OpenAI):
             except RateLimitError as e:
                 last_exception = e
                 if attempt < self.max_retries - 1:
-                    wait_time = self.retry_backoff_factor ** attempt
+                    wait_time = self.retry_backoff_factor**attempt
                     time.sleep(wait_time)
                     continue
                 raise
@@ -188,14 +192,14 @@ class LLMClient(OpenAI):
                 if e.status_code and 500 <= e.status_code < 600:
                     last_exception = e
                     if attempt < self.max_retries - 1:
-                        wait_time = self.retry_backoff_factor ** attempt
+                        wait_time = self.retry_backoff_factor**attempt
                         time.sleep(wait_time)
                         continue
                 raise
             except Exception:
                 # Don't retry on other exceptions
                 raise
-        
+
         # If we exhausted all retries
         if last_exception:
             raise last_exception

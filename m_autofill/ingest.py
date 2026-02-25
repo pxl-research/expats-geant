@@ -77,18 +77,18 @@ def ingest_files_into_store(
 
         added.append(collection_name)
         current_documents.add(collection_name)
-        
+
         # Log upload to audit trail
         if audit_logger and session_id:
             file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
             file_ext = os.path.splitext(file_path)[1]
-            
+
             audit_logger.log_upload(
                 session_id=session_id,
                 filename=os.path.basename(file_path),
                 file_size=file_size,
                 file_type=file_ext,
-                user_id=user_id
+                user_id=user_id,
             )
 
     return added

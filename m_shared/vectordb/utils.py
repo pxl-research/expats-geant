@@ -23,7 +23,9 @@ def document_to_markdown(doc_filename: str) -> str:
     return conversion.text_content
 
 
-def image_description(img_filename: str, llm_client, model_name: str, language: str = "English") -> str:
+def image_description(
+    img_filename: str, llm_client, model_name: str, language: str = "English"
+) -> str:
     """
     Generate a Markdown image description using an LLM.
 

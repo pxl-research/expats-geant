@@ -26,6 +26,7 @@ from m_shared.utils.audit import AuditLogger
 # Request models
 class SuggestRequest(BaseModel):
     """Request for answer suggestion."""
+
     question: str = Field(..., min_length=1, max_length=2000, description="Question to answer")
     context: str | None = Field(None, max_length=1000, description="Optional context")
 
@@ -33,6 +34,7 @@ class SuggestRequest(BaseModel):
 # Response models
 class UploadResponse(BaseModel):
     """Document upload response."""
+
     status: str
     filename: str
     size_bytes: int
@@ -42,6 +44,7 @@ class UploadResponse(BaseModel):
 
 class CitationResponse(BaseModel):
     """Citation information."""
+
     source: str
     position: str
     position_range: dict
@@ -51,14 +54,18 @@ class CitationResponse(BaseModel):
 
 class SuggestResponse(BaseModel):
     """Answer suggestion response."""
+
     answer: str
-    reasoning: str | None = Field(None, description="LLM explanation of confidence, source interpretation, or uncertainty")
+    reasoning: str | None = Field(
+        None, description="LLM explanation of confidence, source interpretation, or uncertainty"
+    )
     citations: list[CitationResponse]
     metadata: dict
 
 
 class SessionStatsResponse(BaseModel):
     """Session statistics response."""
+
     session_id: str
     user_id: str
     created_at: str
@@ -71,6 +78,7 @@ class SessionStatsResponse(BaseModel):
 
 class SessionDeleteResponse(BaseModel):
     """Session deletion response."""
+
     session_id: str
     deleted: bool
     message: str
@@ -78,6 +86,7 @@ class SessionDeleteResponse(BaseModel):
 
 class AuditDeleteResponse(BaseModel):
     """Audit report deletion response."""
+
     session_id: str
     deleted: bool
     message: str
@@ -85,6 +94,7 @@ class AuditDeleteResponse(BaseModel):
 
 class DevTokenRequest(BaseModel):
     """Request for development token generation."""
+
     user_id: str = Field(default="dev_user", description="User ID for token")
     org: str = Field(default="dev_org", description="Organization ID")
     roles: list[str] = Field(default=["respondent"], description="User roles")
@@ -92,6 +102,7 @@ class DevTokenRequest(BaseModel):
 
 class DevTokenResponse(BaseModel):
     """Development token response."""
+
     token: str
     user_id: str
     expires_in_hours: int
@@ -123,51 +134,47 @@ def create_app(
         version="0.1.0",
         lifespan=lifespan,
     )
-    
+
     # Initialize RAG pipeline if LLM client provided
     rag_pipeline = None
     if llm_client:
         rag_pipeline = RAGPipeline(
-            session_manager=session_manager,
-            llm_client=llm_client,
-            audit_logger=audit_logger
+            session_manager=session_manager, llm_client=llm_client, audit_logger=audit_logger
         )
-    
+
     # Add exception handler for HTTPException
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
         """Handle HTTPException properly."""
         return JSONResponse(
-            status_code=exc.status_code,
-            content={"detail": exc.detail},
-            headers=exc.headers
+            status_code=exc.status_code, content={"detail": exc.detail}, headers=exc.headers
         )
-    
+
     @app.get("/")
     async def root():
         """Health check endpoint."""
         return {"service": "m-autofill", "status": "running"}
-    
+
     @app.get("/health")
     async def health():
         """Health check endpoint."""
         return {"status": "healthy"}
-    
+
     @app.post("/dev/token", response_model=DevTokenResponse, tags=["Development"])
     async def generate_dev_token(request: DevTokenRequest):
         """Generate JWT token for development/testing (disabled in production).
-        
+
         This endpoint allows developers to easily generate valid JWT tokens for testing
         the API without needing to set up a full authentication infrastructure.
-        
+
         **IMPORTANT**: This endpoint is only available when ENVIRONMENT != "production"
-        
+
         Args:
             request: Token generation parameters (user_id, org, roles)
-            
+
         Returns:
             JWT token and metadata
-            
+
         Raises:
             HTTPException: 403 if called in production environment
         """
@@ -176,12 +183,12 @@ def create_app(
         if environment == "production":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Token generation endpoint disabled in production"
+                detail="Token generation endpoint disabled in production",
             )
-        
+
         # Generate session ID from user_id for consistency
         session_id = f"dev_session_{request.user_id}"
-        
+
         # Create token with requested parameters
         try:
             token = create_token(
@@ -189,127 +196,122 @@ def create_app(
                 session_id=session_id,
                 org=request.org,
                 roles=request.roles,
-                expiration_hours=int(os.getenv("JWT_EXPIRATION_HOURS", "24"))
+                expiration_hours=int(os.getenv("JWT_EXPIRATION_HOURS", "24")),
             )
-            
+
             return DevTokenResponse(
                 token=token,
                 user_id=request.user_id,
                 expires_in_hours=int(os.getenv("JWT_EXPIRATION_HOURS", "24")),
-                message="Token generated successfully. Use in Authorization header: Bearer <token>"
+                message="Token generated successfully. Use in Authorization header: Bearer <token>",
             )
         except ValueError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Token generation failed: {str(e)}"
+                detail=f"Token generation failed: {str(e)}",
             )
-    
+
     @app.get("/session/stats", response_model=SessionStatsResponse)
     async def get_session_stats(request: Request):
         """Get statistics for the current user's session.
-        
+
         Session is automatically identified from JWT token via middleware.
-        
+
         Returns:
             Session statistics including TTL remaining, document count, etc.
-            
+
         Raises:
             HTTPException: 404 if session not found
         """
         # Session and claims attached by middleware
         session = request.state.session
         manager = request.state.session_manager
-        
+
         stats = manager.get_session_stats(session.session_id)
         if not stats:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Session not found"
-            )
-        
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
         return SessionStatsResponse(**stats)
-    
+
     @app.delete("/session", response_model=SessionDeleteResponse)
     async def delete_session(request: Request):
         """Delete the current user's session and all associated data.
-        
+
         This allows users to explicitly clean up their data before TTL expiration
         (privacy feature: "forget my data now").
-        
+
         Session is automatically identified from JWT token via middleware.
-        
+
         Returns:
             Confirmation of deletion
         """
         # Session and claims attached by middleware
         session = request.state.session
         manager = request.state.session_manager
-        
+
         deleted = manager.delete_session(session.session_id)
-        
+
         if deleted:
             return SessionDeleteResponse(
                 session_id=session.session_id,
                 deleted=True,
-                message="Session and all data successfully deleted"
+                message="Session and all data successfully deleted",
             )
         else:
             # Session already deleted or doesn't exist
             return SessionDeleteResponse(
                 session_id=session.session_id,
                 deleted=False,
-                message="Session does not exist or was already deleted"
+                message="Session does not exist or was already deleted",
             )
-    
+
     @app.post("/upload", response_model=UploadResponse)
     async def upload_document(
         request: Request,
         file: UploadFile = File(...),
     ):
         """Upload a document to the session for answer suggestions.
-        
+
         Session is automatically identified from JWT token via middleware.
-        
+
         Args:
             file: Document file (PDF, DOCX, TXT, MD)
-            
+
         Returns:
             Upload confirmation with metadata
-            
+
         Raises:
             HTTPException: 400 if file invalid, 404 if session not found
         """
         session = request.state.session
         manager = request.state.session_manager
         claims = request.state.claims
-        
+
         # Save uploaded file temporarily
         temp_dir = manager._get_session_path(session.session_id) / "uploads"
         temp_dir.mkdir(exist_ok=True)
         file_path = temp_dir / file.filename
-        
+
         try:
             # Write file to disk
             content = await file.read()
             with open(file_path, "wb") as f:
                 f.write(content)
-            
+
             # Validate file
             is_valid, error_msg = validate_file_upload(
-                str(file_path),
-                max_size_bytes=max_file_size_mb * 1024 * 1024
+                str(file_path), max_size_bytes=max_file_size_mb * 1024 * 1024
             )
             if not is_valid:
                 raise FileValidationError(error_msg)
-            
+
             # Get vector store for session
             store = manager.get_vector_store(session.session_id)
             if not store:
                 raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Session not found or expired"
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Session not found or expired"
                 )
-            
+
             # Ingest file into vector store
             ingest_files_into_store(
                 file_paths=[str(file_path)],
@@ -318,10 +320,10 @@ def create_app(
                 user_id=claims.get("user_id"),
                 audit_logger=audit_logger,
             )
-            
+
             file_size = os.path.getsize(file_path)
             upload_timestamp = datetime.now(UTC).isoformat()
-            
+
             return UploadResponse(
                 status="success",
                 filename=file.filename or "unknown",
@@ -329,45 +331,43 @@ def create_app(
                 upload_timestamp=upload_timestamp,
                 session_id=session.session_id,
             )
-            
+
         except FileValidationError as e:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"File validation failed: {e}"
+                status_code=status.HTTP_400_BAD_REQUEST, detail=f"File validation failed: {e}"
             )
         except Exception as e:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Upload failed: {e}"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Upload failed: {e}"
             )
-    
+
     @app.post("/suggest", response_model=SuggestResponse)
     async def suggest_answer(
         request: Request,
         suggest_request: SuggestRequest,
     ):
         """Generate answer suggestion based on uploaded documents.
-        
+
         Session is automatically identified from JWT token via middleware.
-        
+
         Args:
             suggest_request: Question and optional context
-            
+
         Returns:
             Answer with citations
-            
+
         Raises:
             HTTPException: 400 if invalid, 404 if no documents, 500 if LLM error
         """
         if not rag_pipeline:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="RAG pipeline not initialized (LLM client missing)"
+                detail="RAG pipeline not initialized (LLM client missing)",
             )
-        
+
         session = request.state.session
         claims = request.state.claims
-        
+
         try:
             # Generate suggestion
             result = rag_pipeline.suggest_answer(
@@ -375,12 +375,14 @@ def create_app(
                 session_id=session.session_id,
                 user_id=claims.get("user_id"),
             )
-            
+
             # Format citations
             citations = [
                 CitationResponse(
                     source=cit.source_id,
-                    position=f"{cit.position_percentage:.1%}" if cit.position_percentage else "unknown",
+                    position=f"{cit.position_percentage:.1%}"
+                    if cit.position_percentage
+                    else "unknown",
                     position_range={
                         "start_percentage": cit.position_start or 0,
                         "end_percentage": cit.position_end or 0,
@@ -390,25 +392,21 @@ def create_app(
                 )
                 for cit in result["citations"]
             ]
-            
+
             return SuggestResponse(
                 answer=result["answer"],
                 reasoning=result.get("reasoning"),
                 citations=citations,
                 metadata=result.get("metadata", {}),
             )
-            
+
         except ValueError as e:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=str(e)
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
         except Exception as e:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Suggestion failed: {e}"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Suggestion failed: {e}"
             )
-    
+
     @app.post("/suggest/batch", response_model=BatchSuggestResponse)
     async def suggest_answer_batch(
         request: Request,
@@ -466,15 +464,17 @@ def create_app(
                 )
                 for c in r["citations"]
             ]
-            responses.append(ItemSuggestion(
-                item_id=r["item_id"],
-                type=r["type"],
-                suggestion=r["suggestion"],
-                selected_id=r.get("selected_id"),
-                selected_ids=r.get("selected_ids"),
-                reasoning=r.get("reasoning"),
-                citations=citations,
-            ))
+            responses.append(
+                ItemSuggestion(
+                    item_id=r["item_id"],
+                    type=r["type"],
+                    suggestion=r["suggestion"],
+                    selected_id=r.get("selected_id"),
+                    selected_ids=r.get("selected_ids"),
+                    reasoning=r.get("reasoning"),
+                    citations=citations,
+                )
+            )
 
         return BatchSuggestResponse(
             assessment_id=batch_request.assessment_id,
@@ -490,40 +490,45 @@ def create_app(
         format: str = "json",
     ):
         """Retrieve session audit report.
-        
+
         Session is automatically identified from JWT token via middleware.
-        
+
         Args:
             format: Response format ('json' or 'plaintext')
-            
+
         Returns:
             Audit report in requested format
-            
+
         Raises:
             HTTPException: 404 if session not found
         """
         if not audit_logger:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Audit logging not enabled"
+                detail="Audit logging not enabled",
             )
-        
+
         session = request.state.session
 
         if audit_logger.is_deleted(session.session_id):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Audit report has been deleted (erasure request honoured)"
+                detail="Audit report has been deleted (erasure request honoured)",
             )
 
         try:
             report = audit_logger.generate_report(session.session_id)
-            
+
             if format == "plaintext":
                 # Derive document and suggestion entries from log
                 from m_shared.utils.audit import AuditEventType
-                doc_entries = [e for e in report.log_entries if e.event_type == AuditEventType.UPLOAD]
-                sug_entries = [e for e in report.log_entries if e.event_type == AuditEventType.SUGGEST]
+
+                doc_entries = [
+                    e for e in report.log_entries if e.event_type == AuditEventType.UPLOAD
+                ]
+                sug_entries = [
+                    e for e in report.log_entries if e.event_type == AuditEventType.SUGGEST
+                ]
                 n_docs = report.summary.get("documents_uploaded", len(doc_entries))
                 n_sugs = report.summary.get("suggestions_generated", len(sug_entries))
                 n_edits = report.summary.get("suggestions_edited", 0)
@@ -560,13 +565,13 @@ DOCUMENTS UPLOADED ({n_docs}):
             else:
                 # JSON format (default)
                 return report
-                
+
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Report generation failed: {e}"
+                detail=f"Report generation failed: {e}",
             )
-    
+
     @app.delete("/audit-report", response_model=AuditDeleteResponse)
     async def delete_audit_report(request: Request):
         """Delete the session audit report (GDPR Right to Erasure).
@@ -588,7 +593,7 @@ DOCUMENTS UPLOADED ({n_docs}):
         if not audit_logger:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Audit logging not enabled"
+                detail="Audit logging not enabled",
             )
 
         session = request.state.session
@@ -597,13 +602,13 @@ DOCUMENTS UPLOADED ({n_docs}):
         return AuditDeleteResponse(
             session_id=session.session_id,
             deleted=True,
-            message="Audit report deleted. No personal data is retained."
+            message="Audit report deleted. No personal data is retained.",
         )
 
     @app.get("/privacy", response_class=PlainTextResponse)
     async def get_privacy_statement():
         """Return privacy and GDPR disclosure statement.
-        
+
         Returns:
             Plaintext privacy statement
         """
@@ -642,5 +647,5 @@ For technical issues: [Insert support contact]
 Last updated: January 2026
 """
         return privacy_text
-    
+
     return app

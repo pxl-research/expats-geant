@@ -128,7 +128,7 @@ def main():
     app.add_middleware(
         SessionMiddleware,
         session_manager=session_manager,
-        ttl_hours=int(os.getenv("SESSION_TTL_HOURS", "24"))
+        ttl_hours=int(os.getenv("SESSION_TTL_HOURS", "24")),
     )
 
     print("✓ FastAPI app configured")

@@ -19,7 +19,7 @@ from m_shared.utils import AuditLogger
 
 class RAGPipeline:
     """RAG pipeline for generating answer suggestions with citations.
-    
+
     Examples:
         >>> pipeline = RAGPipeline(session_manager=manager, llm_client=client)
         >>> result = pipeline.suggest_answer(
@@ -30,7 +30,7 @@ class RAGPipeline:
         >>> for citation in result["citations"]:
         ...     print(f"Source: {citation.source_id}")
     """
-    
+
     def __init__(
         self,
         session_manager: SessionManager,
@@ -41,7 +41,7 @@ class RAGPipeline:
         audit_logger: AuditLogger | None = None,
     ):
         """Initialize RAG pipeline.
-        
+
         Args:
             session_manager: Session manager for accessing vector stores
             llm_client: LLM client for answer generation
@@ -56,7 +56,7 @@ class RAGPipeline:
         self.default_temperature = default_temperature
         self.max_tokens = max_tokens
         self.audit_logger = audit_logger
-    
+
     def retrieve(
         self,
         question: str,
@@ -105,7 +105,7 @@ class RAGPipeline:
         if filters:
             return store.query_with_filter(query_text=question, filters=filters, n_results=top_k)
         return store.query(query_text=question, n_results=top_k)
-    
+
     def generate_answer(
         self,
         question: str,
@@ -113,19 +113,19 @@ class RAGPipeline:
         temperature: float | None = None,
     ) -> str:
         """Generate answer from retrieved document chunks using LLM.
-        
+
         Args:
             question: User's question
             retrieved_chunks: List of retrieved chunks from semantic search
             temperature: LLM temperature (defaults to pipeline default, 0.3-0.5)
-            
+
         Returns:
             Generated answer text
-            
+
         Raises:
             ValueError: If chunks are empty or question is invalid
             RuntimeError: If LLM generation fails
-            
+
         Examples:
             >>> answer = pipeline.generate_answer(
             ...     question="What is my job title?",
@@ -136,19 +136,19 @@ class RAGPipeline:
         """
         if not question or not question.strip():
             raise ValueError("Question cannot be empty")
-        
+
         if not retrieved_chunks:
             raise ValueError("No chunks provided for answer generation")
-        
+
         # Build context from retrieved chunks
         context_parts = []
         for i, chunk in enumerate(retrieved_chunks, 1):
             source = chunk.get("metadata", {}).get("source", "Unknown")
             text = chunk.get("document", "")
             context_parts.append(f"[{i}] From {source}:\n{text}\n")
-        
+
         context = "\n".join(context_parts)
-        
+
         # Construct prompt
         prompt = f"""Based on the following document excerpts, provide a concise answer to the question.
 
@@ -164,17 +164,17 @@ Instructions:
 - If the excerpts don't contain enough information, say so clearly
 
 Answer:"""
-        
+
         # Generate answer with temperature control
         temperature = temperature or self.default_temperature
-        
+
         try:
             messages = [{"role": "user", "content": prompt}]
-            
+
             # Temporarily override client temperature if different
             original_temp = self.llm_client.temperature
             self.llm_client.temperature = temperature
-            
+
             try:
                 answer = self.llm_client.create_completion(
                     messages=messages,
@@ -183,15 +183,15 @@ Answer:"""
             finally:
                 # Restore original temperature
                 self.llm_client.temperature = original_temp
-            
+
             if not answer or not answer.strip():
                 raise RuntimeError("LLM returned empty answer")
-            
+
             return answer.strip()
-            
+
         except Exception as e:
             raise RuntimeError(f"LLM generation failed: {str(e)}") from e
-    
+
     def _generate_answer_with_reasoning(
         self,
         question: str,
@@ -300,7 +300,7 @@ ANSWER: <your answer>
             matched = next((p for p in PREFIXES if line.startswith(p)), None)
             if matched:
                 current_key = matched.rstrip(":")
-                blocks[current_key] = [line[len(matched):].strip()]
+                blocks[current_key] = [line[len(matched) :].strip()]
             elif current_key is not None:
                 blocks[current_key].append(line)
 
@@ -318,7 +318,9 @@ ANSWER: <your answer>
 
         return answer, reasoning, selected_raw
 
-    def _parse_selected_id(self, selected_raw: str | None, choices: list, multi: bool) -> tuple[str | None, list[str] | None]:
+    def _parse_selected_id(
+        self, selected_raw: str | None, choices: list, multi: bool
+    ) -> tuple[str | None, list[str] | None]:
         """Validate a SELECTED value against the available choices.
 
         Args:
@@ -341,7 +343,7 @@ ANSWER: <your answer>
             return None, matched if matched else None
         else:
             return (selected_raw if selected_raw in valid_ids else None), None
-    
+
     def format_citations(
         self,
         retrieved_chunks: list[dict],
@@ -349,15 +351,15 @@ ANSWER: <your answer>
         answer: str,
     ) -> list[Citation]:
         """Format citations from retrieved chunks with source metadata.
-        
+
         Args:
             retrieved_chunks: List of retrieved chunks from semantic search
             question: User's question (for context)
             answer: Generated answer (for context)
-            
+
         Returns:
             List of Citation objects with source metadata and text excerpts
-            
+
         Examples:
             >>> citations = pipeline.format_citations(chunks, question, answer)
             >>> print(citations[0].source_id)
@@ -366,29 +368,29 @@ ANSWER: <your answer>
             'Your position is Senior Researcher...'
         """
         citations = []
-        
+
         for i, chunk in enumerate(retrieved_chunks, 1):
             metadata = chunk.get("metadata", {})
             chunk_text = chunk.get("document", "")
-            
+
             # Extract source information
             source = metadata.get("source", "Unknown")
             chunk_id = chunk.get("id", metadata.get("id", f"chunk-{i}"))
             chunk_index = metadata.get("chunk_index", i - 1)
-            
+
             # Calculate position
             position_start = metadata.get("position_start")
             position_end = metadata.get("position_end")
             position_percentage = metadata.get("position_percentage")
-            
+
             # If position not in metadata, estimate from chunk index
             if position_percentage is None and "total_chunks" in metadata:
                 total_chunks = metadata["total_chunks"]
                 position_percentage = chunk_index / total_chunks if total_chunks > 0 else 0.0
-            
+
             # Extract text excerpt (50-200 chars, prefer complete sentences)
             excerpt = self._extract_excerpt(chunk_text, max_length=200)
-            
+
             # Create citation
             citation = Citation(
                 id=f"cite_{i}",
@@ -405,41 +407,41 @@ ANSWER: <your answer>
                     "question": question,
                 },
             )
-            
+
             citations.append(citation)
-        
+
         return citations
-    
+
     def _extract_excerpt(self, text: str, max_length: int = 200) -> str:
         """Extract a meaningful excerpt from text.
-        
+
         Args:
             text: Full text to excerpt from
             max_length: Maximum length of excerpt
-            
+
         Returns:
             Excerpt with ellipsis if truncated
         """
         if len(text) <= max_length:
             return text
-        
+
         # Try to break at sentence boundary
         truncated = text[:max_length]
         last_period = truncated.rfind(". ")
         last_newline = truncated.rfind("\n")
-        
+
         break_point = max(last_period, last_newline)
-        
+
         if break_point > max_length // 2:  # Only break if we're past halfway
-            return truncated[:break_point + 1].strip()
-        
+            return truncated[: break_point + 1].strip()
+
         # Otherwise just truncate at word boundary
         last_space = truncated.rfind(" ")
         if last_space > 0:
             return truncated[:last_space].strip() + "..."
-        
+
         return truncated + "..."
-    
+
     def suggest_answer(
         self,
         question: str,
@@ -450,14 +452,14 @@ ANSWER: <your answer>
         question_id: str | None = None,
     ) -> dict:
         """Generate answer suggestion with citations (full RAG pipeline).
-        
+
         This orchestrates the complete flow:
         1. Validate inputs
         2. Retrieve relevant chunks
         3. Generate answer from chunks
         4. Format citations
         5. Log to audit trail (if logger configured)
-        
+
         Args:
             question: User's question
             session_id: Session identifier
@@ -465,17 +467,17 @@ ANSWER: <your answer>
             temperature: LLM temperature (optional)
             user_id: Optional user ID for audit logging
             question_id: Optional question ID for audit logging
-            
+
         Returns:
             Dictionary with:
                 - answer (str): Generated answer text
                 - citations (list[Citation]): List of citation objects
                 - metadata (dict): Additional metadata (num_chunks, session_id, etc.)
-                
+
         Raises:
             ValueError: If inputs are invalid or session not found
             RuntimeError: If any pipeline step fails
-            
+
         Examples:
             >>> result = pipeline.suggest_answer(
             ...     question="What is my employment status?",
@@ -487,16 +489,16 @@ ANSWER: <your answer>
         # Validate inputs
         if not question or not question.strip():
             raise ValueError("Question cannot be empty")
-        
+
         if not session_id:
             raise ValueError("Session ID is required")
-        
+
         # Step 1: Retrieve relevant chunks
         try:
             chunks = self.retrieve(question, session_id, top_k=top_k)
         except Exception as e:
             raise ValueError(f"Retrieval failed: {str(e)}") from e
-        
+
         if not chunks:
             return {
                 "answer": "I couldn't find any relevant information in your documents to answer this question.",
@@ -507,19 +509,21 @@ ANSWER: <your answer>
                     "question": question,
                 },
             }
-        
+
         # Step 2: Generate answer with reasoning
         try:
-            answer, reasoning, _ = self._generate_answer_with_reasoning(question, chunks, temperature=temperature)
+            answer, reasoning, _ = self._generate_answer_with_reasoning(
+                question, chunks, temperature=temperature
+            )
         except Exception as e:
             raise RuntimeError(f"Answer generation failed: {str(e)}") from e
-        
+
         # Step 3: Format citations
         try:
             citations = self.format_citations(chunks, question, answer)
         except Exception as e:
             raise RuntimeError(f"Citation formatting failed: {str(e)}") from e
-        
+
         # Step 4: Log to audit trail
         if self.audit_logger:
             sources_used = [c.source_id for c in citations]
@@ -532,7 +536,7 @@ ANSWER: <your answer>
                 user_id=user_id,
                 question_id=question_id,
             )
-        
+
         # Return structured result
         return {
             "answer": answer,
@@ -586,15 +590,17 @@ ANSWER: <your answer>
                 chunks = self.retrieve(item.prompt, session_id)
 
                 if not chunks:
-                    responses.append({
-                        "item_id": item.id,
-                        "type": item.type.value,
-                        "suggestion": "No relevant information found in your documents for this question.",
-                        "selected_id": None,
-                        "selected_ids": None,
-                        "reasoning": "No document chunks matched this question. Please answer manually.",
-                        "citations": [],
-                    })
+                    responses.append(
+                        {
+                            "item_id": item.id,
+                            "type": item.type.value,
+                            "suggestion": "No relevant information found in your documents for this question.",
+                            "selected_id": None,
+                            "selected_ids": None,
+                            "reasoning": "No document chunks matched this question. Please answer manually.",
+                            "citations": [],
+                        }
+                    )
                     continue
 
                 is_choice = item.type in (QuestionType.SINGLE_CHOICE, QuestionType.MULTIPLE_CHOICE)
@@ -611,20 +617,24 @@ ANSWER: <your answer>
                         question_type=item.type.value,
                     )
                 except RuntimeError as e:
-                    responses.append({
-                        "item_id": item.id,
-                        "type": item.type.value,
-                        "suggestion": "Generation failed.",
-                        "selected_id": None,
-                        "selected_ids": None,
-                        "reasoning": str(e),
-                        "citations": [],
-                    })
+                    responses.append(
+                        {
+                            "item_id": item.id,
+                            "type": item.type.value,
+                            "suggestion": "Generation failed.",
+                            "selected_id": None,
+                            "selected_ids": None,
+                            "reasoning": str(e),
+                            "citations": [],
+                        }
+                    )
                     continue
 
                 selected_id, selected_ids = None, None
                 if is_choice:
-                    selected_id, selected_ids = self._parse_selected_id(selected_raw, item.choices, multi=is_multi)
+                    selected_id, selected_ids = self._parse_selected_id(
+                        selected_raw, item.choices, multi=is_multi
+                    )
 
                 citations = self.format_citations(chunks, item.prompt, answer)
 
@@ -639,14 +649,16 @@ ANSWER: <your answer>
                         question_id=item.id,
                     )
 
-                responses.append({
-                    "item_id": item.id,
-                    "type": item.type.value,
-                    "suggestion": answer,
-                    "selected_id": selected_id,
-                    "selected_ids": selected_ids,
-                    "reasoning": reasoning,
-                    "citations": citations,
-                })
+                responses.append(
+                    {
+                        "item_id": item.id,
+                        "type": item.type.value,
+                        "suggestion": answer,
+                        "selected_id": selected_id,
+                        "selected_ids": selected_ids,
+                        "reasoning": reasoning,
+                        "citations": citations,
+                    }
+                )
 
         return responses
