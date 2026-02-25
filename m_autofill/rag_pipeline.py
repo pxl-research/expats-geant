@@ -302,9 +302,12 @@ Respond with a JSON object only, no other text:
 
         try:
             data = json.loads(text)
-            answer = data.get("answer") or raw
+            answer = data.get("answer") or None
             reasoning = data.get("reasoning") or None
             selected_raw = data.get("selected") or None
+            if answer is None:
+                logging.warning("LLM returned empty/missing answer; falling back to raw text")
+                answer = raw
             if isinstance(selected_raw, str) and selected_raw.upper() == "NONE":
                 selected_raw = None
             return answer, reasoning, selected_raw
