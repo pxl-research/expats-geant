@@ -1,8 +1,10 @@
 # Capability: Vector DB (ChromaDB)
 
+## Purpose
+
 ChromaDB wrapper providing session-based document storage, semantic search, and automatic TTL-based cleanup.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Session-Based Document Storage
 

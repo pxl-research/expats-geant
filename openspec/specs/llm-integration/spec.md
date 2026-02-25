@@ -1,8 +1,10 @@
 # Capability: LLM Integration
 
+## Purpose
+
 Unified interface for accessing large language models via OpenRouter (MVP) with environment-based configuration.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: OpenRouter Client
 

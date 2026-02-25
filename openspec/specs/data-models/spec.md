@@ -1,8 +1,10 @@
 # Capability: Data Models
 
+## Purpose
+
 Core domain models shared across M-Chat and M-Autofill.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Survey Model
 

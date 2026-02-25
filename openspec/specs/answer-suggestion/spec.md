@@ -1,8 +1,10 @@
 # Capability: Answer Suggestion (M-Autofill)
 
+## Purpose
+
 RAG-based answer suggestion engine that retrieves relevant document passages, generates draft answers, and provides citations with source transparency.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Semantic Retrieval
 
