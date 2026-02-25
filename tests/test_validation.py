@@ -1,19 +1,19 @@
 """Tests for file validation functions."""
 
-import pytest
 import tempfile
 from pathlib import Path
 
-from m_autofill.validation import (
-    validate_file_upload,
-    validate_file_type,
-    validate_file_size,
-    validate_file_or_raise,
-    FileValidationError,
-    SUPPORTED_EXTENSIONS,
-    MAX_FILE_SIZE_BYTES,
-)
+import pytest
 
+from m_autofill.validation import (
+    MAX_FILE_SIZE_BYTES,
+    SUPPORTED_EXTENSIONS,
+    FileValidationError,
+    validate_file_or_raise,
+    validate_file_size,
+    validate_file_type,
+    validate_file_upload,
+)
 
 # Test data directory
 TEST_DATA_DIR = Path(__file__).parent / "test_data" / "documents"
@@ -26,7 +26,7 @@ class TestValidateFileUpload:
         """Test validation passes for valid .txt file."""
         file_path = str(TEST_DATA_DIR / "sample.txt")
         is_valid, error = validate_file_upload(file_path)
-        
+
         assert is_valid
         assert error == ""
 
@@ -34,14 +34,14 @@ class TestValidateFileUpload:
         """Test validation passes for .md file."""
         file_path = str(TEST_DATA_DIR / "sample_markdown.md")
         is_valid, error = validate_file_upload(file_path)
-        
+
         assert is_valid
         assert error == ""
 
     def test_nonexistent_file(self):
         """Test validation fails for nonexistent file."""
         is_valid, error = validate_file_upload("/nonexistent/file.txt")
-        
+
         assert not is_valid
         assert "not found" in error.lower()
 
@@ -51,10 +51,10 @@ class TestValidateFileUpload:
         with tempfile.NamedTemporaryFile(suffix=".exe", delete=False) as tmp:
             tmp.write(b"content")
             tmp_path = tmp.name
-        
+
         try:
             is_valid, error = validate_file_upload(tmp_path)
-            
+
             assert not is_valid
             assert "unsupported" in error.lower()
         finally:
@@ -67,10 +67,10 @@ class TestValidateFileUpload:
             # Write more than 50MB
             tmp.write(b"x" * (60 * 1024 * 1024))
             tmp_path = tmp.name
-        
+
         try:
             is_valid, error = validate_file_upload(tmp_path, max_size_bytes=MAX_FILE_SIZE_BYTES)
-            
+
             assert not is_valid
             assert "too large" in error.lower()
         finally:
@@ -80,18 +80,18 @@ class TestValidateFileUpload:
         """Test validation fails for empty file."""
         file_path = str(TEST_DATA_DIR / "empty.txt")
         is_valid, error = validate_file_upload(file_path)
-        
+
         assert not is_valid
         assert "empty" in error.lower()
 
     def test_custom_size_limit(self):
         """Test validation with custom size limit."""
         file_path = str(TEST_DATA_DIR / "sample.txt")
-        
+
         # Should pass with normal limit
         is_valid, _ = validate_file_upload(file_path)
         assert is_valid
-        
+
         # Should fail with very small limit
         is_valid, error = validate_file_upload(file_path, max_size_bytes=10)
         assert not is_valid
@@ -100,11 +100,11 @@ class TestValidateFileUpload:
     def test_custom_allowed_extensions(self):
         """Test validation with custom allowed extensions."""
         file_path = str(TEST_DATA_DIR / "sample.txt")
-        
+
         # Should pass with .txt in allowed list
         is_valid, _ = validate_file_upload(file_path, allowed_extensions={".txt", ".pdf"})
         assert is_valid
-        
+
         # Should fail with .txt not in allowed list
         is_valid, error = validate_file_upload(file_path, allowed_extensions={".pdf", ".docx"})
         assert not is_valid
@@ -169,7 +169,7 @@ class TestValidateFileOrRaise:
     def test_valid_file_no_exception(self):
         """Test valid file raises no exception."""
         file_path = str(TEST_DATA_DIR / "sample.txt")
-        
+
         # Should not raise
         validate_file_or_raise(file_path)
 
@@ -183,11 +183,11 @@ class TestValidateFileOrRaise:
         with tempfile.NamedTemporaryFile(suffix=".exe", delete=False) as tmp:
             tmp.write(b"content")
             tmp_path = tmp.name
-        
+
         try:
             with pytest.raises(FileValidationError) as exc_info:
                 validate_file_or_raise(tmp_path)
-            
+
             assert "unsupported" in str(exc_info.value).lower()
         finally:
             Path(tmp_path).unlink()
@@ -197,11 +197,11 @@ class TestValidateFileOrRaise:
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as tmp:
             tmp.write(b"x" * (60 * 1024 * 1024))
             tmp_path = tmp.name
-        
+
         try:
             with pytest.raises(FileValidationError) as exc_info:
                 validate_file_or_raise(tmp_path)
-            
+
             assert "too large" in str(exc_info.value).lower()
         finally:
             Path(tmp_path).unlink()

@@ -9,18 +9,18 @@ then stores chunks in Chroma.
 from __future__ import annotations
 
 import os
+from collections.abc import Iterable
 from datetime import datetime
-from typing import Iterable, Optional
 
 from tqdm import tqdm
 
+from m_shared.utils import AuditLogger
 from m_shared.vectordb import (
     ChromaDocumentStore,
     document_to_markdown,
     iterative_chunking,
     sanitize_filename,
 )
-from m_shared.utils import AuditLogger
 
 
 def ingest_files_into_store(
@@ -28,9 +28,9 @@ def ingest_files_into_store(
     file_paths: Iterable[str],
     store: ChromaDocumentStore,
     max_chunk_size: int = 1024,
-    session_id: Optional[str] = None,
-    user_id: Optional[str] = None,
-    audit_logger: Optional[AuditLogger] = None,
+    session_id: str | None = None,
+    user_id: str | None = None,
+    audit_logger: AuditLogger | None = None,
 ) -> list[str]:
     """Ingest documents into a Chroma-backed store.
 
@@ -77,18 +77,18 @@ def ingest_files_into_store(
 
         added.append(collection_name)
         current_documents.add(collection_name)
-        
+
         # Log upload to audit trail
         if audit_logger and session_id:
             file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
             file_ext = os.path.splitext(file_path)[1]
-            
+
             audit_logger.log_upload(
                 session_id=session_id,
                 filename=os.path.basename(file_path),
                 file_size=file_size,
                 file_type=file_ext,
-                user_id=user_id
+                user_id=user_id,
             )
 
     return added

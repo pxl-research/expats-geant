@@ -1,7 +1,5 @@
 """ChromaDB wrapper for document storage and retrieval."""
 
-from typing import Optional
-
 import chromadb
 from chromadb import QueryResult
 from tqdm import tqdm
@@ -27,10 +25,10 @@ def repack_query_results(results: QueryResult) -> list[dict]:
     for r in range(length):
         repacked_result = {}
         for field in fields:
-            if results[field] is not None:
+            if results[field] is not None:  # type: ignore[literal-required]
                 # Remove trailing 's' to singularize field names
                 key = field[:-1] if field.endswith("s") else field
-                repacked_result[key] = results[field][0][r]
+                repacked_result[key] = results[field][0][r]  # type: ignore[literal-required]
         repacked.append(repacked_result)
 
     return repacked
@@ -46,7 +44,7 @@ class ChromaDocumentStore:
     - Query searches across all collections and returns the top-N results
     """
 
-    def __init__(self, path: Optional[str] = None):
+    def __init__(self, path: str | None = None):
         """
         Initialize ChromaDB document store.
 
@@ -107,8 +105,8 @@ class ChromaDocumentStore:
         collection_name = clean_up_string(document_name)
         try:
             self.cdb_client.delete_collection(name=collection_name)
-        except Exception:
-            pass  # Silently ignore if collection doesn't exist
+        except Exception:  # noqa: S110 - delete-if-exists pattern, absence is fine
+            pass
 
     def list_documents(self) -> list[str]:
         """
@@ -189,9 +187,9 @@ class ChromaDocumentStore:
                 query_kwargs["where"] = where_filters
 
             try:
-                results = collection.query(**query_kwargs)
+                results = collection.query(**query_kwargs)  # type: ignore[arg-type]
                 all_results.extend(repack_query_results(results))
-            except Exception:
+            except Exception:  # noqa: S112 - skip collections that fail to query
                 continue
 
         all_results.sort(key=lambda r: r.get("distance", float("inf")))

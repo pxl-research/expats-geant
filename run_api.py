@@ -4,18 +4,16 @@
 import asyncio
 import logging
 import os
-import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Optional
 
 import uvicorn
 
-from m_shared.session.manager import SessionManager
-from m_shared.llm.client import LLMClient
-from m_shared.utils.audit import AuditLogger
-from m_shared.auth.middleware import SessionMiddleware
 from m_autofill.api import create_app
+from m_shared.auth.middleware import SessionMiddleware
+from m_shared.llm.client import LLMClient
+from m_shared.session.manager import SessionManager
+from m_shared.utils.audit import AuditLogger
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +35,7 @@ class ScheduledCleanupRunner:
     def __init__(self, session_manager: SessionManager, interval_minutes: int = 60):
         self.session_manager = session_manager
         self.interval_seconds = interval_minutes * 60
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
 
     async def _loop(self) -> None:
         """Background loop: sleep for the interval, then clean up expired sessions."""
@@ -74,7 +72,7 @@ def main():
     sessions_base_path = os.getenv("SESSIONS_BASE_PATH", "./data/sessions")
     chroma_base_path = os.getenv("CHROMA_BASE_PATH", "./data/chroma")
     port = int(os.getenv("PORT", "8001"))
-    host = os.getenv("HOST", "0.0.0.0")
+    host = os.getenv("HOST", "0.0.0.0")  # noqa: S104 - intentional, overridable via env
     cleanup_interval = int(os.getenv("CLEANUP_JOB_INTERVAL_MINUTES", "60"))
 
     # Create base directories
@@ -130,7 +128,7 @@ def main():
     app.add_middleware(
         SessionMiddleware,
         session_manager=session_manager,
-        ttl_hours=int(os.getenv("SESSION_TTL_HOURS", "24"))
+        ttl_hours=int(os.getenv("SESSION_TTL_HOURS", "24")),
     )
 
     print("✓ FastAPI app configured")

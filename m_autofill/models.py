@@ -1,7 +1,5 @@
 """Pydantic models for M-Autofill batch suggest endpoint."""
 
-from typing import Optional
-
 from pydantic import BaseModel, Field, model_validator
 
 from m_shared.models.question import QuestionType
@@ -40,7 +38,7 @@ class BatchSuggestSection(BaseModel):
     """A group of related questionnaire items sharing context."""
 
     id: str = Field(..., description="Section identifier")
-    title: Optional[str] = Field(None, description="Section title, used as LLM context")
+    title: str | None = Field(None, description="Section title, used as LLM context")
     items: list[BatchSuggestItem] = Field(..., min_length=1, description="Items in this section")
 
 
@@ -63,10 +61,18 @@ class BatchSuggestRequest(BaseModel):
         ... )
     """
 
-    assessment_id: str = Field(..., description="Caller-supplied assessment identifier, echoed in response")
-    context: Optional[str] = Field(None, max_length=1000, description="Optional assessment-level context for the LLM")
-    sections: Optional[list[BatchSuggestSection]] = Field(None, description="Grouped items (use this or items, not both)")
-    items: Optional[list[BatchSuggestItem]] = Field(None, description="Flat item list (normalized to single implicit section)")
+    assessment_id: str = Field(
+        ..., description="Caller-supplied assessment identifier, echoed in response"
+    )
+    context: str | None = Field(
+        None, max_length=1000, description="Optional assessment-level context for the LLM"
+    )
+    sections: list[BatchSuggestSection] | None = Field(
+        None, description="Grouped items (use this or items, not both)"
+    )
+    items: list[BatchSuggestItem] | None = Field(
+        None, description="Flat item list (normalized to single implicit section)"
+    )
 
     @model_validator(mode="after")
     def validate_items_or_sections(self) -> "BatchSuggestRequest":
@@ -84,8 +90,12 @@ class CitationResult(BaseModel):
     """A citation linking a suggestion to a source document fragment."""
 
     source: str = Field(..., description="Source document filename")
-    excerpt: str = Field(..., description="Exact text excerpt from the source (W3C TextQuoteSelector pattern)")
-    position: float = Field(..., ge=0.0, le=1.0, description="Normalized position in document (0.0–1.0)")
+    excerpt: str = Field(
+        ..., description="Exact text excerpt from the source (W3C TextQuoteSelector pattern)"
+    )
+    position: float = Field(
+        ..., ge=0.0, le=1.0, description="Normalized position in document (0.0–1.0)"
+    )
 
 
 class ItemSuggestion(BaseModel):
@@ -94,10 +104,18 @@ class ItemSuggestion(BaseModel):
     item_id: str = Field(..., description="Matches the input item id")
     type: str = Field(..., description="Question type, echoed from input")
     suggestion: str = Field(..., description="Human-readable answer, safe to display directly")
-    selected_id: Optional[str] = Field(None, description="Matched choice id for single_choice (null if uncertain)")
-    selected_ids: Optional[list[str]] = Field(None, description="Matched choice ids for multiple_choice (null if uncertain)")
-    reasoning: Optional[str] = Field(None, description="LLM explanation of confidence, source interpretation, or uncertainty")
-    citations: list[CitationResult] = Field(default_factory=list, description="Source citations for this suggestion")
+    selected_id: str | None = Field(
+        None, description="Matched choice id for single_choice (null if uncertain)"
+    )
+    selected_ids: list[str] | None = Field(
+        None, description="Matched choice ids for multiple_choice (null if uncertain)"
+    )
+    reasoning: str | None = Field(
+        None, description="LLM explanation of confidence, source interpretation, or uncertainty"
+    )
+    citations: list[CitationResult] = Field(
+        default_factory=list, description="Source citations for this suggestion"
+    )
 
 
 class BatchSuggestResponse(BaseModel):
@@ -123,4 +141,4 @@ def normalize_to_sections(request: BatchSuggestRequest) -> list[BatchSuggestSect
     """
     if request.sections:
         return request.sections
-    return [BatchSuggestSection(id="_implicit", items=request.items)]
+    return [BatchSuggestSection(id="_implicit", title=None, items=request.items or [])]

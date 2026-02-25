@@ -12,23 +12,27 @@ from m_autofill.models import (
 from m_autofill.rag_pipeline import RAGPipeline
 from m_shared.models.question import QuestionType
 
-
 # ---------------------------------------------------------------------------
 # BatchSuggestItem validation
 # ---------------------------------------------------------------------------
 
+
 class TestBatchSuggestItem:
     def test_single_choice_with_choices_valid(self):
         item = BatchSuggestItem(
-            id="q1", type=QuestionType.SINGLE_CHOICE, prompt="Yes or no?",
-            choices=[BatchChoice(id="yes", label="Yes"), BatchChoice(id="no", label="No")]
+            id="q1",
+            type=QuestionType.SINGLE_CHOICE,
+            prompt="Yes or no?",
+            choices=[BatchChoice(id="yes", label="Yes"), BatchChoice(id="no", label="No")],
         )
         assert len(item.choices) == 2
 
     def test_multiple_choice_with_choices_valid(self):
         item = BatchSuggestItem(
-            id="q1", type=QuestionType.MULTIPLE_CHOICE, prompt="Pick all that apply.",
-            choices=[BatchChoice(id="a", label="A"), BatchChoice(id="b", label="B")]
+            id="q1",
+            type=QuestionType.MULTIPLE_CHOICE,
+            prompt="Pick all that apply.",
+            choices=[BatchChoice(id="a", label="A"), BatchChoice(id="b", label="B")],
         )
         assert len(item.choices) == 2
 
@@ -47,14 +51,17 @@ class TestBatchSuggestItem:
     def test_open_ended_with_choices_raises(self):
         with pytest.raises(ValueError, match="must be empty"):
             BatchSuggestItem(
-                id="q1", type=QuestionType.OPEN_ENDED, prompt="Describe.",
-                choices=[BatchChoice(id="a", label="A")]
+                id="q1",
+                type=QuestionType.OPEN_ENDED,
+                prompt="Describe.",
+                choices=[BatchChoice(id="a", label="A")],
             )
 
 
 # ---------------------------------------------------------------------------
 # Model validation
 # ---------------------------------------------------------------------------
+
 
 class TestBatchSuggestRequest:
     def test_sections_input_valid(self):
@@ -63,9 +70,9 @@ class TestBatchSuggestRequest:
             sections=[
                 BatchSuggestSection(
                     id="s1",
-                    items=[BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="What?")]
+                    items=[BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="What?")],
                 )
-            ]
+            ],
         )
         assert req.assessment_id == "test"
         assert len(req.sections) == 1
@@ -73,7 +80,7 @@ class TestBatchSuggestRequest:
     def test_flat_items_input_valid(self):
         req = BatchSuggestRequest(
             assessment_id="test",
-            items=[BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="What?")]
+            items=[BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="What?")],
         )
         assert len(req.items) == 1
 
@@ -81,7 +88,12 @@ class TestBatchSuggestRequest:
         with pytest.raises(ValueError, match="not both"):
             BatchSuggestRequest(
                 assessment_id="test",
-                sections=[BatchSuggestSection(id="s1", items=[BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="?")])],
+                sections=[
+                    BatchSuggestSection(
+                        id="s1",
+                        items=[BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="?")],
+                    )
+                ],
                 items=[BatchSuggestItem(id="q2", type=QuestionType.OPEN_ENDED, prompt="?")],
             )
 
@@ -93,14 +105,13 @@ class TestBatchSuggestRequest:
         req = BatchSuggestRequest(
             assessment_id="test",
             context="GDPR questionnaire",
-            items=[BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="What?")]
+            items=[BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="What?")],
         )
         assert req.context == "GDPR questionnaire"
 
     def test_optional_section_title(self):
         section = BatchSuggestSection(
-            id="s1",
-            items=[BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="What?")]
+            id="s1", items=[BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="What?")]
         )
         assert section.title is None
 
@@ -109,12 +120,13 @@ class TestBatchSuggestRequest:
 # Normalization
 # ---------------------------------------------------------------------------
 
+
 class TestNormalizeToSections:
     def test_sections_returned_as_is(self):
         section = BatchSuggestSection(
             id="s1",
             title="Data",
-            items=[BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="What?")]
+            items=[BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="What?")],
         )
         req = BatchSuggestRequest(assessment_id="a", sections=[section])
         result = normalize_to_sections(req)
@@ -127,7 +139,7 @@ class TestNormalizeToSections:
             items=[
                 BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="A?"),
                 BatchSuggestItem(id="q2", type=QuestionType.OPEN_ENDED, prompt="B?"),
-            ]
+            ],
         )
         result = normalize_to_sections(req)
         assert len(result) == 1
@@ -139,9 +151,15 @@ class TestNormalizeToSections:
         req = BatchSuggestRequest(
             assessment_id="a",
             sections=[
-                BatchSuggestSection(id="s1", items=[BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="A?")]),
-                BatchSuggestSection(id="s2", items=[BatchSuggestItem(id="q2", type=QuestionType.OPEN_ENDED, prompt="B?")]),
-            ]
+                BatchSuggestSection(
+                    id="s1",
+                    items=[BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="A?")],
+                ),
+                BatchSuggestSection(
+                    id="s2",
+                    items=[BatchSuggestItem(id="q2", type=QuestionType.OPEN_ENDED, prompt="B?")],
+                ),
+            ],
         )
         result = normalize_to_sections(req)
         assert len(result) == 2
@@ -151,11 +169,14 @@ class TestNormalizeToSections:
 # RAGPipeline._parse_structured_response
 # ---------------------------------------------------------------------------
 
+
 class TestParseStructuredResponse:
     @pytest.fixture
     def pipeline(self, tmp_path):
         from unittest.mock import MagicMock
+
         from m_shared.session.manager import SessionManager
+
         manager = SessionManager(base_path=str(tmp_path))
         llm = MagicMock()
         llm.model_name = "test-model"
@@ -218,11 +239,14 @@ class TestParseStructuredResponse:
 # RAGPipeline._parse_selected_id
 # ---------------------------------------------------------------------------
 
+
 class TestParseSelectedId:
     @pytest.fixture
     def pipeline(self, tmp_path):
         from unittest.mock import MagicMock
+
         from m_shared.session.manager import SessionManager
+
         manager = SessionManager(base_path=str(tmp_path))
         llm = MagicMock()
         llm.model_name = "test-model"
@@ -231,7 +255,11 @@ class TestParseSelectedId:
 
     @pytest.fixture
     def choices(self):
-        return [BatchChoice(id="yes", label="Yes"), BatchChoice(id="no", label="No"), BatchChoice(id="partial", label="Partially")]
+        return [
+            BatchChoice(id="yes", label="Yes"),
+            BatchChoice(id="no", label="No"),
+            BatchChoice(id="partial", label="Partially"),
+        ]
 
     def test_single_choice_valid_id(self, pipeline, choices):
         selected_id, selected_ids = pipeline._parse_selected_id("yes", choices, multi=False)

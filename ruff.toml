@@ -1,0 +1,18 @@
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes (undefined names, unused imports)
+    "I",   # isort (import ordering)
+    "UP",  # pyupgrade (modernise syntax for target Python version)
+    "S",   # bandit security checks
+]
+ignore = [
+    "S101",  # use of assert (fine in tests)
+    "E501",  # line too long (not enforced)
+]
+
+[lint.per-file-ignores]
+"tests/**/*.py" = ["S"]   # skip security rules in test files

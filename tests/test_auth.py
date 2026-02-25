@@ -1,7 +1,7 @@
 """Unit tests for JWT authentication."""
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
@@ -28,11 +28,7 @@ class TestCreateToken:
     def test_create_token_with_roles(self):
         """Test creating a token with custom roles."""
         with patch.dict(os.environ, {"JWT_SECRET": "test-secret-key"}):
-            token = create_token(
-                "user123",
-                "session456",
-                roles=["administrator", "respondent"]
-            )
+            token = create_token("user123", "session456", roles=["administrator", "respondent"])
             claims = validate_token(token)
             assert claims["roles"] == ["administrator", "respondent"]
 
@@ -55,24 +51,23 @@ class TestCreateToken:
         with patch.dict(os.environ, {"JWT_SECRET": "test-secret-key"}):
             token = create_token("user123", "session456", expiration_hours=48)
             claims = validate_token(token)
-            
+
             # Check expiration is approximately 48 hours from now
-            exp_time = datetime.fromtimestamp(claims["exp"], tz=timezone.utc)
-            now = datetime.now(timezone.utc)
+            exp_time = datetime.fromtimestamp(claims["exp"], tz=UTC)
+            now = datetime.now(UTC)
             diff = (exp_time - now).total_seconds() / 3600
             assert 47.9 < diff < 48.1  # Allow small timing variations
 
     def test_create_token_env_expiration(self):
         """Test expiration from environment variable."""
-        with patch.dict(os.environ, {
-            "JWT_SECRET": "test-secret-key",
-            "JWT_EXPIRATION_HOURS": "12"
-        }):
+        with patch.dict(
+            os.environ, {"JWT_SECRET": "test-secret-key", "JWT_EXPIRATION_HOURS": "12"}
+        ):
             token = create_token("user123", "session456")
             claims = validate_token(token)
-            
-            exp_time = datetime.fromtimestamp(claims["exp"], tz=timezone.utc)
-            now = datetime.now(timezone.utc)
+
+            exp_time = datetime.fromtimestamp(claims["exp"], tz=UTC)
+            now = datetime.now(UTC)
             diff = (exp_time - now).total_seconds() / 3600
             assert 11.9 < diff < 12.1
 
@@ -84,10 +79,7 @@ class TestCreateToken:
 
     def test_create_token_custom_algorithm(self):
         """Test using custom algorithm from environment."""
-        with patch.dict(os.environ, {
-            "JWT_SECRET": "test-secret-key",
-            "JWT_ALGORITHM": "HS512"
-        }):
+        with patch.dict(os.environ, {"JWT_SECRET": "test-secret-key", "JWT_ALGORITHM": "HS512"}):
             token = create_token("user123", "session456")
             # Should still be decodable with HS512
             claims = validate_token(token)
@@ -102,7 +94,7 @@ class TestValidateToken:
         with patch.dict(os.environ, {"JWT_SECRET": "test-secret-key"}):
             token = create_token("user123", "session456", org="testorg")
             claims = validate_token(token)
-            
+
             assert claims["user_id"] == "user123"
             assert claims["session_id"] == "session456"
             assert claims["org"] == "testorg"
@@ -114,7 +106,7 @@ class TestValidateToken:
         with patch.dict(os.environ, {"JWT_SECRET": "test-secret-key"}):
             # Create a token that expires immediately
             token = create_token("user123", "session456", expiration_hours=-1)
-            
+
             with pytest.raises(TokenExpiredError, match="expired"):
                 validate_token(token)
 
@@ -122,7 +114,7 @@ class TestValidateToken:
         """Test that tokens with invalid signatures raise TokenInvalidError."""
         with patch.dict(os.environ, {"JWT_SECRET": "test-secret-key"}):
             token = create_token("user123", "session456")
-        
+
         # Change the secret and try to validate
         with patch.dict(os.environ, {"JWT_SECRET": "different-secret"}):
             with pytest.raises(TokenInvalidError, match="Invalid token"):
@@ -142,17 +134,11 @@ class TestValidateToken:
 
     def test_validate_token_algorithm_mismatch(self):
         """Test validation with algorithm mismatch."""
-        with patch.dict(os.environ, {
-            "JWT_SECRET": "test-secret-key",
-            "JWT_ALGORITHM": "HS256"
-        }):
+        with patch.dict(os.environ, {"JWT_SECRET": "test-secret-key", "JWT_ALGORITHM": "HS256"}):
             token = create_token("user123", "session456")
-        
+
         # Try to validate with different algorithm
-        with patch.dict(os.environ, {
-            "JWT_SECRET": "test-secret-key",
-            "JWT_ALGORITHM": "HS512"
-        }):
+        with patch.dict(os.environ, {"JWT_SECRET": "test-secret-key", "JWT_ALGORITHM": "HS512"}):
             with pytest.raises(TokenInvalidError):
                 validate_token(token)
 
@@ -165,7 +151,7 @@ class TestVerifySessionAccess:
         with patch.dict(os.environ, {"JWT_SECRET": "test-secret-key"}):
             token = create_token("user123", "session456")
             claims = validate_token(token)
-            
+
             # Should return True for matching session
             assert verify_session_access(claims, "session456") is True
 
@@ -174,7 +160,7 @@ class TestVerifySessionAccess:
         with patch.dict(os.environ, {"JWT_SECRET": "test-secret-key"}):
             token = create_token("user123", "session456")
             claims = validate_token(token)
-            
+
             # Should raise PermissionError for different session
             with pytest.raises(PermissionError, match="Access denied"):
                 verify_session_access(claims, "session789")
@@ -182,7 +168,7 @@ class TestVerifySessionAccess:
     def test_verify_session_access_missing_claim(self):
         """Test behavior when session_id claim is missing."""
         claims = {"user_id": "user123", "org": "test"}
-        
+
         with pytest.raises(PermissionError):
             verify_session_access(claims, "session456")
 
@@ -198,17 +184,17 @@ class TestTokenRoundTrip:
                 user_id="user123",
                 session_id="session456",
                 org="pxl-university",
-                roles=["respondent"]
+                roles=["respondent"],
             )
-            
+
             # 2. User makes request, token validated
             claims = validate_token(token)
             assert claims["user_id"] == "user123"
             assert claims["session_id"] == "session456"
-            
+
             # 3. User accesses their own session - allowed
             assert verify_session_access(claims, "session456") is True
-            
+
             # 4. User tries to access another session - denied
             with pytest.raises(PermissionError):
                 verify_session_access(claims, "other-session")
@@ -217,15 +203,11 @@ class TestTokenRoundTrip:
         """Test different role configurations."""
         with patch.dict(os.environ, {"JWT_SECRET": "test-secret-key"}):
             # Respondent token
-            respondent_token = create_token(
-                "user1", "session1", roles=["respondent"]
-            )
+            respondent_token = create_token("user1", "session1", roles=["respondent"])
             respondent_claims = validate_token(respondent_token)
             assert respondent_claims["roles"] == ["respondent"]
-            
+
             # Administrator token
-            admin_token = create_token(
-                "admin1", "session2", roles=["administrator"]
-            )
+            admin_token = create_token("admin1", "session2", roles=["administrator"])
             admin_claims = validate_token(admin_token)
             assert admin_claims["roles"] == ["administrator"]

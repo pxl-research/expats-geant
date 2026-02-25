@@ -42,7 +42,7 @@ class TestValidateInputSize:
         text = "x" * 50000
         result = validate_input_size(text)
         assert len(result) == 50000
-        
+
         text_too_long = "x" * 50001
         with pytest.raises(ValidationError):
             validate_input_size(text_too_long)
@@ -66,7 +66,7 @@ class TestSanitizeText:
 
     def test_sanitize_quotes(self):
         """Test that quotes are escaped."""
-        text = "It's a \"test\""
+        text = 'It\'s a "test"'
         result = sanitize_text(text)
         assert "&#x27;" in result or "'" in result
         assert "&quot;" in result or '"' in result
@@ -89,10 +89,10 @@ class TestSanitizeText:
 
     def test_sanitize_control_characters(self):
         """Test removal of control characters."""
-        text = "Hello\x00World\x1F!"
+        text = "Hello\x00World\x1f!"
         result = sanitize_text(text)
         assert "\x00" not in result
-        assert "\x1F" not in result
+        assert "\x1f" not in result
         assert "Hello" in result
         assert "World" in result
 
@@ -191,7 +191,7 @@ class TestRealWorldScenarios:
         Based on my documents.
         """
         result = validate_and_sanitize(user_input, max_length=1000)
-        
+
         # XSS prevented
         assert "<script>" not in result
         # Excessive newlines collapsed
@@ -209,7 +209,7 @@ class TestRealWorldScenarios:
         2 - Unsatisfied
         """
         result = validate_and_sanitize(question_text, max_length=500)
-        
+
         # Whitespace normalized but newlines preserved
         assert "Rate your satisfaction (1-5):" in result
         assert "\n" in result

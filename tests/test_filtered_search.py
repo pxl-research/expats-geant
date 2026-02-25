@@ -107,6 +107,7 @@ class TestQueryWithFilterIntegration:
     def test_filtered_retrieve_via_rag_pipeline(self, tmp_path):
         """RAGPipeline.retrieve() forwards filters to query_with_filter."""
         from unittest.mock import MagicMock
+
         from m_autofill.rag_pipeline import RAGPipeline
 
         manager = SessionManager(base_path=str(tmp_path))
@@ -138,6 +139,7 @@ class TestQueryWithFilterIntegration:
     def test_unfiltered_retrieve_unchanged(self, tmp_path):
         """RAGPipeline.retrieve() without filters still works as before."""
         from unittest.mock import MagicMock
+
         from m_autofill.rag_pipeline import RAGPipeline
 
         manager = SessionManager(base_path=str(tmp_path))
