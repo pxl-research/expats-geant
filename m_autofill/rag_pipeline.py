@@ -8,6 +8,8 @@ This module orchestrates the complete RAG flow:
 All operations are session-isolated to ensure user privacy and data separation.
 """
 
+import json
+import logging
 from datetime import datetime
 
 from m_shared.llm import LLMClient
@@ -240,11 +242,9 @@ Answer:"""
         if choices:
             choice_lines = "\n".join(f"- {c.id}: {c.label}" for c in choices)
             choice_block = f"\nAVAILABLE CHOICES:\n{choice_lines}\n"
-            selected_instruction = (
-                "SELECTED: <choice id from the list above, or NONE if you cannot determine>\n"
-            )
+            selected_field = '  "selected": "<choice id from the list above, or null if you cannot determine>",\n'
         else:
-            selected_instruction = ""
+            selected_field = ""
 
         prompt = f"""You are helping a respondent answer a survey question based on their uploaded documents.
 {extra_context}
@@ -255,11 +255,13 @@ DOCUMENT EXCERPTS:
 Instructions:
 - Answer directly and concisely (max 3-4 sentences)
 - Only use information from the provided excerpts
-- If evidence is ambiguous or missing, say so in REASONING
+- If evidence is ambiguous or missing, say so in reasoning
 
-Respond in exactly this format:
-ANSWER: <your answer>
-{selected_instruction}REASONING: <brief explanation of confidence, source interpretation, or uncertainty — leave blank if answer is straightforward>"""
+Respond with a JSON object only, no other text:
+{{
+  "answer": "<your answer>",
+{selected_field}  "reasoning": "<brief explanation of confidence, source interpretation, or uncertainty, or null if the answer is straightforward>"
+}}"""
 
         temperature = temperature or self.default_temperature
         original_temp = self.llm_client.temperature
@@ -277,46 +279,38 @@ ANSWER: <your answer>
         return self._parse_structured_response(raw.strip())
 
     def _parse_structured_response(self, raw: str) -> tuple[str, str | None, str | None]:
-        """Parse ANSWER/SELECTED/REASONING from structured LLM output.
+        """Parse answer, selected, and reasoning from JSON LLM output.
 
-        Collects all lines belonging to each block, so multi-line answers and
-        reasoning are preserved. A new block starts when a line begins with a
-        known prefix (ANSWER:, SELECTED:, REASONING:).
+        Strips markdown code fences if present, then parses with json.loads().
+        On parse failure, falls back gracefully: full response as answer, None for other fields.
 
         Args:
             raw: Raw LLM output string
 
         Returns:
             Tuple of (answer, reasoning, selected_raw) — reasoning and selected_raw
-            are None if absent or blank. selected_raw is the bare value after
-            SELECTED: before any choice validation.
+            are None if absent or blank. selected_raw is the bare value before
+            any choice validation.
         """
-        PREFIXES = ("ANSWER:", "SELECTED:", "REASONING:")
+        text = raw.strip()
 
-        blocks: dict[str, list[str]] = {}
-        current_key: str | None = None
+        # Strip markdown code fences (```json ... ``` or ``` ... ```)
+        if text.startswith("```"):
+            lines = text.splitlines()
+            end = len(lines) - 1 if lines[-1].strip() == "```" else len(lines)
+            text = "\n".join(lines[1:end]).strip()
 
-        for line in raw.splitlines():
-            matched = next((p for p in PREFIXES if line.startswith(p)), None)
-            if matched:
-                current_key = matched.rstrip(":")
-                blocks[current_key] = [line[len(matched) :].strip()]
-            elif current_key is not None:
-                blocks[current_key].append(line)
-
-        def get_block(key: str) -> str | None:
-            lines = blocks.get(key, [])
-            value = "\n".join(lines).strip()
-            return value if value else None
-
-        answer = get_block("ANSWER") or raw
-        reasoning = get_block("REASONING")
-
-        selected_raw = get_block("SELECTED")
-        if selected_raw and selected_raw.upper() == "NONE":
-            selected_raw = None
-
-        return answer, reasoning, selected_raw
+        try:
+            data = json.loads(text)
+            answer = data.get("answer") or raw
+            reasoning = data.get("reasoning") or None
+            selected_raw = data.get("selected") or None
+            if isinstance(selected_raw, str) and selected_raw.upper() == "NONE":
+                selected_raw = None
+            return answer, reasoning, selected_raw
+        except (json.JSONDecodeError, ValueError):
+            logging.warning("LLM response was not valid JSON; falling back to raw text as answer")
+            return raw, None, None
 
     def _parse_selected_id(
         self, selected_raw: str | None, choices: list, multi: bool
