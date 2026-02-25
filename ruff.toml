@@ -11,6 +11,7 @@ select = [
 ]
 ignore = [
     "S101",  # use of assert (fine in tests)
+    "E501",  # line too long (not enforced)
 ]
 
 [lint.per-file-ignores]
