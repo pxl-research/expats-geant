@@ -57,10 +57,14 @@ class ScheduledCleanupRunner:
         """Schedule the cleanup loop as an asyncio background task."""
         self._task = asyncio.create_task(self._loop())
 
-    def stop(self) -> None:
-        """Cancel the background task on shutdown."""
+    async def stop(self) -> None:
+        """Cancel the background task and await its termination."""
         if self._task:
             self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
 
 
 def main():
@@ -110,7 +114,7 @@ def main():
         print(f"✓ Cleanup job started (interval: {cleanup_interval}m)")
         yield
         # Shutdown: cancel background task cleanly
-        cleanup_runner.stop()
+        await cleanup_runner.stop()
         print("✓ Cleanup job stopped")
 
     # Create FastAPI app
