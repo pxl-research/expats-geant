@@ -1,8 +1,6 @@
 # Docker Compose for M-Autofill Service
 # Privacy-first answer suggestion service deployment
 
-version: "3.8"
-
 services:
   m-autofill:
     build:
@@ -19,7 +17,6 @@ services:
 
       # LLM Configuration
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
       - LLM_MODEL=${LLM_MODEL:-openrouter/meta-llama/llama-3.1-8b-instruct}
       - LLM_BASE_URL=${LLM_BASE_URL:-https://openrouter.ai/api/v1}
 

@@ -4,6 +4,7 @@ This guide explains how to integrate M-Autofill with institutional authenticatio
 
 ## Table of Contents
 
+- [Deployment](#deployment)
 - [Authentication Model](#authentication-model)
 - [JWT Requirements](#jwt-requirements)
 - [Development Testing](#development-testing)
@@ -11,6 +12,105 @@ This guide explains how to integrate M-Autofill with institutional authenticatio
 - [Session Lifecycle](#session-lifecycle)
 - [API Endpoints](#api-endpoints)
 - [Troubleshooting](#troubleshooting)
+---
+
+## Deployment
+
+The recommended way to run M-Autofill is via Docker Compose.
+
+### Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) installed and running
+- An [OpenRouter](https://openrouter.ai) API key (required for suggestion endpoints)
+
+### 1. Create a `.env` file
+
+Create a `.env` file in the project root. This file is read automatically by Docker Compose and is **never committed to version control**.
+
+```bash
+# .env
+
+# Required: LLM API key for suggestion endpoints
+OPENROUTER_API_KEY=sk-or-v1-your-key-here
+
+# Required: Secret used to sign and verify JWT tokens
+JWT_SECRET=change-me-to-a-strong-random-secret
+
+# Optional overrides (defaults shown)
+LLM_MODEL=openrouter/meta-llama/llama-3.1-8b-instruct
+SESSION_TTL_HOURS=24
+MAX_FILE_SIZE_MB=50
+AUDIT_RETENTION_DAYS=365
+LOG_LEVEL=INFO
+```
+
+> **Security**: Use a strong random value for `JWT_SECRET` in production (256+ bits of entropy). It must match the secret used by your identity provider to sign tokens.
+
+### 2. Build the image
+
+```bash
+docker build -t m-autofill:latest .
+```
+
+### 3. Start the service
+
+```bash
+docker-compose up
+```
+
+The service starts on port `8001`. You should see:
+
+```
+✓ SessionManager initialized (base: /app/data/sessions)
+✓ LLM client initialized
+✓ AuditLogger initialized
+✓ FastAPI app configured
+
+Starting server on 0.0.0.0:8001...
+API docs available at: http://0.0.0.0:8001/docs
+```
+
+> **Note**: You may see a harmless `onnxruntime cpuid_info warning: Unknown CPU vendor` message on startup. This is a CPU detection quirk inside the container and does not affect functionality.
+
+### 4. Verify the service is running
+
+```bash
+curl http://localhost:8001/health
+# {"status":"healthy"}
+```
+
+Interactive API documentation is available at: `http://localhost:8001/docs`
+
+### 5. Stop the service
+
+```bash
+docker-compose down
+```
+
+### Data Persistence
+
+Session data and vector embeddings are stored in named Docker volumes (`sessions_data`, `chroma_data`) and persist across container restarts. To wipe all data:
+
+```bash
+docker-compose down -v
+```
+
+### Environment Variables Reference
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `OPENROUTER_API_KEY` | Yes* | — | API key for LLM calls via OpenRouter |
+| `JWT_SECRET` | Yes | `change-me-in-production` | Secret for JWT signing/verification |
+| `JWT_ALGORITHM` | No | `HS256` | JWT signing algorithm |
+| `JWT_EXPIRATION_HOURS` | No | `24` | Token lifetime in hours |
+| `LLM_MODEL` | No | `openrouter/meta-llama/llama-3.1-8b-instruct` | LLM model identifier |
+| `SESSION_TTL_HOURS` | No | `24` | Session expiry in hours |
+| `MAX_FILE_SIZE_MB` | No | `50` | Maximum upload file size |
+| `AUDIT_RETENTION_DAYS` | No | `365` | Audit log retention period |
+| `LOG_LEVEL` | No | `INFO` | Logging verbosity |
+
+*The service starts without an LLM key but suggestion endpoints will return errors.
+
 ---
 
 ## Authentication Model

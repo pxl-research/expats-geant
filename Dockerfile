@@ -1,7 +1,7 @@
 # Dockerfile for M-Autofill Service
 # Privacy-first answer suggestion service with RAG pipeline
 
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 # Set working directory
 WORKDIR /app

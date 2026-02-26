@@ -181,17 +181,17 @@
   - [x] 7.2c Add healthcheck (GET /docs or simple endpoint)
   - [x] 7.2d Link to PostgreSQL or other services (if needed)
 
-- [ ] 7.3 Test Docker build and run
+- [x] 7.3 Test Docker build and run
 
-  - [ ] 7.3a Build image: docker build -t m-autofill:latest .
-  - [ ] 7.3b Run container: docker run -p 8001:8001 m-autofill:latest
-  - [ ] 7.3c Verify API accessible at localhost:8001
-  - [ ] 7.3d Test endpoints via HTTP requests
+  - [x] 7.3a Build image: docker build -t m-autofill:latest .
+  - [x] 7.3b Run container: docker run -p 8001:8001 m-autofill:latest
+  - [x] 7.3c Verify API accessible at localhost:8001
+  - [x] 7.3d Test endpoints via HTTP requests
 
-- [ ] 7.4 Docker Compose orchestration
-  - [ ] 7.4a Run full stack: docker-compose up
-  - [ ] 7.4b Verify all services healthy
-  - [ ] 7.4c Test inter-service communication (m_autofill ↔ chroma, etc.)
+- [x] 7.4 Docker Compose orchestration
+  - [x] 7.4a Run full stack: docker-compose up
+  - [x] 7.4b Verify all services healthy
+  - [x] 7.4c Test inter-service communication (m_autofill ↔ chroma, etc.)
 
 ## 8. Documentation
 
