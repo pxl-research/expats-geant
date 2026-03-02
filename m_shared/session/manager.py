@@ -17,7 +17,7 @@ class SessionManager:
     Each session gets its own folder with:
     - metadata.json: Session info (created_at, expires_at, user_id)
     - chroma_store/: ChromaDB SQLite files
-    - documents/: Optional uploaded file storage
+    - uploads/: Optional uploaded file storage
 
     Session IDs are derived from hashed JWT tokens for stability and security.
 
@@ -147,7 +147,7 @@ class SessionManager:
         # Create session folder structure
         session_path.mkdir(parents=True, exist_ok=True)
         (session_path / "chroma_store").mkdir(exist_ok=True)
-        (session_path / "documents").mkdir(exist_ok=True)
+        (session_path / "uploads").mkdir(exist_ok=True)
 
         # Create session object
         created_at = datetime.utcnow()
@@ -216,15 +216,15 @@ class SessionManager:
         return ChromaDocumentStore(path=str(chroma_path))
 
     def get_documents_path(self, session_id: str) -> Path:
-        """Get path to documents folder for a session.
+        """Get path to uploads folder for a session.
 
         Args:
             session_id: Session identifier
 
         Returns:
-            Path to documents directory
+            Path to uploads directory
         """
-        return self._get_session_path(session_id) / "documents"
+        return self._get_session_path(session_id) / "uploads"
 
     def delete_session(self, session_id: str, reason: str | None = None) -> bool:
         """Delete a session and all its data.
