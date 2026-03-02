@@ -154,8 +154,8 @@ class SurveyMonkeyAdapter(SurveyAdapter):
             page_id = section.metadata.get("sm_page_id", section.id)
             questions: list[dict[str, Any]] = []
 
-            for question in section.questions:
-                questions.append(_build_question_dict(question))
+            for position, question in enumerate(section.questions, start=1):
+                questions.append(_build_question_dict(question, position))
 
             pages.append(
                 {
@@ -358,7 +358,7 @@ def _expand_matrix(
 # ------------------------------------------------------------------
 
 
-def _build_question_dict(question: Question) -> dict[str, Any]:
+def _build_question_dict(question: Question, position: int = 1) -> dict[str, Any]:
     """Build a SurveyMonkey question dict from an internal Question."""
     qid = question.metadata.get("sm_qid", question.id)
     family = question.metadata.get("sm_family") or _TYPE_TO_FAMILY.get(question.type, "open_ended")
@@ -369,7 +369,7 @@ def _build_question_dict(question: Question) -> dict[str, Any]:
         "heading": question.text,
         "family": family,
         "subtype": subtype,
-        "position": 1,
+        "position": position,
         "required": question.required,
         "answers": {},
     }

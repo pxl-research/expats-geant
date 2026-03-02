@@ -283,14 +283,11 @@ def _parse_item(item_el: Element) -> Question | None:
         except (TypeError, ValueError):
             min_val, max_val, step = 0.0, 100.0, 1.0
 
-    required = item_el.get("adaptive", "false").lower() != "true"
-
     return Question(
         id=f"q_{item_id}",
         text=text,
         type=q_type,
         answer_options=answer_options,
-        required=required,
         min_value=min_val,
         max_value=max_val,
         step=step,
@@ -316,7 +313,11 @@ def _build_item_element(parent: Element, question: Question) -> None:
     # responseDeclaration
     resp_decl = ET.SubElement(item_el, _q("responseDeclaration"))
     resp_decl.set("identifier", "RESPONSE")
-    resp_decl.set("baseType", "identifier" if question.type != QuestionType.SLIDER else "float")
+    _BASE_TYPE = {
+        QuestionType.OPEN_ENDED: "string",
+        QuestionType.SLIDER: "float",
+    }
+    resp_decl.set("baseType", _BASE_TYPE.get(question.type, "identifier"))
     if question.type == QuestionType.MULTIPLE_CHOICE:
         resp_decl.set("cardinality", "multiple")
     elif question.type in (QuestionType.RANKING, QuestionType.OPEN_ENDED):
@@ -330,7 +331,12 @@ def _build_item_element(parent: Element, question: Question) -> None:
     interaction_tag = _TYPE_TO_INTERACTION[question.type]
     interaction = ET.SubElement(item_body, _q(interaction_tag))
     interaction.set("responseIdentifier", "RESPONSE")
-    interaction.set("shuffle", "false")
+    if question.type in (
+        QuestionType.SINGLE_CHOICE,
+        QuestionType.MULTIPLE_CHOICE,
+        QuestionType.RANKING,
+    ):
+        interaction.set("shuffle", "false")
 
     if question.type == QuestionType.SINGLE_CHOICE:
         interaction.set("maxChoices", "1")
