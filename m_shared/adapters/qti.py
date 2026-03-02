@@ -202,8 +202,8 @@ def _parse_section(section_el: Element, order: int) -> Section | None:
     title = section_el.get("title") or f"Section {order + 1}"
 
     questions: list[Question] = []
-    for item_el in _iter_children(section_el, "assessmentItem"):
-        q = _parse_item(item_el)
+    for q_order, item_el in enumerate(_iter_children(section_el, "assessmentItem")):
+        q = _parse_item(item_el, q_order)
         if q is not None:
             questions.append(q)
 
@@ -217,7 +217,7 @@ def _parse_section(section_el: Element, order: int) -> Section | None:
     )
 
 
-def _parse_item(item_el: Element) -> Question | None:
+def _parse_item(item_el: Element, order: int = 0) -> Question | None:
     """Parse an <assessmentItem> element into a Question."""
     item_id = item_el.get("identifier") or str(uuid.uuid4())
     title = item_el.get("title") or f"Item {item_id}"
@@ -287,6 +287,7 @@ def _parse_item(item_el: Element) -> Question | None:
         id=f"q_{item_id}",
         text=text,
         type=q_type,
+        order=order,
         answer_options=answer_options,
         min_value=min_val,
         max_value=max_val,

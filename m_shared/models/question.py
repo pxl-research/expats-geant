@@ -63,6 +63,7 @@ class Question(BaseModel):
     min_value: float | None = Field(None, description="Minimum value for slider questions")
     max_value: float | None = Field(None, description="Maximum value for slider questions")
     step: float | None = Field(None, description="Step increment for slider questions")
+    order: int = Field(0, description="Display order of this question within its section")
     required: bool = Field(True, description="Whether this question requires an answer")
     metadata: dict[str, Any] = Field(
         default_factory=dict, description="Additional metadata (tags, hints, validation rules)"
@@ -103,6 +104,7 @@ class Question(BaseModel):
                     {"id": "opt_2", "text": "Satisfied", "value": 4},
                     {"id": "opt_3", "text": "Neutral", "value": 3},
                 ],
+                "order": 0,
                 "required": True,
                 "metadata": {"category": "satisfaction"},
             }

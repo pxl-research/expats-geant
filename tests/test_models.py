@@ -137,6 +137,19 @@ class TestQuestion:
             )
         assert "must have min_value and max_value" in str(exc_info.value)
 
+    def test_order_defaults_to_zero(self):
+        q = Question(id="q1", text="Q", type=QuestionType.OPEN_ENDED)
+        assert q.order == 0
+
+    def test_order_is_persisted(self):
+        q = Question(id="q1", text="Q", type=QuestionType.OPEN_ENDED, order=3)
+        assert q.order == 3
+
+    def test_order_included_in_serialization(self):
+        q = Question(id="q1", text="Q", type=QuestionType.OPEN_ENDED, order=2)
+        data = q.model_dump()
+        assert data["order"] == 2
+
 
 class TestSection:
     """Test Section model."""

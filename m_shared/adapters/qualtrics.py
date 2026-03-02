@@ -147,12 +147,12 @@ class QualtricsAdapter(SurveyAdapter):
             ]
 
             questions: list[Question] = []
-            for qid in qids_in_block:
+            for q_order, qid in enumerate(qids_in_block):
                 payload = questions_by_qid.get(qid)
                 if payload is None:
                     logger.warning("Block references unknown QID '%s' — skipping", qid)
                     continue
-                question = _build_question(payload)
+                question = _build_question(payload, q_order)
                 if question is not None:
                     questions.append(question)
 
@@ -341,7 +341,7 @@ def _extract_block_order(elements: list[dict[str, Any]]) -> list[str]:
     return []
 
 
-def _build_question(payload: dict[str, Any]) -> Question | None:
+def _build_question(payload: dict[str, Any], order: int = 0) -> Question | None:
     """Convert a QSF SQ payload into an internal Question."""
     qid = payload.get("QuestionID", str(uuid.uuid4()))
     text = payload.get("QuestionText") or f"Question {qid}"
@@ -395,6 +395,7 @@ def _build_question(payload: dict[str, Any]) -> Question | None:
         id=f"q_{qid}",
         text=text,
         type=q_type,
+        order=order,
         answer_options=answer_options,
         required=required,
         min_value=min_val,

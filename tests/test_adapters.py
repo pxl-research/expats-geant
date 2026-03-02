@@ -413,6 +413,19 @@ class TestLimeSurveyAdapterRoundTrip:
         rt = [q.type for s in survey2.sections for q in s.questions]
         assert orig == rt
 
+    def test_question_order_imported(self):
+        survey = self.adapter.import_survey(MINIMAL_LSS)
+        questions = survey.sections[0].questions
+        assert questions[0].order == 1
+        assert questions[1].order == 2
+
+    def test_question_order_preserved_on_round_trip(self):
+        survey = self.adapter.import_survey(MINIMAL_LSS)
+        survey2 = self.adapter.import_survey(self.adapter.export_survey(survey))
+        orders1 = [q.order for s in survey.sections for q in s.questions]
+        orders2 = [q.order for s in survey2.sections for q in s.questions]
+        assert orders1 == orders2
+
 
 # ---------------------------------------------------------------------------
 # LimeSurveyAdapter — submit
@@ -1701,6 +1714,13 @@ class TestSurveyMonkeyAdapterRoundTrip:
         o1 = [o.text for s in s1.sections for q in s.questions for o in q.answer_options]
         o2 = [o.text for s in s2.sections for q in s.questions for o in q.answer_options]
         assert o1 == o2
+
+    def test_question_order_imported_from_position(self):
+        survey = self.adapter.import_survey(make_sm_survey())
+        questions = survey.sections[0].questions
+        # SM positions are 1-based; stored as 0-based order
+        assert questions[0].order == 0
+        assert questions[1].order == 1
 
 
 # ---------------------------------------------------------------------------
