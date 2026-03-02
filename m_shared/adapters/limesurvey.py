@@ -368,16 +368,20 @@ class LimeSurveyAdapter(SurveyAdapter):
     def submit_responses(self, survey_id: str, responses: list[Response]) -> None:
         """Submit responses to LimeSurvey via the RemoteControl 2 JSON-RPC API.
 
-        Authenticates with get_session_key, calls add_response for each response,
-        then releases the session with release_session_key.
+        Authenticates with get_session_key, fetches the question/group mapping via
+        list_questions to build correct SGQA field keys, calls add_response, then
+        releases the session with release_session_key.
 
         Args:
             survey_id: The LimeSurvey survey ID (numeric sid as string).
-            responses: Responses to submit.
+            responses: Responses to submit. Each response must have ``ls_qid`` set
+                in its metadata (populated automatically when the survey was imported
+                via this adapter).
 
         Raises:
-            ValueError: If API credentials are not configured.
-            RuntimeError: If authentication or submission fails.
+            ValueError: If API credentials are not configured, or if a response is
+                missing ``ls_qid`` metadata required to build the SGQA field key.
+            RuntimeError: If authentication, the list_questions call, or submission fails.
         """
         if not self._api_url or not self._username or not self._password:
             raise ValueError(
@@ -386,7 +390,8 @@ class LimeSurveyAdapter(SurveyAdapter):
 
         session_key = self._get_session_key()
         try:
-            response_data = _responses_to_ls_format(responses)
+            gid_map = self._fetch_question_gid_map(session_key, survey_id)
+            response_data = _responses_to_ls_format(responses, survey_id, gid_map)
             result = self._rpc_call("add_response", [session_key, survey_id, response_data])
             if isinstance(result, dict) and result.get("status"):
                 raise RuntimeError(f"LimeSurvey add_response failed: {result['status']}")
@@ -399,6 +404,29 @@ class LimeSurveyAdapter(SurveyAdapter):
         if isinstance(result, dict) and result.get("status"):
             raise RuntimeError(f"LimeSurvey authentication failed: {result['status']}")
         return result
+
+    def _fetch_question_gid_map(self, session_key: str, survey_id: str) -> dict[str, str]:
+        """Return a mapping of qid → gid for all questions in the survey.
+
+        Calls list_questions via the RemoteControl 2 API so that submit_responses
+        can build correct SGQA field keys without relying on locally cached metadata.
+
+        Args:
+            session_key: Active RemoteControl 2 session key.
+            survey_id: The LimeSurvey survey ID (numeric sid as string).
+
+        Returns:
+            dict mapping question id strings to group id strings.
+
+        Raises:
+            RuntimeError: If the API returns an unexpected response shape.
+        """
+        result = self._rpc_call("list_questions", [session_key, survey_id])
+        if not isinstance(result, list):
+            raise RuntimeError(
+                f"list_questions returned unexpected result for survey {survey_id}: {result!r}"
+            )
+        return {str(q["id"]): str(q["gid"]) for q in result if "id" in q and "gid" in q}
 
     def _release_session_key(self, session_key: str) -> None:
         try:
@@ -446,21 +474,41 @@ def _sub(parent: Element, tag: str, text: str) -> Element:
     return el
 
 
-def _responses_to_ls_format(responses: list[Response]) -> dict[str, Any]:
+def _responses_to_ls_format(
+    responses: list[Response],
+    survey_id: str,
+    gid_map: dict[str, str],
+) -> dict[str, Any]:
     """Convert internal Response objects to LimeSurvey add_response field dict.
 
-    LimeSurvey expects a flat dict keyed by field codes like "<sid>X<gid>X<qid>".
-    Since we don't have the sid/gid here, we use the question_id as the key
-    and let the caller map to platform codes where needed.
+    LimeSurvey expects a flat dict keyed by SGQA field codes:
+    ``<sid>X<gid>X<qid>`` for scalar answers, ``<sid>X<gid>X<qid>[<code>]``
+    for multiple-choice sub-fields.
+
+    Args:
+        responses: Responses to convert. Each must have ``ls_qid`` in metadata.
+        survey_id: The LimeSurvey survey ID (sid) used as the S component of the key.
+        gid_map: Mapping of qid → gid obtained from list_questions.
+
+    Raises:
+        ValueError: If a response's ls_qid is not present in gid_map.
     """
     data: dict[str, Any] = {}
     for resp in responses:
-        qid = resp.metadata.get("ls_qid", resp.question_id)
+        qid = str(resp.metadata.get("ls_qid", resp.question_id))
+        gid = gid_map.get(qid)
+        if gid is None:
+            raise ValueError(
+                f"Cannot build SGQA key for question '{resp.question_id}': "
+                f"qid '{qid}' not found in survey {survey_id}. "
+                "Ensure ls_qid is set in response metadata and matches a question in this survey."
+            )
+        prefix = f"{survey_id}X{gid}X{qid}"
         value = resp.answer_value
         if isinstance(value, list):
             # multiple_choice or ranking: LimeSurvey expects separate fields per option
             for item in value:
-                data[f"{qid}[{item}]"] = "Y"
+                data[f"{prefix}[{item}]"] = "Y"
         else:
-            data[str(qid)] = str(value) if value is not None else ""
+            data[prefix] = str(value) if value is not None else ""
     return data
