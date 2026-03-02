@@ -345,7 +345,7 @@ class SessionManager:
             return None
 
         session_path = self._get_session_path(session_id)
-        docs_path = session_path / "documents"
+        docs_path = session_path / "uploads"
 
         # Calculate remaining TTL
         now = datetime.utcnow()

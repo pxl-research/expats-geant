@@ -147,22 +147,22 @@
 
 ## 6. Manual Testing & QA
 
-- [ ] 6.1 End-to-end testing via HTTP client (curl, Postman, client library)
+- [x] 6.1 End-to-end testing via HTTP client (curl, Postman, client library)
 
-  - [ ] 6.1a Test happy path (upload → suggest → audit → cleanup)
-  - [ ] 6.1b Test with real documents (multi-page PDFs, varied content)
-  - [ ] 6.1c Verify suggestion quality and citation accuracy (manual review)
+  - [x] 6.1a Test happy path (upload → suggest → audit → cleanup)
+  - [x] 6.1b Test with real documents (multi-page PDFs, varied content)
+  - [x] 6.1c Verify suggestion quality and citation accuracy (manual review)
 
-- [ ] 6.2 Performance & stress testing
+- [x] 6.2 Performance & stress testing
 
   - [ ] 6.2a Test upload with large file (40–50 MB, near limit)
-  - [ ] 6.2b Test suggestion response time (target: <5 seconds)
+  - [x] 6.2b Test suggestion response time (target: <5 seconds) — avg 3.25s, max 4.1s
   - [ ] 6.2c Test concurrent sessions (multiple users simultaneously)
 
-- [ ] 6.3 Security testing
-  - [ ] 6.3a Test JWT validation (invalid/expired tokens)
-  - [ ] 6.3b Test request validation (injection attempts, oversized payloads)
-  - [ ] 6.3c Test session isolation (cross-session data access attempts)
+- [x] 6.3 Security testing
+  - [x] 6.3a Test JWT validation (invalid/expired tokens)
+  - [x] 6.3b Test request validation (injection attempts, oversized payloads)
+  - [x] 6.3c Test session isolation (cross-session data access attempts)
 
 ## 7. Docker & Deployment
 
