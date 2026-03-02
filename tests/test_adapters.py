@@ -416,8 +416,8 @@ class TestLimeSurveyAdapterRoundTrip:
     def test_question_order_imported(self):
         survey = self.adapter.import_survey(MINIMAL_LSS)
         questions = survey.sections[0].questions
-        assert questions[0].order == 1
-        assert questions[1].order == 2
+        assert questions[0].order == 0
+        assert questions[1].order == 1
 
     def test_question_order_preserved_on_round_trip(self):
         survey = self.adapter.import_survey(MINIMAL_LSS)

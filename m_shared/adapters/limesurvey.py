@@ -285,7 +285,7 @@ class LimeSurveyAdapter(SurveyAdapter):
             id=f"q_{qid}",
             text=q_meta["text"],
             type=q_type,
-            order=q_meta["order"],
+            order=max(0, q_meta["order"] - 1),
             answer_options=answer_options,
             required=q_meta["mandatory"],
             min_value=min_val,
@@ -348,7 +348,7 @@ class LimeSurveyAdapter(SurveyAdapter):
                 _sub(qrow, "type", ls_type)
                 _sub(qrow, "question", question.text)
                 _sub(qrow, "mandatory", "Y" if question.required else "N")
-                _sub(qrow, "question_order", str(question.order))
+                _sub(qrow, "question_order", str(question.order + 1))
 
                 for opt in question.answer_options:
                     arow = ET.SubElement(answers_rows, "row")
