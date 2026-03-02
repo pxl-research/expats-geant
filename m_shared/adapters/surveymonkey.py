@@ -155,7 +155,7 @@ class SurveyMonkeyAdapter(SurveyAdapter):
             questions: list[dict[str, Any]] = []
 
             for i, question in enumerate(section.questions, start=1):
-                questions.append(_build_question_dict(question, question.order + 1 or i))
+                questions.append(_build_question_dict(question, i))
 
             pages.append(
                 {
