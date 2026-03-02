@@ -374,13 +374,14 @@ class LimeSurveyAdapter(SurveyAdapter):
 
         Args:
             survey_id: The LimeSurvey survey ID (numeric sid as string).
-            responses: Responses to submit. Each response must have ``ls_qid`` set
-                in its metadata (populated automatically when the survey was imported
-                via this adapter).
+            responses: Responses to submit. When ``ls_qid`` is present in a
+                response's metadata (set automatically on import via this adapter)
+                it is used as the question identifier; otherwise ``response.question_id``
+                is used as a fallback.
 
         Raises:
-            ValueError: If API credentials are not configured, or if a response is
-                missing ``ls_qid`` metadata required to build the SGQA field key.
+            ValueError: If API credentials are not configured, or if the resolved
+                question id for a response is not found in the survey's question map.
             RuntimeError: If authentication, the list_questions call, or submission fails.
         """
         if not self._api_url or not self._username or not self._password:
@@ -486,12 +487,13 @@ def _responses_to_ls_format(
     for multiple-choice sub-fields.
 
     Args:
-        responses: Responses to convert. Each must have ``ls_qid`` in metadata.
+        responses: Responses to convert. ``ls_qid`` in metadata is used as the
+            question identifier when available; falls back to ``response.question_id``.
         survey_id: The LimeSurvey survey ID (sid) used as the S component of the key.
         gid_map: Mapping of qid → gid obtained from list_questions.
 
     Raises:
-        ValueError: If a response's ls_qid is not present in gid_map.
+        ValueError: If the resolved question id for a response is not found in gid_map.
     """
     data: dict[str, Any] = {}
     for resp in responses:
