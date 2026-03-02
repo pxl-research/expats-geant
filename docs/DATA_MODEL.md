@@ -43,6 +43,7 @@ classDiagram
         +str id
         +str text
         +QuestionType type
+        +int order
         +bool required
         +list~AnswerOption~ answer_options
         +float|None min_value
