@@ -15,7 +15,6 @@ LimeSurvey question types mapped to internal QuestionType:
     M        → multiple_choice
     T, S, U  → open_ended     (long/short/huge text)
     R        → ranking
-    B        → slider         (LimeSurvey "Array by column" used as numeric range)
     N        → slider         (Numerical input — mapped to slider with no range)
 """
 
@@ -295,6 +294,7 @@ class LimeSurveyAdapter(SurveyAdapter):
                 "platform": "limesurvey",
                 "ls_qid": qid,
                 "ls_type": ls_type,
+                "order": q_meta["order"],
                 **q_meta.get("extra", {}),
             },
         )
