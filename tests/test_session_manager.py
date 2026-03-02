@@ -65,7 +65,7 @@ class TestSessionCreation:
         assert session_path.exists()
         assert (session_path / "metadata.json").exists()
         assert (session_path / "chroma_store").exists()
-        assert (session_path / "documents").exists()
+        assert (session_path / "uploads").exists()
 
     def test_create_session_saves_metadata(self, tmp_path):
         """Test that session metadata is saved correctly."""
@@ -174,7 +174,7 @@ class TestVectorStore:
 
         assert docs_path.exists()
         assert docs_path.is_dir()
-        assert docs_path.name == "documents"
+        assert docs_path.name == "uploads"
 
 
 class TestSessionDeletion:
