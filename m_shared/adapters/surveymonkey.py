@@ -154,8 +154,8 @@ class SurveyMonkeyAdapter(SurveyAdapter):
             page_id = section.metadata.get("sm_page_id", section.id)
             questions: list[dict[str, Any]] = []
 
-            for position, question in enumerate(section.questions, start=1):
-                questions.append(_build_question_dict(question, position))
+            for i, question in enumerate(section.questions, start=1):
+                questions.append(_build_question_dict(question, i))
 
             pages.append(
                 {
@@ -199,7 +199,8 @@ def _parse_page(page: dict[str, Any], order: int) -> Section:
 
     questions: list[Question] = []
     for q_data in raw_questions:
-        parsed = _parse_question(q_data)
+        position = max(0, q_data.get("position", 1) - 1)  # SM is 1-based; store 0-based
+        parsed = _parse_question(q_data, position)
         if parsed is not None:
             if isinstance(parsed, list):
                 questions.extend(parsed)
@@ -216,7 +217,7 @@ def _parse_page(page: dict[str, Any], order: int) -> Section:
     )
 
 
-def _parse_question(q: dict[str, Any]) -> Question | list[Question] | None:
+def _parse_question(q: dict[str, Any], position: int = 0) -> Question | list[Question] | None:
     """Convert a SurveyMonkey question dict into one or more internal Questions.
 
     Matrix questions are expanded: each row becomes a separate Question so the
@@ -242,7 +243,7 @@ def _parse_question(q: dict[str, Any]) -> Question | list[Question] | None:
 
     # Matrix: each row is a sub-question with the column choices as options
     if family == "matrix":
-        return _expand_matrix(q, qid, answers, required)
+        return _expand_matrix(q, qid, answers, required, position)
 
     # Slider: extract bounds from answers.ranges or question-level attributes
     min_val = max_val = step = None
@@ -259,6 +260,7 @@ def _parse_question(q: dict[str, Any]) -> Question | list[Question] | None:
         id=f"q_{qid}",
         text=heading,
         type=q_type,
+        order=position,
         answer_options=answer_options,
         required=required,
         min_value=min_val,
@@ -313,6 +315,7 @@ def _expand_matrix(
     qid: str,
     answers: dict[str, Any],
     required: bool,
+    position: int = 0,
 ) -> list[Question]:
     """Expand a matrix question into one Question per row."""
     rows: list[dict[str, Any]] = sorted(answers.get("rows", []), key=lambda r: r.get("position", 0))
@@ -337,6 +340,7 @@ def _expand_matrix(
                 id=f"q_{qid}_row_{rid}",
                 text=row_text,
                 type=QuestionType.SINGLE_CHOICE,
+                order=position,
                 answer_options=col_options,
                 required=required,
                 min_value=None,

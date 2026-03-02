@@ -413,6 +413,19 @@ class TestLimeSurveyAdapterRoundTrip:
         rt = [q.type for s in survey2.sections for q in s.questions]
         assert orig == rt
 
+    def test_question_order_imported(self):
+        survey = self.adapter.import_survey(MINIMAL_LSS)
+        questions = survey.sections[0].questions
+        assert questions[0].order == 0
+        assert questions[1].order == 1
+
+    def test_question_order_preserved_on_round_trip(self):
+        survey = self.adapter.import_survey(MINIMAL_LSS)
+        survey2 = self.adapter.import_survey(self.adapter.export_survey(survey))
+        orders1 = [q.order for s in survey.sections for q in s.questions]
+        orders2 = [q.order for s in survey2.sections for q in s.questions]
+        assert orders1 == orders2
+
 
 # ---------------------------------------------------------------------------
 # LimeSurveyAdapter — submit
@@ -439,9 +452,10 @@ class TestLimeSurveyAdapterSubmit:
 
         mock_resp = MagicMock()
         mock_resp.raise_for_status = MagicMock()
-        # get_session_key → "sess_key", add_response → 1, release → "OK"
+        # get_session_key → "sess_key", list_questions → [...], add_response → 1, release → "OK"
         mock_resp.json.side_effect = [
             {"result": "sess_key", "error": None, "id": 1},
+            {"result": [{"id": "10", "gid": "5"}], "error": None, "id": 1},
             {"result": 1, "error": None, "id": 1},
             {"result": "OK", "error": None, "id": 1},
         ]
@@ -451,13 +465,19 @@ class TestLimeSurveyAdapterSubmit:
         ) as mock_post:
             adapter.submit_responses("42", responses)
 
-        assert mock_post.call_count == 3
+        assert mock_post.call_count == 4
         # First call must be get_session_key
         first_payload = json.loads(mock_post.call_args_list[0].kwargs["data"])
         assert first_payload["method"] == "get_session_key"
-        # Second call must be add_response
+        # Second call must be list_questions
         second_payload = json.loads(mock_post.call_args_list[1].kwargs["data"])
-        assert second_payload["method"] == "add_response"
+        assert second_payload["method"] == "list_questions"
+        # Third call must be add_response
+        third_payload = json.loads(mock_post.call_args_list[2].kwargs["data"])
+        assert third_payload["method"] == "add_response"
+        # Verify SGQA key in the add_response payload
+        response_data = third_payload["params"][2]
+        assert "42X5X10" in response_data
 
     def test_submit_releases_session_on_api_error(self):
         """Session key is released even when add_response returns an error."""
@@ -469,8 +489,10 @@ class TestLimeSurveyAdapterSubmit:
 
         mock_resp = MagicMock()
         mock_resp.raise_for_status = MagicMock()
+        # get_session_key → "sess_key", list_questions → [], add_response → error, release → "OK"
         mock_resp.json.side_effect = [
             {"result": "sess_key", "error": None, "id": 1},
+            {"result": [], "error": None, "id": 1},
             {"result": {"status": "Error: survey is not active"}, "error": None, "id": 1},
             {"result": "OK", "error": None, "id": 1},
         ]
@@ -479,11 +501,11 @@ class TestLimeSurveyAdapterSubmit:
             with pytest.raises(RuntimeError, match="add_response failed"):
                 adapter.submit_responses("42", [])
 
-        # release_session_key should still have been called (3 total posts)
-        assert mock_resp.json.call_count == 3
+        # release_session_key should still have been called (4 total posts)
+        assert mock_resp.json.call_count == 4
 
     def test_multiple_choice_response_serialised_as_flags(self):
-        """Multiple choice answers produce per-option flag entries."""
+        """Multiple choice answers produce per-option SGQA flag entries."""
         from m_shared.adapters.limesurvey import _responses_to_ls_format
 
         resp = Response(
@@ -492,9 +514,9 @@ class TestLimeSurveyAdapterSubmit:
             answer_value=["X", "Y"],
             metadata={"ls_qid": "20"},
         )
-        data = _responses_to_ls_format([resp])
-        assert data["20[X]"] == "Y"
-        assert data["20[Y]"] == "Y"
+        data = _responses_to_ls_format([resp], "42", {"20": "100"})
+        assert data["42X100X20[X]"] == "Y"
+        assert data["42X100X20[Y]"] == "Y"
 
     def test_open_ended_response_serialised_as_string(self):
         from m_shared.adapters.limesurvey import _responses_to_ls_format
@@ -505,8 +527,35 @@ class TestLimeSurveyAdapterSubmit:
             answer_value="Some free text",
             metadata={"ls_qid": "11"},
         )
-        data = _responses_to_ls_format([resp])
-        assert data["11"] == "Some free text"
+        data = _responses_to_ls_format([resp], "42", {"11": "100"})
+        assert data["42X100X11"] == "Some free text"
+
+    def test_sgqa_key_format(self):
+        """SGQA keys follow <sid>X<gid>X<qid> format."""
+        from m_shared.adapters.limesurvey import _responses_to_ls_format
+
+        resp = Response(
+            id="r3",
+            question_id="q_200",
+            answer_value="Yes",
+            metadata={"ls_qid": "200"},
+        )
+        data = _responses_to_ls_format([resp], "12345", {"200": "50"})
+        assert "12345X50X200" in data
+        assert data["12345X50X200"] == "Yes"
+
+    def test_missing_gid_raises_value_error(self):
+        """Raises ValueError when ls_qid is not found in gid_map."""
+        from m_shared.adapters.limesurvey import _responses_to_ls_format
+
+        resp = Response(
+            id="r4",
+            question_id="q_999",
+            answer_value="Yes",
+            metadata={"ls_qid": "999"},
+        )
+        with pytest.raises(ValueError, match="999"):
+            _responses_to_ls_format([resp], "42", {})  # empty gid_map
 
 
 # ---------------------------------------------------------------------------
@@ -1701,6 +1750,13 @@ class TestSurveyMonkeyAdapterRoundTrip:
         o1 = [o.text for s in s1.sections for q in s.questions for o in q.answer_options]
         o2 = [o.text for s in s2.sections for q in s.questions for o in q.answer_options]
         assert o1 == o2
+
+    def test_question_order_imported_from_position(self):
+        survey = self.adapter.import_survey(make_sm_survey())
+        questions = survey.sections[0].questions
+        # SM positions are 1-based; stored as 0-based order
+        assert questions[0].order == 0
+        assert questions[1].order == 1
 
 
 # ---------------------------------------------------------------------------

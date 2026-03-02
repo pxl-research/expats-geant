@@ -148,6 +148,7 @@ See [.env.example](.env.example) for full configuration options.
 - [Project Context](openspec/project.md) — Detailed specifications, tech stack, conventions, and constraints
 - [Deployment Guide](docs/DEPLOYMENT.md) — Docker & local setup, environment variables, testing
 - [Integration Guide](docs/INTEGRATION.md) — JWT/auth setup, institutional SSO, API endpoint reference
+- [Data Model](docs/DATA_MODEL.md) — Internal data structures, Mermaid diagrams, platform mapping
 - [M-Autofill Module](m_autofill/README.md) — Answer suggestion assistant
 - [M-Chat Module](m_chat/README.md) — Questionnaire design assistant *(planned)*
 - [Shared Utilities](m_shared/README.md) — Common infrastructure
