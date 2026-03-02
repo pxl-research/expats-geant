@@ -7,8 +7,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from m_shared.adapters.base import SurveyAdapter
 
-_REGISTRY: dict[str, type] = {}
-
 
 def _build_registry() -> dict[str, type]:
     from m_shared.adapters.limesurvey import LimeSurveyAdapter
@@ -27,6 +25,9 @@ def _build_registry() -> dict[str, type]:
     }
 
 
+_REGISTRY: dict[str, type] = _build_registry()
+
+
 def get_adapter(format_name: str, **kwargs) -> SurveyAdapter:
     """Return an initialised adapter for the given format name.
 
@@ -42,9 +43,8 @@ def get_adapter(format_name: str, **kwargs) -> SurveyAdapter:
     Raises:
         KeyError: If no adapter is registered for the given format.
     """
-    registry = _build_registry()
     key = format_name.lower()
-    if key not in registry:
-        supported = ", ".join(sorted(registry))
+    if key not in _REGISTRY:
+        supported = ", ".join(sorted(_REGISTRY))
         raise KeyError(f"No adapter for format '{format_name}'. Supported: {supported}")
-    return registry[key](**kwargs)
+    return _REGISTRY[key](**kwargs)

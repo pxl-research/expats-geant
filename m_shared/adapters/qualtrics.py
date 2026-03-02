@@ -300,7 +300,13 @@ class QualtricsAdapter(SurveyAdapter):
         except requests.RequestException as exc:
             raise RuntimeError(f"Qualtrics response import failed: {exc}") from exc
 
-        body = resp.json()
+        try:
+            body = resp.json()
+        except ValueError as exc:
+            raise RuntimeError(
+                f"Qualtrics returned non-JSON response (HTTP {resp.status_code}): "
+                f"{resp.text[:200]!r}"
+            ) from exc
         if body.get("meta", {}).get("httpStatus") not in ("200 - OK", "201 - Created", None):
             raise RuntimeError(f"Qualtrics API error: {body.get('meta')}")
 
