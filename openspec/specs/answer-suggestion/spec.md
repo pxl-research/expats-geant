@@ -3,9 +3,7 @@
 ## Purpose
 
 RAG-based answer suggestion engine that retrieves relevant document passages, generates draft answers, and provides citations with source transparency.
-
 ## Requirements
-
 ### Requirement: Semantic Retrieval
 
 The system SHALL retrieve relevant document chunks via semantic search.
@@ -33,6 +31,19 @@ The system SHALL generate concise draft answers based on retrieved passages.
 
 - **WHEN** answer generation is invoked
 - **THEN** it uses configured temperature for consistent, slightly deterministic output
+
+#### Scenario: LLM response parsed as JSON
+
+- **WHEN** the LLM returns a structured response
+- **THEN** the system parses it as JSON to extract `answer`, `selected`, and `reasoning` fields
+- **AND** if the response is wrapped in markdown code fences, they are stripped before parsing
+
+#### Scenario: Graceful fallback on malformed LLM response
+
+- **WHEN** the LLM response cannot be parsed as valid JSON
+- **THEN** the full response text is used as the `answer`
+- **AND** `selected` and `reasoning` are set to `null`
+- **AND** the parse failure is logged as a warning
 
 ### Requirement: Citation System
 
@@ -70,6 +81,20 @@ The system SHALL accept and preserve user-edited answers during a session.
 
 - **WHEN** a user edits a suggestion before submission
 - **THEN** the edited answer is stored (as optional field for audit purposes)
+
+### Requirement: Consistent LLM Prompt Format
+
+The system SHALL use the same JSON response format for both single-question and batch suggestion prompts.
+
+#### Scenario: Single and batch prompts use identical format
+
+- **WHEN** either `POST /suggest` or `POST /suggest/batch` generates an LLM prompt
+- **THEN** both instruct the LLM to respond with the same JSON schema: `{"answer": "...", "selected": "...", "reasoning": "..."}`
+
+#### Scenario: Choice selection omitted for open-ended questions
+
+- **WHEN** a question is of type `open_ended`
+- **THEN** the `selected` field is omitted from the prompt and returned as `null`
 
 ## Notes
 

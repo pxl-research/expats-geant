@@ -21,6 +21,7 @@ m_shared/
 │   ├── __init__.py
 │   ├── jwt_handler.py        # JWT token creation & validation
 │   ├── middleware.py         # FastAPI auth middleware
+│   ├── oauth.py              # OIDC discovery, code exchange, token validation
 │   └── validators.py        # Token claim validators
 ├── llm/
 │   ├── __init__.py
@@ -47,7 +48,7 @@ m_shared/
     └── utils.py             # Chunking & embedding utilities
 ```
 
-> Files listed in an earlier version of this README (`vectordb/session_store.py`, `utils/logging.py`, `utils/error_handling.py`, `utils/encryption.py`, `utils/validators.py`, `models/qti.py`, `auth/oauth.py`, `auth/permissions.py`, `llm/models.py`, `llm/utils.py`) are **planned for future phases** and do not yet exist.
+> Files listed in an earlier version of this README (`vectordb/session_store.py`, `utils/logging.py`, `utils/error_handling.py`, `utils/encryption.py`, `utils/validators.py`, `models/qti.py`, `auth/permissions.py`, `llm/models.py`, `llm/utils.py`) are **planned for future phases** and do not yet exist.
 
 ## Key Components
 
@@ -115,22 +116,39 @@ All models include validation and serialization to JSON/XML.
 
 ### Authentication (`auth/`)
 
-JWT and OAuth 2.0 support.
+JWT and OIDC support.
 
 **Features:**
 
-- Token generation and validation
-- User identity assertion (sub, org, roles)
-- Consent capture and consent verification
-- Role-based access control (RBAC)
+- Token generation and validation (`jwt_handler.py`)
+- OIDC login flow: discovery, authorization URL, code exchange, ID token validation (`oauth.py`)
+- FastAPI middleware with public-route bypass (`middleware.py`)
+- Input sanitization and claim validation (`validators.py`)
 
-**Usage:**
+**`oauth.py` public API:**
 
 ```python
-from m_shared.auth import create_jwt_token, verify_jwt_token
+from m_shared.auth.oauth import get_authorization_url, exchange_code
 
-token = create_jwt_token(user_id="user-123", org="pxl", roles=["respondent"])
-payload = verify_jwt_token(token)
+# 1. Build the OIDC redirect URL (call from GET /auth/login)
+auth_url, state = await get_authorization_url()
+# Redirect user to auth_url; store state implicitly (module-level, 10-min TTL)
+
+# 2. Handle callback (call from GET /auth/callback)
+platform_token = await exchange_code(code=code, state=state)
+# Returns a platform JWT signed by JWT_SECRET — same format as /dev/token
+```
+
+Reads env vars: `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI`.
+Falls back gracefully when env vars are absent (raises `OIDCConfigurationError`).
+
+**`jwt_handler.py` usage:**
+
+```python
+from m_shared.auth import create_token, validate_token
+
+token = create_token(user_id="user-123", session_id="sess-456", org="pxl", roles=["respondent"])
+payload = validate_token(token)
 ```
 
 ### Utilities (`utils/`)

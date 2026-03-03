@@ -517,6 +517,148 @@ class TestPrivacyEndpoint:
         assert "DATA COLLECTION" in response.text
 
 
+class TestAuthEndpoints:
+    """Tests for /auth/login and /auth/callback endpoints."""
+
+    def test_auth_login_redirects_to_provider(self, client):
+        """GET /auth/login returns 302 redirect to OIDC provider."""
+        from unittest.mock import AsyncMock, patch
+
+        with patch(
+            "m_autofill.api.get_authorization_url",
+            new=AsyncMock(return_value=("https://provider.example.com/auth?state=abc", "abc")),
+        ):
+            response = client.get("/auth/login", follow_redirects=False)
+
+        assert response.status_code == 302
+        assert response.headers["location"] == "https://provider.example.com/auth?state=abc"
+
+    def test_auth_login_is_public(self, client):
+        """GET /auth/login is accessible without an Authorization token."""
+        from unittest.mock import AsyncMock, patch
+
+        with patch(
+            "m_autofill.api.get_authorization_url",
+            new=AsyncMock(return_value=("https://provider.example.com/auth?state=abc", "abc")),
+        ):
+            response = client.get("/auth/login", follow_redirects=False)
+
+        assert response.status_code != 401
+
+    def test_auth_login_oidc_not_configured(self, client):
+        """GET /auth/login returns 503 when OIDC env vars are missing."""
+        from unittest.mock import AsyncMock, patch
+
+        from m_shared.auth.oauth import OIDCConfigurationError
+
+        with patch(
+            "m_autofill.api.get_authorization_url",
+            new=AsyncMock(side_effect=OIDCConfigurationError("OIDC_ISSUER_URL not set")),
+        ):
+            response = client.get("/auth/login")
+
+        assert response.status_code == 503
+        assert "OIDC not configured" in response.json()["detail"]
+
+    def test_auth_login_provider_unreachable(self, client):
+        """GET /auth/login returns 503 when OIDC provider cannot be reached."""
+        from unittest.mock import AsyncMock, patch
+
+        with patch(
+            "m_autofill.api.get_authorization_url",
+            new=AsyncMock(side_effect=Exception("Connection refused")),
+        ):
+            response = client.get("/auth/login")
+
+        assert response.status_code == 503
+        assert "unreachable" in response.json()["detail"]
+
+    def test_auth_callback_success(self, client):
+        """GET /auth/callback returns platform JWT on valid code and state."""
+        from unittest.mock import AsyncMock, patch
+
+        with patch(
+            "m_autofill.api.exchange_code",
+            new=AsyncMock(return_value="platform.jwt.token"),
+        ):
+            response = client.get("/auth/callback?code=authcode123&state=validstate")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["token"] == "platform.jwt.token"
+        assert data["token_type"] == "bearer"
+
+    def test_auth_callback_is_public(self, client):
+        """GET /auth/callback is accessible without an Authorization token."""
+        from unittest.mock import AsyncMock, patch
+
+        with patch(
+            "m_autofill.api.exchange_code",
+            new=AsyncMock(return_value="platform.jwt.token"),
+        ):
+            response = client.get("/auth/callback?code=code&state=state")
+
+        assert response.status_code != 401
+
+    def test_auth_callback_invalid_state(self, client):
+        """GET /auth/callback returns 400 on invalid or expired state."""
+        from unittest.mock import AsyncMock, patch
+
+        from m_shared.auth.oauth import OIDCStateError
+
+        with patch(
+            "m_autofill.api.exchange_code",
+            new=AsyncMock(side_effect=OIDCStateError("state not found")),
+        ):
+            response = client.get("/auth/callback?code=code&state=badstate")
+
+        assert response.status_code == 400
+        assert "Invalid OAuth state" in response.json()["detail"]
+
+    def test_auth_callback_token_validation_failure(self, client):
+        """GET /auth/callback returns 400 when ID token validation fails."""
+        from unittest.mock import AsyncMock, patch
+
+        from m_shared.auth.oauth import OIDCTokenError
+
+        with patch(
+            "m_autofill.api.exchange_code",
+            new=AsyncMock(side_effect=OIDCTokenError("token expired")),
+        ):
+            response = client.get("/auth/callback?code=code&state=validstate")
+
+        assert response.status_code == 400
+        assert "ID token validation failed" in response.json()["detail"]
+
+    def test_auth_callback_oidc_not_configured(self, client):
+        """GET /auth/callback returns 503 when OIDC is not configured."""
+        from unittest.mock import AsyncMock, patch
+
+        from m_shared.auth.oauth import OIDCConfigurationError
+
+        with patch(
+            "m_autofill.api.exchange_code",
+            new=AsyncMock(side_effect=OIDCConfigurationError("missing env")),
+        ):
+            response = client.get("/auth/callback?code=code&state=state")
+
+        assert response.status_code == 503
+        assert "OIDC not configured" in response.json()["detail"]
+
+    def test_auth_callback_exchange_failed(self, client):
+        """GET /auth/callback returns 503 on unexpected exchange errors."""
+        from unittest.mock import AsyncMock, patch
+
+        with patch(
+            "m_autofill.api.exchange_code",
+            new=AsyncMock(side_effect=Exception("network error")),
+        ):
+            response = client.get("/auth/callback?code=code&state=state")
+
+        assert response.status_code == 503
+        assert "OIDC exchange failed" in response.json()["detail"]
+
+
 class TestFullSessionFlow:
     """Integration tests for complete user flows."""
 

@@ -122,16 +122,16 @@
 
 ## 7. Manual Testing & Validation
 
-- [ ] 7.1 Audit accuracy review
+- [x] 7.1 Audit accuracy review
 
-  - [ ] 7.1a Verify audit logs match actual events (uploads, suggestions, edits)
-  - [ ] 7.1b Check timestamps are accurate
-  - [ ] 7.1c Verify no data leakage between sessions
+  - [x] 7.1a Verify audit logs match actual events (uploads, suggestions, edits)
+  - [x] 7.1b Check timestamps are accurate
+  - [x] 7.1c Verify no data leakage between sessions
 
-- [ ] 7.2 Report quality review
-  - [ ] 7.2a Generate sample audit report and review for completeness
-  - [ ] 7.2b Verify sources are correctly attributed in report
-  - [ ] 7.2c Test retention policy manually (mark old reports, verify deletion)
+- [x] 7.2 Report quality review
+  - [x] 7.2a Generate sample audit report and review for completeness
+  - [x] 7.2b Verify sources are correctly attributed in report
+  - [x] 7.2c Test retention policy manually (mark old reports, verify deletion)
 
 ## Definition of Done
 

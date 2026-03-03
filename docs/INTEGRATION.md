@@ -115,10 +115,11 @@ docker-compose down -v
 
 ## Authentication Model
 
-M-Autofill uses a **federated authentication** approach:
+M-Autofill uses a **federated authentication** approach with two options:
 
-- **Production**: Accepts JWT tokens issued by your institutional identity provider (Shibboleth, Azure AD, OIDC-compliant IdP)
-- **Development**: Provides `/dev/token` endpoint for easy token generation during testing
+- **OIDC login** (recommended): Built-in `/auth/login` and `/auth/callback` endpoints work with any OIDC provider — Keycloak, Azure AD, Google, institutional eduGAIN/SAML bridges, etc. See [OIDC Login](#oidc-login) below.
+- **Pre-issued JWT**: Your existing IdP can issue tokens directly (see [JWT Requirements](#jwt-requirements)).
+- **Development**: `/dev/token` endpoint for easy token generation during testing.
 
 ### Key Principles
 
@@ -246,100 +247,87 @@ JWT_EXPIRATION_HOURS=24
 
 ---
 
-## Institutional Integration
+## OIDC Login
 
-### Integration Workflow
+M-Autofill includes built-in OIDC support. Any standard OIDC provider works: Keycloak (bundled), Azure AD, Google, institutional eduGAIN bridges, etc.
+
+### How It Works
 
 ```
-┌─────────────┐         ┌──────────────┐         ┌─────────────┐
-│  User       │         │  Your IdP    │         │  M-Autofill │
-│  Browser    │         │  (Shibboleth │         │  API        │
-│             │         │   Azure AD)  │         │             │
-└──────┬──────┘         └──────┬───────┘         └──────┬──────┘
-       │                       │                        │
-       │  1. Login Request     │                        │
-       ├──────────────────────>│                        │
-       │                       │                        │
-       │  2. JWT Token         │                        │
-       │<──────────────────────┤                        │
-       │                       │                        │
-       │  3. API Request + JWT │                        │
-       ├──────────────────────────────────────────────>│
-       │                       │                        │
-       │  4. Validate JWT & Process                    │
-       │                       │         ┌──────────────┤
-       │                       │         │              │
-       │                       │         └──────────────>
-       │                       │                        │
-       │  5. Response          │                        │
-       │<──────────────────────────────────────────────┤
-       │                       │                        │
+Browser                M-Autofill             OIDC Provider
+  │                       │                        │
+  │  GET /auth/login       │                        │
+  ├──────────────────────>│                        │
+  │                       │  fetch discovery doc   │
+  │                       ├──────────────────────>│
+  │  302 → provider login │                        │
+  │<──────────────────────┤                        │
+  │                       │                        │
+  │  user logs in         │                        │
+  ├──────────────────────────────────────────────>│
+  │                       │                        │
+  │  redirect to /auth/callback?code=...&state=...│
+  │<──────────────────────────────────────────────┤
+  │                       │                        │
+  │  GET /auth/callback   │                        │
+  ├──────────────────────>│                        │
+  │                       │  POST /token (code)    │
+  │                       ├──────────────────────>│
+  │                       │  id_token             │
+  │                       │<──────────────────────┤
+  │                       │  validate, extract sub│
+  │  { "token": "<jwt>" } │                        │
+  │<──────────────────────┤                        │
 ```
 
-### Step-by-Step Integration
-
-#### 1. Configure JWT Secret
-
-Both your IdP and M-Autofill must share the same secret:
+### Quick Start with Bundled Keycloak
 
 ```bash
-# M-Autofill .env
-JWT_SECRET=shared_secret_with_idp
-JWT_ALGORITHM=HS256
+# 1. Start services (Keycloak auto-imports the expat-geant realm)
+docker-compose up
+
+# 2. Set OIDC env vars
+OIDC_ISSUER_URL=http://localhost:8080/realms/expat-geant
+OIDC_CLIENT_ID=m-autofill
+OIDC_CLIENT_SECRET=change-me
+OIDC_REDIRECT_URI=http://localhost:8001/auth/callback
+
+# 3. Open login URL in browser
+open http://localhost:8001/auth/login
+# → redirected to Keycloak login
+# → after login, browser receives { "token": "eyJ..." }
+
+# 4. Use the platform JWT
+curl http://localhost:8001/session/stats \
+  -H "Authorization: Bearer <token>"
 ```
 
-#### 2. Map IdP Claims to Required Format
+See `docs/KEYCLOAK_SETUP.md` for federation (Google, Microsoft, LDAP) and production hardening.
 
-Your IdP must issue tokens with the required claims. Example mapping:
+### Connecting a Different OIDC Provider
 
-| Your IdP Claim      | M-Autofill Claim | Example                    |
-| ------------------- | ---------------- | -------------------------- |
-| `sub` or `email`    | `user_id`        | `john.doe@institution.edu` |
-| Custom attribute    | `session_id`     | `sess_12345_abc`           |
-| `tenant` or `org`   | `org`            | `pxl_university`           |
-| `roles` or `groups` | `roles`          | `["respondent"]`           |
+Set the four env vars to your provider's values:
 
-#### 3. Test Integration
+| Variable | Description |
+|---|---|
+| `OIDC_ISSUER_URL` | Issuer URL — discovery doc lives at `<issuer>/.well-known/openid-configuration` |
+| `OIDC_CLIENT_ID` | Client / app ID registered with the provider |
+| `OIDC_CLIENT_SECRET` | Client secret (confidential client) |
+| `OIDC_REDIRECT_URI` | Must match the URI registered with the provider; default: `http://localhost:8001/auth/callback` |
 
-```bash
-# Get token from your IdP (implementation-specific)
-IDP_TOKEN=$(curl -X POST https://your-idp.edu/token ...)
+### Pre-Issued JWT (Advanced)
 
-# Test with M-Autofill
-curl -X GET http://localhost:8001/session/stats \
-  -H "Authorization: Bearer $IDP_TOKEN"
-```
+If your institution issues JWTs directly (without OIDC redirect flow), the token must contain:
 
-### Shibboleth Example
+| Claim | Type | Description |
+| ------------ | --------- | ----------- |
+| `user_id` | string | Unique, stable user identifier |
+| `session_id` | string | Session identifier |
+| `org` | string | Organization/tenant identifier |
+| `roles` | array | e.g. `["respondent"]` |
+| `iat` / `exp` | timestamp | Standard JWT timing claims |
 
-If using Shibboleth, configure an attribute release policy to include:
-
-```xml
-<AttributeFilterPolicy id="MAutofillPolicy">
-    <PolicyRequirementRule xsi:type="Requester" value="https://m-autofill.institution.edu" />
-    <AttributeRule attributeID="eduPersonPrincipalName">
-        <PermitValueRule xsi:type="ANY" />
-    </AttributeRule>
-    <AttributeRule attributeID="organizationName">
-        <PermitValueRule xsi:type="ANY" />
-    </AttributeRule>
-</AttributeFilterPolicy>
-```
-
-Then map attributes to JWT claims in your token generation service.
-
-### Azure AD / OIDC Example
-
-Configure M-Autofill as a registered application and map claims:
-
-```json
-{
-  "user_id": "${user.email}",
-  "session_id": "${transaction.id}",
-  "org": "${company.tenantId}",
-  "roles": ["respondent"]
-}
-```
+The token must be signed with the same `JWT_SECRET` configured in M-Autofill.
 
 ---
 
@@ -382,7 +370,7 @@ sessions/
 
 ### Authentication Required
 
-All endpoints except `/`, `/health`, `/privacy`, and `/dev/token` require authentication.
+All endpoints except `/`, `/health`, `/privacy`, `/dev/token`, `/auth/login`, and `/auth/callback` require authentication.
 
 | Endpoint | Method | Description |
 |---|---|---|
@@ -677,16 +665,11 @@ limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
 
 ---
 
-## Future Enhancements (Phase 5)
+## Future Enhancements
 
-### Planned OAuth 2.0 / OIDC Support
-
-- **OIDC Discovery**: Automatic IdP configuration via `.well-known/openid-configuration`
-- **JWKS Validation**: Public key verification instead of shared secrets
-- **Token Refresh**: Automatic token renewal without re-authentication
-- **Multi-Tenant**: Support for multiple institutional IdPs in single deployment
-
-These features will be added in Phase 5 (May 2026) based on pilot feedback.
+- **Token Refresh**: Automatic platform JWT renewal without re-authentication
+- **Multi-Tenant**: Multiple OIDC providers in a single deployment
+- **PKCE enforcement**: Already configured in the bundled Keycloak client; enforce server-side for public clients
 
 ---
 

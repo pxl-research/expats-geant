@@ -26,4 +26,4 @@
 ## 4. Validation
 
 - [x] 4.1 Run full test suite and confirm no regressions
-- [ ] 4.2 Manual spot-check with a real LLM call to verify JSON output in practice
+- [x] 4.2 Manual spot-check with a real LLM call to verify JSON output in practice

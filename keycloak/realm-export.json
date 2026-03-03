@@ -1,0 +1,64 @@
+{
+  "realm": "expat-geant",
+  "enabled": true,
+  "displayName": "Expat-GÉANT",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": true,
+  "rememberMe": false,
+  "verifyEmail": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "sslRequired": "external",
+  "loginTheme": "keycloak",
+  "defaultSignatureAlgorithm": "RS256",
+  "clients": [
+    {
+      "clientId": "m-autofill",
+      "name": "M-Autofill",
+      "description": "Expat-GÉANT M-Autofill answer suggestion service",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "change-me",
+      "redirectUris": [
+        "http://localhost:8001/auth/callback"
+      ],
+      "webOrigins": [
+        "http://localhost:8001"
+      ],
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email",
+        "basic"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    }
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "respondent",
+        "description": "Survey respondent role"
+      }
+    ]
+  },
+  "defaultRoles": [
+    "respondent"
+  ],
+  "users": []
+}
