@@ -89,6 +89,7 @@ See [Deployment Guide](docs/DEPLOYMENT.md) for full configuration options, manua
 - [Deployment Guide](docs/DEPLOYMENT.md) — Docker & local setup, environment variables, testing
 - [Integration Guide](docs/INTEGRATION.md) — JWT/auth setup, institutional SSO, API endpoint reference
 - [Data Model](docs/DATA_MODEL.md) — Internal data structures, Mermaid diagrams, platform mapping
+- [Adapter Guide](docs/ADAPTERS.md) — Writing custom survey platform adapters
 - [M-Autofill Module](m_autofill/README.md) — Answer suggestion assistant
 - [M-Chat Module](m_chat/README.md) — Questionnaire design assistant *(planned)*
 - [Shared Utilities](m_shared/README.md) — Common infrastructure
