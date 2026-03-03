@@ -25,7 +25,7 @@ from pathlib import Path
 import httpx
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 # ---------------------------------------------------------------------------
 # Configuration
