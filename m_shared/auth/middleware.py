@@ -158,5 +158,7 @@ class SessionMiddleware(BaseHTTPMiddleware):
             "/redoc",
             "/privacy",
             "/dev/token",
+            "/auth/login",
+            "/auth/callback",
         ]
         return path in public_paths
