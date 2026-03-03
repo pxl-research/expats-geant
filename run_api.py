@@ -3,6 +3,7 @@
 
 import asyncio
 import logging
+import logging.handlers
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -78,6 +79,18 @@ def main():
     # Create base directories
     Path(sessions_base_path).mkdir(parents=True, exist_ok=True)
     Path(chroma_base_path).mkdir(parents=True, exist_ok=True)
+
+    # Security event log — rotating file, INFO+ from auth layer only
+    Path("logs").mkdir(exist_ok=True)
+    _security_handler = logging.handlers.RotatingFileHandler(
+        "logs/security.log", maxBytes=5 * 1024 * 1024, backupCount=3
+    )
+    _security_handler.setLevel(logging.INFO)
+    _security_handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+    )
+    logging.getLogger("m_shared.auth").setLevel(logging.INFO)
+    logging.getLogger("m_shared.auth").addHandler(_security_handler)
 
     # Initialize components
     print("Initializing M-Autofill service...")
