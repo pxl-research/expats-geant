@@ -1,5 +1,6 @@
 """Unit and integration tests for OIDC oauth.py."""
 
+import logging
 import os
 import time
 from unittest.mock import patch
@@ -369,3 +370,124 @@ class TestFullOIDCFlow:
 
         # State should be consumed
         assert state not in oauth_module._pending_states
+
+
+# ---------------------------------------------------------------------------
+# Security event logging
+# ---------------------------------------------------------------------------
+
+
+class TestSecurityEventLogging:
+    """Verify OIDC security events are logged at the correct level."""
+
+    @pytest.mark.asyncio
+    async def test_invalid_state_logs_warning(self, caplog):
+        """Invalid OIDC state must emit a WARNING."""
+        with patch.dict(os.environ, OIDC_ENV):
+            with caplog.at_level(logging.WARNING, logger="m_shared.auth.oauth"):
+                with pytest.raises(OIDCStateError):
+                    await exchange_code(code="any", state="nonexistent-state")
+        assert any("state" in r.message.lower() for r in caplog.records)
+        assert any(r.levelno == logging.WARNING for r in caplog.records)
+
+    @pytest.mark.asyncio
+    async def test_id_token_failure_logs_warning(self, caplog):
+        """ID token validation failure must emit a WARNING."""
+        from authlib.jose.errors import JoseError
+
+        _clear_oauth_caches()
+        valid_state = "log-test-state-token-fail"
+        oauth_module._pending_states[valid_state] = time.time() + 600
+
+        with patch.dict(os.environ, OIDC_ENV):
+            with respx.mock:
+                respx.get(f"{ISSUER}/.well-known/openid-configuration").mock(
+                    return_value=httpx.Response(200, json=DISCOVERY_DOC)
+                )
+                respx.get(f"{ISSUER}/protocol/openid-connect/certs").mock(
+                    return_value=httpx.Response(200, json={"keys": []})
+                )
+                respx.post(f"{ISSUER}/protocol/openid-connect/token").mock(
+                    return_value=httpx.Response(
+                        200, json={"id_token": "fake.bad.token", "token_type": "Bearer"}
+                    )
+                )
+                with patch(
+                    "m_shared.auth.oauth.authlib_jwt.decode",
+                    side_effect=JoseError("bad signature"),
+                ):
+                    with caplog.at_level(logging.WARNING, logger="m_shared.auth.oauth"):
+                        with pytest.raises(OIDCTokenError):
+                            await exchange_code(code="code", state=valid_state)
+
+        assert any("validation failed" in r.message.lower() for r in caplog.records)
+        assert not any(
+            "fake.bad.token" in r.message for r in caplog.records
+        ), "Raw token string must not appear in log output"
+
+    @pytest.mark.asyncio
+    async def test_provider_unreachable_logs_error(self, caplog):
+        """Unreachable OIDC token endpoint must emit an ERROR."""
+        _clear_oauth_caches()
+        valid_state = "log-test-state-unreachable"
+        oauth_module._pending_states[valid_state] = time.time() + 600
+
+        with patch.dict(os.environ, OIDC_ENV):
+            with respx.mock:
+                respx.get(f"{ISSUER}/.well-known/openid-configuration").mock(
+                    return_value=httpx.Response(200, json=DISCOVERY_DOC)
+                )
+                respx.get(f"{ISSUER}/protocol/openid-connect/certs").mock(
+                    return_value=httpx.Response(200, json={"keys": []})
+                )
+                respx.post(f"{ISSUER}/protocol/openid-connect/token").mock(
+                    side_effect=httpx.ConnectError("connection refused")
+                )
+                with caplog.at_level(logging.ERROR, logger="m_shared.auth.oauth"):
+                    with pytest.raises(httpx.ConnectError):
+                        await exchange_code(code="code", state=valid_state)
+
+        assert any(r.levelno == logging.ERROR for r in caplog.records)
+        assert any("unreachable" in r.message.lower() for r in caplog.records)
+
+    @pytest.mark.asyncio
+    async def test_successful_login_logs_info(self, caplog):
+        """Successful OIDC login must emit an INFO entry with normalized user_id."""
+
+        class FakeClaims(dict):
+            def validate(self):
+                pass
+
+        claims = _make_id_token_claims(sub="test-sub-logging")
+        _clear_oauth_caches()
+        valid_state = "log-test-state-success"
+        oauth_module._pending_states[valid_state] = time.time() + 600
+
+        with patch.dict(os.environ, OIDC_ENV):
+            with respx.mock:
+                respx.get(f"{ISSUER}/.well-known/openid-configuration").mock(
+                    return_value=httpx.Response(200, json=DISCOVERY_DOC)
+                )
+                respx.get(f"{ISSUER}/protocol/openid-connect/certs").mock(
+                    return_value=httpx.Response(200, json={"keys": []})
+                )
+                respx.post(f"{ISSUER}/protocol/openid-connect/token").mock(
+                    return_value=httpx.Response(
+                        200, json={"id_token": "fake.id.token", "token_type": "Bearer"}
+                    )
+                )
+                with patch(
+                    "m_shared.auth.oauth.authlib_jwt.decode",
+                    return_value=FakeClaims(claims),
+                ):
+                    with caplog.at_level(logging.INFO, logger="m_shared.auth.oauth"):
+                        await exchange_code(code="auth-code", state=valid_state)
+
+        info_records = [r for r in caplog.records if r.levelno == logging.INFO]
+        assert any("login successful" in r.message.lower() for r in info_records)
+        assert any(
+            "localhost:8080" in r.message for r in info_records
+        ), "Normalized user_id should appear in the success log"
+        assert not any(
+            "fake.id.token" in r.message for r in caplog.records
+        ), "Raw token string must not appear in log output"

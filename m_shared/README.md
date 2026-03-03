@@ -9,6 +9,7 @@ M-Shared provides the foundational infrastructure and utilities that both M-Chat
 - **LLM client abstraction** — Unified interface to OpenRouter, OpenAI-compatible APIs, and local LLMs
 - **Vector DB client** — ChromaDB wrapper with tenant/session isolation
 - **Data models** — Survey, Question, Response, Citation, Session, and other core entities
+- **Survey adapters** — Import/export/submit adapters for LimeSurvey, Qualtrics, SurveyMonkey, and QTI 3.0; extensible via `SurveyAdapter` base class (see [docs/ADAPTERS.md](../docs/ADAPTERS.md))
 - **Utilities** — Document chunking, embedding, metadata management, error handling
 - **Auth & security** — JWT token handling, CORS, secrets management
 
@@ -17,6 +18,14 @@ M-Shared provides the foundational infrastructure and utilities that both M-Chat
 ```
 m_shared/
 ├── __init__.py
+├── adapters/
+│   ├── __init__.py
+│   ├── base.py               # Abstract SurveyAdapter base class
+│   ├── limesurvey.py         # LimeSurvey LSS XML adapter
+│   ├── qti.py                # QTI 3.0 XML adapter
+│   ├── qualtrics.py          # Qualtrics QSF JSON adapter
+│   ├── registry.py           # Adapter factory (get_adapter)
+│   └── surveymonkey.py       # SurveyMonkey API v3 JSON adapter
 ├── auth/
 │   ├── __init__.py
 │   ├── jwt_handler.py        # JWT token creation & validation
@@ -67,10 +76,10 @@ Unified abstraction over multiple LLM providers.
 **Usage:**
 
 ```python
-from m_shared.llm import get_llm_client
+from m_shared.llm import LLMClient
 
-client = get_llm_client()  # Uses env config
-response = await client.generate(
+client = LLMClient()  # Uses env config (OPENROUTER_API_KEY, DEFAULT_LLM_MODEL)
+response = client.generate(
     prompt="Rewrite this question for clarity...",
     model="openai/gpt-4",
     temperature=0.7
@@ -91,11 +100,11 @@ ChromaDB wrapper with session-based isolation.
 **Usage:**
 
 ```python
-from m_shared.vectordb import get_vectordb_client
+from m_shared.vectordb import ChromaDocumentStore
 
-client = get_vectordb_client(session_id="user-123")
+client = ChromaDocumentStore(session_id="user-123")
 client.add_documents(chunks=[...], metadata=[...])
-results = await client.search(query="...", top_k=5)
+results = client.search(query="...", top_k=5)
 client.cleanup()  # On session end
 ```
 
@@ -106,13 +115,14 @@ Pydantic models for surveys, responses, sessions, and QTI mapping.
 **Core models:**
 
 - `Survey` — Questionnaire with sections and questions
+- `Section` — Group of questions within a survey
 - `Question` — Individual question with answer options
+- `AnswerOption` — Choice for single/multiple-choice questions
 - `Response` — User submission with answer values
 - `Citation` — Source reference with position/timestamp
 - `Session` — User session with TTL and isolation scope
-- `QTISurvey` — QTI 3.0-compatible schema
 
-All models include validation and serialization to JSON/XML.
+All models include Pydantic validation and JSON serialization.
 
 ### Authentication (`auth/`)
 
@@ -153,14 +163,9 @@ payload = validate_token(token)
 
 ### Utilities (`utils/`)
 
-Common utilities for logging, error handling, encryption, and validation.
+**`audit.py`** — Session-level audit trail for transparency and GDPR compliance.
 
-**Features:**
-
-- Structured logging with context (session_id, user_id, request_id)
-- Custom exceptions with error codes and messages
-- Data encryption (AES-256 where needed)
-- Input sanitization and validation
+Records document uploads, suggestion generation (with sources), user edits, and session lifecycle events. Audit reports let users verify which documents informed their answers.
 
 ## Configuration
 
@@ -247,17 +252,17 @@ M-Shared is imported by M-Chat and M-Autofill. Both modules depend on:
 from m_shared.llm import get_llm_client
 from m_shared.vectordb import get_vectordb_client
 from m_shared.models import Survey, Response, Citation, Session
-from m_shared.auth import verify_jwt_token, create_jwt_token
+from m_shared.auth import create_token, validate_token
 ```
 
 ## Roadmap
 
-- ✅ Basic LLM client (OpenRouter, OpenAI-compat)
+- ✅ LLM client (OpenRouter, OpenAI-compat, local via any OpenAI-compatible endpoint)
 - ✅ ChromaDB wrapper with session isolation
-- ✅ Core data models (Survey, Response, Citation, Session)
-- 🚧 Local LLM integration (Ollama, LM Studio)
-- 🚧 PostgreSQL models (future)
-- 📅 Advanced encryption & key management (future)
+- ✅ Core data models (Survey, Section, Question, Response, Citation, Session)
+- ✅ Survey adapters (LimeSurvey, Qualtrics, SurveyMonkey, QTI 3.0)
+- ✅ Audit logging
+- 📅 PostgreSQL models (future)
 - 📅 Distributed session store (Redis, future)
 
 ## References

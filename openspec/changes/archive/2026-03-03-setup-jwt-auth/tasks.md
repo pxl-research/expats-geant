@@ -7,7 +7,7 @@
 - [x] 1.3 Implement validate_token() function with signature and expiration checks
 - [x] 1.4 Add environment variable configuration (JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRATION_HOURS)
 - [x] 1.5 Implement verify_session_access() for session isolation
-- [ ] 1.6 _(Deferred)_ Implement token refresh logic for extended sessions
+- [ ] 1.6 _(Superseded)_ Token refresh for extended sessions — with OIDC in place, Keycloak manages refresh tokens natively; when the platform JWT expires the user re-authenticates via `/auth/login → /auth/callback` which issues a fresh one; no separate refresh endpoint is needed
 
 ## 2. Session-Based Access Control
 
@@ -15,7 +15,7 @@
 - [x] 2.2 Implement verify_session_access() function for session isolation (403 on unauthorized)
 - [x] 2.3 Add user_id claim validation
 - [x] 2.4 Include roles claim in token for future RBAC support
-- [ ] 2.5 _(Future)_ Create FastAPI middleware/decorator for API endpoints
+- [x] 2.5 `SessionMiddleware` implemented in `m_shared/auth/middleware.py` — validates Bearer JWT, lazy-creates/reuses session, attaches `request.state.session` and `request.state.claims` for downstream handlers; OIDC endpoints (`/auth/login`, `/auth/callback`) whitelisted as public; registered in `run_api.py`; tested in `tests/test_session_api.py`
 
 ## 3. Input Validation & Sanitization
 
@@ -30,7 +30,7 @@
 - [x] 4.1 Create custom exceptions (TokenExpiredError, TokenInvalidError, ValidationError)
 - [x] 4.2 Raise PermissionError for 403 Forbidden cases (session access)
 - [x] 4.3 Provide clear error messages for debugging
-- [ ] 4.4 _(Future)_ Log security events (failed validations, rejections)
+- [x] 4.4 Structured security event logging — implemented via change `add-security-event-logging`; `RotatingFileHandler` → `logs/security.log`, WARNING/ERROR/INFO events in `jwt_handler.py`, `middleware.py`, and `oauth.py`; 8 `caplog` tests added
 
 ## 5. Unit Tests
 

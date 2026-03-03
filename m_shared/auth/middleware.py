@@ -1,5 +1,6 @@
 """FastAPI middleware for implicit session management via JWT authentication."""
 
+import logging
 from collections.abc import Callable
 
 from fastapi import Request, Response, status
@@ -7,6 +8,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from m_shared.auth.jwt_handler import TokenExpiredError, TokenInvalidError, validate_token
 from m_shared.session.manager import SessionManager
+
+logger = logging.getLogger(__name__)
 
 
 class SessionMiddleware(BaseHTTPMiddleware):
@@ -60,6 +63,7 @@ class SessionMiddleware(BaseHTTPMiddleware):
         # Extract token from Authorization header
         token = self._extract_token(request)
         if not token:
+            logger.warning("Missing Bearer token on %s %s", request.method, request.url.path)
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 content={"detail": "Missing authorization token"},
@@ -70,12 +74,16 @@ class SessionMiddleware(BaseHTTPMiddleware):
         try:
             claims = validate_token(token)
         except TokenExpiredError:
+            logger.warning("Expired token rejected on %s %s", request.method, request.url.path)
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 content={"detail": "Token has expired"},
                 headers={"WWW-Authenticate": "Bearer"},
             )
         except TokenInvalidError as e:
+            logger.warning(
+                "Invalid token rejected on %s %s: %s", request.method, request.url.path, e
+            )
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 content={"detail": f"Invalid token: {e}"},
@@ -92,6 +100,11 @@ class SessionMiddleware(BaseHTTPMiddleware):
         user_id = claims.get("user_id")
 
         if not session_id or not user_id:
+            logger.warning(
+                "Token missing required claims (session_id, user_id) on %s %s",
+                request.method,
+                request.url.path,
+            )
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 content={"detail": "Token missing required claims (session_id, user_id)"},

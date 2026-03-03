@@ -665,14 +665,6 @@ limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
 
 ---
 
-## Future Enhancements
-
-- **Token Refresh**: Automatic platform JWT renewal without re-authentication
-- **Multi-Tenant**: Multiple OIDC providers in a single deployment
-- **PKCE enforcement**: Already configured in the bundled Keycloak client; enforce server-side for public clients
-
----
-
 ## Support
 
 - **Technical Issues**: Open issue on GitHub repository

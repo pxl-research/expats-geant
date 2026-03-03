@@ -1,5 +1,6 @@
 """OIDC authentication: discovery, code exchange, token validation, sub normalization."""
 
+import logging
 import os
 import time
 from urllib.parse import urlparse
@@ -11,6 +12,8 @@ from authlib.jose import jwt as authlib_jwt
 from authlib.jose.errors import JoseError
 
 from m_shared.auth.jwt_handler import create_token
+
+logger = logging.getLogger(__name__)
 
 
 class OIDCConfigurationError(Exception):
@@ -166,6 +169,7 @@ async def exchange_code(code: str, state: str, redirect_uri: str | None = None) 
     # Validate state
     _purge_expired_states()
     if state not in _pending_states:
+        logger.warning("OIDC callback rejected: invalid or expired state parameter")
         raise OIDCStateError("Invalid or expired OAuth state parameter.")
     del _pending_states[state]
 
@@ -176,18 +180,29 @@ async def exchange_code(code: str, state: str, redirect_uri: str | None = None) 
 
     # Exchange code for tokens
     async with httpx.AsyncClient() as client:
-        response = await client.post(
-            token_endpoint,
-            data={
-                "grant_type": "authorization_code",
-                "code": code,
-                "redirect_uri": used_redirect_uri,
-                "client_id": client_id,
-                "client_secret": client_secret,
-            },
-            timeout=15,
-        )
-        response.raise_for_status()
+        try:
+            response = await client.post(
+                token_endpoint,
+                data={
+                    "grant_type": "authorization_code",
+                    "code": code,
+                    "redirect_uri": used_redirect_uri,
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                },
+                timeout=15,
+            )
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            logger.error(
+                "OIDC token endpoint returned HTTP %s: %s",
+                exc.response.status_code,
+                exc,
+            )
+            raise
+        except httpx.TransportError as exc:
+            logger.error("OIDC provider unreachable at token endpoint: %s", exc)
+            raise
         token_response = response.json()
 
     id_token_str = token_response.get("id_token")
@@ -201,11 +216,13 @@ async def exchange_code(code: str, state: str, redirect_uri: str | None = None) 
         claims = authlib_jwt.decode(id_token_str, jwks)
         claims.validate()
     except JoseError as exc:
+        logger.warning("ID token validation failed: %s", exc)
         raise OIDCTokenError(f"ID token validation failed: {exc}") from exc
 
     # Verify issuer matches configured OIDC provider (OIDC spec requirement)
     token_iss = claims.get("iss")
     if token_iss != issuer_url:
+        logger.warning("ID token issuer mismatch: got %r, expected %r", token_iss, issuer_url)
         raise OIDCTokenError(
             f"ID token issuer {token_iss!r} does not match configured issuer {issuer_url!r}."
         )
@@ -215,12 +232,14 @@ async def exchange_code(code: str, state: str, redirect_uri: str | None = None) 
     if isinstance(aud, str):
         aud = [aud]
     if client_id not in (aud or []):
+        logger.warning("ID token audience mismatch: got %r, expected client_id %r", aud, client_id)
         raise OIDCTokenError(f"ID token audience {aud!r} does not contain client_id '{client_id}'.")
 
     # Extract and normalize subject
     iss = claims.get("iss", issuer_url)
     sub = claims.get("sub")
     if not sub:
+        logger.warning("ID token missing required 'sub' claim")
         raise OIDCTokenError("ID token is missing the 'sub' claim.")
 
     user_id = _normalize_sub(iss, sub)
@@ -231,4 +250,5 @@ async def exchange_code(code: str, state: str, redirect_uri: str | None = None) 
         session_id=session_id,
         org="default",
     )
+    logger.info("OIDC login successful: user_id=%r", user_id)
     return platform_token

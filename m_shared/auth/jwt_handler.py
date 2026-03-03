@@ -1,9 +1,12 @@
 """JWT token creation and validation for session-based authentication."""
 
+import logging
 import os
 from datetime import UTC, datetime, timedelta
 
 import jwt
+
+logger = logging.getLogger(__name__)
 
 
 class TokenError(Exception):
@@ -53,6 +56,7 @@ def create_token(
     """
     secret = os.getenv("JWT_SECRET")
     if not secret:
+        logger.error("Token creation failed: JWT_SECRET environment variable is not set")
         raise ValueError("JWT_SECRET environment variable must be set")
 
     algorithm = os.getenv("JWT_ALGORITHM", "HS256")
@@ -113,8 +117,10 @@ def validate_token(token: str) -> dict:
         payload = jwt.decode(token, secret, algorithms=[algorithm])
         return payload
     except jwt.ExpiredSignatureError:
+        logger.warning("Token validation failed: token has expired")
         raise TokenExpiredError("Token has expired")
     except jwt.InvalidTokenError as e:
+        logger.warning("Token validation failed: %s", e)
         raise TokenInvalidError(f"Invalid token: {e}")
 
 

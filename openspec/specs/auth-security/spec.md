@@ -36,17 +36,26 @@ The system SHALL verify JWT tokens on each request requiring authentication.
 
 ### Requirement: OAuth 2.0 Integration
 
-The system SHALL support OAuth 2.0 for institutional SSO integration.
+The system SHALL support OpenID Connect (OIDC) for provider-agnostic user authentication. The system SHALL NOT require a specific identity provider — any OIDC-compliant provider (e.g., Keycloak, Auth0, Google, Microsoft, institutional IdPs) SHALL work without code changes. The `sub` claim from the OIDC ID token SHALL be used as the stable user identifier for session isolation. The recommended self-hosted deployment option is Keycloak, for EU data locality and privacy-by-default alignment.
 
-#### Scenario: Redirect to institutional OAuth provider
+#### Scenario: Redirect to OIDC provider
 
 - **WHEN** a user initiates login
-- **THEN** they are redirected to institutional OAuth provider (e.g., Shibboleth, Azure AD)
+- **THEN** they are redirected to the configured OIDC provider's authorization endpoint
+- **AND** the provider can be any OIDC-compliant service
 
-#### Scenario: Exchange authorization code for JWT
+#### Scenario: Exchange authorization code for session token
 
-- **WHEN** OAuth provider returns authorization code
-- **THEN** it is exchanged for JWT token usable within platform
+- **WHEN** the OIDC provider returns an authorization code
+- **THEN** it is exchanged for an ID token via the OIDC token endpoint
+- **AND** the `sub` claim is extracted as the user identifier
+- **AND** a platform JWT is issued using `sub` as `user_id` for session isolation
+
+#### Scenario: Session isolation enforced via sub claim
+
+- **WHEN** two users authenticate via different OIDC providers or accounts
+- **THEN** their `sub` claims are distinct
+- **AND** their sessions and data remain fully isolated
 
 ### Requirement: Session-Based Access Control
 
@@ -175,6 +184,44 @@ The system SHALL support an `ENVIRONMENT` configuration variable with values "de
 - **AND** startup logs indicate production mode is active
 - **AND** development features are disabled for security
 - **AND** only federated authentication with external tokens is supported
+
+### Requirement: Security Event Logging
+
+The system SHALL log security-relevant authentication events to a persistent, rotating log file (`logs/security.log`) using Python's standard `logging` module. Logging SHALL be scoped to the auth layer only (`jwt_handler.py`, `middleware.py`, `oauth.py`). Log levels SHALL reflect severity: `WARNING` for expected security failures (expired tokens, invalid state), `ERROR` for unexpected failures (provider unreachable, missing configuration), and `INFO` for successful authentication milestones. Log output SHALL NOT include sensitive values such as raw JWT strings, OIDC secrets, or unmasked subject claims.
+
+#### Scenario: Expired token rejected by middleware
+
+- **WHEN** a request arrives with an expired JWT
+- **THEN** the middleware rejects it with 401
+- **AND** a `WARNING` is written to `logs/security.log` including the request path and the reason "Token has expired"
+
+#### Scenario: Invalid OIDC state parameter
+
+- **WHEN** the OIDC callback receives an unknown or expired `state` parameter
+- **THEN** an `OIDCStateError` is raised
+- **AND** a `WARNING` is written to `logs/security.log` indicating the invalid state event
+
+#### Scenario: ID token validation failure
+
+- **WHEN** the OIDC ID token fails validation (wrong issuer, wrong audience, bad signature, or expired)
+- **THEN** an `OIDCTokenError` is raised
+- **AND** a `WARNING` is written to `logs/security.log` including the failure reason but not the raw token string
+
+#### Scenario: OIDC provider unreachable
+
+- **WHEN** the discovery endpoint or token endpoint cannot be reached
+- **THEN** an `httpx.HTTPError` propagates
+- **AND** an `ERROR` is written to `logs/security.log`
+
+#### Scenario: Successful OIDC login
+
+- **WHEN** a user completes the OIDC flow and a platform JWT is issued
+- **THEN** an `INFO` entry is written to `logs/security.log` with the normalized `user_id`
+
+#### Scenario: No sensitive data in logs
+
+- **WHEN** any security event is logged
+- **THEN** the log entry does not contain raw JWT strings, OIDC client secrets, or unmasked `sub` values
 
 ## Notes
 

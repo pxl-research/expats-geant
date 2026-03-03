@@ -61,13 +61,42 @@ All code is open-source for non-commercial use only.
 
 ### Prerequisites
 
-- Python 3.11+
-- Docker & Docker Compose (for containerized deployment)
+- Docker & Docker Compose
 - OpenRouter or OpenAI API key (or local LLM alternative)
 
 ### Installation
 
-**Option 1: Local Development**
+```bash
+# Clone repository
+git clone https://github.com/pxl-be/expat-geant.git
+cd expat-geant
+
+# Configure environment
+cp .env.example .env
+# Edit .env: set OPENROUTER_API_KEY (or OPENAI_API_KEY) and JWT_SECRET
+
+# Build and run
+docker-compose up --build
+```
+
+The API is available at `http://localhost:8001`. Interactive docs at `http://localhost:8001/docs`.
+
+See [Deployment Guide](docs/DEPLOYMENT.md) for full configuration options, manual Docker setup, data persistence, and production security guidance.
+
+## Documentation
+
+- [Project Context](openspec/project.md) — Detailed specifications, tech stack, conventions, and constraints
+- [Deployment Guide](docs/DEPLOYMENT.md) — Docker & local setup, environment variables, testing
+- [Integration Guide](docs/INTEGRATION.md) — JWT/auth setup, institutional SSO, API endpoint reference
+- [Data Model](docs/DATA_MODEL.md) — Internal data structures, Mermaid diagrams, platform mapping
+- [Adapter Guide](docs/ADAPTERS.md) — Writing custom survey platform adapters
+- [M-Autofill Module](m_autofill/README.md) — Answer suggestion assistant
+- [M-Chat Module](m_chat/README.md) — Questionnaire design assistant *(planned)*
+- [Shared Utilities](m_shared/README.md) — Common infrastructure
+
+## Contributing
+
+**Local Development**
 
 ```bash
 # Clone repository
@@ -91,73 +120,11 @@ python3 run_api.py
 # Docs available at: http://localhost:8001/docs
 ```
 
-**Option 2: Docker Deployment**
-
-```bash
-# Clone repository
-git clone https://github.com/pxl-be/expat-geant.git
-cd expat-geant
-
-# Configure environment
-cp .env.example .env
-# Edit .env and add your API keys (OPENROUTER_API_KEY or OPENAI_API_KEY)
-
-# Build and run with Docker Compose
-docker-compose up --build
-
-# Or build manually
-docker build -t m-autofill:latest .
-docker run -d \
-  --name m-autofill \
-  -p 8001:8001 \
-  --env-file .env \
-  m-autofill:latest
-```
-
-**Testing the API:**
-
-```bash
-# Health check
-curl http://localhost:8001/health
-
-# Privacy statement
-curl http://localhost:8001/privacy
-
-# Interactive API documentation
-open http://localhost:8001/docs
-```
-
-### Configuration
-
-**Required environment variables:**
-
-- `OPENROUTER_API_KEY` or `OPENAI_API_KEY` - LLM API access
-- `JWT_SECRET` - Secure random string for authentication
-
-**Optional environment variables:**
-
-- `LLM_MODEL` - Model to use (default: anthropic/claude-haiku-4.5)
-- `SESSION_TTL_HOURS` - Session lifetime (default: 24)
-- `MAX_FILE_SIZE_MB` - Upload limit (default: 50)
-- `PORT` - API server port (default: 8001)
-
-See [.env.example](.env.example) for full configuration options.
-
-## Documentation
-
-- [Project Context](openspec/project.md) — Detailed specifications, tech stack, conventions, and constraints
-- [Deployment Guide](docs/DEPLOYMENT.md) — Docker & local setup, environment variables, testing
-- [Integration Guide](docs/INTEGRATION.md) — JWT/auth setup, institutional SSO, API endpoint reference
-- [Data Model](docs/DATA_MODEL.md) — Internal data structures, Mermaid diagrams, platform mapping
-- [M-Autofill Module](m_autofill/README.md) — Answer suggestion assistant
-- [M-Chat Module](m_chat/README.md) — Questionnaire design assistant *(planned)*
-- [Shared Utilities](m_shared/README.md) — Common infrastructure
-
-## Contributing
-
 We follow standard Python conventions (PEP 8), PyCharm formatting, and commit message prefixes: `FEAT:`, `FIX:`, `CHANGE:`, `DOCS:`, `TEST:`, `REFACTOR:`, `CHORE:`.
 
 See [Git Workflow](openspec/project.md#git-workflow) for branching and review process.
+
+
 
 ## License
 

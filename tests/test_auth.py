@@ -1,5 +1,6 @@
 """Unit tests for JWT authentication."""
 
+import logging
 import os
 from datetime import UTC, datetime
 from unittest.mock import patch
@@ -211,3 +212,34 @@ class TestTokenRoundTrip:
             admin_token = create_token("admin1", "session2", roles=["administrator"])
             admin_claims = validate_token(admin_token)
             assert admin_claims["roles"] == ["administrator"]
+
+
+class TestSecurityEventLogging:
+    """Verify security events are logged at the correct level."""
+
+    def test_expired_token_logs_warning(self, caplog):
+        """Expired token validation must emit a WARNING."""
+        with patch.dict(os.environ, {"JWT_SECRET": "test-secret-key"}):
+            token = create_token("user123", "session456", expiration_hours=-1)
+            with caplog.at_level(logging.WARNING, logger="m_shared.auth.jwt_handler"):
+                with pytest.raises(TokenExpiredError):
+                    validate_token(token)
+        assert any("expired" in r.message.lower() for r in caplog.records)
+        assert all(r.levelno <= logging.WARNING for r in caplog.records)
+
+    def test_invalid_token_logs_warning(self, caplog):
+        """Invalid token validation must emit a WARNING."""
+        with patch.dict(os.environ, {"JWT_SECRET": "test-secret-key"}):
+            with caplog.at_level(logging.WARNING, logger="m_shared.auth.jwt_handler"):
+                with pytest.raises(TokenInvalidError):
+                    validate_token("not.a.valid.jwt")
+        assert any("validation failed" in r.message.lower() for r in caplog.records)
+
+    def test_missing_secret_on_creation_logs_error(self, caplog):
+        """Missing JWT_SECRET on token creation must emit an ERROR."""
+        with patch.dict(os.environ, {}, clear=True):
+            with caplog.at_level(logging.ERROR, logger="m_shared.auth.jwt_handler"):
+                with pytest.raises(ValueError):
+                    create_token("user123", "session456")
+        assert any(r.levelno == logging.ERROR for r in caplog.records)
+        assert any("token creation failed" in r.message.lower() for r in caplog.records)
