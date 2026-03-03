@@ -14,7 +14,9 @@ platform exchanges the provider's ID token for its own platform JWT. Everything 
   - Provider-agnostic OIDC authorization code flow
   - Stable `user_id` derived from `sub` claim, normalized across providers
   - Reuse existing `create_token()` and `SessionMiddleware` without modification
-  - Optional Keycloak service for local development
+  - Keycloak bundled and pre-configured — zero operator setup required out of the box
+  - Self-registration enabled by default — no admin account creation needed
+  - Optional federation (Google, Microsoft, institutional SSO) via Keycloak admin panel
 - **Non-Goals (Phase 5 only):**
   - Token refresh / silent re-authentication
   - Multi-tenant org isolation via OIDC claims
@@ -79,14 +81,23 @@ Validate it on `/auth/callback` before proceeding.
 Simple approach for Phase 5: in-memory dict `{state: expiry_timestamp}` with a 10-minute TTL.
 This works for single-instance deployments; a Redis-backed store would be needed for multi-instance.
 
-### 6. Local Dev Keycloak
+### 6. Keycloak as Default Bundled Auth Service
 
-Add an optional Keycloak service to `docker-compose.yml` using Docker Compose profiles:
+Keycloak is included as a default service in `docker-compose.yml` — no profile flag needed.
+Running `docker-compose up` starts the full stack including Keycloak.
 
-```bash
-docker-compose --profile keycloak up  # includes Keycloak
-docker-compose up                     # without Keycloak (use /dev/token or mock)
-```
+A pre-configured Keycloak realm export file (`keycloak/realm-export.json`) is committed to
+the repository. It is imported automatically on first startup and configures:
+- A realm named `expat-geant`
+- A client registered for the app (with correct redirect URIs)
+- Self-registration enabled — users can create their own account on first visit
+- No admin intervention required for a new deployment
+
+**Federation (optional, operator-configured):**
+Operators who want users to log in with an existing Google, Microsoft, or institutional
+account can configure Keycloak's "Identity Providers" in the admin panel. This requires
+registering the Keycloak instance with the external provider (one-time, ~15 minutes), but
+requires no changes to the app code. Document this as an optional step in `KEYCLOAK_SETUP.md`.
 
 Not required for running unit/integration tests (tests use a mock OIDC provider via `respx`).
 
@@ -109,7 +120,7 @@ Disabled in production (`ENVIRONMENT=production`) as before.
 - No migration needed for existing sessions or tokens (JWT validation logic unchanged)
 - `/dev/token` remains available in non-production for existing test flows
 - Rollout order: deploy `oauth.py` → set OIDC env vars → point users to `/auth/login`
-- Keycloak setup is optional; any OIDC provider works out of the box
+- Keycloak is bundled and pre-configured; `docker-compose up` is sufficient for a working deployment
 
 ## Open Questions
 

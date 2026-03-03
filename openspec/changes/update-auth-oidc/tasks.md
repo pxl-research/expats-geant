@@ -31,12 +31,17 @@
   - [ ] 4.1e Missing OIDC env vars — raise clear ConfigurationError
 - [ ] 4.2 Integration test — full OIDC flow with mock provider (respx mock of token + JWKS endpoints)
 
-## 5. Keycloak Local Dev
-- [ ] 5.1 Add optional Keycloak service to `docker-compose.yml` under `--profile keycloak`
-- [ ] 5.2 Document realm/client setup in `docs/KEYCLOAK_SETUP.md`
-  - [ ] 5.2a Keycloak image version, port, initial admin credentials
-  - [ ] 5.2b Realm creation and client registration steps
-  - [ ] 5.2c Redirect URI configuration matching `OIDC_REDIRECT_URI`
+## 5. Keycloak Setup
+- [ ] 5.1 Add Keycloak as a default service in `docker-compose.yml` (no profile flag required)
+- [ ] 5.2 Create `keycloak/realm-export.json` — pre-configured realm imported on first startup
+  - [ ] 5.2a Realm: `expat-geant`
+  - [ ] 5.2b Client registered with correct redirect URIs for the app
+  - [ ] 5.2c Self-registration enabled by default
+- [ ] 5.3 Document optional federation in `docs/KEYCLOAK_SETUP.md`
+  - [ ] 5.3a Keycloak image version, port, initial admin credentials
+  - [ ] 5.3b How to connect Google as an identity provider (optional)
+  - [ ] 5.3c How to connect Microsoft/Azure AD as an identity provider (optional)
+  - [ ] 5.3d How to connect institutional SSO/LDAP as an identity provider (optional)
 
 ## 6. Documentation
 - [ ] 6.1 Update `docs/INTEGRATION.md` — replace specific provider references (Shibboleth, Azure AD) with provider-agnostic OIDC guide
