@@ -193,7 +193,14 @@ async def exchange_code(code: str, state: str, redirect_uri: str | None = None) 
                 timeout=15,
             )
             response.raise_for_status()
-        except httpx.HTTPError as exc:
+        except httpx.HTTPStatusError as exc:
+            logger.error(
+                "OIDC token endpoint returned HTTP %s: %s",
+                exc.response.status_code,
+                exc,
+            )
+            raise
+        except httpx.TransportError as exc:
             logger.error("OIDC provider unreachable at token endpoint: %s", exc)
             raise
         token_response = response.json()
