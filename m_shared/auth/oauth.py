@@ -203,6 +203,13 @@ async def exchange_code(code: str, state: str, redirect_uri: str | None = None) 
     except JoseError as exc:
         raise OIDCTokenError(f"ID token validation failed: {exc}") from exc
 
+    # Verify issuer matches configured OIDC provider (OIDC spec requirement)
+    token_iss = claims.get("iss")
+    if token_iss != issuer_url:
+        raise OIDCTokenError(
+            f"ID token issuer {token_iss!r} does not match configured issuer {issuer_url!r}."
+        )
+
     # Verify audience
     aud = claims.get("aud")
     if isinstance(aud, str):

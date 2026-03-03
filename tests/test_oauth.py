@@ -251,6 +251,39 @@ class TestExchangeCodeTokenValidation:
                         await exchange_code(code="code", state=valid_state)
 
     @pytest.mark.asyncio
+    async def test_id_token_wrong_issuer(self):
+        """ID token with wrong issuer raises OIDCTokenError."""
+        valid_state = "valid-state-wrong-iss"
+        oauth_module._pending_states[valid_state] = time.time() + 600
+
+        wrong_iss_claims = _make_id_token_claims(iss="http://evil.example.com/realms/other")
+
+        class FakeClaims(dict):
+            def validate(self):
+                pass
+
+        with patch.dict(os.environ, OIDC_ENV):
+            with respx.mock:
+                respx.get(f"{ISSUER}/.well-known/openid-configuration").mock(
+                    return_value=httpx.Response(200, json=DISCOVERY_DOC)
+                )
+                respx.get(f"{ISSUER}/protocol/openid-connect/certs").mock(
+                    return_value=httpx.Response(200, json={"keys": []})
+                )
+                respx.post(f"{ISSUER}/protocol/openid-connect/token").mock(
+                    return_value=httpx.Response(
+                        200, json={"id_token": "fake.token", "token_type": "Bearer"}
+                    )
+                )
+
+                with patch(
+                    "m_shared.auth.oauth.authlib_jwt.decode",
+                    return_value=FakeClaims(wrong_iss_claims),
+                ):
+                    with pytest.raises(OIDCTokenError, match="issuer"):
+                        await exchange_code(code="code", state=valid_state)
+
+    @pytest.mark.asyncio
     async def test_id_token_wrong_audience(self):
         """ID token with wrong audience raises OIDCTokenError."""
         valid_state = "valid-state-wrong-aud"
