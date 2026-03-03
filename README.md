@@ -61,13 +61,10 @@ All code is open-source for non-commercial use only.
 
 ### Prerequisites
 
-- Python 3.11+
-- Docker & Docker Compose (for containerized deployment)
+- Docker & Docker Compose
 - OpenRouter or OpenAI API key (or local LLM alternative)
 
 ### Installation
-
-**Docker Deployment**
 
 ```bash
 # Clone repository
@@ -76,48 +73,15 @@ cd expat-geant
 
 # Configure environment
 cp .env.example .env
-# Edit .env and add your API keys (OPENROUTER_API_KEY or OPENAI_API_KEY)
+# Edit .env: set OPENROUTER_API_KEY (or OPENAI_API_KEY) and JWT_SECRET
 
-# Build and run with Docker Compose
+# Build and run
 docker-compose up --build
-
-# Or build manually
-docker build -t m-autofill:latest .
-docker run -d \
-  --name m-autofill \
-  -p 8001:8001 \
-  --env-file .env \
-  m-autofill:latest
 ```
 
-**Testing the API:**
+The API is available at `http://localhost:8001`. Interactive docs at `http://localhost:8001/docs`.
 
-```bash
-# Health check
-curl http://localhost:8001/health
-
-# Privacy statement
-curl http://localhost:8001/privacy
-
-# Interactive API documentation
-open http://localhost:8001/docs
-```
-
-### Configuration
-
-**Required environment variables:**
-
-- `OPENROUTER_API_KEY` or `OPENAI_API_KEY` - LLM API access
-- `JWT_SECRET` - Secure random string for authentication
-
-**Optional environment variables:**
-
-- `LLM_MODEL` - Model to use (default: anthropic/claude-haiku-4.5)
-- `SESSION_TTL_HOURS` - Session lifetime (default: 24)
-- `MAX_FILE_SIZE_MB` - Upload limit (default: 50)
-- `PORT` - API server port (default: 8001)
-
-See [.env.example](.env.example) for full configuration options.
+See [Deployment Guide](docs/DEPLOYMENT.md) for full configuration options, manual Docker setup, data persistence, and production security guidance.
 
 ## Documentation
 
