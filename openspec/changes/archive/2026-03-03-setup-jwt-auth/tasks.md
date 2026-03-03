@@ -30,7 +30,7 @@
 - [x] 4.1 Create custom exceptions (TokenExpiredError, TokenInvalidError, ValidationError)
 - [x] 4.2 Raise PermissionError for 403 Forbidden cases (session access)
 - [x] 4.3 Provide clear error messages for debugging
-- [ ] 4.4 _(Future)_ Structured security event logging — currently no logging in `jwt_handler.py`, `middleware.py`, or `oauth.py`; events to capture: expired/invalid tokens (middleware), session rejections, invalid OIDC state parameter, ID token validation failures, OIDC provider unreachable; low effort (~1 day: add `logging` calls + log-capture tests)
+- [x] 4.4 Structured security event logging — implemented via change `add-security-event-logging`; `RotatingFileHandler` → `logs/security.log`, WARNING/ERROR/INFO events in `jwt_handler.py`, `middleware.py`, and `oauth.py`; 8 `caplog` tests added
 
 ## 5. Unit Tests
 
