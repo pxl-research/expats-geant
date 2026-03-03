@@ -1,6 +1,6 @@
 ## MODIFIED Requirements
 
-### Requirement: OAuth 2.0 / OIDC Integration
+### Requirement: OAuth 2.0 Integration
 
 The system SHALL support OpenID Connect (OIDC) for provider-agnostic user authentication. The system SHALL NOT require a specific identity provider — any OIDC-compliant provider (e.g., Keycloak, Auth0, Google, Microsoft, institutional IdPs) SHALL work without code changes. The `sub` claim from the OIDC ID token SHALL be used as the stable user identifier for session isolation. The recommended self-hosted deployment option is Keycloak, for EU data locality and privacy-by-default alignment.
 
