@@ -12,7 +12,7 @@ Usage:
     #   python run_api.py
     #
     # Then in another terminal:
-    #   python scripts/e2e_api_spot_check.py [--base-url http://localhost:8001]
+    #   python tests/scripts/e2e_api_spot_check.py [--base-url http://localhost:8001]
 
 Defaults to http://localhost:8001.
 """
