@@ -20,8 +20,7 @@
       "publicClient": false,
       "secret": "change-me",
       "redirectUris": [
-        "http://localhost:8001/auth/callback",
-        "http://localhost:8001/*"
+        "http://localhost:8001/auth/callback"
       ],
       "webOrigins": [
         "http://localhost:8001"

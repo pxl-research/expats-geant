@@ -94,7 +94,7 @@ def _normalize_sub(iss: str, sub: str) -> str:
     """Return a stable, cross-provider user_id from issuer URL and subject claim.
 
     Example: iss="http://localhost:8080/realms/expat-geant", sub="abc123"
-             -> "localhost:abc123"
+             -> "localhost:8080:abc123"
     """
     parsed = urlparse(iss)
     iss_host = parsed.netloc or parsed.path
