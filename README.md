@@ -67,31 +67,7 @@ All code is open-source for non-commercial use only.
 
 ### Installation
 
-**Option 1: Local Development**
-
-```bash
-# Clone repository
-git clone https://github.com/pxl-be/expat-geant.git
-cd expat-geant
-
-# Create virtual environment
-python3 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install dependencies
-pip3 install -r requirements.txt
-
-# Configure environment
-cp .env.example .env
-# Edit .env and add your API keys
-
-# Run the API server
-python3 run_api.py
-# API available at: http://localhost:8001
-# Docs available at: http://localhost:8001/docs
-```
-
-**Option 2: Docker Deployment**
+**Docker Deployment**
 
 ```bash
 # Clone repository
@@ -155,9 +131,35 @@ See [.env.example](.env.example) for full configuration options.
 
 ## Contributing
 
+**Local Development**
+
+```bash
+# Clone repository
+git clone https://github.com/pxl-be/expat-geant.git
+cd expat-geant
+
+# Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install dependencies
+pip3 install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env and add your API keys
+
+# Run the API server
+python3 run_api.py
+# API available at: http://localhost:8001
+# Docs available at: http://localhost:8001/docs
+```
+
 We follow standard Python conventions (PEP 8), PyCharm formatting, and commit message prefixes: `FEAT:`, `FIX:`, `CHANGE:`, `DOCS:`, `TEST:`, `REFACTOR:`, `CHORE:`.
 
 See [Git Workflow](openspec/project.md#git-workflow) for branching and review process.
+
+
 
 ## License
 
