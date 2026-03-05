@@ -152,6 +152,39 @@ accept, edit, or dismiss action without requiring a server round-trip or explici
 - **THEN** the UI renders all questions in pending state with suggestions shown fresh
 - **AND** no error is shown — loss of review state is a known, accepted trade-off
 
+### Requirement: Document Upload
+
+The UI SHALL allow respondents to upload one or more source documents (e.g. PDFs, Word files)
+before reviewing suggestions. Uploaded documents are forwarded to the M-Autofill document
+ingestion API; the UI SHALL NOT process or store document content itself. Document upload is
+optional — respondents may skip it and proceed with suggestions derived from previously ingested
+documents.
+
+#### Scenario: Document uploaded successfully
+
+- **WHEN** a respondent uploads one or more documents on the document upload step
+- **THEN** the UI posts each file to the M-Autofill document ingestion API endpoint
+- **AND** proceeds to the survey review page once all uploads are confirmed
+- **AND** the UI does not retain or process the document content locally
+
+#### Scenario: Document upload skipped
+
+- **WHEN** a respondent skips the document upload step
+- **THEN** the UI proceeds directly to the survey review page
+- **AND** suggestions are generated from any documents already ingested for the session
+
+#### Scenario: Unsupported document format
+
+- **WHEN** a respondent uploads a file in a format not accepted by the ingestion API
+- **THEN** the UI displays a clear error identifying the rejected file
+- **AND** the respondent can remove it and retry without losing other uploaded files
+
+#### Scenario: Document upload failure
+
+- **WHEN** the ingestion API returns an error for an uploaded file
+- **THEN** the UI displays an inline error for the failed file
+- **AND** allows the respondent to retry or skip that file without restarting the flow
+
 ### Requirement: Response Submission
 
 When the respondent submits the completed form, the UI SHALL send all responses to the M-Autofill
