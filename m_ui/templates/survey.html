@@ -169,6 +169,8 @@
         const zone = document.getElementById("sug-" + qid);
         if (zone) zone.appendChild(block);
       });
+      // Restore saved accept/dismiss state now that suggestion DOM is in place
+      reviewState.restoreAll();
     }
   });
 </script>

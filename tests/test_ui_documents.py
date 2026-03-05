@@ -120,3 +120,13 @@ class TestDocumentUploadSkip:
         resp = client.get(f"/session/{SESSION_ID}/documents", cookies=TOKEN_COOKIE)
         assert resp.status_code == 200
         assert f"/session/{SESSION_ID}/review" in resp.text
+
+    def test_post_with_no_files_redirects_to_review(self):
+        """Submitting the document form with no files selected redirects to review."""
+        client = TestClient(app, follow_redirects=False)
+        resp = client.post(
+            f"/session/{SESSION_ID}/documents",
+            cookies=TOKEN_COOKIE,
+        )
+        assert resp.status_code == 302
+        assert resp.headers["location"] == f"/session/{SESSION_ID}/review"

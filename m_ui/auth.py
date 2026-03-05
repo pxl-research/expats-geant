@@ -12,6 +12,9 @@ AUTOFILL_API_URL = os.getenv("AUTOFILL_API_URL", "http://localhost:8001")
 # Browser-accessible URL for OAuth redirects (must be reachable by the end user's browser)
 AUTOFILL_PUBLIC_URL = os.getenv("AUTOFILL_PUBLIC_URL", "http://localhost:8001")
 
+# Set COOKIE_SECURE=true in production (HTTPS deployments)
+_COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+
 
 def get_token(request: Request) -> str | None:
     """Read JWT from HttpOnly cookie."""
@@ -24,7 +27,7 @@ def set_token_cookie(response, token: str) -> None:
         key=COOKIE_NAME,
         value=token,
         httponly=True,
-        secure=False,  # Set True in production (HTTPS)
+        secure=_COOKIE_SECURE,
         samesite="lax",
         max_age=86400,  # 24 hours
     )

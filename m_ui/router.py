@@ -205,12 +205,15 @@ async def documents_page(request: Request, session_id: str, warning: str | None 
 async def documents_upload(
     request: Request,
     session_id: str,
-    files: Annotated[list[UploadFile], File(...)],
+    files: list[UploadFile] | None = File(default=None),
 ):
     """Forward each uploaded document to M-Autofill ingestion API."""
     token = get_token(request)
     if not token:
         return RedirectResponse(url="/auth/login", status_code=302)
+
+    if not files:
+        return RedirectResponse(url=f"/session/{session_id}/review", status_code=302)
 
     file_errors: list[dict] = []
     for upload in files:
@@ -365,7 +368,20 @@ async def submit_responses(request: Request, session_id: str):
         return RedirectResponse(url="/auth/login", status_code=302)
 
     form = await request.form()
-    responses = {k: v for k, v in form.items() if not k.startswith("_")}
+    # Collect all values per key; multi-value fields (multiple_choice checkboxes,
+    # ranking hidden inputs) must not be collapsed to a single value.
+    responses: dict[str, str | list[str]] = {}
+    for k, v in form.multi_items():
+        if k.startswith("_"):
+            continue
+        if k in responses:
+            existing = responses[k]
+            if isinstance(existing, list):
+                existing.append(str(v))
+            else:
+                responses[k] = [str(existing), str(v)]
+        else:
+            responses[k] = str(v)
 
     try:
         await api_client.submit_responses(token=token, session_id=session_id, responses=responses)

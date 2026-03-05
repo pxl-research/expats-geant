@@ -811,8 +811,15 @@ Last updated: January 2026
             Survey dict.
 
         Raises:
+            HTTPException: 403 if survey_id does not match the caller's session.
             HTTPException: 404 if not found or session has expired.
         """
+        session = request.state.session
+        if survey_id != session.session_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: survey belongs to a different session.",
+            )
         manager = request.state.session_manager
         survey_path = manager._get_session_path(survey_id) / "survey.json"
 
@@ -851,8 +858,10 @@ Last updated: January 2026
                 detail=f"No adapter for format '{format}'. Supported: qsf, lss, qti, sm.",
             )
         caps = set(adapter.capabilities())
-        # Only advertise "submit" if the required platform credentials are configured
-        if "submit" in caps and not any(_adapter_credentials(format).values()):
+        # Only advertise "submit" if ALL required platform credentials are configured.
+        # _adapter_credentials returns {} for formats with no credential requirements;
+        # all([]) is True so those are left unchanged.
+        if "submit" in caps and not all(_adapter_credentials(format).values()):
             caps.discard("submit")
         return sorted(caps)
 
@@ -882,6 +891,13 @@ Last updated: January 2026
                 capability or credentials are missing, 502 if platform call fails.
         """
         import json as _json
+
+        session = request.state.session
+        if session_id != session.session_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: session belongs to a different user.",
+            )
 
         manager = request.state.session_manager
         survey_path = manager._get_session_path(session_id) / "survey.json"
@@ -967,5 +983,10 @@ def _adapter_credentials(format: str) -> dict:
             "api_url": os.getenv("LIMESURVEY_API_URL"),
             "username": os.getenv("LIMESURVEY_USERNAME"),
             "password": os.getenv("LIMESURVEY_PASSWORD"),
+        }
+    if format == "qsf":
+        return {
+            "api_token": os.getenv("QUALTRICS_API_TOKEN"),
+            "datacenter_id": os.getenv("QUALTRICS_DATACENTER_ID"),
         }
     return {}
