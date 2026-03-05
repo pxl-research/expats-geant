@@ -85,7 +85,7 @@ async def test_batch_suggest_returns_list():
             },
         )
     )
-    result = await batch_suggest(TOKEN, "sess1", "s1")
+    result = await batch_suggest(TOKEN, "sess1", "s1", items=[])
     assert len(result) == 1
     assert result[0]["item_id"] == "q1"
 
@@ -97,7 +97,7 @@ async def test_batch_suggest_server_error():
         return_value=httpx.Response(500, json={"detail": "LLM error"})
     )
     with pytest.raises(APIError) as exc_info:
-        await batch_suggest(TOKEN, "sess1", "s1")
+        await batch_suggest(TOKEN, "sess1", "s1", items=[])
     assert exc_info.value.status_code == 500
 
 
@@ -126,10 +126,24 @@ async def test_submit_responses_error():
 @respx.mock
 async def test_import_survey_file_returns_survey_id():
     respx.post(f"{BASE}/surveys/import").mock(
-        return_value=httpx.Response(200, json={"survey_id": "imported-abc"})
+        return_value=httpx.Response(200, json={"survey_id": "imported-abc", "warning": None})
     )
-    survey_id = await import_survey_file(TOKEN, b"file content", "survey.qsf", "qsf")
+    survey_id, warning = await import_survey_file(TOKEN, b"file content", "survey.qsf", "qsf")
     assert survey_id == "imported-abc"
+    assert warning is None
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_import_survey_file_returns_warning():
+    respx.post(f"{BASE}/surveys/import").mock(
+        return_value=httpx.Response(
+            200, json={"survey_id": "imported-abc", "warning": "No questions found."}
+        )
+    )
+    survey_id, warning = await import_survey_file(TOKEN, b"file content", "survey.qsf", "qsf")
+    assert survey_id == "imported-abc"
+    assert warning == "No questions found."
 
 
 @pytest.mark.asyncio

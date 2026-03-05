@@ -789,7 +789,14 @@ Last updated: January 2026
         session_path.mkdir(parents=True, exist_ok=True)
         (session_path / "survey.json").write_text(survey.model_dump_json())
 
-        return {"survey_id": session.session_id}
+        total_questions = sum(len(s.questions) for s in survey.sections)
+        warning = (
+            "No answerable questions were extracted. "
+            "The file may contain only display elements or unsupported question types."
+            if total_questions == 0
+            else None
+        )
+        return {"survey_id": session.session_id, "warning": warning}
 
     @app.get("/surveys/{survey_id}", tags=["Surveys"])
     async def get_survey(request: Request, survey_id: str):

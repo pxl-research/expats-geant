@@ -328,7 +328,12 @@ def _normalise_bl_payload(payload: Any) -> list[dict[str, Any]]:
 
 
 def _extract_block_order(elements: list[dict[str, Any]]) -> list[str]:
-    """Return block IDs in flow order from the FL element, or [] if absent."""
+    """Return block IDs in flow order from the FL element, or [] if absent.
+
+    Qualtrics uses both "Block" and "Standard" as flow entry types for regular
+    survey blocks. Other types (Branch, EmbeddedData, EndSurvey, etc.) are skipped.
+    """
+    _BLOCK_TYPES = {"Block", "Standard"}
     for el in elements:
         if el.get("Element") == "FL":
             flow = el.get("Payload", {})
@@ -336,7 +341,7 @@ def _extract_block_order(elements: list[dict[str, Any]]) -> list[str]:
                 return [
                     entry["ID"]
                     for entry in flow.get("Flow", [])
-                    if entry.get("Type") == "Block" and entry.get("ID")
+                    if entry.get("Type") in _BLOCK_TYPES and entry.get("ID")
                 ]
     return []
 
@@ -363,12 +368,20 @@ def _build_question(payload: dict[str, Any], order: int = 0) -> Question | None:
 
     answer_options: list[AnswerOption] = []
     if q_type in (QuestionType.SINGLE_CHOICE, QuestionType.MULTIPLE_CHOICE, QuestionType.RANKING):
-        choices: dict[str, Any] = payload.get("Choices", {})
-        choice_order: list[str] = payload.get("ChoiceOrder", list(choices.keys()))
+        # Matrix/Likert questions store scale points in "Answers"; all others use "Choices"
+        q_type_code = payload.get("QuestionType", "")
+        if q_type_code == "Matrix":
+            raw_choices: dict[str, Any] = payload.get("Answers", {})
+            choice_order: list[str] = [
+                str(c) for c in payload.get("AnswerOrder", list(raw_choices.keys()))
+            ]
+        else:
+            raw_choices = payload.get("Choices", {})
+            choice_order = [str(c) for c in payload.get("ChoiceOrder", list(raw_choices.keys()))]
         for code in choice_order:
-            if code not in choices:
+            if code not in raw_choices:
                 continue
-            choice_text = _strip_html(choices[code].get("Display", str(code)))
+            choice_text = _strip_html(raw_choices[code].get("Display", str(code)))
             answer_options.append(
                 AnswerOption(
                     id=f"opt_{code}",

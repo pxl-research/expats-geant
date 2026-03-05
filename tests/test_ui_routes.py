@@ -66,10 +66,34 @@ class TestLandingPage:
 
 class TestAuthCallback:
     def test_callback_sets_cookie_and_redirects(self):
+        """Direct ?token= handoff (dev/manual flow) still works."""
         client = TestClient(app, follow_redirects=False)
         resp = client.get("/auth/callback?token=my-jwt")
         assert resp.status_code == 302
         assert "autofill_token" in resp.cookies
+
+    @respx.mock
+    def test_callback_oidc_code_proxied_to_autofill(self):
+        """OIDC flow: ?code&state proxied server-side to m-autofill."""
+        respx.get(f"{BASE}/auth/callback").mock(
+            return_value=httpx.Response(200, json={"token": "oidc-jwt"})
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.get("/auth/callback?code=abc123&state=xyz")
+        assert resp.status_code == 302
+        assert "autofill_token" in resp.cookies
+        assert resp.cookies["autofill_token"] == "oidc-jwt"
+
+    @respx.mock
+    def test_callback_oidc_autofill_error_returns_502(self):
+        """If m-autofill returns an error, surface a 502."""
+        respx.get(f"{BASE}/auth/callback").mock(
+            return_value=httpx.Response(500, json={"detail": "Keycloak error"})
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.get("/auth/callback?code=bad&state=bad")
+        assert resp.status_code == 502
+        assert "Authentication failed" in resp.text
 
     def test_callback_no_token_returns_400(self):
         client = TestClient(app, follow_redirects=False)
@@ -82,7 +106,7 @@ class TestUploadRoute:
     @respx.mock
     def test_upload_redirects_to_documents(self):
         respx.post(f"{BASE}/surveys/import").mock(
-            return_value=httpx.Response(200, json={"survey_id": "new-survey-1"})
+            return_value=httpx.Response(200, json={"survey_id": "new-survey-1", "warning": None})
         )
         client = TestClient(app, follow_redirects=False)
         resp = client.post(
@@ -114,6 +138,84 @@ class TestUploadRoute:
         )
         assert resp.status_code == 302
         assert "/auth/login" in resp.headers["location"]
+
+
+class TestSuggestPartial:
+    @respx.mock
+    def test_suggest_returns_suggestion_html(self):
+        respx.get(f"{BASE}/surveys/survey-abc").mock(
+            return_value=httpx.Response(200, json=SURVEY_FIXTURE)
+        )
+        respx.post(f"{BASE}/suggest/batch").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "assessment_id": "survey-abc",
+                    "session_id": "survey-abc",
+                    "generated_at": "2026-01-01T00:00:00Z",
+                    "model": "llama",
+                    "responses": [
+                        {
+                            "item_id": "q1",
+                            "type": "open_ended",
+                            "suggestion": "Software Engineer",
+                            "citations": [],
+                        },
+                    ],
+                },
+            )
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.get("/session/survey-abc/suggest", cookies=TOKEN_COOKIE)
+        assert resp.status_code == 200
+        assert "Software Engineer" in resp.text
+        assert "AI Suggestion" in resp.text
+
+    @respx.mock
+    def test_suggest_api_error_returns_error_html(self):
+        respx.get(f"{BASE}/surveys/survey-abc").mock(
+            return_value=httpx.Response(200, json=SURVEY_FIXTURE)
+        )
+        respx.post(f"{BASE}/suggest/batch").mock(
+            return_value=httpx.Response(500, json={"detail": "LLM unavailable"})
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.get("/session/survey-abc/suggest", cookies=TOKEN_COOKIE)
+        assert resp.status_code == 500
+        assert "LLM unavailable" in resp.text
+
+    def test_suggest_unauthenticated_returns_401(self):
+        client = TestClient(app, follow_redirects=False)
+        resp = client.get("/session/survey-abc/suggest")
+        assert resp.status_code == 401
+
+    @respx.mock
+    def test_suggest_passes_questions_to_batch(self):
+        """Verify question items are extracted from survey and sent to batch endpoint."""
+        respx.get(f"{BASE}/surveys/survey-abc").mock(
+            return_value=httpx.Response(200, json=SURVEY_FIXTURE)
+        )
+        batch_mock = respx.post(f"{BASE}/suggest/batch").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "assessment_id": "survey-abc",
+                    "session_id": "survey-abc",
+                    "generated_at": "2026-01-01T00:00:00Z",
+                    "model": "llama",
+                    "responses": [],
+                },
+            )
+        )
+        client = TestClient(app, follow_redirects=False)
+        client.get("/session/survey-abc/suggest", cookies=TOKEN_COOKIE)
+        sent = batch_mock.calls[0].request
+        import json
+
+        body = json.loads(sent.content)
+        item_ids = [i["id"] for i in body["items"]]
+        assert "q1" in item_ids
+        assert "q2" in item_ids
 
 
 class TestReviewPage:

@@ -8,6 +8,10 @@
   The files are forwarded directly to the AI pipeline — no content is stored in this interface.
 </p>
 
+{% if warning %}
+<div class="alert alert-warning">⚠️ {{ warning }}</div>
+{% endif %}
+
 {% if file_errors %}
 <div class="alert alert-error">
   <strong>Some files could not be uploaded:</strong>
