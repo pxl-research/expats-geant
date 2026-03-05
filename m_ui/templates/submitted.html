@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Submitted — M-Autofill{% endblock %}
+{% block content %}
+
+<div class="card" style="text-align:center; padding:2.5rem 1.5rem;">
+  <div style="font-size:3rem; margin-bottom:1rem;">✅</div>
+  <h1 style="margin-bottom:0.5rem;">Responses Submitted</h1>
+  <p>Your answers have been sent to the survey platform successfully.</p>
+  <p style="margin-top:0.75rem;">Thank you for using M-Autofill.</p>
+  <a href="/" class="btn btn-primary" style="margin-top:1.5rem;">Start a New Review</a>
+</div>
+
+<script>
+// Clear localStorage review state for this session
+try {
+  const key = "review-{{ session_id }}";
+  localStorage.removeItem(key);
+} catch (e) {}
+</script>
+
+{% endblock %}

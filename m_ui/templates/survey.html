@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}Review Survey — M-Autofill{% endblock %}
+
+{% block head %}
+<style>
+  .question-card { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 1.25rem; overflow: hidden; }
+  .question-header { padding: 1rem 1.25rem; background: #f1f5f9; border-bottom: 1px solid var(--border); }
+  .question-body { padding: 1.25rem; }
+  .question-label { font-weight: 600; margin-bottom: 0.75rem; }
+  .question-type { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .option-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0; }
+  .option-row label { font-weight: 400; margin: 0; cursor: pointer; }
+
+  .ranking-list { list-style: none; }
+  .ranking-item {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 0.75rem; background: #f8fafc;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    margin-bottom: 0.375rem; cursor: grab;
+  }
+  .ranking-handle { color: var(--text-muted); user-select: none; }
+
+  .suggestion-zone { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+  .suggestion-loading { color: var(--text-muted); font-size: 0.875rem; font-style: italic; display: flex; align-items: center; gap: 0.5rem; }
+  .spinner { width: 1rem; height: 1rem; border: 2px solid #e2e8f0; border-top-color: var(--brand); border-radius: 50%; animation: spin 0.75s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .display-only-banner {
+    background: #fffbeb; border: 1px solid #fde68a;
+    border-radius: var(--radius); padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    display: flex; align-items: flex-start; gap: 0.75rem;
+  }
+  .display-only-banner .icon { font-size: 1.25rem; line-height: 1; }
+  .display-only-banner p { color: #92400e; margin: 0; font-size: 0.875rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>{{ survey.title | default("Survey Review") }}</h1>
+{% if survey.description %}
+<p style="margin-bottom:1.25rem;">{{ survey.description }}</p>
+{% endif %}
+
+{% if not can_submit %}
+<div class="display-only-banner">
+  <span class="icon">ℹ️</span>
+  <p>
+    <strong>Display-only mode:</strong> This survey cannot be submitted automatically.
+    Review the AI suggestions below, then fill in the original survey form manually.
+  </p>
+</div>
+{% endif %}
+
+{% if submit_error %}
+<div class="alert alert-error">Submission failed: {{ submit_error }}</div>
+{% endif %}
+
+<!-- Load suggestions via HTMX on page load -->
+<div id="suggestions-container"
+     hx-get="/session/{{ session_id }}/suggest"
+     hx-trigger="load"
+     hx-swap="innerHTML">
+  <p class="suggestion-loading"><span class="spinner"></span>Loading AI suggestions…</p>
+</div>
+
+<form method="post" action="/session/{{ session_id }}/submit" id="survey-form">
+
+{% for section in survey.sections | default([]) %}
+  {% if survey.sections | length > 1 %}
+  <h2 style="margin: 1.5rem 0 0.75rem;">{{ section.title | default("Section") }}</h2>
+  {% endif %}
+
+  {% for question in section.questions | default([]) %}
+  <div class="question-card" id="q-{{ question.id }}">
+    <div class="question-header">
+      <span class="question-type">{{ question.type | replace("_", " ") }}</span>
+      <div class="question-label">{{ question.text }}</div>
+    </div>
+    <div class="question-body">
+
+      {% if question.type == "open_ended" %}
+        <textarea name="q_{{ question.id }}"
+                  id="input-{{ question.id }}"
+                  rows="3"
+                  placeholder="Your answer…">{{ form_values.get("q_" ~ question.id, "") }}</textarea>
+
+      {% elif question.type == "single_choice" %}
+        {% for option in question.answer_options | default([]) %}
+        <div class="option-row">
+          <input type="radio" name="q_{{ question.id }}"
+                 id="opt-{{ option.id }}" value="{{ option.id }}"
+                 {% if form_values.get("q_" ~ question.id) == option.id %}checked{% endif %}>
+          <label for="opt-{{ option.id }}">{{ option.text }}</label>
+        </div>
+        {% endfor %}
+
+      {% elif question.type == "multiple_choice" %}
+        {% for option in question.answer_options | default([]) %}
+        <div class="option-row">
+          <input type="checkbox" name="q_{{ question.id }}"
+                 id="opt-{{ option.id }}" value="{{ option.id }}"
+                 {% if option.id in (form_values.get("q_" ~ question.id) or []) %}checked{% endif %}>
+          <label for="opt-{{ option.id }}">{{ option.text }}</label>
+        </div>
+        {% endfor %}
+
+      {% elif question.type == "slider" %}
+        <input type="range"
+               name="q_{{ question.id }}"
+               id="input-{{ question.id }}"
+               min="{{ question.min_value | default(0) }}"
+               max="{{ question.max_value | default(100) }}"
+               step="{{ question.step | default(1) }}"
+               value="{{ form_values.get('q_' ~ question.id, question.min_value | default(0)) }}"
+               style="width:100%;">
+        <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-muted);">
+          <span>{{ question.min_value | default(0) }}</span>
+          <span>{{ question.max_value | default(100) }}</span>
+        </div>
+
+      {% elif question.type == "ranking" %}
+        <ol class="ranking-list" id="rank-{{ question.id }}">
+          {% for option in question.answer_options | default([]) %}
+          <li class="ranking-item" draggable="true">
+            <span class="ranking-handle">⠿</span>
+            <span>{{ option.text }}</span>
+            <input type="hidden" name="q_{{ question.id }}_rank" value="{{ option.id }}">
+          </li>
+          {% endfor %}
+        </ol>
+
+      {% else %}
+        <textarea name="q_{{ question.id }}" rows="2" placeholder="Your answer…"></textarea>
+      {% endif %}
+
+      <!-- Suggestion block for this question (populated by JS from HTMX load) -->
+      <div class="suggestion-zone"
+           id="sug-{{ question.id }}"
+           data-question-id="{{ question.id }}"
+           data-session-id="{{ session_id }}">
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+{% endfor %}
+
+{% if can_submit %}
+<div style="margin-top:1.5rem;">
+  <button type="submit" class="btn btn-success">Submit Responses</button>
+</div>
+{% endif %}
+</form>
+
+<script src="/static/review-state.js"></script>
+<script>
+  // Initialize state manager and restore saved state on load
+  const reviewState = new ReviewState("{{ session_id }}");
+  document.addEventListener("DOMContentLoaded", () => reviewState.restoreAll());
+
+  // Re-attach after HTMX swap
+  document.body.addEventListener("htmx:afterSwap", (e) => {
+    if (e.detail.target.id === "suggestions-container") {
+      // Move each suggestion block into the corresponding .suggestion-zone
+      const container = document.getElementById("suggestions-container");
+      container.querySelectorAll("[data-for-question]").forEach(block => {
+        const qid = block.dataset.forQuestion;
+        const zone = document.getElementById("sug-" + qid);
+        if (zone) zone.appendChild(block);
+      });
+      // Restore saved accept/dismiss state now that suggestion DOM is in place
+      reviewState.restoreAll();
+    }
+  });
+</script>
+{% endblock %}

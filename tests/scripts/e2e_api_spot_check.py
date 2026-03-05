@@ -33,7 +33,7 @@ load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 DEFAULT_BASE_URL = "http://localhost:8001"
 
-DATA_DIR = Path(__file__).parent.parent / "test_data" / "internship" / "data"
+DATA_DIR = Path(__file__).parent.parent.parent / "test_data" / "internship" / "data"
 DATA_FILES = [
     DATA_DIR / "BachelorProject_gids_TIN.pdf",
     DATA_DIR / "Briefing voor aanvang stage 1.pptx",

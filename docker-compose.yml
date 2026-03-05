@@ -15,6 +15,13 @@ services:
       - JWT_ALGORITHM=HS256
       - JWT_EXPIRATION_HOURS=24
 
+      # OIDC: 'keycloak' resolves in Docker (DNS) and on Mac host (/etc/hosts: 127.0.0.1 keycloak)
+      - OIDC_ISSUER_URL=http://keycloak:8080/realms/expat-geant
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-m-autofill}
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-change-me}
+      # Redirect Keycloak's authorization code to m_ui (m_ui proxies it server-side)
+      - OIDC_REDIRECT_URI=${OIDC_REDIRECT_URI:-http://localhost:8002/auth/callback}
+
       # LLM Configuration
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - LLM_MODEL=${LLM_MODEL:-openrouter/meta-llama/llama-3.1-8b-instruct}
@@ -40,6 +47,9 @@ services:
       # Optional: Mount .env file for local development
       # - ./.env:/app/.env:ro
 
+    depends_on:
+      - keycloak
+
     restart: unless-stopped
 
     healthcheck:
@@ -58,6 +68,25 @@ services:
     networks:
       - m-autofill-network
 
+  ui:
+    build:
+      context: .
+      dockerfile: m_ui/Dockerfile
+    container_name: m-ui
+    ports:
+      - "8002:8002"
+    environment:
+      # Server-to-server URL (Docker-internal network)
+      - AUTOFILL_API_URL=http://m-autofill:8001
+      # Browser-accessible URL (must be reachable by the end user's browser)
+      - AUTOFILL_PUBLIC_URL=${AUTOFILL_PUBLIC_URL:-http://localhost:8001}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      - m-autofill
+    restart: unless-stopped
+    networks:
+      - m-autofill-network
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
     container_name: keycloak
@@ -65,6 +94,12 @@ services:
     environment:
       - KEYCLOAK_ADMIN=admin
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      # 'keycloak' hostname: resolves in Docker (internal DNS) and on Mac host
+      # via /etc/hosts (127.0.0.1 keycloak). This keeps the OIDC issuer consistent.
+      - KC_HOSTNAME=keycloak
+      - KC_HOSTNAME_PORT=8080
+      - KC_HOSTNAME_STRICT=false
+      - KC_HTTP_ENABLED=true
     ports:
       - "8080:8080"
     volumes:

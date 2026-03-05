@@ -10,7 +10,8 @@ All code is open-source for non-commercial use only.
 ### Core Components
 
 - **M-Chat**: Administrator co-pilot for questionnaire design — accelerates creation with guardrails, consistency checks, tagging, and summarization
-- **M-Autofill**: Respondent assistant for evidence - based answer suggestions—retrieves relevant passages from user documents, proposes concise answers with citations, and explains reasoning
+- **M-Autofill**: Respondent assistant for evidence-based answer suggestions — retrieves relevant passages from user documents, proposes concise answers with citations, and explains reasoning
+- **M-UI**: Browser-based survey review frontend — server-rendered FastAPI app (Jinja2 + HTMX) for uploading surveys, reviewing AI suggestions, and submitting responses without custom integration work
 - **M-Shared**: Common utilities and foundational infrastructure for both modules
 
 ## Key Features
@@ -38,7 +39,8 @@ All code is open-source for non-commercial use only.
 
 ```
 .
-├── m_autofill/     # Respondent answer suggestion assistant
+├── m_autofill/     # Respondent answer suggestion assistant (REST API, port 8001)
+├── m_ui/           # Survey review frontend (Jinja2 + HTMX, port 8002)
 ├── m_chat/         # Administrator questionnaire design assistant (planned)
 ├── m_shared/       # Common utilities (LLM clients, vector DB, data models, auth)
 ├── tests/          # All tests (pytest)
@@ -79,7 +81,8 @@ cp .env.example .env
 docker-compose up --build
 ```
 
-The API is available at `http://localhost:8001`. Interactive docs at `http://localhost:8001/docs`.
+The M-Autofill API is available at `http://localhost:8001` (interactive docs at `/docs`).
+The M-UI survey review frontend is available at `http://localhost:8002`.
 
 See [Deployment Guide](docs/DEPLOYMENT.md) for full configuration options, manual Docker setup, data persistence, and production security guidance.
 

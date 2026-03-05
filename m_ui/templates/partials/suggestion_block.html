@@ -1,0 +1,83 @@
+{% for sug in suggestions %}
+<div class="suggestion-block"
+     id="sug-block-{{ sug.item_id }}"
+     data-for-question="{{ sug.item_id }}"
+     data-suggestion="{{ sug.suggestion | default('') | e }}"
+     data-selected-id="{{ sug.selected_id | default('') }}"
+     style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:0.875rem; margin-bottom:0.5rem;">
+
+  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:0.5rem;">
+    <div>
+      <span style="font-size:0.7rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:#7c3aed;">
+        AI Suggestion
+      </span>
+      <p style="margin:0.35rem 0 0; font-size:0.9rem; color:#1e293b;">
+        {{ sug.suggestion | default("—") }}
+      </p>
+      {% if sug.reasoning %}
+      <p style="margin:0.35rem 0 0; font-size:0.8rem; color:#64748b; font-style:italic;">
+        {{ sug.reasoning }}
+      </p>
+      {% endif %}
+    </div>
+    <div style="display:flex; gap:0.375rem; flex-shrink:0;">
+      <button type="button"
+              class="btn btn-success"
+              style="font-size:0.75rem; padding:0.3rem 0.7rem;"
+              onclick="acceptSuggestion('{{ sug.item_id }}', this)">Accept</button>
+      <button type="button"
+              class="btn btn-ghost"
+              style="font-size:0.75rem; padding:0.3rem 0.7rem;"
+              onclick="dismissSuggestion('{{ sug.item_id }}', this)">Dismiss</button>
+    </div>
+  </div>
+
+  {% if sug.citations %}
+  <div style="margin-top:0.625rem; padding-top:0.625rem; border-top:1px solid #e2e8f0;">
+    <span style="font-size:0.7rem; font-weight:600; color:#64748b; text-transform:uppercase;">Sources</span>
+    {% for cit in sug.citations %}
+    <div style="font-size:0.8rem; margin-top:0.35rem;">
+      <strong style="color:#1d4ed8;">{{ cit.source }}</strong>
+      {% if cit.excerpt %}
+      — <em style="color:#475569;">"{{ cit.excerpt }}"</em>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+</div>
+{% else %}
+<p style="font-size:0.85rem; color:#64748b; font-style:italic;">No suggestions available.</p>
+{% endfor %}
+
+<script>
+function acceptSuggestion(questionId, btn) {
+  const block = btn.closest(".suggestion-block");
+  const value = block.dataset.suggestion;
+  const selectedId = block.dataset.selectedId;
+
+  // Pre-fill the form input
+  const textarea = document.getElementById("input-" + questionId);
+  if (textarea) {
+    textarea.value = value;
+  } else if (selectedId) {
+    const radio = document.getElementById("opt-" + selectedId);
+    if (radio) radio.checked = true;
+  }
+
+  block.style.border = "1px solid #16a34a";
+  block.style.background = "#f0fdf4";
+
+  const rs = new ReviewState(block.closest("[data-session-id]")?.dataset.sessionId || "");
+  rs.save(questionId, { state: "accepted", value: value, selected_id: selectedId });
+}
+
+function dismissSuggestion(questionId, btn) {
+  const block = btn.closest(".suggestion-block");
+  block.style.display = "none";
+
+  const rs = new ReviewState(block.closest("[data-session-id]")?.dataset.sessionId || "");
+  rs.save(questionId, { state: "dismissed" });
+}
+</script>
