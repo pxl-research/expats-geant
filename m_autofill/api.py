@@ -1,9 +1,10 @@
 """FastAPI endpoints for M-Autofill answer suggestion service."""
 
 import os
+import uuid
 from datetime import UTC, datetime
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile, status
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
@@ -17,6 +18,7 @@ from m_autofill.models import (
 )
 from m_autofill.rag_pipeline import RAGPipeline
 from m_autofill.validation import FileValidationError, validate_file_upload
+from m_shared.adapters.registry import get_adapter
 from m_shared.auth.jwt_handler import create_token
 from m_shared.auth.oauth import (
     OIDCConfigurationError,
@@ -26,6 +28,7 @@ from m_shared.auth.oauth import (
     get_authorization_url,
 )
 from m_shared.llm.client import LLMClient
+from m_shared.models.response import Response as SurveyResponse
 from m_shared.session.manager import SessionManager
 from m_shared.utils.audit import AuditLogger
 
@@ -725,4 +728,233 @@ Last updated: January 2026
 """
         return privacy_text
 
+    # ------------------------------------------------------------------
+    # Survey import / retrieval
+    # ------------------------------------------------------------------
+
+    @app.post("/surveys/import", tags=["Surveys"])
+    async def import_survey(
+        request: Request,
+        file: UploadFile = File(...),
+        format: str = Form(...),
+    ):
+        """Parse a survey file and store it for the current session.
+
+        Accepts a platform-specific survey file (QSF, LSS, QTI, SM JSON)
+        and converts it to the internal Survey model using the matching adapter.
+        The parsed survey is persisted to the caller's session directory.
+
+        Args:
+            file: Survey file upload.
+            format: Format identifier — one of: qsf, lss, qti, sm.
+
+        Returns:
+            {"survey_id": session_id} — the survey_id equals the caller's session_id.
+
+        Raises:
+            HTTPException: 422 if format unknown, 400 if file cannot be parsed.
+        """
+        session = request.state.session
+        manager = request.state.session_manager
+
+        try:
+            adapter = get_adapter(format)
+        except KeyError:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Unsupported format '{format}'. Supported: qsf, lss, qti, sm.",
+            )
+
+        content = await file.read()
+        try:
+            content_str = content.decode("utf-8")
+        except UnicodeDecodeError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Survey file must be UTF-8 encoded text (XML or JSON).",
+            )
+
+        try:
+            survey = adapter.import_survey(content_str)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Could not parse survey: {exc}",
+            )
+
+        # Store format in metadata so capabilities and submit endpoints can find it
+        survey.metadata["format"] = format
+
+        session_path = manager._get_session_path(session.session_id)
+        session_path.mkdir(parents=True, exist_ok=True)
+        (session_path / "survey.json").write_text(survey.model_dump_json())
+
+        return {"survey_id": session.session_id}
+
+    @app.get("/surveys/{survey_id}", tags=["Surveys"])
+    async def get_survey(request: Request, survey_id: str):
+        """Retrieve a previously imported survey by ID.
+
+        The survey_id equals the session_id of the session that imported it.
+
+        Args:
+            survey_id: Session-scoped survey identifier returned by POST /surveys/import.
+
+        Returns:
+            Survey dict.
+
+        Raises:
+            HTTPException: 404 if not found or session has expired.
+        """
+        manager = request.state.session_manager
+        survey_path = manager._get_session_path(survey_id) / "survey.json"
+
+        if not survey_path.exists():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Survey '{survey_id}' not found or session expired.",
+            )
+
+        import json as _json
+
+        return _json.loads(survey_path.read_text())
+
+    # ------------------------------------------------------------------
+    # Adapter capabilities
+    # ------------------------------------------------------------------
+
+    @app.get("/adapters/{format}/capabilities", tags=["Adapters"])
+    async def get_adapter_capabilities(format: str):
+        """Return the capabilities supported by the adapter for a given format.
+
+        Args:
+            format: Format identifier (e.g. qsf, lss, qti, sm).
+
+        Returns:
+            List of capability strings: one or more of "import", "export", "submit".
+
+        Raises:
+            HTTPException: 422 if no adapter is registered for the format.
+        """
+        try:
+            adapter = get_adapter(format)
+        except KeyError:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"No adapter for format '{format}'. Supported: qsf, lss, qti, sm.",
+            )
+        return sorted(adapter.capabilities())
+
+    # ------------------------------------------------------------------
+    # Response submission
+    # ------------------------------------------------------------------
+
+    @app.post("/sessions/{session_id}/submit", tags=["Surveys"])
+    async def submit_session_responses(request: Request, session_id: str):
+        """Submit survey responses to the originating platform.
+
+        Loads the survey stored for the session, converts the submitted response
+        dict to internal Response objects (preserving platform metadata for SGQA
+        field mapping), and delegates to the adapter's submit_responses().
+
+        The request body must be a JSON object mapping form field names (``q_{question_id}``)
+        to answer values.
+
+        Args:
+            session_id: Session/survey identifier.
+
+        Returns:
+            {"status": "submitted", "session_id": session_id}
+
+        Raises:
+            HTTPException: 404 if survey not found, 422 if adapter lacks submit
+                capability or credentials are missing, 502 if platform call fails.
+        """
+        import json as _json
+
+        manager = request.state.session_manager
+        survey_path = manager._get_session_path(session_id) / "survey.json"
+
+        if not survey_path.exists():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Survey '{session_id}' not found or session expired.",
+            )
+
+        survey_data = _json.loads(survey_path.read_text())
+        survey_format = survey_data.get("metadata", {}).get("format", "")
+
+        if not survey_format:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Survey has no format metadata — cannot determine submission adapter.",
+            )
+
+        adapter_kwargs = _adapter_credentials(survey_format)
+        try:
+            adapter = get_adapter(survey_format, **adapter_kwargs)
+        except KeyError:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"No adapter for format '{survey_format}'.",
+            )
+
+        if "submit" not in adapter.capabilities():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Adapter for '{survey_format}' does not support response submission.",
+            )
+
+        # Build a question-id → question metadata lookup for SGQA key resolution
+        question_meta: dict[str, dict] = {}
+        for section in survey_data.get("sections", []):
+            for q in section.get("questions", []):
+                question_meta[q["id"]] = q.get("metadata", {})
+
+        body = await request.json()
+
+        responses: list[SurveyResponse] = []
+        for field_key, answer_value in body.items():
+            if field_key.startswith("_"):
+                continue
+            # Form fields are named "q_{question.id}" — strip the "q_" prefix
+            question_id = field_key[2:] if field_key.startswith("q_") else field_key
+            q_meta = question_meta.get(question_id, {})
+            responses.append(
+                SurveyResponse(
+                    id=str(uuid.uuid4()),
+                    question_id=question_id,
+                    answer_value=answer_value,
+                    session_id=session_id,
+                    metadata={"ls_qid": q_meta["ls_qid"]} if "ls_qid" in q_meta else {},
+                )
+            )
+
+        platform_survey_id = survey_data.get("id", session_id)
+        try:
+            adapter.submit_responses(survey_id=platform_survey_id, responses=responses)
+        except NotImplementedError:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Adapter for '{survey_format}' does not support response submission.",
+            )
+        except (ValueError, RuntimeError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Submission to platform failed: {exc}",
+            )
+
+        return {"status": "submitted", "session_id": session_id}
+
     return app
+
+
+def _adapter_credentials(format: str) -> dict:
+    """Read platform credentials from environment variables."""
+    if format in ("lss", "limesurvey"):
+        return {
+            "api_url": os.getenv("LIMESURVEY_API_URL"),
+            "username": os.getenv("LIMESURVEY_USERNAME"),
+            "password": os.getenv("LIMESURVEY_PASSWORD"),
+        }
+    return {}
