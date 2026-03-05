@@ -36,8 +36,29 @@
         {% endfor %}
       </select>
     </div>
-    <button type="submit" class="btn btn-primary">Import Survey</button>
+    <button type="submit" class="btn btn-primary" id="submit-btn">Import Survey</button>
   </form>
 </div>
 
+<script>
+// Auto-select format from file extension
+document.getElementById('file').addEventListener('change', function () {
+  const ext = this.value.split('.').pop().toLowerCase();
+  const map = { qsf: 'qsf', lss: 'lss', xml: 'qti', zip: 'qti' };
+  const fmt = map[ext];
+  if (fmt) {
+    const sel = document.getElementById('format');
+    for (const opt of sel.options) {
+      if (opt.value === fmt) { opt.selected = true; break; }
+    }
+  }
+});
+
+// Show progress on submit
+document.querySelector('form').addEventListener('submit', function () {
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Importing…';
+});
+</script>
 {% endblock %}

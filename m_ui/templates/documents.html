@@ -31,11 +31,22 @@
       <input type="file" id="files" name="files" multiple
              accept=".pdf,.docx,.doc,.txt,.md">
     </div>
-    <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
-      <button type="submit" class="btn btn-primary">Upload &amp; Continue</button>
+    <div style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center;">
+      <button type="submit" class="btn btn-primary" id="upload-btn">Upload &amp; Continue</button>
       <a href="/session/{{ session_id }}/review" class="btn btn-ghost">Skip</a>
+      <span id="upload-progress" style="display:none; font-size:0.875rem; color:var(--text-muted); font-style:italic;">
+        Uploading and indexing documents…
+      </span>
     </div>
   </form>
 </div>
+
+<script>
+document.querySelector('form').addEventListener('submit', function () {
+  const btn = document.getElementById('upload-btn');
+  btn.disabled = true;
+  document.getElementById('upload-progress').style.display = 'inline';
+});
+</script>
 
 {% endblock %}

@@ -850,7 +850,11 @@ Last updated: January 2026
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"No adapter for format '{format}'. Supported: qsf, lss, qti, sm.",
             )
-        return sorted(adapter.capabilities())
+        caps = set(adapter.capabilities())
+        # Only advertise "submit" if the required platform credentials are configured
+        if "submit" in caps and not any(_adapter_credentials(format).values()):
+            caps.discard("submit")
+        return sorted(caps)
 
     # ------------------------------------------------------------------
     # Response submission
