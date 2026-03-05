@@ -19,3 +19,7 @@ Authlib>=1.3
 
 # Utilities
 tqdm>=4.67.2
+
+# M-UI frontend
+jinja2>=3.1.0
+itsdangerous>=2.2.0

@@ -58,6 +58,22 @@ services:
     networks:
       - m-autofill-network
 
+  ui:
+    build:
+      context: .
+      dockerfile: m_ui/Dockerfile
+    container_name: m-ui
+    ports:
+      - "8002:8002"
+    environment:
+      - AUTOFILL_API_URL=http://m-autofill:8001
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      - m-autofill
+    restart: unless-stopped
+    networks:
+      - m-autofill-network
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
     container_name: keycloak
