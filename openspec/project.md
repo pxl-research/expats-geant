@@ -40,7 +40,10 @@ The platform operates "privacy by default" with on-premise deployment options, s
 
 **Authentication & Authorization:**
 
-- OAuth 2.0 and JWT for secure API access and token-based authentication
+- OIDC (OpenID Connect) and JWT for secure API access and token-based authentication
+- Keycloak as the default bundled identity provider (self-hosted, EU data locality)
+- Provider-agnostic: any OIDC-compliant provider works without code changes
+- Optional institutional federation (Shibboleth, Azure AD, LDAP) via Keycloak admin panel
 
 **Testing:**
 
