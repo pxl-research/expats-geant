@@ -38,17 +38,24 @@ The system SHALL provide a `SurveyAdapter` base class defining a common interfac
 
 ### Requirement: Adapter Capability Discovery
 
-The system SHALL allow consumers to inspect what operations an adapter supports before invoking them. Each adapter SHALL return a set of capability strings from `capabilities()`. Defined capability strings: `"import"`, `"export"`, `"submit"`, `"create"`.
+The system SHALL allow consumers to inspect what operations an adapter supports before invoking them. Each adapter SHALL return a set of capability strings from `capabilities()`. Defined capability strings: `"import"`, `"export"`, `"submit"`, `"create"`, `"api_create"`. `"create"` indicates the adapter implements `create_survey()`; `"api_create"` additionally indicates that `create_survey()` pushes to a live platform API and returns a platform-assigned ID (as opposed to a file-export fallback).
 
 #### Scenario: Adapter reports supported capabilities
 
 - **WHEN** `capabilities()` is called on a LimeSurvey or Qualtrics adapter
-- **THEN** it returns a set containing `"import"`, `"export"`, `"submit"`, and `"create"`
+- **THEN** it returns a set containing `"import"`, `"export"`, `"submit"`, `"create"`, and `"api_create"`
 
 #### Scenario: Adapter reports limited capabilities
 
 - **WHEN** `capabilities()` is called on a SurveyMonkey or QTI adapter
-- **THEN** it returns a set containing `"import"`, `"export"`, and `"create"` but NOT `"submit"`
+- **THEN** it returns a set containing `"import"`, `"export"`, and `"create"` but NOT `"submit"` or `"api_create"`
+
+#### Scenario: created_via reflects actual creation path
+
+- **WHEN** `POST /create` succeeds for a LimeSurvey or Qualtrics adapter
+- **THEN** the response contains `created_via: "api"` and a platform-assigned survey ID
+- **WHEN** `POST /create` succeeds for a SurveyMonkey or QTI adapter
+- **THEN** the response contains `created_via: "file_export"` and serialized file content
 
 ## ADDED Requirements
 
