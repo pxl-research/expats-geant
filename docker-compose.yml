@@ -24,7 +24,7 @@ services:
 
       # LLM Configuration
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - LLM_MODEL=${LLM_MODEL:-openrouter/meta-llama/llama-3.1-8b-instruct}
+      - LLM_MODEL=${LLM_MODEL:-anthropic/claude-haiku-4.5}
       - LLM_BASE_URL=${LLM_BASE_URL:-https://openrouter.ai/api/v1}
 
       # Session Configuration
@@ -84,8 +84,7 @@ services:
       - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-change-me}
       - OIDC_REDIRECT_URI=${OIDC_REDIRECT_URI:-http://localhost:8002/auth/callback}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - LLM_MODEL=${LLM_MODEL:-openrouter/meta-llama/llama-3.1-8b-instruct}
+      - LLM_MODEL=${LLM_MODEL:-anthropic/claude-haiku-4.5}
       - LLM_BASE_URL=${LLM_BASE_URL:-https://openrouter.ai/api/v1}
       - SESSIONS_BASE_PATH=/app/data/sessions
       - SESSION_TTL_HOURS=${SESSION_TTL_HOURS:-24}
