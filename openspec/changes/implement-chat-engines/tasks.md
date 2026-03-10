@@ -7,8 +7,8 @@
 
 ## 2. Session Infrastructure
 - [x] 2.1 Extend `m_shared/session/manager.py` for M-Chat session type
-  - [ ] 2.1a Add `session_type` field (`"autofill"` | `"chat"`) to session metadata
-  - [ ] 2.1b M-Chat session creation initialises all required files with empty/default values
+  - [x] 2.1a Add `session_type` field (`"autofill"` | `"chat"`) to session metadata
+  - [x] 2.1b M-Chat session creation initialises all required files with empty/default values
 - [x] 2.2 Implement `m_chat/session.py` — session data helpers
   - [x] 2.2a `load_draft_survey(session_id) -> Survey | None`
   - [x] 2.2b `save_draft_survey(session_id, survey: Survey) -> None`
@@ -25,8 +25,8 @@
 - [x] 3.1 Implement style guide document processing (`m_chat/style.py`)
   - [x] 3.1a Extract text from uploaded style guide doc via MarkItDown (`m_shared/vectordb/utils.py`)
   - [x] 3.1b LLM call: summarise extracted text into concise style rules
-  - [ ] 3.1c Store summary in `style_profile.json` under `document_summary`
-  - [ ] 3.1d Save uploaded file to `sessions/{session_id}/style_documents/`
+  - [x] 3.1c Store summary in `style_profile.json` under `document_summary`
+  - [x] 3.1d Save uploaded file to `sessions/{session_id}/style_documents/`
 - [x] 3.2 Implement `build_style_context(profile: dict) -> str` — formats profile into LLM system prompt fragment
 - [x] 3.3 Unit tests for style processing (10+ tests)
 

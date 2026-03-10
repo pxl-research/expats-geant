@@ -515,9 +515,14 @@ def create_app(
             jwt_token,
             ttl_hours=body.ttl_hours,
             explicit_session_id=chat_session_id,
+            session_type="chat",
         )
         base_path = str(session_manager.base_path)
         save_style_profile(base_path, chat_session_id, dict(DEFAULT_STYLE_PROFILE))
+        save_tag_vocabulary(base_path, chat_session_id, {})
+        session_path = get_session_path(base_path, chat_session_id)
+        (session_path / "conversation.json").write_text("[]")
+        (session_path / "style_documents").mkdir(exist_ok=True)
         return ChatSessionResponse(
             session_id=session.session_id,
             user_id=session.user_id,
@@ -728,7 +733,7 @@ def create_app(
                 detail=f"Unsupported file type '{suffix}'. Allowed: .docx .pdf .txt .md .pptx",
             )
         base_path = str(session_manager.base_path)
-        uploads_dir = get_session_path(base_path, session_id) / "uploads"
+        uploads_dir = get_session_path(base_path, session_id) / "style_documents"
         uploads_dir.mkdir(exist_ok=True)
         tmp_path = uploads_dir / f"style_guide{suffix}"
         tmp_path.write_bytes(await file.read())

@@ -115,6 +115,7 @@ class SessionManager:
         terms_version: str = "1.0",
         privacy_version: str = "1.0",
         explicit_session_id: str | None = None,
+        session_type: str | None = None,
     ) -> Session:
         """Create a new session with isolated storage.
 
@@ -127,6 +128,7 @@ class SessionManager:
             terms_version: Terms version if consent not provided (default: "1.0")
             privacy_version: Privacy policy version if consent not provided (default: "1.0")
             explicit_session_id: Optional explicit session ID (skips JWT hash derivation)
+            session_type: Optional session type tag (e.g. "chat", "autofill")
 
         Returns:
             Created Session object
@@ -155,13 +157,17 @@ class SessionManager:
         created_at = datetime.utcnow()
         expires_at = created_at + timedelta(hours=ttl_hours)
 
+        meta: dict = {"ttl_hours": ttl_hours}
+        if session_type is not None:
+            meta["session_type"] = session_type
+
         session = Session(
             session_id=session_id,
             user_id=user_id,
             created_at=created_at,
             expires_at=expires_at,
             isolation_scope=isolation_scope,
-            metadata={"ttl_hours": ttl_hours},
+            metadata=meta,
         )
 
         # Save metadata
