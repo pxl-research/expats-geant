@@ -270,6 +270,7 @@ async def chat_page(request: Request, session_id: str):
         session = await api_client.get_session(token, session_id)
         style = await api_client.get_style(token, session_id)
         survey = await api_client.get_survey(token, session_id)
+        messages = await api_client.get_messages(token, session_id)
     except APIError as exc:
         if exc.status_code == 403:
             return _render_error(request, "Session not found or access denied.", 403)
@@ -283,7 +284,7 @@ async def chat_page(request: Request, session_id: str):
             "session": session,
             "style": style,
             "survey": survey,
-            "messages": [],  # history rendered progressively via HTMX
+            "messages": messages,
         },
     )
 
@@ -326,6 +327,26 @@ async def chat_send(
             "survey": survey,
             "session_id": session_id,
         },
+    )
+
+
+@router.get("/session/{session_id}/survey-preview", response_class=HTMLResponse)
+async def survey_preview_partial(request: Request, session_id: str):
+    """HTMX: return current survey preview partial (polled after survey_updated)."""
+    token = get_token(request)
+    if not token:
+        return HTMLResponse("<p>Not authenticated.</p>", status_code=401)
+
+    survey = None
+    try:
+        survey = await api_client.get_survey(token, session_id)
+    except APIError:
+        pass
+
+    return templates.TemplateResponse(
+        request,
+        "partials/survey_preview.html",
+        {"survey": survey},
     )
 
 
@@ -377,10 +398,11 @@ async def export_page(request: Request, session_id: str):
         return RedirectResponse(url="/auth/login", status_code=302)
 
     survey = None
+    survey_error = None
     try:
         survey = await api_client.get_survey(token, session_id)
-    except APIError:
-        pass
+    except APIError as exc:
+        survey_error = f"Could not load survey draft: {exc.detail} (status {exc.status_code})"
 
     return templates.TemplateResponse(
         request,
@@ -388,6 +410,7 @@ async def export_page(request: Request, session_id: str):
         {
             "session_id": session_id,
             "survey": survey,
+            "survey_error": survey_error,
             "formats": EXPORT_FORMATS,
         },
     )

@@ -233,6 +233,20 @@ async def create_survey_on_platform(
     return resp.json()
 
 
+async def get_messages(token: str, session_id: str) -> list[dict[str, Any]]:
+    """Get conversation history for a chat session.
+
+    GET /chat/{session_id}/messages → {"messages": [...]}
+    """
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{MCHAT_API_URL}/chat/{session_id}/messages",
+            headers=_auth_headers(token),
+        )
+    _raise_for_status(resp)
+    return resp.json().get("messages", [])
+
+
 async def reset_session(token: str, session_id: str) -> dict[str, Any]:
     """Clear draft survey and tag vocabulary, leaving conversation history.
 

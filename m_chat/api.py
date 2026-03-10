@@ -551,6 +551,20 @@ def create_app(
             )
         return ChatSessionListResponse(sessions=session_responses)
 
+    @app.get("/chat/{session_id}/messages")
+    async def get_chat_messages(request: Request, session_id: str):
+        """Get the full conversation history for a chat session."""
+        user_id = request.state.claims["user_id"]
+        session = _verify_session_owner(session_id, user_id, session_manager)
+        if session is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Session not found or access denied",
+            )
+        base_path = str(session_manager.base_path)
+        messages = load_conversation(base_path, session_id)
+        return {"messages": messages}
+
     @app.get("/chat/{session_id}", response_model=ChatSessionResponse)
     async def get_chat_session(request: Request, session_id: str):
         """Get metadata for a specific chat session."""
@@ -633,9 +647,46 @@ def create_app(
             "Current draft survey:\n"
             f"{_compact_survey_summary(draft) if draft else 'No survey draft exists yet.'}\n\n"
             + (f"Reference documents:\n{docs_context}\n\n" if docs_context else "")
-            + "When you propose changes to the survey, output the complete updated survey JSON\n"
-            "inside <survey_update> tags. Only include <survey_update> when proposing structural\n"
-            "changes — for questions or explanations, respond with plain text."
+            + "When you propose changes to the survey, output the complete updated survey JSON "
+            "inside <survey_update> tags. Only include <survey_update> when proposing structural "
+            "changes — for questions or explanations, respond with plain text.\n\n"
+            "REQUIRED JSON SCHEMA — use these exact field names, no others:\n"
+            "{\n"
+            '  "id": "survey_1",\n'
+            '  "title": "Survey title",\n'
+            '  "description": "Optional description",\n'
+            '  "metadata": {},\n'
+            '  "sections": [\n'
+            "    {\n"
+            '      "id": "sec_1",\n'
+            '      "title": "Section title",\n'
+            '      "description": "",\n'
+            '      "order": 0,\n'
+            '      "metadata": {},\n'
+            '      "questions": [\n'
+            "        {\n"
+            '          "id": "q_1",\n'
+            '          "text": "Question text shown to respondent",\n'
+            '          "type": "open_ended",\n'
+            '          "answer_options": [],\n'
+            '          "order": 0,\n'
+            '          "required": true,\n'
+            '          "min_value": null,\n'
+            '          "max_value": null,\n'
+            '          "step": null,\n'
+            '          "metadata": {}\n'
+            "        }\n"
+            "      ]\n"
+            "    }\n"
+            "  ]\n"
+            "}\n"
+            "Rules:\n"
+            "- 'type' MUST be one of: open_ended, single_choice, multiple_choice, ranking, slider\n"
+            "- single_choice, multiple_choice, ranking MUST have answer_options: "
+            '[{"id": "opt_1", "text": "Label", "value": null}]\n'
+            "- slider MUST have min_value and max_value as numbers\n"
+            "- Use short unique IDs (sec_1, q_1, opt_1, etc.)\n"
+            "- Output the COMPLETE survey every time, not just the changed parts\n"
         )
 
         history = conversation[-_LAST_N_MESSAGES:]

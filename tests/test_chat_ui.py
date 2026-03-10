@@ -474,6 +474,9 @@ def test_chat_page_renders(client):
     respx.get(f"{BASE}/chat/{SESSION_ID}/survey").mock(
         return_value=httpx.Response(200, json={"survey": None})
     )
+    respx.get(f"{BASE}/chat/{SESSION_ID}/messages").mock(
+        return_value=httpx.Response(200, json={"messages": []})
+    )
     resp = client.get(f"/session/{SESSION_ID}/chat", cookies=COOKIE)
     assert resp.status_code == 200
     assert "chat" in resp.text.lower()
