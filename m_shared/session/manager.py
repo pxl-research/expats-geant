@@ -114,6 +114,7 @@ class SessionManager:
         consent: Consent | None = None,
         terms_version: str = "1.0",
         privacy_version: str = "1.0",
+        explicit_session_id: str | None = None,
     ) -> Session:
         """Create a new session with isolated storage.
 
@@ -125,6 +126,7 @@ class SessionManager:
             consent: Optional pre-created Consent object
             terms_version: Terms version if consent not provided (default: "1.0")
             privacy_version: Privacy policy version if consent not provided (default: "1.0")
+            explicit_session_id: Optional explicit session ID (skips JWT hash derivation)
 
         Returns:
             Created Session object
@@ -132,7 +134,7 @@ class SessionManager:
         Raises:
             FileExistsError: If session already exists and is not expired
         """
-        session_id = self._hash_token(jwt_token)
+        session_id = explicit_session_id or self._hash_token(jwt_token)
         session_path = self._get_session_path(session_id)
 
         # Check if session already exists
@@ -274,6 +276,20 @@ class SessionManager:
                     sessions.append(session)
 
         return sessions
+
+    def list_sessions_for_user(self, user_id: str, include_expired: bool = False) -> list[Session]:
+        """List all sessions belonging to a specific user.
+
+        Args:
+            user_id: User identifier to filter by
+            include_expired: Whether to include expired sessions
+
+        Returns:
+            List of Session objects owned by the user
+        """
+        return [
+            s for s in self.list_sessions(include_expired=include_expired) if s.user_id == user_id
+        ]
 
     def cleanup_expired_sessions(self) -> list[str]:
         """Remove all expired sessions.
