@@ -79,7 +79,7 @@ class QualtricsAdapter(SurveyAdapter):
         self._datacenter_id = datacenter_id
 
     def capabilities(self) -> set[str]:
-        return {"import", "export", "submit"}
+        return {"import", "export", "submit", "create"}
 
     # ------------------------------------------------------------------
     # Import
@@ -269,6 +269,37 @@ class QualtricsAdapter(SurveyAdapter):
     # ------------------------------------------------------------------
     # Submit
     # ------------------------------------------------------------------
+
+    def create_survey(self, survey: Survey) -> str:
+        """Push survey to Qualtrics via the v3 Surveys API.
+
+        Reuses export_survey() to produce a QSF payload, then POSTs it to the API.
+
+        Args:
+            survey: The survey to create.
+
+        Returns:
+            Qualtrics-assigned SurveyID string (e.g. "SV_xxxxxxxx").
+
+        Raises:
+            ValueError: If API credentials are not configured.
+            RuntimeError: If the API response contains no SurveyID.
+        """
+        if not self._api_token or not self._datacenter_id:
+            raise ValueError("Qualtrics api_token and datacenter_id must be set to create surveys.")
+        qsf = json.loads(self.export_survey(survey))
+        url = f"{_API_BASE.format(datacenter=self._datacenter_id)}/surveys"
+        headers = {
+            "X-API-TOKEN": self._api_token,
+            "Content-Type": "application/json",
+        }
+        resp = requests.post(url, headers=headers, json=qsf, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        survey_id = data.get("result", {}).get("SurveyID")
+        if not survey_id:
+            raise RuntimeError(f"Qualtrics create_survey returned no SurveyID: {data}")
+        return survey_id
 
     def submit_responses(self, survey_id: str, responses: list[Response]) -> None:
         """Submit responses via the Qualtrics Response Import API v3.

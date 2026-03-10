@@ -66,3 +66,15 @@ class SurveyAdapter(ABC):
         raise NotImplementedError(
             f"{self.__class__.__name__} does not support response submission."
         )
+
+    def create_survey(self, survey: Survey) -> str:
+        """Push survey to platform API or export to file.
+
+        Returns:
+            Platform-assigned survey ID, or serialised file content for
+            adapters without a write API.
+
+        Raises:
+            NotImplementedError: If not overridden by subclass.
+        """
+        raise NotImplementedError(f"{self.__class__.__name__} does not support create_survey()")

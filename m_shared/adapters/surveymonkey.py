@@ -90,7 +90,7 @@ class SurveyMonkeyAdapter(SurveyAdapter):
     """
 
     def capabilities(self) -> set[str]:
-        return {"import", "export"}
+        return {"import", "export", "create"}
 
     # ------------------------------------------------------------------
     # Import
@@ -135,6 +135,10 @@ class SurveyMonkeyAdapter(SurveyAdapter):
             sections=sections,
             metadata={"platform": "surveymonkey", "sm_id": survey_id, **extra},
         )
+
+    def create_survey(self, survey: Survey) -> str:
+        """Export survey to SurveyMonkey JSON format (file-export fallback)."""
+        return self.export_survey(survey)
 
     # ------------------------------------------------------------------
     # Export

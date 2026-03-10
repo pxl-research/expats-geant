@@ -96,7 +96,7 @@ class LimeSurveyAdapter(SurveyAdapter):
         self._password = password
 
     def capabilities(self) -> set[str]:
-        return {"import", "export", "submit"}
+        return {"import", "export", "submit", "create"}
 
     # ------------------------------------------------------------------
     # Import
@@ -365,6 +365,54 @@ class LimeSurveyAdapter(SurveyAdapter):
     # Submit
     # ------------------------------------------------------------------
 
+    def create_survey(self, survey: Survey) -> str:
+        """Push survey to LimeSurvey via the RemoteControl 2 JSON-RPC API.
+
+        Args:
+            survey: The survey to create on the platform.
+
+        Returns:
+            Platform-assigned survey ID as string.
+
+        Raises:
+            ValueError: If API credentials are not configured.
+            RuntimeError: If any RPC call returns an error response.
+        """
+        if not self._api_url or not self._username or not self._password:
+            raise ValueError(
+                "LimeSurvey API URL, username, and password must be set to create surveys."
+            )
+        language = survey.metadata.get("language", "en")
+        session_key = self._get_session_key()
+        sid: int | None = None
+        try:
+            result = self._rpc_call("add_survey", [session_key, 0, survey.title, language, "G"])
+            if isinstance(result, dict) and "status" in result:
+                raise RuntimeError(f"LimeSurvey add_survey failed: {result['status']}")
+            sid = int(result)
+
+            for section in survey.sections:
+                gid_result = self._rpc_call(
+                    "add_group",
+                    [session_key, sid, section.title, section.description or ""],
+                )
+                if isinstance(gid_result, dict) and "status" in gid_result:
+                    raise RuntimeError(f"LimeSurvey add_group failed: {gid_result['status']}")
+                gid = int(gid_result)
+
+                for question in section.questions:
+                    ls_type = _INTERNAL_TO_LS_TYPE.get(question.type, "T")
+                    q_data = _question_to_ls_params(question)
+                    q_result = self._rpc_call(
+                        "add_question",
+                        [session_key, sid, gid, ls_type, question.id, q_data, language],
+                    )
+                    if isinstance(q_result, dict) and "status" in q_result:
+                        raise RuntimeError(f"LimeSurvey add_question failed: {q_result['status']}")
+        finally:
+            self._release_session_key(session_key)
+        return str(sid)
+
     def submit_responses(self, survey_id: str, responses: list[Response]) -> None:
         """Submit responses to LimeSurvey via the RemoteControl 2 JSON-RPC API.
 
@@ -466,6 +514,14 @@ def questions_by_qid_in_group(
 ) -> list[dict[str, Any]]:
     """Return the list of question metadata for a given group ID."""
     return questions_by_gid.get(gid, [])
+
+
+def _question_to_ls_params(question: Question) -> dict:
+    """Return aQuestionData dict for RC2 add_question call."""
+    return {
+        "question": question.text,
+        "mandatory": "Y" if question.required else "N",
+    }
 
 
 def _sub(parent: Element, tag: str, text: str) -> Element:

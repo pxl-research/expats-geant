@@ -82,7 +82,7 @@ class QTIAdapter(SurveyAdapter):
     """
 
     def capabilities(self) -> set[str]:
-        return {"import", "export"}
+        return {"import", "export", "create"}
 
     # ------------------------------------------------------------------
     # Import
@@ -130,6 +130,10 @@ class QTIAdapter(SurveyAdapter):
             sections=sections,
             metadata={"platform": "qti", "qti_identifier": survey_id},
         )
+
+    def create_survey(self, survey: Survey) -> str:
+        """Export survey to QTI 3.0 XML format (file-export fallback)."""
+        return self.export_survey(survey)
 
     # ------------------------------------------------------------------
     # Export
