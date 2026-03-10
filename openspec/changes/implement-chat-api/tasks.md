@@ -61,20 +61,20 @@
   - [x] 4.4c Return extracted topic summary
 - [x] 4.5 Integration tests: full authoring flows
   - [x] 4.5a Start from scratch → chat → refine → export
-  - [ ] 4.5b Upload content document → LLM proposes structure → refine → create on platform
-  - [ ] 4.5c Import existing survey → validate → improve via chat → export
+  - [x] 4.5b Upload content document → LLM proposes structure → refine → create on platform
+  - [x] 4.5c Import existing survey → validate → improve via chat → export
   - [x] 4.5d Session isolation: two users cannot access each other's sessions
   - [x] 4.5e Session resume: disconnect and reconnect within TTL window
 
 ## 5. Docker & Deployment
-- [ ] 5.1 Create `m_chat/Dockerfile` (python:3.11-slim, uvicorn, port 8002)
-- [ ] 5.2 Add `m_chat` service to `docker-compose.yml` with env vars and healthcheck
+- [x] 5.1 Create `m_chat/Dockerfile` (python:3.12-slim, port 8003)
+- [x] 5.2 Add `m_chat` service to `docker-compose.yml` with env vars and healthcheck
 - [ ] 5.3 Verify build and run; test all endpoints via HTTP client
 
 ## Definition of Done
 - [x] All adapter create implementations complete and tested
 - [x] All REST endpoints (context-free + context-aware) passing integration tests
 - [x] Full conversational API passing integration tests (20 new tests; 62 total in m_chat)
-- [ ] Docker build verified; service starts and responds to healthcheck
-- [ ] `openspec validate implement-chat-api --strict` passes
-- [ ] No regressions in existing tests
+- [x] Docker build verified; service starts and responds to healthcheck
+- [x] `openspec validate implement-chat-api --strict` passes
+- [x] No regressions in existing tests

@@ -490,6 +490,145 @@ class TestScenarioIntegration:
         ids2 = [s["session_id"] for s in r2.json()["sessions"]]
         assert sid1 in ids2
 
+    def test_scenario_upload_propose_refine_create(self, client_with_llm, jwt_secret, mock_llm):
+        """Upload content doc → LLM proposes structure → refine → create on platform."""
+        headers = _make_auth_headers("user1")
+        sid = _create_chat_session(client_with_llm, headers)
+
+        # Step 1: Upload content doc — LLM called for topic summary
+        mock_llm.create_completion.return_value = "Employee satisfaction survey topics"
+        with patch(
+            "m_chat.api.document_to_markdown",
+            return_value="Employee satisfaction content for survey design.",
+        ):
+            r_upload = client_with_llm.post(
+                f"/chat/{sid}/upload",
+                files={"file": ("content.txt", b"raw content", "text/plain")},
+                headers=headers,
+            )
+        assert r_upload.status_code == 200, r_upload.text
+        upload_data = r_upload.json()
+        assert upload_data["filename"] == "content.txt"
+        assert upload_data["topic_summary"]
+
+        # Step 2: Plain chat turn — structure proposal without survey update
+        mock_llm.create_completion.return_value = "Sure, let me propose a structure for you."
+        r2 = client_with_llm.post(
+            f"/chat/{sid}",
+            json={"message": "Can you propose a survey structure?"},
+            headers=headers,
+        )
+        assert r2.status_code == 200
+        assert r2.json()["survey_updated"] is False
+
+        # Step 3: Chat turn with survey update embedded
+        survey_json = json.dumps(SAMPLE_SURVEY_DICT)
+        mock_llm.create_completion.return_value = (
+            f"Here is a draft.<survey_update>{survey_json}</survey_update>"
+        )
+        r3 = client_with_llm.post(
+            f"/chat/{sid}",
+            json={"message": "Please create the survey now."},
+            headers=headers,
+        )
+        assert r3.status_code == 200
+        assert r3.json()["survey_updated"] is True
+
+        # Step 4: Refine — another survey update with modified title
+        refined = {**SAMPLE_SURVEY_DICT, "title": "Employee Satisfaction Survey"}
+        refined_json = json.dumps(refined)
+        mock_llm.create_completion.return_value = (
+            f"Refined!<survey_update>{refined_json}</survey_update>"
+        )
+        r4 = client_with_llm.post(
+            f"/chat/{sid}",
+            json={"message": "Change the title to Employee Satisfaction Survey."},
+            headers=headers,
+        )
+        assert r4.status_code == 200
+        assert r4.json()["survey_updated"] is True
+
+        # Step 5: GET survey — confirm refined title persisted
+        r5 = client_with_llm.get(f"/chat/{sid}/survey", headers=headers)
+        assert r5.status_code == 200
+        survey = r5.json()["survey"]
+        assert survey["title"] == "Employee Satisfaction Survey"
+
+        # Step 6: POST /create with QTI (file_export path, no credentials needed)
+        r6 = client_with_llm.post(
+            "/create",
+            json={"format": "qti", "survey": survey},
+            headers=headers,
+        )
+        assert r6.status_code == 200
+        data = r6.json()
+        assert data["created_via"] == "file_export"
+        assert "<assessmentTest" in data["platform_id"]
+
+    def test_scenario_import_validate_improve_export(
+        self, client_with_llm, jwt_secret, mock_llm, session_manager
+    ):
+        """Import existing survey → validate → improve via chat → export."""
+        headers = _make_auth_headers("user_c")
+
+        # Step 1: Import from LimeSurvey format
+        r_import = client_with_llm.post(
+            "/import",
+            json={"format": "limesurvey", "content": MINIMAL_LSS},
+            headers=headers,
+        )
+        assert r_import.status_code == 200, r_import.text
+        imported_survey = r_import.json()["survey"]
+
+        # Step 2: Create chat session
+        sid = _create_chat_session(client_with_llm, headers)
+
+        # Step 3: Seed session draft directly
+        save_draft_survey(
+            str(session_manager.base_path),
+            sid,
+            Survey(**imported_survey),
+        )
+
+        # Step 4: Validate via session_id — mock LLM returns empty issues list
+        mock_llm.create_completion.return_value = "[]"
+        r_validate = client_with_llm.post(
+            "/validate",
+            json={"session_id": sid},
+            headers=headers,
+        )
+        assert r_validate.status_code == 200, r_validate.text
+        assert isinstance(r_validate.json()["issues"], list)
+
+        # Step 5: Chat turn to improve survey
+        improved = {**SAMPLE_SURVEY_DICT, "title": "Improved Test Survey"}
+        improved_json = json.dumps(improved)
+        mock_llm.create_completion.return_value = (
+            f"Improved.<survey_update>{improved_json}</survey_update>"
+        )
+        r_chat = client_with_llm.post(
+            f"/chat/{sid}",
+            json={"message": "Improve the survey title."},
+            headers=headers,
+        )
+        assert r_chat.status_code == 200
+        assert r_chat.json()["survey_updated"] is True
+
+        # Step 6: GET survey — confirm improved title
+        r_survey = client_with_llm.get(f"/chat/{sid}/survey", headers=headers)
+        assert r_survey.status_code == 200
+        survey = r_survey.json()["survey"]
+        assert survey["title"] == "Improved Test Survey"
+
+        # Step 7: Export back to LimeSurvey
+        r_export = client_with_llm.post(
+            "/export",
+            json={"format": "limesurvey", "survey": survey},
+            headers=headers,
+        )
+        assert r_export.status_code == 200
+        assert "<document>" in r_export.json()["content"]
+
     def test_scenario_session_resume(self, app, jwt_secret, mock_llm, session_manager):
         """Session state (conversation + draft) persists across client instances."""
         headers = _make_auth_headers("user1")
