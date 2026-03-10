@@ -539,6 +539,10 @@ def create_app(
         base_path = str(session_manager.base_path)
         session_responses = []
         for s in sessions:
+            # Skip sessions that don't have a conversation.json — they belong
+            # to other services (e.g. m_autofill) sharing the same storage path.
+            if not (get_session_path(base_path, s.session_id) / "conversation.json").exists():
+                continue
             profile = load_style_profile(base_path, s.session_id)
             session_responses.append(
                 ChatSessionResponse(

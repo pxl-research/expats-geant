@@ -507,4 +507,8 @@ async def delete_session(request: Request, session_id: str):
     except APIError as exc:
         return _render_error(request, f"Could not delete session: {exc.detail}", exc.status_code)
 
+    # HTMX requests: return empty body so the card is removed from the DOM.
+    # Regular requests (e.g. form submit): redirect to home.
+    if request.headers.get("HX-Request") == "true":
+        return HTMLResponse("")
     return RedirectResponse(url="/", status_code=302)
