@@ -9,7 +9,6 @@ from uuid import uuid4
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse
-from pydantic import ValidationError
 
 from m_autofill.validation import validate_file_upload
 from m_chat.models import (
@@ -712,7 +711,7 @@ def create_app(
                 survey_obj = Survey(**survey_dict)
                 save_draft_survey(base_path, session_id, survey_obj)
                 survey_updated = True
-            except (ValidationError, Exception) as exc:
+            except Exception as exc:
                 logging.getLogger(__name__).warning("Invalid survey_update payload: %s", exc)
 
         append_message(base_path, session_id, "user", body.message)
