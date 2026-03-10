@@ -79,7 +79,7 @@ class QualtricsAdapter(SurveyAdapter):
         self._datacenter_id = datacenter_id
 
     def capabilities(self) -> set[str]:
-        return {"import", "export", "submit", "create"}
+        return {"import", "export", "submit", "create", "api_create"}
 
     # ------------------------------------------------------------------
     # Import

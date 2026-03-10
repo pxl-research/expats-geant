@@ -54,7 +54,7 @@ def _parse_suggestions(raw: str) -> list[SuggestionResult]:
     logging.warning(
         "LLM suggestion response was not valid JSON; returning raw text as single suggestion"
     )
-    return [SuggestionResult(phrasing=raw.strip(), reasoning="")]
+    return [SuggestionResult(phrasing=text, reasoning="")]
 
 
 def suggest_question(

@@ -50,7 +50,10 @@ class MySurveyAdapter(SurveyAdapter):
         ...
 ```
 
-Defined capability strings: `"import"`, `"export"`, `"submit"`.
+Defined capability strings: `"import"`, `"export"`, `"submit"`, `"create"`, `"api_create"`.
+
+- `"create"` — adapter implements `create_survey()`; may push to a platform API or fall back to file export
+- `"api_create"` — `create_survey()` pushes to a live platform API and returns a platform ID (LimeSurvey, Qualtrics only); absent on file-fallback adapters (SurveyMonkey, QTI)
 
 Callers use `capabilities()` to guard optional operations before calling them:
 

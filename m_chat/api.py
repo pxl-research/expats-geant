@@ -201,7 +201,7 @@ def create_app(
             )
 
     # ------------------------------------------------------------------
-    # Stateless transform endpoints (no auth required)
+    # Stateless transform endpoints (auth required; no session_id needed)
     # ------------------------------------------------------------------
 
     @app.post("/import", response_model=ImportResponse)
@@ -248,7 +248,7 @@ def create_app(
         if credentials_present and "create" in adapter.capabilities():
             try:
                 content = adapter.create_survey(survey)
-                created_via = "api"
+                created_via = "api" if "api_create" in adapter.capabilities() else "file_export"
             except (ValueError, NotImplementedError):
                 content = adapter.export_survey(survey)
                 created_via = "file_export"
@@ -308,16 +308,11 @@ def create_app(
     @app.post("/validate", response_model=ValidateResponse)
     async def validate_endpoint(request: Request, body: ValidateRequest):
         """Validate a question or full survey for quality issues."""
-        if body.question is None and body.survey is None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Either 'question' or 'survey' must be provided",
-            )
-
         claims = request.state.claims
         user_id = claims.get("user_id")
 
         style_profile = None
+        session_draft = None
         if body.session_id:
             ctx = _get_chat_session_context(body.session_id, user_id, session_manager)
             if ctx is None:
@@ -326,6 +321,13 @@ def create_app(
                     detail="Chat session not found or access denied",
                 )
             style_profile = ctx["style_profile"]
+            session_draft = ctx.get("draft_survey")
+
+        if body.question is None and body.survey is None and session_draft is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Either 'question' or 'survey' must be provided, or a session_id with an existing draft",
+            )
 
         issues = []
         if body.question is not None:
@@ -360,6 +362,21 @@ def create_app(
                 )
             raw_issues = validate_survey(
                 survey=survey,
+                llm_client=llm_client,
+                style_profile=style_profile,
+            )
+            issues = [
+                {
+                    "question_id": i.question_id,
+                    "severity": i.severity,
+                    "code": i.code,
+                    "message": i.message,
+                }
+                for i in raw_issues
+            ]
+        elif session_draft is not None:
+            raw_issues = validate_survey(
+                survey=session_draft,
                 llm_client=llm_client,
                 style_profile=style_profile,
             )

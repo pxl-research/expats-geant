@@ -2,7 +2,6 @@
 
 import json
 import logging
-import re
 from dataclasses import dataclass
 from typing import Literal
 
@@ -39,13 +38,7 @@ _LEADING_PHRASES = [
     "is it not",
 ]
 
-_DOUBLE_BARRELED_PATTERN = re.compile(
-    r"\b(\w[\w\s,]+)\s+(?:and|or)\s+(\w[\w\s,]+)\b",
-    re.IGNORECASE,
-)
 
-
-# A "clause" heuristic: double-barreled if the text contains a verb on each side
 def _is_double_barreled(text: str) -> bool:
     """Heuristic: detect ' and ' or ' or ' joining two non-trivial clause fragments.
 

@@ -96,7 +96,7 @@ class LimeSurveyAdapter(SurveyAdapter):
         self._password = password
 
     def capabilities(self) -> set[str]:
-        return {"import", "export", "submit", "create"}
+        return {"import", "export", "submit", "create", "api_create"}
 
     # ------------------------------------------------------------------
     # Import
