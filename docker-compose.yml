@@ -127,6 +127,23 @@ services:
     networks:
       - m-autofill-network
 
+  m_chat_ui:
+    build:
+      context: .
+      dockerfile: m_chat_ui/Dockerfile
+    container_name: m-chat-ui
+    ports:
+      - "8004:8004"
+    environment:
+      - MCHAT_API_URL=http://m-chat:8003
+      - MCHAT_PUBLIC_URL=${MCHAT_PUBLIC_URL:-http://localhost:8003}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      - m-chat
+    restart: unless-stopped
+    networks:
+      - m-autofill-network
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
     container_name: keycloak

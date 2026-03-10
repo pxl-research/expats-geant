@@ -1,0 +1,25 @@
+{% if error %}
+<div class="alert alert-error" role="alert">
+  <svg class="alert-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  <div>
+    <strong>Upload failed</strong><br>
+    <span>{{ error }}</span>
+  </div>
+</div>
+{% else %}
+<div class="alert alert-info" role="status">
+  <svg class="alert-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+  <div>
+    <strong>Document added to session context</strong>
+    <div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.25rem; flex-wrap:wrap">
+      <span class="mono" style="font-size:0.75rem; background:rgba(29,78,216,0.08); padding:1px 6px; border-radius:4px">{{ filename }}</span>
+      <span style="font-size:0.75rem; color:var(--info)">{{ characters_extracted | default(0) | int }} characters indexed</span>
+    </div>
+    {% if topic_summary %}
+    <p style="margin-top:0.5rem; font-size:0.8125rem; color:var(--info); line-height:1.5">
+      {{ topic_summary[:200] }}{% if topic_summary|length > 200 %}&hellip;{% endif %}
+    </p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}

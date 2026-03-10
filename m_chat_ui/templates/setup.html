@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+
+{% block title %}Setup{% endblock %}
+
+{% block session_name %}
+<span class="nav-session">Setup &mdash; {{ session_id[:8] }}&hellip;</span>
+{% endblock %}
+
+{% block extra_css %}
+.setup-layout {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .setup-layout { grid-template-columns: 1fr; }
+}
+
+.upload-zone {
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  background: var(--surface);
+  position: relative;
+}
+
+.upload-zone:hover,
+.upload-zone:focus-within {
+  border-color: var(--brand-mid);
+  background: var(--brand-light);
+}
+
+.upload-zone input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+
+.upload-zone-icon {
+  width: 40px;
+  height: 40px;
+  background: var(--brand-light);
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+  color: var(--brand);
+}
+
+.step-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.75rem;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.step.active { color: var(--brand); }
+
+.step-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.step.active .step-dot {
+  background: var(--brand);
+  color: #fff;
+}
+
+.step-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  max-width: 40px;
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="step-indicator" role="list" aria-label="Setup steps">
+    <div class="step active" role="listitem">
+      <span class="step-dot" aria-hidden="true">1</span>
+      Style setup
+    </div>
+    <div class="step-line" aria-hidden="true"></div>
+    <div class="step" role="listitem">
+      <span class="step-dot" aria-hidden="true">2</span>
+      Chat
+    </div>
+    <div class="step-line" aria-hidden="true"></div>
+    <div class="step" role="listitem">
+      <span class="step-dot" aria-hidden="true">3</span>
+      Export
+    </div>
+  </div>
+
+  <div class="page-header">
+    <h1>Configure your survey style</h1>
+    <p class="page-subtitle">These settings help the AI match your organisation's voice and format.</p>
+  </div>
+
+  <div class="setup-layout">
+    <div>
+      <form method="post" action="/session/{{ session_id }}/setup">
+        <div class="card">
+          <h2 style="margin-bottom:1.25rem">Language &amp; style preferences</h2>
+
+          <div class="form-group">
+            <label for="language">Survey language</label>
+            <select id="language" name="language">
+              <option value="en" {% if style.language == 'en' or not style.language %}selected{% endif %}>English</option>
+              <option value="nl" {% if style.language == 'nl' %}selected{% endif %}>Nederlands</option>
+              <option value="fr" {% if style.language == 'fr' %}selected{% endif %}>Français</option>
+              <option value="de" {% if style.language == 'de' %}selected{% endif %}>Deutsch</option>
+              <option value="es" {% if style.language == 'es' %}selected{% endif %}>Español</option>
+              <option value="it" {% if style.language == 'it' %}selected{% endif %}>Italiano</option>
+              <option value="pt" {% if style.language == 'pt' %}selected{% endif %}>Português</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom:0">
+            <label for="free_text">
+              Style guidelines
+              <span class="label-hint">(optional)</span>
+            </label>
+            <textarea
+              id="free_text"
+              name="free_text"
+              rows="5"
+              placeholder="E.g. Use formal academic language, avoid jargon, keep questions under 20 words, use Likert scales for attitudes…"
+            >{{ style.free_text or '' }}</textarea>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary btn-lg">
+            Start chatting
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </button>
+          <a href="/session/{{ session_id }}/chat" class="btn btn-ghost">Skip for now</a>
+        </div>
+      </form>
+    </div>
+
+    <div>
+      <div class="card">
+        <h2 style="margin-bottom:0.25rem">Style guide document</h2>
+        <p class="text-xs text-muted" style="margin-bottom:1.25rem">Upload a document and the AI will extract style rules automatically.</p>
+
+        <div
+          class="upload-zone"
+          id="style-doc-upload-zone"
+          role="region"
+          aria-label="Style document upload"
+        >
+          <input
+            type="file"
+            name="file"
+            id="style-doc-file"
+            accept=".docx,.pdf,.txt,.md,.pptx"
+            aria-label="Choose style guide document"
+            hx-post="/session/{{ session_id }}/setup/style-doc"
+            hx-target="#style-doc-result"
+            hx-swap="innerHTML"
+            hx-encoding="multipart/form-data"
+            hx-trigger="change"
+            hx-indicator="#style-doc-spinner"
+          >
+          <div class="upload-zone-icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <p class="text-sm" style="margin-bottom:0.25rem; font-weight:500; color:var(--text)">Click to upload</p>
+          <p class="text-xs text-muted">DOCX, PDF, TXT, MD, PPTX accepted</p>
+        </div>
+
+        <div class="htmx-indicator" id="style-doc-spinner" style="margin-top:0.75rem; justify-content:center">
+          <div class="spinner"></div>
+          <span class="text-xs text-muted">Extracting style rules…</span>
+        </div>
+
+        <div id="style-doc-result" style="margin-top:0.75rem">
+          {% if style.document_summary %}
+          <div class="alert alert-success">
+            <svg class="alert-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <div>
+              <strong>Style guide loaded</strong><br>
+              <span style="font-size:0.8125rem">{{ style.document_summary[:200] }}{% if style.document_summary|length > 200 %}&hellip;{% endif %}</span>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
