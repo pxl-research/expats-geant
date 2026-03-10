@@ -17,7 +17,7 @@ class SuggestionResult:
     reasoning: str
 
 
-def _compact_survey_summary(survey: Survey) -> str:
+def compact_survey_summary(survey: Survey) -> str:
     """Return title + section names + question texts only. No metadata."""
     lines = [f"Survey: {survey.title}"]
     for section in survey.sections:
@@ -83,7 +83,7 @@ def suggest_question(
     user_parts = []
 
     if survey_context is not None:
-        user_parts.append(_compact_survey_summary(survey_context))
+        user_parts.append(compact_survey_summary(survey_context))
         user_parts.append("")
 
     user_parts.append(f"Question to improve:\nText: {question.text}\nType: {question.type.value}")

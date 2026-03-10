@@ -105,13 +105,6 @@ def check_server(client: httpx.Client) -> bool:
         return False
 
 
-def _llm_available(client: httpx.Client, token: str) -> bool:
-    """Quick heuristic: try a chat turn; if 500 assume no LLM key configured."""
-    # We'll check by inspecting health response for LLM config fields, or
-    # rely on 500 detection during the actual sections.
-    return True  # assume available; sections degrade gracefully on 500
-
-
 def test_session_lifecycle(client: httpx.Client, token: str, token2: str) -> str | None:
     """Returns a fresh session_id for use by subsequent tests, or None on failure."""
     section("Section 2 — Session Lifecycle (no LLM)")
@@ -149,7 +142,8 @@ def test_session_lifecycle(client: httpx.Client, token: str, token2: str) -> str
 
     # Create a second session, then delete it
     r = client.post("/chat/sessions", json={}, headers=headers)
-    assert r.status_code == 201
+    if not check("POST /chat/sessions (2nd) → 201", r.status_code == 201, r.text[:120]):
+        return sid
     sid_del = r.json()["session_id"]
 
     r = client.delete(f"/chat/{sid_del}", headers=headers)

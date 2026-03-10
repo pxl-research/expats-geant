@@ -11,6 +11,7 @@ from fastapi import FastAPI, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
+from m_autofill.validation import validate_file_upload
 from m_chat.models import (
     ChatSessionListResponse,
     ChatSessionResponse,
@@ -50,7 +51,7 @@ from m_chat.session import (
     update_vocabulary,
 )
 from m_chat.style import build_style_context, extract_style_document, summarise_style_rules
-from m_chat.suggestion_engine import _compact_survey_summary, suggest_question
+from m_chat.suggestion_engine import compact_survey_summary, suggest_question
 from m_chat.tagging_engine import suggest_tags
 from m_chat.validation_engine import validate_question, validate_survey
 from m_shared.adapters.base import SurveyAdapter
@@ -122,7 +123,9 @@ _SURVEY_TAG_RE = re.compile(r"<survey_update>(.*?)</survey_update>", re.DOTALL)
 def _parse_chat_response(raw: str) -> tuple[str, dict | None]:
     match = _SURVEY_TAG_RE.search(raw)
     if match:
-        text = raw[: match.start()].strip() or "I've updated the survey draft."
+        before = raw[: match.start()].strip()
+        after = raw[match.end() :].strip()
+        text = " ".join(filter(None, [before, after])) or "I've updated the survey draft."
         try:
             return text, json.loads(match.group(1).strip())
         except json.JSONDecodeError:
@@ -510,10 +513,11 @@ def create_app(
         user_id = request.state.claims["user_id"]
         jwt_token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
         chat_session_id = str(uuid4())
+        ttl_hours = int(os.getenv("SESSION_TTL_HOURS", "24"))
         session = session_manager.create_session(
             user_id,
             jwt_token,
-            ttl_hours=body.ttl_hours,
+            ttl_hours=ttl_hours,
             explicit_session_id=chat_session_id,
             session_type="chat",
         )
@@ -539,9 +543,7 @@ def create_app(
         base_path = str(session_manager.base_path)
         session_responses = []
         for s in sessions:
-            # Skip sessions that don't have a conversation.json — they belong
-            # to other services (e.g. m_autofill) sharing the same storage path.
-            if not (get_session_path(base_path, s.session_id) / "conversation.json").exists():
+            if s.metadata.get("session_type") != "chat":
                 continue
             profile = load_style_profile(base_path, s.session_id)
             session_responses.append(
@@ -649,7 +651,7 @@ def create_app(
             "You are a survey design assistant helping researchers create high-quality questionnaires.\n\n"
             f"{build_style_context(profile)}\n\n"
             "Current draft survey:\n"
-            f"{_compact_survey_summary(draft) if draft else 'No survey draft exists yet.'}\n\n"
+            f"{compact_survey_summary(draft) if draft else 'No survey draft exists yet.'}\n\n"
             + (f"Reference documents:\n{docs_context}\n\n" if docs_context else "")
             + "When you propose changes to the survey, output the complete updated survey JSON "
             "inside <survey_update> tags. Only include <survey_update> when proposing structural "
@@ -781,6 +783,11 @@ def create_app(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Session not found or access denied",
             )
+        if not file.filename:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Filename is required",
+            )
         suffix = Path(file.filename).suffix.lower()
         if suffix not in (".docx", ".pdf", ".txt", ".md", ".pptx"):
             raise HTTPException(
@@ -792,6 +799,13 @@ def create_app(
         uploads_dir.mkdir(exist_ok=True)
         tmp_path = uploads_dir / f"style_guide{suffix}"
         tmp_path.write_bytes(await file.read())
+        max_mb = int(os.getenv("MAX_FILE_SIZE_MB", "10"))
+        is_valid, error_msg = validate_file_upload(
+            str(tmp_path), max_size_bytes=max_mb * 1024 * 1024
+        )
+        if not is_valid:
+            tmp_path.unlink(missing_ok=True)
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=error_msg)
 
         extracted = extract_style_document(str(tmp_path))
         summary = summarise_style_rules(extracted, llm_client) if llm_client else extracted[:300]
@@ -822,22 +836,37 @@ def create_app(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Session not found or access denied",
             )
+        if not file.filename:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Filename is required",
+            )
         suffix = Path(file.filename).suffix.lower()
         if suffix not in (".docx", ".pdf", ".txt", ".md", ".pptx"):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Unsupported file type '{suffix}'. Allowed: .docx .pdf .txt .md .pptx",
             )
+        safe_name = Path(file.filename).name
         docs_dir = session_manager.get_documents_path(session_id)
         docs_dir.mkdir(exist_ok=True)
-        saved_path = docs_dir / file.filename
+        saved_path = docs_dir / safe_name
         saved_path.write_bytes(await file.read())
+        max_mb = int(os.getenv("MAX_FILE_SIZE_MB", "10"))
+        is_valid, error_msg = validate_file_upload(
+            str(saved_path), max_size_bytes=max_mb * 1024 * 1024
+        )
+        if not is_valid:
+            saved_path.unlink(missing_ok=True)
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=error_msg)
 
-        extracted = document_to_markdown(str(saved_path))
-        stem = Path(file.filename).stem
-        md_path = docs_dir / f"{stem}.md"
-        md_path.write_text(extracted)
-        saved_path.unlink()
+        try:
+            extracted = document_to_markdown(str(saved_path))
+            stem = Path(safe_name).stem
+            md_path = docs_dir / f"{stem}.md"
+            md_path.write_text(extracted)
+        finally:
+            saved_path.unlink(missing_ok=True)
 
         summary = _llm_topic_summary(extracted, llm_client) if llm_client else extracted[:200]
 

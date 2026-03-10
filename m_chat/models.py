@@ -83,7 +83,7 @@ class TagResponse(BaseModel):
 
 
 class CreateChatSessionRequest(BaseModel):
-    ttl_hours: int = 24
+    pass
 
 
 class ChatSessionResponse(BaseModel):
