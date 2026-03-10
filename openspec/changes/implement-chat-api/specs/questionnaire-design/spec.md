@@ -101,12 +101,12 @@ The system SHALL provide `POST /suggest`, `POST /validate`, and `POST /tag` endp
 
 ### Requirement: Conversational Session API
 
-The system SHALL provide a session-scoped conversational API for iterative questionnaire authoring. `POST /chat/sessions` SHALL create a new chat session and return a `session_id`. `POST /chat/{session_id}` SHALL accept a user message, update the draft survey based on the LLM response, and return the assistant message. `GET /chat/{session_id}/survey` SHALL return the current draft `Survey`. `DELETE /chat/{session_id}` SHALL end the session and clean up all session files. The LLM SHALL use server-side orchestration to call internal tool endpoints as needed; no client-side tool execution is required.
+The system SHALL provide a session-scoped conversational API for iterative questionnaire authoring. `POST /chat/sessions` SHALL create a new chat session linked to the authenticated user and return a `session_id`. `GET /chat/sessions` SHALL list the user's active sessions. `POST /chat/{session_id}` SHALL accept a user message, update the draft survey based on the LLM response, and return the assistant message and whether the survey was updated. `GET /chat/{session_id}/survey` SHALL return the current draft `Survey`. `POST /chat/{session_id}/reset` SHALL clear the draft survey and tag vocabulary while preserving conversation history and documents. `DELETE /chat/{session_id}` SHALL end the session and wipe all session files. The LLM SHALL use server-side orchestration to call internal tool endpoints as needed; no client-side tool execution is required.
 
 #### Scenario: Start new chat session
 
-- **WHEN** `POST /chat/sessions` is called
-- **THEN** a new session is created with an empty draft survey and empty tag vocabulary
+- **WHEN** `POST /chat/sessions` is called by an authenticated user
+- **THEN** a new session is created with an empty draft survey, default style profile, and empty tag vocabulary
 - **AND** the session_id is returned
 
 #### Scenario: Iterative question authoring
@@ -114,39 +114,17 @@ The system SHALL provide a session-scoped conversational API for iterative quest
 - **WHEN** a user message is sent to `POST /chat/{session_id}`
 - **THEN** the LLM responds based on conversation history and the current draft survey
 - **AND** if the LLM proposes changes to the survey, the draft is updated in the session
-- **AND** the response indicates whether the survey was updated
+- **AND** `survey_updated: true` is returned when the draft changes
 
 #### Scenario: Session isolation
 
 - **WHEN** two users have active chat sessions
-- **THEN** each session's draft survey, tag vocabulary, and conversation history are fully isolated
+- **THEN** each session's draft survey, tag vocabulary, conversation history, and style profile are fully isolated
 
-### Requirement: Session Style Profile and Language
+#### Scenario: Session resume
 
-The system SHALL maintain a style profile per chat session that influences all LLM-generated suggestions, validation feedback, and generated question text. The style profile SHALL include: a `language` field (ISO 639-1, default `"en"`), a `free_text` field for admin-typed style preferences, and a `document_summary` field populated when the admin uploads an institutional style guide document. If no style preferences are provided, the system SHALL apply sensible defaults: English language, neutral formal tone, and rules from the platform's survey design guidelines. The style profile SHALL persist for the lifetime of the session and survive session resume. The admin SHALL be able to update the language or free-text preference at any point during the session.
-
-#### Scenario: Default style profile applied
-
-- **WHEN** a new chat session is created without any style input
-- **THEN** the style profile defaults to English language and neutral formal tone
-- **AND** `defaults_applied` is set to `true` in the stored profile
-
-#### Scenario: Admin sets language
-
-- **WHEN** the admin updates the session language to `"nl"`
-- **THEN** all subsequent suggestions, validation messages, and generated questions are produced in Dutch
-- **AND** the language setting persists across session resume
-
-#### Scenario: Admin types style preferences
-
-- **WHEN** the admin provides free-text style preferences (e.g. "formal tone, 5-point scales only")
-- **THEN** the LLM incorporates these preferences in all subsequent suggestions and validation feedback
-
-#### Scenario: Admin uploads institutional style guide
-
-- **WHEN** an institutional style guide document is uploaded to the session
-- **THEN** the document text is extracted and the LLM generates a concise summary of the style rules
-- **AND** the summary is stored in the session style profile and used as context on all subsequent turns
+- **WHEN** an authenticated user reconnects within the session TTL window
+- **THEN** the session state (draft, vocabulary, history, style profile) is fully restored
 
 ### Requirement: Document Upload for Survey Drafting
 
