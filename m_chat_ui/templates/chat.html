@@ -45,6 +45,24 @@
   box-shadow: var(--shadow-sm);
 }
 
+.md-content p { margin: 0 0 0.5rem; }
+.md-content p:last-child { margin-bottom: 0; }
+.md-content ul, .md-content ol { margin: 0.25rem 0 0.5rem 1.25rem; padding: 0; }
+.md-content li { margin-bottom: 0.2rem; }
+.md-content code { font-family: var(--font-mono); font-size: 0.8125em; background: var(--surface); border: 1px solid var(--border); border-radius: 3px; padding: 0.1em 0.35em; }
+.md-content pre { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem; overflow-x: auto; margin: 0.5rem 0; }
+.md-content pre code { background: none; border: none; padding: 0; font-size: 0.8125rem; }
+.md-content h1, .md-content h2, .md-content h3 { font-weight: 600; margin: 0.75rem 0 0.25rem; }
+.md-content h1 { font-size: 1.1rem; }
+.md-content h2 { font-size: 1rem; }
+.md-content h3 { font-size: 0.9375rem; }
+.md-content strong { font-weight: 600; }
+.md-content em { font-style: italic; }
+.md-content table { border-collapse: collapse; width: 100%; margin: 0.5rem 0; font-size: 0.875rem; }
+.md-content th, .md-content td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; }
+.md-content th { background: var(--surface); font-weight: 600; }
+.md-content blockquote { border-left: 3px solid var(--brand-mid); margin: 0.5rem 0; padding: 0.25rem 0.75rem; color: var(--text-muted); }
+
 body { overflow: hidden; }
 
 .chat-shell {
@@ -279,7 +297,7 @@ body { overflow: hidden; }
           </div>
           {% else %}
           <div class="msg-wrap msg-assistant">
-            <div class="msg-bubble msg-bubble-assistant">{{ msg.content }}</div>
+            <div class="msg-bubble msg-bubble-assistant"><div class="md-content">{{ msg.content | markdown | safe }}</div></div>
           </div>
           {% endif %}
         {% endfor %}

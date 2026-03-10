@@ -14,7 +14,7 @@
 </div>
 <div class="msg-wrap msg-assistant">
   <div class="msg-bubble msg-bubble-assistant">
-    {{ assistant_message }}
+    <div class="md-content">{{ assistant_message | markdown | safe }}</div>
     {% if survey_updated %}
     <div style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border)">
       <span class="badge badge-success">

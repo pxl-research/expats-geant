@@ -60,7 +60,7 @@
 ## 6. Docker & Deployment
 - [x] 6.1 Create `m_chat_ui/Dockerfile` (python:3.11-slim, uvicorn, port 8004)
 - [x] 6.2 Register `m_chat_ui` service in `docker-compose.yml` with env vars and healthcheck
-- [ ] 6.3 Verify full stack (`docker-compose up`): all services healthy, UI accessible
+- [x] 6.3 Verify full stack (`docker-compose up`): all services healthy, UI accessible
 
 ## 7. Tests
 - [x] 7.1 Unit tests for `api_client` with mocked HTTP responses (19 tests — `tests/test_chat_ui.py`)
@@ -70,8 +70,8 @@
 
 ## Definition of Done
 - [x] All routes rendering correctly
-- [ ] Full authoring flow working end-to-end in browser
-- [ ] Session resume working from landing page
-- [ ] Style setup skippable; defaults applied correctly
-- [ ] Docker build verified; full stack runs with `docker-compose up`
-- [ ] `openspec validate implement-chat-ui --strict` passes
+- [x] Full authoring flow working end-to-end in browser
+- [x] Session resume working from landing page
+- [x] Style setup skippable; defaults applied correctly
+- [x] Docker build verified; full stack runs with `docker-compose up`
+- [x] `openspec validate implement-chat-ui --strict` passes

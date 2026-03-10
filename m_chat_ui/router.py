@@ -4,6 +4,7 @@ import os
 from typing import Annotated
 
 import httpx
+import markdown as _md  # type: ignore[import-untyped]
 from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -22,6 +23,14 @@ router = APIRouter()
 
 _TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 templates = Jinja2Templates(directory=_TEMPLATES_DIR)
+
+
+# Jinja2 filter: render markdown to HTML (used in message bubbles)
+def _markdown_filter(text: str) -> str:
+    return _md.markdown(text or "", extensions=["extra", "nl2br"])
+
+
+templates.env.filters["markdown"] = _markdown_filter
 
 # Adapter capabilities: which platforms support push-to-API vs download-only
 ADAPTER_CAPABILITIES = {
