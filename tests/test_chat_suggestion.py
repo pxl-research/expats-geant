@@ -5,7 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from m_chat.suggestion_engine import SuggestionResult, _compact_survey_summary, suggest_question
+from m_chat.suggestion_engine import SuggestionResult, compact_survey_summary, suggest_question
 from m_shared.llm.client import LLMClient
 from m_shared.models.answer_option import AnswerOption
 from m_shared.models.question import Question, QuestionType
@@ -62,31 +62,31 @@ def mock_llm():
 
 
 # ---------------------------------------------------------------------------
-# _compact_survey_summary
+# compact_survey_summary
 # ---------------------------------------------------------------------------
 
 
-def test_compact_survey_summary_includes_title():
+def testcompact_survey_summary_includes_title():
     survey = _make_survey()
-    result = _compact_survey_summary(survey)
+    result = compact_survey_summary(survey)
     assert "Employee Survey" in result
 
 
-def test_compact_survey_summary_includes_section():
+def testcompact_survey_summary_includes_section():
     survey = _make_survey()
-    result = _compact_survey_summary(survey)
+    result = compact_survey_summary(survey)
     assert "Wellbeing" in result
 
 
-def test_compact_survey_summary_includes_question_texts():
+def testcompact_survey_summary_includes_question_texts():
     survey = _make_survey()
-    result = _compact_survey_summary(survey)
+    result = compact_survey_summary(survey)
     assert "How happy are you at work?" in result
 
 
-def test_compact_survey_summary_no_metadata():
+def testcompact_survey_summary_no_metadata():
     survey = _make_survey()
-    result = _compact_survey_summary(survey)
+    result = compact_survey_summary(survey)
     # Should not contain raw metadata field names
     assert "metadata" not in result
 
