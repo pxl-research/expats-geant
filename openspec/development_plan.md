@@ -219,14 +219,18 @@ This document outlines the phased approach to building Expat-GÉANT from January
 **Deliverables:**
 
 - [ ] Question suggestion engine (LLM-based rewording) — [specs/questionnaire-design](specs/questionnaire-design/spec.md)
-- [ ] Validation engine (style, grammar, QTI compliance checks)
+- [ ] Validation engine (style, grammar, QTI compliance checks; rules grounded in SURVEY_DESIGN_GUIDELINES.md)
 - [ ] Auto-tagging engine (metadata suggestion)
 - [ ] QTI 3.0 import/export (XML parsing and generation)
-- [ ] REST API endpoints (suggest, validate, tag, import, export)
+- [ ] Survey creation via adapter API: LimeSurvey + Qualtrics → direct API push (`create_survey()`); SurveyMonkey + QTI → file download fallback
+- [ ] Stateless REST API endpoints (suggest, validate, tag, import, export, create) — callable independently for institutional integrations
+- [ ] Stateful conversational API (session-scoped chat + draft Survey in state; LLM uses stateless tools as its toolkit)
+- [ ] Document upload for survey drafting: upload slide deck / Word doc → LLM extracts structure → generates initial question draft
 - [ ] FastAPI integration
 - [ ] Unit tests for parsing, validation, tagging
 - [ ] Integration tests: questionnaire import → suggest → export flow
 - [ ] Docker container for M-Chat service
+- [ ] M-Chat UI (conversational chat interface, parallel to m_ui for M-Autofill)
 
 **Key Files:**
 
@@ -254,19 +258,23 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 **Deliverables:**
 
-- [ ] Docker Compose setup with both services
-- [ ] OAuth 2.0 integration for institutional SSO (spec: auth-security)
-- [ ] Session persistence (audit reports, user downloads)
+- [ ] Docker Compose setup with both services (M-Chat + M-Autofill + Keycloak)
 - [ ] Deployment to PXL + Belnet partner institutions
+- [ ] Configure Keycloak realm for each pilot institution (optional: federate with institutional IdP via Keycloak admin panel — no code changes required; see `docs/KEYCLOAK_SETUP.md`)
+- [ ] Session persistence (file-based audit reports, user downloads)
 - [ ] Pilot user testing with administrators and respondents
 - [ ] Collect metrics: authoring time, response time, citation accuracy, acceptance/edit rates
 - [ ] Bug fixes from pilot feedback
 
+**Note:** OIDC authentication with Keycloak is already implemented (`update-auth-oidc`, archived 2026-03-03). Keycloak is bundled in `docker-compose.yml` with a pre-configured realm; `docker-compose up` is sufficient for a working deployment including auth. Institutional SSO federation (Shibboleth, Azure AD, LDAP) is optional and operator-configured via Keycloak — no application code changes required.
+
+**Note:** Audit reports are stored on the filesystem (per-session directory under `sessions/`). This is the intended implementation — no relational database is needed. File-based storage reinforces user isolation and simplifies deployment.
+
 **Key Components:**
 
-- `docker-compose.yml` (M-Chat, M-Autofill, PostgreSQL for audit reports)
-- OAuth provider configuration (institutional Shibboleth/Azure AD)
-- Monitoring & logging setup
+- `docker-compose.yml` (M-Chat, M-Autofill, Keycloak)
+- `keycloak/realm-export.json` (pre-configured realm, auto-imported on first startup)
+- Monitoring & logging setup (`logs/security.log` already in place)
 - Pilot testing protocol & evaluation scripts
 
 **Dependencies:** Phase 3, Phase 4
@@ -274,7 +282,8 @@ This document outlines the phased approach to building Expat-GÉANT from January
 **Success Criteria:**
 
 - Both services running reliably in production
-- Users can authenticate via institutional SSO
+- Users can authenticate via Keycloak (self-registration or institutional federation)
+- Audit reports generated and downloadable per session
 - Pilot metrics collected successfully
 - ≥80% uptime during pilot period
 - No critical security issues

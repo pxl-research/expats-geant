@@ -106,8 +106,9 @@ Adapters that support response write-back SHALL implement `submit_responses(surv
 
 ## Notes
 
-- MVP scope: Support four core QTI question types only (multiple_choice, single_choice, open_ended, ranking)
+- MVP scope: Support five core question types (multiple_choice, single_choice, open_ended, ranking, slider)
 - No conditional branching logic in MVP
 - LLM used for suggestions and validation; deterministic rule-based validation for compliance checks
 - Located in `m_chat/suggestion_engine.py`, `validation_engine.py`, `tagging_engine.py`
 - Integrated with data-models capability for Survey/Question representation
+- Adapter `create` capability: platforms with a write API (LimeSurvey, Qualtrics) SHALL support `create_survey(survey: Survey) -> str` returning the platform-assigned survey ID; platforms without a write API (SurveyMonkey, QTI) SHALL respond to `create` by returning an exported file payload (i.e., a file download fallback)
