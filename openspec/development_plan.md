@@ -219,14 +219,18 @@ This document outlines the phased approach to building Expat-GÉANT from January
 **Deliverables:**
 
 - [ ] Question suggestion engine (LLM-based rewording) — [specs/questionnaire-design](specs/questionnaire-design/spec.md)
-- [ ] Validation engine (style, grammar, QTI compliance checks)
+- [ ] Validation engine (style, grammar, QTI compliance checks; rules grounded in SURVEY_DESIGN_GUIDELINES.md)
 - [ ] Auto-tagging engine (metadata suggestion)
 - [ ] QTI 3.0 import/export (XML parsing and generation)
-- [ ] REST API endpoints (suggest, validate, tag, import, export)
+- [ ] Survey creation via adapter API: LimeSurvey + Qualtrics → direct API push (`create_survey()`); SurveyMonkey + QTI → file download fallback
+- [ ] Stateless REST API endpoints (suggest, validate, tag, import, export, create) — callable independently for institutional integrations
+- [ ] Stateful conversational API (session-scoped chat + draft Survey in state; LLM uses stateless tools as its toolkit)
+- [ ] Document upload for survey drafting: upload slide deck / Word doc → LLM extracts structure → generates initial question draft
 - [ ] FastAPI integration
 - [ ] Unit tests for parsing, validation, tagging
 - [ ] Integration tests: questionnaire import → suggest → export flow
 - [ ] Docker container for M-Chat service
+- [ ] M-Chat UI (conversational chat interface, parallel to m_ui for M-Autofill)
 
 **Key Files:**
 

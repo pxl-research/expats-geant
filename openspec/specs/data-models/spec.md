@@ -86,6 +86,6 @@ The system SHALL implement all models using Pydantic for validation and JSON sch
 
 ## Notes
 
-- MVP scope: Four core QTI question types (multiple_choice, single_choice, open_ended, ranking)
+- MVP scope: Five core question types (multiple_choice, single_choice, open_ended, ranking, slider)
 - No support for exotic QTI types, media types, or complex conditional logic in MVP
 - All models located in `m_shared/models/`
