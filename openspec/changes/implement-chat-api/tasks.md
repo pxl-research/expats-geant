@@ -69,7 +69,7 @@
 ## 5. Docker & Deployment
 - [x] 5.1 Create `m_chat/Dockerfile` (python:3.12-slim, port 8003)
 - [x] 5.2 Add `m_chat` service to `docker-compose.yml` with env vars and healthcheck
-- [ ] 5.3 Verify build and run; test all endpoints via HTTP client
+- [x] 5.3 Verify build and run; test all endpoints via HTTP client
 
 ## Definition of Done
 - [x] All adapter create implementations complete and tested

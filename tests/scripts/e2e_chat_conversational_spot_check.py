@@ -79,7 +79,7 @@ def auth_headers(token: str) -> dict:
 
 
 def get_dev_token(client: httpx.Client, user_id: str) -> str | None:
-    r = client.post("/dev/token", json={"user_id": user_id, "org": "test", "roles": ["user"]})
+    r = client.post("/dev/token", params={"user_id": user_id, "org": "test"})
     if r.status_code == 200:
         return r.json().get("token")
     return None
