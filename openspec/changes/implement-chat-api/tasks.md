@@ -3,12 +3,12 @@
 
 ## 1. Spec & Design
 - [x] 1.1 Write `design.md` (API layers, adapter create, LLM orchestration)
-- [ ] 1.2 Spec delta validated: `openspec validate implement-chat-api --strict`
+- [x] 1.2 Spec delta validated: `openspec validate implement-chat-api --strict`
 
 ## 2. Adapter `create` Capability
 - [x] 2.1 Add `create_survey(survey: Survey) -> str` to `SurveyAdapter` base class (`m_shared/adapters/base.py`)
   - [x] 2.1a Default implementation raises `NotImplementedError`
-  - [ ] 2.1b Update `docs/ADAPTERS.md` with `create` capability contract and return value semantics
+  - [x] 2.1b Update `docs/ADAPTERS.md` with `create` capability contract and return value semantics
 - [x] 2.2 LimeSurvey adapter
   - [x] 2.2a `add_survey` → `add_group` per section → `add_question` per question via RemoteControl 2 API
   - [x] 2.2b Return platform survey ID (sid)
