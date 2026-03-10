@@ -1,5 +1,5 @@
 ## 0. Prerequisites
-- [ ] 0.1 `implement-autofill-api-endpoints` archived (shared session infrastructure and MarkItDown pipeline confirmed in place)
+- [x] 0.1 `implement-autofill-api-endpoints` completed (shared session infrastructure and MarkItDown pipeline confirmed in place)
 
 ## 1. Spec & Design
 - [x] 1.1 Write `design.md` (overall M-Chat architecture, session layout, engine decisions)
