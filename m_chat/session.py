@@ -132,3 +132,23 @@ def save_style_profile(base_path: str, session_id: str, profile: dict) -> None:
     path = get_session_path(base_path, session_id) / "style_profile.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(profile, indent=2))
+
+
+def load_documents_context(base_path: str, session_id: str) -> str:
+    """Concatenate all extracted .md files from uploads/ for LLM context."""
+    uploads = get_session_path(base_path, session_id) / "uploads"
+    if not uploads.exists():
+        return ""
+    parts = []
+    for md_file in sorted(uploads.glob("*.md")):
+        parts.append(f"--- Document: {md_file.stem} ---\n{md_file.read_text()}")
+    return "\n\n".join(parts)
+
+
+def clear_draft_and_vocabulary(base_path: str, session_id: str) -> None:
+    """Delete draft_survey.json and tag_vocabulary.json; leave all else intact."""
+    session_path = get_session_path(base_path, session_id)
+    for filename in ("draft_survey.json", "tag_vocabulary.json"):
+        f = session_path / filename
+        if f.exists():
+            f.unlink()

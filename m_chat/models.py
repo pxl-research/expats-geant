@@ -75,3 +75,53 @@ class TagRequest(BaseModel):
 class TagResponse(BaseModel):
     tags: list[str]
     vocabulary_updated: bool  # True if session vocabulary was updated
+
+
+# ---------------------------------------------------------------------------
+# Conversational API
+# ---------------------------------------------------------------------------
+
+
+class CreateChatSessionRequest(BaseModel):
+    ttl_hours: int = 24
+
+
+class ChatSessionResponse(BaseModel):
+    session_id: str
+    user_id: str
+    created_at: str  # ISO-8601
+    expires_at: str  # ISO-8601
+    style_profile: dict
+
+
+class ChatSessionListResponse(BaseModel):
+    sessions: list[ChatSessionResponse]
+
+
+class ChatTurnRequest(BaseModel):
+    message: str
+
+
+class ChatTurnResponse(BaseModel):
+    message: str
+    survey_updated: bool
+
+
+class ChatSurveyResponse(BaseModel):
+    survey: dict | None
+
+
+class StyleUpdateRequest(BaseModel):
+    language: str | None = None
+    free_text: str | None = None
+
+
+class StyleProfileResponse(BaseModel):
+    session_id: str
+    style_profile: dict
+
+
+class DocumentUploadResponse(BaseModel):
+    filename: str
+    topic_summary: str
+    characters_extracted: int
