@@ -1,4 +1,4 @@
-"""Pydantic models for M-Autofill batch suggest endpoint."""
+"""Pydantic models for M-Autofill API."""
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -126,6 +126,100 @@ class BatchSuggestResponse(BaseModel):
     generated_at: str = Field(..., description="ISO 8601 timestamp of generation")
     model: str = Field(..., description="LLM model used for generation")
     responses: list[ItemSuggestion]
+
+
+# ---------------------------------------------------------------------------
+# Single-item suggest endpoint models
+# ---------------------------------------------------------------------------
+
+
+class SuggestRequest(BaseModel):
+    """Request for answer suggestion."""
+
+    question: str = Field(..., min_length=1, max_length=2000, description="Question to answer")
+    context: str | None = Field(None, max_length=1000, description="Optional context")
+
+
+class UploadResponse(BaseModel):
+    """Document upload response."""
+
+    status: str
+    filename: str
+    size_bytes: int
+    upload_timestamp: str
+    session_id: str
+
+
+class CitationResponse(BaseModel):
+    """Citation information."""
+
+    source: str
+    position: str
+    position_range: dict
+    timestamp: str
+    excerpt: str
+
+
+class SuggestResponse(BaseModel):
+    """Answer suggestion response."""
+
+    answer: str
+    reasoning: str | None = Field(
+        None, description="LLM explanation of confidence, source interpretation, or uncertainty"
+    )
+    citations: list[CitationResponse]
+    metadata: dict
+
+
+class SessionStatsResponse(BaseModel):
+    """Session statistics response."""
+
+    session_id: str
+    user_id: str
+    created_at: str
+    expires_at: str
+    remaining_hours: float
+    is_expired: bool
+    document_count: int
+    isolation_scope: str
+
+
+class SessionDeleteResponse(BaseModel):
+    """Session deletion response."""
+
+    session_id: str
+    deleted: bool
+    message: str
+
+
+class AuditDeleteResponse(BaseModel):
+    """Audit report deletion response."""
+
+    session_id: str
+    deleted: bool
+    message: str
+
+
+class DevTokenRequest(BaseModel):
+    """Request for development token generation."""
+
+    user_id: str = Field(default="dev_user", description="User ID for token")
+    org: str = Field(default="dev_org", description="Organization ID")
+    roles: list[str] = Field(default=["respondent"], description="User roles")
+
+
+class DevTokenResponse(BaseModel):
+    """Development token response."""
+
+    token: str
+    user_id: str
+    expires_in_hours: int
+    message: str
+
+
+# ---------------------------------------------------------------------------
+# Batch suggest endpoint helpers
+# ---------------------------------------------------------------------------
 
 
 def normalize_to_sections(request: BatchSuggestRequest) -> list[BatchSuggestSection]:
