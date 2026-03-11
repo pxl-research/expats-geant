@@ -1,9 +1,6 @@
 """FastAPI application for M-Chat survey transform and tool endpoints."""
 
-import json
-import logging
 import os
-import re
 from pathlib import Path
 from uuid import uuid4
 
@@ -11,6 +8,7 @@ from fastapi import FastAPI, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse
 
 from m_autofill.validation import validate_file_upload
+from m_chat.conversation import execute_chat_turn
 from m_chat.models import (
     ChatSessionListResponse,
     ChatSessionResponse,
@@ -39,18 +37,17 @@ from m_chat.session import (
     append_message,
     clear_draft_and_vocabulary,
     get_session_path,
+    initialize_chat_session,
     load_conversation,
-    load_documents_context,
     load_draft_survey,
     load_style_profile,
     load_tag_vocabulary,
-    save_draft_survey,
     save_style_profile,
     save_tag_vocabulary,
     update_vocabulary,
 )
-from m_chat.style import build_style_context, extract_style_document, summarise_style_rules
-from m_chat.suggestion_engine import compact_survey_summary, suggest_question
+from m_chat.style import extract_style_document, summarise_style_rules
+from m_chat.suggestion_engine import suggest_question
 from m_chat.tagging_engine import suggest_tags
 from m_chat.validation_engine import validate_question, validate_survey
 from m_shared.adapters.base import SurveyAdapter
@@ -67,8 +64,6 @@ from m_shared.models.question import Question
 from m_shared.models.survey import Survey
 from m_shared.session.manager import SessionManager
 from m_shared.vectordb.utils import document_to_markdown
-
-_LAST_N_MESSAGES = 20
 
 
 def _get_adapter(
@@ -116,22 +111,6 @@ def _verify_session_owner(session_id: str, user_id: str, session_manager: Sessio
     return session
 
 
-_SURVEY_TAG_RE = re.compile(r"<survey_update>(.*?)</survey_update>", re.DOTALL)
-
-
-def _parse_chat_response(raw: str) -> tuple[str, dict | None]:
-    match = _SURVEY_TAG_RE.search(raw)
-    if match:
-        before = raw[: match.start()].strip()
-        after = raw[match.end() :].strip()
-        text = " ".join(filter(None, [before, after])) or "I've updated the survey draft."
-        try:
-            return text, json.loads(match.group(1).strip())
-        except json.JSONDecodeError:
-            pass
-    return raw.strip(), None
-
-
 def _llm_topic_summary(text: str, llm_client) -> str:
     """Generate a short topic summary of extracted document text."""
     prompt = f"Summarise the main topics of this document in 1-3 sentences:\n\n{text[:3000]}"
@@ -162,6 +141,15 @@ def _get_chat_session_context(
         "vocabulary": load_tag_vocabulary(base_path, session_id),
         "draft_survey": load_draft_survey(base_path, session_id),
     }
+
+
+async def _save_and_validate_upload(file: UploadFile, dest_path: Path, max_mb: int) -> None:
+    """Write uploaded file to dest_path and validate size. Raises HTTPException on failure."""
+    dest_path.write_bytes(await file.read())
+    is_valid, error_msg = validate_file_upload(str(dest_path), max_size_bytes=max_mb * 1024 * 1024)
+    if not is_valid:
+        dest_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=error_msg)
 
 
 def create_app(
@@ -521,11 +509,7 @@ def create_app(
             session_type="chat",
         )
         base_path = str(session_manager.base_path)
-        save_style_profile(base_path, chat_session_id, dict(DEFAULT_STYLE_PROFILE))
-        save_tag_vocabulary(base_path, chat_session_id, {})
-        session_path = get_session_path(base_path, chat_session_id)
-        (session_path / "conversation.json").write_text("[]")
-        (session_path / "style_documents").mkdir(exist_ok=True)
+        initialize_chat_session(base_path, chat_session_id)
         return ChatSessionResponse(
             session_id=session.session_id,
             user_id=session.user_id,
@@ -642,81 +626,15 @@ def create_app(
             )
         base_path = str(session_manager.base_path)
         conversation = load_conversation(base_path, session_id)
-        draft = load_draft_survey(base_path, session_id)
-        profile = load_style_profile(base_path, session_id)
-        docs_context = load_documents_context(base_path, session_id)
-
-        system_content = (
-            "You are a survey design assistant helping researchers create high-quality questionnaires.\n\n"
-            f"{build_style_context(profile)}\n\n"
-            "Current draft survey:\n"
-            f"{compact_survey_summary(draft) if draft else 'No survey draft exists yet.'}\n\n"
-            + (f"Reference documents:\n{docs_context}\n\n" if docs_context else "")
-            + "When you propose changes to the survey, output the complete updated survey JSON "
-            "inside <survey_update> tags. Only include <survey_update> when proposing structural "
-            "changes — for questions or explanations, respond with plain text.\n\n"
-            "REQUIRED JSON SCHEMA — use these exact field names, no others:\n"
-            "{\n"
-            '  "id": "survey_1",\n'
-            '  "title": "Survey title",\n'
-            '  "description": "Optional description",\n'
-            '  "metadata": {},\n'
-            '  "sections": [\n'
-            "    {\n"
-            '      "id": "sec_1",\n'
-            '      "title": "Section title",\n'
-            '      "description": "",\n'
-            '      "order": 0,\n'
-            '      "metadata": {},\n'
-            '      "questions": [\n'
-            "        {\n"
-            '          "id": "q_1",\n'
-            '          "text": "Question text shown to respondent",\n'
-            '          "type": "open_ended",\n'
-            '          "answer_options": [],\n'
-            '          "order": 0,\n'
-            '          "required": true,\n'
-            '          "min_value": null,\n'
-            '          "max_value": null,\n'
-            '          "step": null,\n'
-            '          "metadata": {}\n'
-            "        }\n"
-            "      ]\n"
-            "    }\n"
-            "  ]\n"
-            "}\n"
-            "Rules:\n"
-            "- 'type' MUST be one of: open_ended, single_choice, multiple_choice, ranking, slider\n"
-            "- single_choice, multiple_choice, ranking MUST have answer_options: "
-            '[{"id": "opt_1", "text": "Label", "value": null}]\n'
-            "- slider MUST have min_value and max_value as numbers\n"
-            "- Use short unique IDs (sec_1, q_1, opt_1, etc.)\n"
-            "- Output the COMPLETE survey every time, not just the changed parts\n"
+        text, survey_updated = execute_chat_turn(
+            session_id=session_id,
+            message=body.message,
+            base_path=base_path,
+            llm_client=llm_client,
+            conversation=conversation,
         )
-
-        history = conversation[-_LAST_N_MESSAGES:]
-        history_msgs = [{"role": m["role"], "content": m["content"]} for m in history]
-        messages = [
-            {"role": "system", "content": system_content},
-            *history_msgs,
-            {"role": "user", "content": body.message},
-        ]
-
-        raw = llm_client.create_completion(messages=messages)
-        text, survey_dict = _parse_chat_response(raw)
-
-        survey_updated = False
-        if survey_dict is not None:
-            try:
-                survey_obj = Survey(**survey_dict)
-                save_draft_survey(base_path, session_id, survey_obj)
-                survey_updated = True
-            except Exception as exc:
-                logging.getLogger(__name__).warning("Invalid survey_update payload: %s", exc)
-
         append_message(base_path, session_id, "user", body.message)
         append_message(base_path, session_id, "assistant", text)
-
         return ChatTurnResponse(message=text, survey_updated=survey_updated)
 
     @app.get("/chat/{session_id}/survey", response_model=ChatSurveyResponse)
@@ -797,14 +715,7 @@ def create_app(
         uploads_dir = get_session_path(base_path, session_id) / "style_documents"
         uploads_dir.mkdir(exist_ok=True)
         tmp_path = uploads_dir / f"style_guide{suffix}"
-        tmp_path.write_bytes(await file.read())
-        max_mb = int(os.getenv("MAX_FILE_SIZE_MB", "10"))
-        is_valid, error_msg = validate_file_upload(
-            str(tmp_path), max_size_bytes=max_mb * 1024 * 1024
-        )
-        if not is_valid:
-            tmp_path.unlink(missing_ok=True)
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=error_msg)
+        await _save_and_validate_upload(file, tmp_path, int(os.getenv("MAX_FILE_SIZE_MB", "10")))
 
         extracted = extract_style_document(str(tmp_path))
         summary = summarise_style_rules(extracted, llm_client) if llm_client else extracted[:300]
@@ -850,14 +761,7 @@ def create_app(
         docs_dir = session_manager.get_documents_path(session_id)
         docs_dir.mkdir(exist_ok=True)
         saved_path = docs_dir / safe_name
-        saved_path.write_bytes(await file.read())
-        max_mb = int(os.getenv("MAX_FILE_SIZE_MB", "10"))
-        is_valid, error_msg = validate_file_upload(
-            str(saved_path), max_size_bytes=max_mb * 1024 * 1024
-        )
-        if not is_valid:
-            saved_path.unlink(missing_ok=True)
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=error_msg)
+        await _save_and_validate_upload(file, saved_path, int(os.getenv("MAX_FILE_SIZE_MB", "10")))
 
         try:
             extracted = document_to_markdown(str(saved_path))

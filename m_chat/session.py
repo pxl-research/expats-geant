@@ -152,3 +152,12 @@ def clear_draft_and_vocabulary(base_path: str, session_id: str) -> None:
         f = session_path / filename
         if f.exists():
             f.unlink()
+
+
+def initialize_chat_session(base_path: str, session_id: str) -> None:
+    """Write default style profile, empty vocabulary, empty conversation, and style_documents dir."""
+    save_style_profile(base_path, session_id, dict(DEFAULT_STYLE_PROFILE))
+    save_tag_vocabulary(base_path, session_id, {})
+    session_path = get_session_path(base_path, session_id)
+    (session_path / "conversation.json").write_text("[]")
+    (session_path / "style_documents").mkdir(exist_ok=True)
