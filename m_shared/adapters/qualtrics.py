@@ -491,10 +491,11 @@ def _map_question_type(q_type_code: str, selector: str) -> QuestionType | None:
 
 
 def _strip_html(text: str) -> str:
-    """Remove simple HTML tags from Qualtrics question/choice text."""
+    """Remove simple HTML tags and decode HTML entities from Qualtrics text."""
+    import html
     import re
 
-    return re.sub(r"<[^>]+>", "", text).strip()
+    return html.unescape(re.sub(r"<[^>]+>", "", text)).strip()
 
 
 # ------------------------------------------------------------------
