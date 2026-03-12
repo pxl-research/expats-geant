@@ -206,29 +206,46 @@ async def documents_upload(
     request: Request,
     session_id: str,
     files: list[UploadFile] | None = File(default=None),
+    text: str = Form(default=""),
+    text_label: str = Form(default=""),
 ):
-    """Forward each uploaded document to M-Autofill ingestion API."""
+    """Forward each uploaded document and/or text snippet to M-Autofill ingestion API."""
     token = get_token(request)
     if not token:
         return RedirectResponse(url="/auth/login", status_code=302)
 
-    if not files:
+    has_text = bool(text.strip())
+
+    if not files and not has_text:
         return RedirectResponse(url=f"/session/{session_id}/review", status_code=302)
 
     file_errors: list[dict] = []
-    for upload in files:
-        if not upload.filename:
-            continue
-        file_bytes = await upload.read()
+
+    if files:
+        for upload in files:
+            if not upload.filename:
+                continue
+            file_bytes = await upload.read()
+            try:
+                await api_client.ingest_document(
+                    token=token,
+                    session_id=session_id,
+                    file_bytes=file_bytes,
+                    filename=upload.filename,
+                )
+            except APIError as exc:
+                file_errors.append({"filename": upload.filename, "error": exc.detail})
+
+    if has_text:
         try:
-            await api_client.ingest_document(
+            await api_client.ingest_text_snippet(
                 token=token,
                 session_id=session_id,
-                file_bytes=file_bytes,
-                filename=upload.filename,
+                text=text,
+                label=text_label or None,
             )
         except APIError as exc:
-            file_errors.append({"filename": upload.filename, "error": exc.detail})
+            file_errors.append({"filename": text_label or "pasted text", "error": exc.detail})
 
     if file_errors:
         return templates.TemplateResponse(
