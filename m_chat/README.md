@@ -1,170 +1,144 @@
 # M-Chat: Administrator Questionnaire Design Co-Pilot
 
-> ⚠️ **Not yet implemented.** This module is planned for a future phase. The structure and API endpoints described below are the intended design, not current working code. Only `__init__.py` and `manager.py` exist at this stage.
+An AI-powered assistant that accelerates questionnaire and survey design with guardrails, consistency checks, intelligent tagging, and conversational authoring.
 
-An AI-powered assistant that accelerates questionnaire and survey design with guardrails, consistency checks, intelligent tagging, and summarization.
+## What's Built
 
-## Overview
+M-Chat is fully implemented. The module provides:
 
-M-Chat is a co-pilot for survey administrators and form designers. It helps create better questionnaires faster by:
-
-1. **Suggesting** clearer, more consistent questions
-2. **Checking** alignment with style guidelines and QTI 3.0 standards
-3. **Tagging** questions automatically for organization and categorization
-4. **Summarizing** questionnaires and identifying gaps or redundancies
-5. **Expressing** simple evaluation rules
-
-M-Chat is not a replacement for human judgment—it augments the design process, reducing manual work and improving cross-survey comparability.
-
-## Key Features
-
-✏️ **Intelligent Suggestions**
-
-- Propose reworded questions for clarity and consistency
-- Generate alternative question variants; retry if unsatisfied with initial suggestion
-- Suggest answer options and branching logic
-- Recommend tags and metadata based on question content
-
-🛡️ **Guardrails & Compliance**
-
-- Enforce institutional style guidelines
-- Validate against QTI 3.0 standard (common question types)
-- Check for biased or unclear phrasing
-- Ensure accessibility standards
-
-📊 **Tagging & Metadata**
-
-- Auto-suggest tags based on question text and context
-- Batch tagging across sections or entire questionnaire
-- Organize questions for comparison and reuse
+- **Suggestion engine** — proposes improved phrasings for survey questions, respecting style profiles
+- **Validation engine** — Tier 1 deterministic rules (double-barreled questions, missing choices, etc.) + Tier 2 LLM checks
+- **Tagging engine** — suggests normalised tags; accumulates a session vocabulary across questions
+- **Conversation engine** — multi-turn dialogue that can create and update a draft survey in response to natural language instructions
+- **Style engine** — extracts and summarises institutional style guide documents; applies style constraints to all AI outputs
+- **Session manager** — file-based session storage (draft survey, tag vocabulary, conversation history, style profile)
+- **REST API** — stateless transform endpoints (import/export/create) and context-aware tool endpoints (suggest/validate/tag), plus a full conversational session lifecycle
 
 ## Module Structure
 
 ```
 m_chat/
 ├── __init__.py
-└── manager.py               # Placeholder session/state manager
+├── api.py                # FastAPI app factory (create_app)
+├── models.py             # Pydantic request/response models
+├── session.py            # Session I/O helpers (load/save draft, vocabulary, style, conversation)
+├── conversation.py       # Chat turn execution (LLM + draft update logic)
+├── suggestion_engine.py  # Question phrasing suggestions
+├── validation_engine.py  # Question and survey validation rules
+├── tagging_engine.py     # Tag suggestion and vocabulary management
+└── style.py              # Style document extraction and summarisation
 ```
 
-> The files below are **planned** (not yet created):
-> `questionnaire_parser.py`, `suggestion_engine.py`, `validation_engine.py`, `tagging_engine.py`, `api.py`
+## Quick Start
 
-## API Endpoints
+### 1. Generate a dev token
 
-(Examples; final design TBD)
-
+```bash
+TOKEN=$(curl -s -X POST "http://localhost:8003/dev/token?user_id=dev_user" \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
 ```
-POST /questionnaires/suggest
-  - Input: question text, context (section, existing questions)
-  - Returns: suggested improvements, reasoning
 
-POST /questionnaires/validate
-  - Input: questionnaire (QTI or internal format)
-  - Returns: validation errors, warnings, compliance issues
+### 2. Get a question suggestion
 
-POST /questionnaires/tag
-  - Input: question(s) or full questionnaire
-  - Returns: suggested tags, metadata
+```bash
+curl -X POST http://localhost:8003/suggest \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question": {"id": "q1", "type": "open_ended", "text": "How do you feel about workload?"},
+    "n_suggestions": 2
+  }'
+```
 
-POST /questionnaires/export
-  - Input: questionnaire (internal format)
-  - Returns: QTI 3.0-compliant XML export
+### 3. Start a conversational design session
 
-POST /questionnaires/import
-  - Input: QTI 3.0 XML
-  - Returns: questionnaire in internal format
+```bash
+# Create session
+SESSION=$(curl -s -X POST http://localhost:8003/chat/sessions \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['session_id'])")
+
+# Send a design instruction
+curl -X POST "http://localhost:8003/chat/$SESSION" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Create a short survey about remote work with 3 questions"}'
+
+# Retrieve the draft
+curl "http://localhost:8003/chat/$SESSION/survey" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+## API Summary
+
+| Endpoint | Method | Auth | Description |
+|---|---|---|---|
+| `/import` | POST | Yes | Parse platform survey → internal JSON |
+| `/export` | POST | Yes | Internal JSON → platform format |
+| `/create` | POST | Yes | Create on platform API or export to file |
+| `/suggest` | POST | Yes | Suggest improved question phrasings |
+| `/validate` | POST | Yes | Validate question or survey for issues |
+| `/tag` | POST | Yes | Suggest and persist question tags |
+| `/chat/sessions` | POST | Yes | Create conversational session |
+| `/chat/sessions` | GET | Yes | List user's sessions |
+| `/chat/{id}` | GET | Yes | Session metadata |
+| `/chat/{id}` | POST | Yes | Send message, get AI response |
+| `/chat/{id}/survey` | GET | Yes | Current draft survey |
+| `/chat/{id}/messages` | GET | Yes | Conversation history |
+| `/chat/{id}` | DELETE | Yes | Delete session |
+| `/chat/{id}/reset` | POST | Yes | Clear draft + vocabulary |
+| `/chat/{id}/style` | GET/PUT | Yes | Read/update style profile |
+| `/chat/{id}/style/upload` | POST | Yes | Upload style guide document |
+| `/chat/{id}/upload` | POST | Yes | Upload content document |
+
+Full API reference: [docs/MCHAT_API.md](../docs/MCHAT_API.md)
+
+## Testing
+
+```bash
+# Run all M-Chat tests (from repo root)
+pytest tests/test_chat*.py -v
+
+# Run with coverage
+pytest tests/test_chat*.py -v --cov=m_chat --cov-report=term-missing
+```
+
+There are 9 M-Chat test files covering ~234 tests:
+
+| File | Coverage |
+|---|---|
+| `test_chat_api.py` | Stateless endpoints (import/export/create/suggest/validate/tag) |
+| `test_chat_conversational_api.py` | Chat session lifecycle, turns, survey retrieval |
+| `test_chat_adapters.py` | Adapter create_survey for all four platforms |
+| `test_chat_suggestion.py` | Suggestion engine unit tests |
+| `test_chat_validation.py` | Validation engine unit tests |
+| `test_chat_tagging.py` | Tagging engine unit tests |
+| `test_chat_session.py` | Session I/O helpers |
+| `test_chat_style.py` | Style extraction and summarisation |
+| `test_chat_ui.py` | M-Chat UI integration |
+
+Run the full suite for accurate coverage (single-file runs will fail `--cov-fail-under=80`):
+
+```bash
+pytest tests/ -v --tb=short
 ```
 
 ## Configuration
 
-Environment variables:
+| Variable | Default | Description |
+|---|---|---|
+| `JWT_SECRET` | `change-me-in-production` | JWT signing secret (shared with M-Autofill) |
+| `OPENROUTER_API_KEY` | — | LLM API key (required for suggest/tag/chat) |
+| `LLM_MODEL` | `anthropic/claude-haiku-4.5` | LLM model identifier |
+| `SESSION_TTL_HOURS` | `24` | Chat session lifetime in hours |
+| `MAX_FILE_SIZE_MB` | `50` | Max file size for uploads |
+| `ENVIRONMENT` | `development` | Set to `production` to disable `/dev/token` |
+| `CHAT_PORT` | `8003` | API server port |
 
-- `OPENROUTER_API_KEY` — OpenRouter API key for LLM access
-- `STYLE_GUIDE_PATH` — Path to institutional style guidelines (YAML/JSON)
-- `LLM_MODEL` — Default model on OpenRouter (e.g., `openai/gpt-4`)
+## Links
 
-## Development
-
-### Running Tests
-
-> ⚠️ No tests exist yet for this module.
-
-```bash
-# When implemented, tests will be run from the repo root:
-pytest tests/ -k "chat" -v
-```
-
-### Dependencies
-
-See root `requirements.txt` for full list. Key libraries:
-
-- `fastapi` — Web framework
-- `openai` — LLM client (OpenAI-compatible)
-- `pydantic` — Data validation & serialization
-
-## Design Philosophy
-
-- **Augmentation, not replacement**: Suggestions are advisory; humans make final decisions
-- **Explainability**: Every suggestion includes reasoning
-- **Style consistency**: Enforce institutional guidelines without crushing creativity
-- **Simplicity**: Focus on common question types (open, multiple choice, single choice, ranking, scale); avoid QTI extensibility for MVP
-
-## QTI 3.0 Support
-
-M-Chat supports the most common QTI question types for PoC:
-
-- Multiple choice (radioResponse, multipleChoice)
-- Single choice (singleChoice)
-- Open-ended (extendedTextInteraction)
-- Ranking/Ordering (orderInteraction)
-- Scale/Range (sliderInteraction)
-
-Full QTI extensibility is out of scope for the PoC.
-
-## Integration
-
-M-Chat is designed as an embeddable SDK. Integrate via:
-
-1. **REST API**: Call endpoints from admin interfaces or survey builders
-2. **QTI 3.0**: Import/export questionnaires for tool interoperability
-3. **Batch mode**: Process multiple questionnaires for consistency audits
-
-See [M-Shared](../m_shared/README.md) for client SDKs and utilities.
-
-## Testing Strategy
-
-**Deterministic components** (required):
-
-- Question parsing and serialization
-- Validation rule checking
-- QTI import/export correctness
-- Tag application logic
-
-**LLM components** (future):
-
-- Suggestion quality and relevance
-- Style guide adherence
-- Grammar and clarity improvements
-- Approach: Manual review for PoC; LLM-based evaluation frameworks post-PoC
-
-## Quality Metrics (Pilot Phase)
-
-- **Time saved**: How much faster can administrators design questionnaires?
-- **Consistency**: Are suggested questions more aligned with style guidelines?
-- **Completeness**: Does tagging help identify gaps or redundancies?
-- **Adoption**: Do administrators use suggestions and how frequently?
-
-## Roadmap
-
-- ✅ Basic suggestion engine (question rewording, style checks)
-- 🚧 QTI 3.0 import/export
-- 🚧 Tag suggestion & batch tagging
-- 📅 Advanced branching/conditional logic (future)
-- 📅 Integration with institutional form builders (future)
-
-## References
-
-- [Project Context](../openspec/project.md)
-- [M-Autofill Module](../m_autofill/README.md)
+- [M-Chat API Reference](../docs/MCHAT_API.md)
+- [Data Model](../docs/DATA_MODEL.md)
+- [Adapter Guide](../docs/ADAPTERS.md)
+- [Testing Guide](../docs/TESTING.md)
 - [M-Shared Utilities](../m_shared/README.md)
-- [QTI 3.0 Standard](https://www.imsglobal.org/spec/qti/v3p0/information-model)

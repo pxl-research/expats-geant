@@ -89,6 +89,46 @@ docker-compose down
 docker-compose down -v
 ```
 
+## M-Chat Service
+
+M-Chat is the questionnaire design co-pilot API.
+
+- **Service name**: `m-chat` (docker-compose)
+- **Port**: `8003`
+- **Health check**: `http://localhost:8003/health`
+- **API docs**: `http://localhost:8003/docs`
+- **Chat UI**: `http://localhost:8004` (service `m_chat_ui`)
+
+### Additional Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `SESSION_TTL_HOURS` | `24` | Chat session lifetime (hours) |
+| `MAX_FILE_SIZE_MB` | `50` | Max upload size for style/content documents |
+| `CHAT_PORT` | `8003` | Port for the M-Chat API |
+
+M-Chat shares `JWT_SECRET`, `OPENROUTER_API_KEY`, `LLM_MODEL`, and OIDC variables with M-Autofill. Set them once in `.env`.
+
+### Verify M-Chat is running
+
+```bash
+curl http://localhost:8003/health
+# Expected: {"status":"healthy"}
+
+# API documentation
+open http://localhost:8003/docs
+```
+
+### Monitor M-Chat logs
+
+```bash
+docker-compose logs -f m-chat
+```
+
+See [MCHAT_API.md](MCHAT_API.md) for the full API reference.
+
+---
+
 ## Manual Docker Deployment
 
 If you prefer not to use Docker Compose:
@@ -346,7 +386,7 @@ python3 -m pytest tests/test_auth.py -v           # Auth tests
 
 For production deployments with institutional authentication, see:
 
-📖 **[docs/INTEGRATION.md](INTEGRATION.md)** — Complete integration guide with:
+📖 **[docs/AUTOFILL_API.md](AUTOFILL_API.md)** — Complete integration guide with:
 
 - JWT requirements and claim structure
 - Shibboleth / Azure AD / OIDC examples
@@ -463,6 +503,6 @@ server {
 ## Support
 
 - Documentation: [README.md](../README.md)
-- Integration guide: [docs/INTEGRATION.md](INTEGRATION.md)
+- Integration guide: [docs/AUTOFILL_API.md](AUTOFILL_API.md)
 - Project specs: [openspec/project.md](../openspec/project.md)
 - Issues: [GitHub Issues](https://github.com/pxl-be/expat-geant/issues)
