@@ -37,6 +37,7 @@ class SessionManager:
         self.base_path = Path(base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
         self.audit_logger = AuditLogger(base_path=base_path)
+        self._vector_store_cache: dict[str, ChromaDocumentStore] = {}
 
     def _hash_token(self, jwt_token: str) -> str:
         """Generate stable session_id from JWT token.
@@ -220,8 +221,10 @@ class SessionManager:
         if not session_path.exists():
             raise FileNotFoundError(f"Session {session_id} does not exist")
 
-        chroma_path = session_path / "chroma_store"
-        return ChromaDocumentStore(path=str(chroma_path))
+        if session_id not in self._vector_store_cache:
+            chroma_path = session_path / "chroma_store"
+            self._vector_store_cache[session_id] = ChromaDocumentStore(path=str(chroma_path))
+        return self._vector_store_cache[session_id]
 
     def get_documents_path(self, session_id: str) -> Path:
         """Get path to uploads folder for a session.
@@ -258,6 +261,7 @@ class SessionManager:
                 reason=reason,
             )
 
+        self._vector_store_cache.pop(session_id, None)
         shutil.rmtree(session_path)
         return True
 
