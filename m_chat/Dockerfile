@@ -15,6 +15,7 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY m_chat/ ./m_chat/
 COPY m_shared/ ./m_shared/
+COPY m_autofill/ ./m_autofill/
 COPY run_chat_api.py ./run_chat_api.py
 
 RUN mkdir -p /app/data/sessions

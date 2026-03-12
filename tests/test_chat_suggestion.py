@@ -66,25 +66,25 @@ def mock_llm():
 # ---------------------------------------------------------------------------
 
 
-def testcompact_survey_summary_includes_title():
+def test_compact_survey_summary_includes_title():
     survey = _make_survey()
     result = compact_survey_summary(survey)
     assert "Employee Survey" in result
 
 
-def testcompact_survey_summary_includes_section():
+def test_compact_survey_summary_includes_section():
     survey = _make_survey()
     result = compact_survey_summary(survey)
     assert "Wellbeing" in result
 
 
-def testcompact_survey_summary_includes_question_texts():
+def test_compact_survey_summary_includes_question_texts():
     survey = _make_survey()
     result = compact_survey_summary(survey)
     assert "How happy are you at work?" in result
 
 
-def testcompact_survey_summary_no_metadata():
+def test_compact_survey_summary_no_metadata():
     survey = _make_survey()
     result = compact_survey_summary(survey)
     # Should not contain raw metadata field names
