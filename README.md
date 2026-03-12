@@ -41,7 +41,7 @@ All code is open-source for non-commercial use only.
 .
 ├── m_autofill/     # Respondent answer suggestion assistant (REST API, port 8001)
 ├── m_ui/           # Survey review frontend (Jinja2 + HTMX, port 8002)
-├── m_chat/         # Administrator questionnaire design assistant (planned)
+├── m_chat/         # Administrator questionnaire design assistant (REST API, port 8003)
 ├── m_shared/       # Common utilities (LLM clients, vector DB, data models, auth)
 ├── tests/          # All tests (pytest)
 ├── docs/           # Deployment, integration, and API reference guides
@@ -83,6 +83,8 @@ docker-compose up --build
 
 The M-Autofill API is available at `http://localhost:8001` (interactive docs at `/docs`).
 The M-UI survey review frontend is available at `http://localhost:8002`.
+The M-Chat API is available at `http://localhost:8003` (interactive docs at `/docs`).
+The M-Chat UI is available at `http://localhost:8004`.
 
 See [Deployment Guide](docs/DEPLOYMENT.md) for full configuration options, manual Docker setup, data persistence, and production security guidance.
 
@@ -90,11 +92,13 @@ See [Deployment Guide](docs/DEPLOYMENT.md) for full configuration options, manua
 
 - [Project Context](openspec/project.md) — Detailed specifications, tech stack, conventions, and constraints
 - [Deployment Guide](docs/DEPLOYMENT.md) — Docker & local setup, environment variables, testing
-- [Integration Guide](docs/INTEGRATION.md) — JWT/auth setup, institutional SSO, API endpoint reference
+- [M-Autofill API](docs/AUTOFILL_API.md) — JWT/auth setup, institutional SSO, M-Autofill endpoint reference
+- [M-Chat API](docs/MCHAT_API.md) — M-Chat endpoint reference, conversational session API
+- [Testing Guide](docs/TESTING.md) — Conformance test suite, coverage, smoke tests
 - [Data Model](docs/DATA_MODEL.md) — Internal data structures, Mermaid diagrams, platform mapping
 - [Adapter Guide](docs/ADAPTERS.md) — Writing custom survey platform adapters
 - [M-Autofill Module](m_autofill/README.md) — Answer suggestion assistant
-- [M-Chat Module](m_chat/README.md) — Questionnaire design assistant *(planned)*
+- [M-Chat Module](m_chat/README.md) — Questionnaire design assistant
 - [Shared Utilities](m_shared/README.md) — Common infrastructure
 
 ## Contributing

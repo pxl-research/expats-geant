@@ -2,6 +2,8 @@
 
 This guide explains how to integrate M-Autofill with institutional authentication systems and test the API during development.
 
+> For M-Chat API, see [MCHAT_API.md](MCHAT_API.md).
+
 ## Table of Contents
 
 - [Deployment](#deployment)
