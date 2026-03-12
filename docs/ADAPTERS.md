@@ -7,12 +7,12 @@ the `SurveyAdapter` interface.
 
 M-Shared ships with four built-in adapters:
 
-| Format | Keys | Supports submission? |
-|---|---|---|
-| LimeSurvey (LSS XML) | `"limesurvey"`, `"lss"` | Yes (RemoteControl 2 API) |
-| Qualtrics (QSF JSON) | `"qualtrics"`, `"qsf"` | Yes (Response Import API v3) |
-| SurveyMonkey (API v3 JSON) | `"surveymonkey"`, `"sm"` | No (requires paid plan) |
-| QTI 3.0 (XML) | `"qti"` | No (interchange format) |
+| Format | Keys | Supports submission? | Supports creation? |
+|---|---|---|---|
+| LimeSurvey (LSS XML) | `"limesurvey"`, `"lss"` | Yes (RemoteControl 2 API) | Yes — pushes to live API, returns platform survey ID |
+| Qualtrics (QSF JSON) | `"qualtrics"`, `"qsf"` | Yes (Response Import API v3) | Yes — pushes to live API, returns platform survey ID |
+| SurveyMonkey (API v3 JSON) | `"surveymonkey"`, `"sm"` | No (requires paid plan) | File fallback — returns exported file content |
+| QTI 3.0 (XML) | `"qti"` | No (interchange format) | File fallback — returns exported file content |
 
 If your platform is not listed, you can write and register your own adapter in
 a few steps.
@@ -22,7 +22,7 @@ a few steps.
 ## The Contract
 
 All adapters extend `m_shared.adapters.base.SurveyAdapter` and implement three
-abstract methods plus one optional method:
+abstract methods plus two optional methods:
 
 ```python
 from m_shared.adapters.base import SurveyAdapter
@@ -42,11 +42,22 @@ class MySurveyAdapter(SurveyAdapter):
 
     def capabilities(self) -> set[str]:
         """Declare which operations this adapter supports."""
-        return {"import", "export"}  # add "submit" if submit_responses is implemented
+        return {"import", "export"}  # add "submit", "create", "api_create" as appropriate
 
     # Optional — only override if the platform has a response write-back API
     def submit_responses(self, survey_id: str, responses: list[Response]) -> None:
         """Submit responses to the originating platform."""
+        ...
+
+    # Optional — only override if the platform supports survey creation
+    def create_survey(self, survey: Survey) -> str:
+        """Push survey to the platform API, or fall back to file export.
+
+        Returns:
+            str: Platform-assigned survey ID if the adapter pushes to a live API
+                 (declare "api_create" in capabilities), or serialised file content
+                 for file-fallback adapters (declare "create" only).
+        """
         ...
 ```
 
@@ -61,6 +72,12 @@ Callers use `capabilities()` to guard optional operations before calling them:
 adapter = get_adapter("myplatform")
 if "submit" in adapter.capabilities():
     adapter.submit_responses(survey_id, responses)
+if "create" in adapter.capabilities():
+    result = adapter.create_survey(survey)
+    if "api_create" in adapter.capabilities():
+        platform_id = result      # e.g. "123456" — live survey created on platform
+    else:
+        file_content = result     # serialised file content for manual upload
 ```
 
 ---
@@ -85,6 +102,54 @@ question = Question(
 ```
 
 On export, read `question.metadata` to recover those fields.
+
+---
+
+## Implementing `create_survey()`
+
+`create_survey(survey: Survey) -> str` has two patterns depending on whether your
+platform exposes a write API.
+
+### API-push adapters (e.g. LimeSurvey, Qualtrics)
+
+Push the survey to the platform and return the platform-assigned survey ID.
+Declare both `"create"` and `"api_create"` in `capabilities()`.
+
+```python
+def capabilities(self) -> set[str]:
+    return {"import", "export", "submit", "create", "api_create"}
+
+def create_survey(self, survey: Survey) -> str:
+    # translate Survey → platform payload, call platform API
+    response = self._api_client.post("/surveys", payload)
+    return response["id"]   # platform survey ID, e.g. "123456"
+```
+
+Return value: a non-empty string platform ID. Raise `RuntimeError` (or a
+platform-specific exception) if the API call fails.
+
+### File-fallback adapters (e.g. SurveyMonkey, QTI)
+
+Delegate to `export_survey()` and return the serialised file content.
+Declare `"create"` but **not** `"api_create"` in `capabilities()`.
+
+```python
+def capabilities(self) -> set[str]:
+    return {"import", "export", "create"}
+
+def create_survey(self, survey: Survey) -> str:
+    return self.export_survey(survey)   # serialised XML/JSON for download
+```
+
+Return value: the same string `export_survey()` would return. The caller is
+responsible for delivering the file to the user (e.g. as a download response).
+
+### Choosing the right pattern
+
+| Condition | Pattern | `"api_create"` in capabilities? |
+|---|---|---|
+| Platform has a write API and credentials are available | API-push | Yes |
+| No write API, or write API not yet implemented | File fallback | No |
 
 ---
 
@@ -177,6 +242,7 @@ Use `tests/test_adapters.py` as a reference. At minimum, test:
 2. **Export** — a `Survey` round-trips back to a valid platform payload
 3. **Capabilities** — `capabilities()` returns the expected set
 4. **Error handling** — invalid input raises `ValueError`
+5. **Create (if supported)** — `create_survey()` returns a platform ID (API-push) or file content (file-fallback)
 
 ```python
 def test_import_survey():
@@ -193,6 +259,24 @@ def test_import_invalid():
     adapter = MyPlatformAdapter()
     with pytest.raises(ValueError):
         adapter.import_survey("not valid json{{{")
+
+# For API-push adapters — mock the HTTP call
+def test_create_survey_api_push(requests_mock):
+    requests_mock.post("https://platform/surveys", json={"id": "survey-abc"})
+    adapter = MyApiPlatformAdapter(api_key="key")
+    survey = Survey(id="s1", title="Test", description="", sections=[])
+    result = adapter.create_survey(survey)
+    assert result == "survey-abc"
+    assert "api_create" in adapter.capabilities()
+
+# For file-fallback adapters — no HTTP needed
+def test_create_survey_file_fallback():
+    adapter = MyFilePlatformAdapter()
+    survey = Survey(id="s1", title="Test", description="", sections=[])
+    result = adapter.create_survey(survey)
+    assert isinstance(result, str) and len(result) > 0
+    assert "api_create" not in adapter.capabilities()
+    assert "create" in adapter.capabilities()
 ```
 
 Run the suite:

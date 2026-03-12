@@ -24,7 +24,7 @@ services:
 
       # LLM Configuration
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - LLM_MODEL=${LLM_MODEL:-openrouter/meta-llama/llama-3.1-8b-instruct}
+      - LLM_MODEL=${LLM_MODEL:-anthropic/claude-haiku-4.5}
       - LLM_BASE_URL=${LLM_BASE_URL:-https://openrouter.ai/api/v1}
 
       # Session Configuration
@@ -68,6 +68,45 @@ services:
     networks:
       - m-autofill-network
 
+  m-chat:
+    build:
+      context: .
+      dockerfile: m_chat/Dockerfile
+    container_name: m-chat
+    ports:
+      - "8003:8003"
+    environment:
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - JWT_ALGORITHM=HS256
+      - JWT_EXPIRATION_HOURS=24
+      - OIDC_ISSUER_URL=http://keycloak:8080/realms/expat-geant
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-m-chat}
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-change-me}
+      - OIDC_REDIRECT_URI=${OIDC_REDIRECT_URI:-http://localhost:8002/auth/callback}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - LLM_MODEL=${LLM_MODEL:-anthropic/claude-haiku-4.5}
+      - LLM_BASE_URL=${LLM_BASE_URL:-https://openrouter.ai/api/v1}
+      - SESSIONS_BASE_PATH=/app/data/sessions
+      - SESSION_TTL_HOURS=${SESSION_TTL_HOURS:-24}
+      - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-50}
+      - CHAT_PORT=8003
+      - HOST=0.0.0.0
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+    volumes:
+      - chat_sessions_data:/app/data/sessions
+    depends_on:
+      - keycloak
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - m-autofill-network
+
   ui:
     build:
       context: .
@@ -83,6 +122,23 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     depends_on:
       - m-autofill
+    restart: unless-stopped
+    networks:
+      - m-autofill-network
+
+  m_chat_ui:
+    build:
+      context: .
+      dockerfile: m_chat_ui/Dockerfile
+    container_name: m-chat-ui
+    ports:
+      - "8004:8004"
+    environment:
+      - MCHAT_API_URL=http://m-chat:8003
+      - MCHAT_PUBLIC_URL=${MCHAT_PUBLIC_URL:-http://localhost:8003}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      - m-chat
     restart: unless-stopped
     networks:
       - m-autofill-network
@@ -111,6 +167,8 @@ volumes:
   sessions_data:
     driver: local
   chroma_data:
+    driver: local
+  chat_sessions_data:
     driver: local
 
 networks:

@@ -13,6 +13,10 @@ CLINE.md
 demo_code
 .env
 test_data
+data/
+docs/application_form.pdf
+docs/PROJECT_PLAN.md
+.coverage
 
 # Python
 __pycache__/

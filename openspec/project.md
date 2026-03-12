@@ -212,3 +212,28 @@ Our executables are pip3 and python3 (not pip and python)
 **Integration & Standards:**
 
 - **QTI 3.0**: Questionnaire interchange standard; specific tools and integrations TBD during pilot based on partner institutional systems
+
+## Future Work / Deferred
+
+Items consciously deferred past the PoC phase. Revisit after pilot feedback.
+
+### Conditional / Display Logic (branching)
+
+Survey platforms (LimeSurvey, Qualtrics) support skip logic and display conditions on
+questions ("show this question only if previous answer = X"). This logic is currently
+discarded on import and not represented in the internal data model.
+
+**Recommended approach when revisited:**
+- Store raw platform-native logic in `question.metadata["display_logic"]` during import
+  and restore it verbatim on export (opaque round-tripping — no internal model changes).
+- A first-class `conditions` field on `Question` and active AI reasoning about branching
+  logic in m-chat are post-PoC scope.
+
+**Relevant for:** m-chat (questionnaire design, round-trip fidelity); not relevant for
+m-autofill (suggestion system does not need to execute branching logic).
+
+### Matrix / Grid Questions
+
+Qualtrics `Matrix` type is currently imported as `SINGLE_CHOICE` (sub-question structure
+lost). LimeSurvey array types (`A`, `B`, `E`) are skipped entirely. Acceptable for the
+PoC; revisit if pilot surveys rely heavily on matrix questions.

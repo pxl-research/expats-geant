@@ -1,0 +1,462 @@
+{% extends "base.html" %}
+
+{% block title %}Chat{% endblock %}
+
+{% block session_name %}
+<span class="nav-session">
+  {{ session.session_id[:8] if session else '' }}&hellip;
+</span>
+{% endblock %}
+
+{% block extra_css %}
+.msg-wrap {
+  display: flex;
+  margin-bottom: 1rem;
+  animation: msgIn 0.2s ease-out;
+}
+@keyframes msgIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.msg-wrap.msg-user { justify-content: flex-end; }
+.msg-wrap.msg-assistant { justify-content: flex-start; }
+
+.msg-bubble {
+  max-width: 78%;
+  padding: 0.625rem 0.875rem;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.msg-bubble-user {
+  background: var(--brand);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.msg-bubble-assistant {
+  background: var(--surface-card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 4px;
+  box-shadow: var(--shadow-sm);
+}
+
+.md-content p { margin: 0 0 0.5rem; }
+.md-content p:last-child { margin-bottom: 0; }
+.md-content ul, .md-content ol { margin: 0.25rem 0 0.5rem 1.25rem; padding: 0; }
+.md-content li { margin-bottom: 0.2rem; }
+.md-content code { font-family: var(--font-mono); font-size: 0.8125em; background: var(--surface); border: 1px solid var(--border); border-radius: 3px; padding: 0.1em 0.35em; }
+.md-content pre { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem; overflow-x: auto; margin: 0.5rem 0; }
+.md-content pre code { background: none; border: none; padding: 0; font-size: 0.8125rem; }
+.md-content h1, .md-content h2, .md-content h3 { font-weight: 600; margin: 0.75rem 0 0.25rem; }
+.md-content h1 { font-size: 1.1rem; }
+.md-content h2 { font-size: 1rem; }
+.md-content h3 { font-size: 0.9375rem; }
+.md-content strong { font-weight: 600; }
+.md-content em { font-style: italic; }
+.md-content table { border-collapse: collapse; width: 100%; margin: 0.5rem 0; font-size: 0.875rem; }
+.md-content th, .md-content td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; }
+.md-content th { background: var(--surface); font-weight: 600; }
+.md-content blockquote { border-left: 3px solid var(--brand-mid); margin: 0.5rem 0; padding: 0.25rem 0.75rem; color: var(--text-muted); }
+
+body { overflow: hidden; }
+
+.chat-shell {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 52px);
+  overflow: hidden;
+}
+
+/* ── Context bar ─────────────────────────────────────────── */
+.chat-context-bar {
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--border);
+  padding: 0.625rem 1.375rem;
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.chat-context-bar .label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ── Main split ──────────────────────────────────────────── */
+.chat-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  gap: 0;
+}
+
+/* ── Left: messages ──────────────────────────────────────── */
+.chat-left {
+  flex: 1 1 60%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.messages-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.25rem 1.375rem;
+  scroll-behavior: smooth;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.chat-input-area {
+  border-top: 1px solid var(--border);
+  padding: 0.875rem 1.25rem;
+  background: var(--surface-card);
+  flex-shrink: 0;
+}
+
+.chat-input-row {
+  display: flex;
+  gap: 0.625rem;
+  align-items: flex-end;
+}
+
+.chat-textarea {
+  flex: 1;
+  min-height: 44px;
+  max-height: 160px;
+  resize: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface-card);
+  transition: border-color 0.15s, box-shadow 0.15s;
+  overflow-y: auto;
+}
+.chat-textarea:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(15,118,110,0.1);
+}
+
+.send-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: var(--brand);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  transition: background 0.15s;
+  flex-shrink: 0;
+  align-self: flex-end;
+}
+.send-btn:hover { background: var(--brand-dark); }
+.send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.chat-input-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+}
+
+.chat-input-hint {
+  font-size: 0.75rem;
+  color: var(--text-faint);
+}
+
+.chat-input-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Upload form (inside chat input area) */
+.upload-inline {
+  position: relative;
+  overflow: hidden;
+}
+.upload-inline input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+  font-size: 0;
+}
+
+#upload-result { margin-top: 0.5rem; }
+
+/* ── Right: survey sidebar ───────────────────────────────── */
+.chat-right {
+  flex: 0 0 340px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-card);
+  overflow: hidden;
+}
+
+.sidebar-header {
+  padding: 0.875rem 1.125rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  flex-shrink: 0;
+}
+
+.sidebar-header h2 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  flex: 1;
+}
+
+#survey-preview {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.125rem;
+}
+
+/* ── Footer controls bar ─────────────────────────────────── */
+.chat-footer {
+  background: var(--surface-card);
+  border-top: 1px solid var(--border);
+  padding: 0.625rem 1.375rem;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.chat-footer-spacer { flex: 1; }
+
+/* ── Message loading spinner ─────────────────────────────── */
+#send-indicator {
+  display: none;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+.htmx-request #send-indicator { display: flex; }
+.htmx-request #chat-form .send-btn { opacity: 0.5; pointer-events: none; }
+{% endblock %}
+
+{% block content %}
+<div class="chat-shell">
+  <!-- Context bar -->
+  <div class="chat-context-bar">
+    <span class="label">Session</span>
+    <span class="mono" style="font-size:0.8125rem; color:var(--text-muted)">{{ session_id[:20] }}&hellip;</span>
+    {% if style.language %}
+    <span class="badge badge-brand">{{ style.language | upper }}</span>
+    {% endif %}
+    {% if style.document_summary %}
+    <span class="badge badge-neutral">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      Custom style guide
+    </span>
+    {% endif %}
+    <a href="/session/{{ session_id }}/setup" class="text-xs text-brand" style="margin-left:auto; text-decoration:none; font-weight:500">
+      Edit style
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    </a>
+  </div>
+
+  <!-- Body split -->
+  <div class="chat-body">
+    <!-- Left: messages + input -->
+    <div class="chat-left">
+      <div class="messages-area" id="messages" role="log" aria-live="polite" aria-label="Conversation">
+        {% for msg in messages %}
+          {% if msg.role == 'user' %}
+          <div class="msg-wrap msg-user">
+            <div class="msg-bubble msg-bubble-user">{{ msg.content }}</div>
+          </div>
+          {% else %}
+          <div class="msg-wrap msg-assistant">
+            <div class="msg-bubble msg-bubble-assistant"><div class="md-content">{{ msg.content | markdown | safe }}</div></div>
+          </div>
+          {% endif %}
+        {% endfor %}
+        {% if messages %}
+        <script>
+          // Scroll to bottom on initial load with history
+          document.addEventListener('DOMContentLoaded', function() {
+            var msgs = document.getElementById('messages');
+            if (msgs) msgs.scrollTop = msgs.scrollHeight;
+          });
+        </script>
+        {% else %}
+        <div style="flex:1; display:flex; align-items:center; justify-content:center; padding:2rem">
+          <div style="text-align:center; max-width:320px">
+            <div style="width:44px; height:44px; background:var(--brand-light); border-radius:10px; display:inline-flex; align-items:center; justify-content:center; margin-bottom:1rem; color:var(--brand)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <h3 style="margin-bottom:0.5rem; font-size:0.9375rem">Start chatting</h3>
+            <p class="text-xs text-muted">Describe your survey goals and the AI will help you design it. Try: <em>"Create a 10-question customer satisfaction survey."</em></p>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="chat-input-area">
+        <div id="upload-result"></div>
+        <form
+          id="chat-form"
+          hx-post="/session/{{ session_id }}/chat"
+          hx-target="#messages"
+          hx-swap="beforeend"
+          hx-encoding="multipart/form-data"
+          hx-on::after-request="this.reset(); document.querySelector('.chat-textarea').style.height='44px'"
+        >
+          <div class="chat-input-row">
+            <textarea
+              class="chat-textarea"
+              name="message"
+              id="chat-input"
+              placeholder="Describe your survey, ask for changes, or request improvements…"
+              rows="1"
+              required
+              aria-label="Your message"
+            ></textarea>
+            <button type="submit" class="send-btn" aria-label="Send message">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+          <div class="chat-input-meta">
+            <span class="chat-input-hint">Press <kbd style="font-size:0.7rem; padding:1px 4px; border:1px solid var(--border); border-radius:3px; background:var(--surface-raised)">Ctrl</kbd> + <kbd style="font-size:0.7rem; padding:1px 4px; border:1px solid var(--border); border-radius:3px; background:var(--surface-raised)">Enter</kbd> to send</span>
+            <div class="chat-input-actions">
+              <span class="htmx-indicator" id="send-indicator">
+                <div class="spinner"></div>
+                <span>Thinking…</span>
+              </span>
+              <label
+                class="btn btn-ghost btn-sm upload-inline"
+                title="Upload a reference document"
+                aria-label="Upload reference document"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Attach doc
+                <input
+                  type="file"
+                  name="file"
+                  accept=".docx,.pdf,.txt,.md,.pptx"
+                  hx-post="/session/{{ session_id }}/upload"
+                  hx-target="#upload-result"
+                  hx-swap="innerHTML"
+                  hx-encoding="multipart/form-data"
+                  hx-trigger="change"
+                >
+              </label>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Right: survey sidebar -->
+    <div class="chat-right">
+      <div class="sidebar-header">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <h2>Survey Draft</h2>
+        {% if survey %}
+          {% set total_q = namespace(count=0) %}
+          {% for sec in survey.get('sections', []) %}{% set total_q.count = total_q.count + sec.get('questions', [])|length %}{% endfor %}
+          <span class="badge badge-brand">{{ total_q.count }} Q</span>
+        {% else %}
+          <span class="badge badge-neutral">empty</span>
+        {% endif %}
+      </div>
+      <div id="survey-preview">
+        {% include "partials/survey_preview.html" %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer controls -->
+  <div class="chat-footer">
+    <form method="post" action="/session/{{ session_id }}/reset" style="display:inline"
+          onsubmit="return confirm('Reset the draft survey and vocabulary? Your conversation history will be kept.')">
+      <button type="submit" class="btn btn-ghost btn-sm">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.77"/></svg>
+        Reset draft
+      </button>
+    </form>
+
+    <span class="chat-footer-spacer"></span>
+
+    <a href="/session/{{ session_id }}/export" class="btn btn-primary btn-sm">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export / Publish
+    </a>
+
+    <button
+      class="btn btn-danger-ghost btn-sm"
+      hx-delete="/session/{{ session_id }}"
+      hx-confirm="Delete this session permanently? This cannot be undone."
+      hx-push-url="/"
+      hx-target="body"
+      hx-swap="innerHTML"
+    >
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+      Delete
+    </button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  // Ctrl+Enter submits form
+  document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      const form = document.getElementById('chat-form');
+      if (form && document.activeElement && form.contains(document.activeElement)) {
+        htmx.trigger(form, 'submit');
+      }
+    }
+  });
+
+  // Auto-resize textarea
+  const ta = document.getElementById('chat-input');
+  if (ta) {
+    ta.addEventListener('input', function() {
+      this.style.height = '44px';
+      this.style.height = Math.min(this.scrollHeight, 160) + 'px';
+    });
+  }
+
+  // Scroll messages to bottom after HTMX swaps
+  document.body.addEventListener('htmx:afterSwap', function(evt) {
+    const msgs = document.getElementById('messages');
+    if (msgs && evt.detail.target === msgs) {
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+  });
+})();
+</script>
+{% endblock %}

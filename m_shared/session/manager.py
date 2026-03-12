@@ -37,6 +37,7 @@ class SessionManager:
         self.base_path = Path(base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
         self.audit_logger = AuditLogger(base_path=base_path)
+        self._vector_store_cache: dict[str, ChromaDocumentStore] = {}
 
     def _hash_token(self, jwt_token: str) -> str:
         """Generate stable session_id from JWT token.
@@ -115,6 +116,7 @@ class SessionManager:
         terms_version: str = "1.0",
         privacy_version: str = "1.0",
         explicit_session_id: str | None = None,
+        session_type: str | None = None,
     ) -> Session:
         """Create a new session with isolated storage.
 
@@ -127,6 +129,7 @@ class SessionManager:
             terms_version: Terms version if consent not provided (default: "1.0")
             privacy_version: Privacy policy version if consent not provided (default: "1.0")
             explicit_session_id: Optional explicit session ID (skips JWT hash derivation)
+            session_type: Optional session type tag (e.g. "chat", "autofill")
 
         Returns:
             Created Session object
@@ -155,13 +158,17 @@ class SessionManager:
         created_at = datetime.utcnow()
         expires_at = created_at + timedelta(hours=ttl_hours)
 
+        meta: dict = {"ttl_hours": ttl_hours}
+        if session_type is not None:
+            meta["session_type"] = session_type
+
         session = Session(
             session_id=session_id,
             user_id=user_id,
             created_at=created_at,
             expires_at=expires_at,
             isolation_scope=isolation_scope,
-            metadata={"ttl_hours": ttl_hours},
+            metadata=meta,
         )
 
         # Save metadata
@@ -214,8 +221,10 @@ class SessionManager:
         if not session_path.exists():
             raise FileNotFoundError(f"Session {session_id} does not exist")
 
-        chroma_path = session_path / "chroma_store"
-        return ChromaDocumentStore(path=str(chroma_path))
+        if session_id not in self._vector_store_cache:
+            chroma_path = session_path / "chroma_store"
+            self._vector_store_cache[session_id] = ChromaDocumentStore(path=str(chroma_path))
+        return self._vector_store_cache[session_id]
 
     def get_documents_path(self, session_id: str) -> Path:
         """Get path to uploads folder for a session.
@@ -252,6 +261,7 @@ class SessionManager:
                 reason=reason,
             )
 
+        self._vector_store_cache.pop(session_id, None)
         shutil.rmtree(session_path)
         return True
 

@@ -6,14 +6,22 @@ from datetime import UTC, datetime
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
-from pydantic import BaseModel, Field
 
 from m_autofill.ingest import ingest_files_into_store
 from m_autofill.models import (
+    AuditDeleteResponse,
     BatchSuggestRequest,
     BatchSuggestResponse,
+    CitationResponse,
     CitationResult,
+    DevTokenRequest,
+    DevTokenResponse,
     ItemSuggestion,
+    SessionDeleteResponse,
+    SessionStatsResponse,
+    SuggestRequest,
+    SuggestResponse,
+    UploadResponse,
     normalize_to_sections,
 )
 from m_autofill.rag_pipeline import RAGPipeline
@@ -30,93 +38,102 @@ from m_shared.auth.oauth import (
 from m_shared.llm.client import LLMClient
 from m_shared.models.response import Response as SurveyResponse
 from m_shared.session.manager import SessionManager
-from m_shared.utils.audit import AuditLogger
+from m_shared.utils.audit import AuditEventType, AuditLogger
+
+_PRIVACY_TEXT = """M-AUTOFILL PRIVACY STATEMENT
+
+DATA COLLECTION:
+- Documents you upload are processed temporarily during your session
+- Answer suggestions and citations are generated from your documents only
+- All processing happens within your isolated session
+
+DATA RETENTION:
+- Operational data (documents, vectors, temporary files) deleted when session expires (default: 24-48 hours)
+- Audit reports retained for 1 year for compliance, then automatically deleted
+- You can delete your session immediately using DELETE /session
+
+DATA USAGE:
+- Documents used only for generating answer suggestions
+- No profiling, tracking, or cross-session correlation
+- No data sharing with third parties
+
+YOUR RIGHTS (GDPR):
+- Right to access: Download your audit report anytime (GET /audit-report)
+- Right to deletion: Delete your session and data immediately (DELETE /session)
+- Right to know: This statement explains all data handling
+
+CONSENT:
+By using this service, you consent to:
+- Temporary processing of uploaded documents for answer generation
+- Storage of audit logs for 1 year for compliance purposes
+- LLM processing via OpenRouter (EU-based deployment)
+
+CONTACT:
+For privacy concerns: [Insert institutional contact]
+For technical issues: [Insert support contact]
+
+Last updated: January 2026
+"""
 
 
-# Request models
-class SuggestRequest(BaseModel):
-    """Request for answer suggestion."""
+def _format_audit_plaintext(report, session_id: str) -> str:
+    """Render an AuditReport as a human-readable plaintext string."""
+    doc_entries = [e for e in report.log_entries if e.event_type == AuditEventType.UPLOAD]
+    sug_entries = [e for e in report.log_entries if e.event_type == AuditEventType.SUGGEST]
+    n_docs = report.summary.get("documents_uploaded", len(doc_entries))
+    n_sugs = report.summary.get("suggestions_generated", len(sug_entries))
+    n_edits = report.summary.get("suggestions_edited", 0)
+    source_counts = [e.details.get("source_count", 0) for e in sug_entries]
+    avg_sources = sum(source_counts) / len(source_counts) if source_counts else 0.0
 
-    question: str = Field(..., min_length=1, max_length=2000, description="Question to answer")
-    context: str | None = Field(None, max_length=1000, description="Optional context")
+    plaintext = f"""AUDIT REPORT — Session {session_id}
+Created: {report.created_at}
+Ended: {report.ended_at or 'N/A'}
 
+DOCUMENTS UPLOADED ({n_docs}):
+"""
+    for entry in doc_entries:
+        d = entry.details
+        plaintext += f"- {d.get('filename')} ({d.get('file_size', 0):,} bytes) — uploaded {entry.timestamp}\n"
 
-# Response models
-class UploadResponse(BaseModel):
-    """Document upload response."""
+    plaintext += f"\nSUGGESTIONS GENERATED ({n_sugs}):\n"
+    for i, entry in enumerate(sug_entries, 1):
+        s = entry.details
+        plaintext += f"[{i}] Question: {s.get('question')}\n"
+        plaintext += f"    Suggestion: {str(s.get('suggested_answer', ''))[:100]}...\n"
+        plaintext += f"    Sources: {', '.join(s.get('sources_used', []))}\n"
+        plaintext += f"    Generated: {entry.timestamp}\n"
+        plaintext += "\n"
 
-    status: str
-    filename: str
-    size_bytes: int
-    upload_timestamp: str
-    session_id: str
-
-
-class CitationResponse(BaseModel):
-    """Citation information."""
-
-    source: str
-    position: str
-    position_range: dict
-    timestamp: str
-    excerpt: str
-
-
-class SuggestResponse(BaseModel):
-    """Answer suggestion response."""
-
-    answer: str
-    reasoning: str | None = Field(
-        None, description="LLM explanation of confidence, source interpretation, or uncertainty"
-    )
-    citations: list[CitationResponse]
-    metadata: dict
+    plaintext += f"""SUMMARY:
+- Total Documents: {n_docs}
+- Total Suggestions: {n_sugs}
+- Total Edits: {n_edits}
+- Avg Sources per Suggestion: {avg_sources:.1f}
+"""
+    return plaintext
 
 
-class SessionStatsResponse(BaseModel):
-    """Session statistics response."""
-
-    session_id: str
-    user_id: str
-    created_at: str
-    expires_at: str
-    remaining_hours: float
-    is_expired: bool
-    document_count: int
-    isolation_scope: str
-
-
-class SessionDeleteResponse(BaseModel):
-    """Session deletion response."""
-
-    session_id: str
-    deleted: bool
-    message: str
-
-
-class AuditDeleteResponse(BaseModel):
-    """Audit report deletion response."""
-
-    session_id: str
-    deleted: bool
-    message: str
-
-
-class DevTokenRequest(BaseModel):
-    """Request for development token generation."""
-
-    user_id: str = Field(default="dev_user", description="User ID for token")
-    org: str = Field(default="dev_org", description="Organization ID")
-    roles: list[str] = Field(default=["respondent"], description="User roles")
-
-
-class DevTokenResponse(BaseModel):
-    """Development token response."""
-
-    token: str
-    user_id: str
-    expires_in_hours: int
-    message: str
+def _build_responses_from_body(
+    body: dict, question_meta: dict, session_id: str
+) -> list[SurveyResponse]:
+    """Convert a form-field body dict to a list of SurveyResponse objects."""
+    responses: list[SurveyResponse] = []
+    for field_key, answer_value in body.items():
+        if field_key.startswith("_"):
+            continue
+        question_id = field_key[2:] if field_key.startswith("q_") else field_key
+        q_meta = question_meta.get(question_id, {})
+        responses.append(
+            SurveyResponse(
+                id=str(uuid.uuid4()),
+                question_id=question_id,
+                answer_value=answer_value,
+                session_id=session_id,
+                metadata={"ls_qid": q_meta["ls_qid"]} if "ls_qid" in q_meta else {},
+            )
+        )
+    return responses
 
 
 def create_app(
@@ -530,48 +547,9 @@ def create_app(
             report = audit_logger.generate_report(session.session_id)
 
             if format == "plaintext":
-                # Derive document and suggestion entries from log
-                from m_shared.utils.audit import AuditEventType
-
-                doc_entries = [
-                    e for e in report.log_entries if e.event_type == AuditEventType.UPLOAD
-                ]
-                sug_entries = [
-                    e for e in report.log_entries if e.event_type == AuditEventType.SUGGEST
-                ]
-                n_docs = report.summary.get("documents_uploaded", len(doc_entries))
-                n_sugs = report.summary.get("suggestions_generated", len(sug_entries))
-                n_edits = report.summary.get("suggestions_edited", 0)
-                source_counts = [e.details.get("source_count", 0) for e in sug_entries]
-                avg_sources = sum(source_counts) / len(source_counts) if source_counts else 0.0
-
-                # Convert to plaintext
-                plaintext = f"""AUDIT REPORT — Session {session.session_id}
-Created: {report.created_at}
-Ended: {report.ended_at or 'N/A'}
-
-DOCUMENTS UPLOADED ({n_docs}):
-"""
-                for entry in doc_entries:
-                    d = entry.details
-                    plaintext += f"- {d.get('filename')} ({d.get('file_size', 0):,} bytes) — uploaded {entry.timestamp}\n"
-
-                plaintext += f"\nSUGGESTIONS GENERATED ({n_sugs}):\n"
-                for i, entry in enumerate(sug_entries, 1):
-                    s = entry.details
-                    plaintext += f"[{i}] Question: {s.get('question')}\n"
-                    plaintext += f"    Suggestion: {str(s.get('suggested_answer', ''))[:100]}...\n"
-                    plaintext += f"    Sources: {', '.join(s.get('sources_used', []))}\n"
-                    plaintext += f"    Generated: {entry.timestamp}\n"
-                    plaintext += "\n"
-
-                plaintext += f"""SUMMARY:
-- Total Documents: {n_docs}
-- Total Suggestions: {n_sugs}
-- Total Edits: {n_edits}
-- Avg Sources per Suggestion: {avg_sources:.1f}
-"""
-                return PlainTextResponse(content=plaintext)
+                return PlainTextResponse(
+                    content=_format_audit_plaintext(report, session.session_id)
+                )
             else:
                 # JSON format (default)
                 return report
@@ -692,41 +670,7 @@ DOCUMENTS UPLOADED ({n_docs}):
         Returns:
             Plaintext privacy statement
         """
-        privacy_text = """M-AUTOFILL PRIVACY STATEMENT
-
-DATA COLLECTION:
-- Documents you upload are processed temporarily during your session
-- Answer suggestions and citations are generated from your documents only
-- All processing happens within your isolated session
-
-DATA RETENTION:
-- Operational data (documents, vectors, temporary files) deleted when session expires (default: 24-48 hours)
-- Audit reports retained for 1 year for compliance, then automatically deleted
-- You can delete your session immediately using DELETE /session
-
-DATA USAGE:
-- Documents used only for generating answer suggestions
-- No profiling, tracking, or cross-session correlation
-- No data sharing with third parties
-
-YOUR RIGHTS (GDPR):
-- Right to access: Download your audit report anytime (GET /audit-report)
-- Right to deletion: Delete your session and data immediately (DELETE /session)
-- Right to know: This statement explains all data handling
-
-CONSENT:
-By using this service, you consent to:
-- Temporary processing of uploaded documents for answer generation
-- Storage of audit logs for 1 year for compliance purposes
-- LLM processing via OpenRouter (EU-based deployment)
-
-CONTACT:
-For privacy concerns: [Insert institutional contact]
-For technical issues: [Insert support contact]
-
-Last updated: January 2026
-"""
-        return privacy_text
+        return _PRIVACY_TEXT
 
     # ------------------------------------------------------------------
     # Survey import / retrieval
@@ -939,23 +883,7 @@ Last updated: January 2026
                 question_meta[q["id"]] = q.get("metadata", {})
 
         body = await request.json()
-
-        responses: list[SurveyResponse] = []
-        for field_key, answer_value in body.items():
-            if field_key.startswith("_"):
-                continue
-            # Form fields are named "q_{question.id}" — strip the "q_" prefix
-            question_id = field_key[2:] if field_key.startswith("q_") else field_key
-            q_meta = question_meta.get(question_id, {})
-            responses.append(
-                SurveyResponse(
-                    id=str(uuid.uuid4()),
-                    question_id=question_id,
-                    answer_value=answer_value,
-                    session_id=session_id,
-                    metadata={"ls_qid": q_meta["ls_qid"]} if "ls_qid" in q_meta else {},
-                )
-            )
+        responses = _build_responses_from_body(body, question_meta, session_id)
 
         platform_survey_id = survey_data.get("id", session_id)
         try:

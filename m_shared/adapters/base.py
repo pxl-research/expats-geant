@@ -45,7 +45,7 @@ class SurveyAdapter(ABC):
     def capabilities(self) -> set[str]:
         """Return the set of operations this adapter supports.
 
-        Defined capability strings: "import", "export", "submit".
+        Defined capability strings: "import", "export", "submit", "create", "api_create".
 
         Returns:
             set[str]: Supported capability identifiers.

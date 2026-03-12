@@ -1,0 +1,40 @@
+{% if error %}
+<div class="msg-wrap msg-user">
+  <div class="msg-bubble msg-bubble-user">{{ user_message }}</div>
+</div>
+<div class="msg-wrap msg-assistant">
+  <div class="alert alert-error" style="max-width:78%">
+    <svg class="alert-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <span>{{ error }}</span>
+  </div>
+</div>
+{% else %}
+<div class="msg-wrap msg-user">
+  <div class="msg-bubble msg-bubble-user">{{ user_message }}</div>
+</div>
+<div class="msg-wrap msg-assistant">
+  <div class="msg-bubble msg-bubble-assistant">
+    <div class="md-content">{{ assistant_message | markdown | safe }}</div>
+    {% if survey_updated %}
+    <div style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border)">
+      <span class="badge badge-success">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+        Survey updated
+      </span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if survey_updated %}
+{# Trigger a fresh load of the survey preview sidebar #}
+<div
+  hx-get="/session/{{ session_id }}/survey-preview"
+  hx-trigger="load"
+  hx-target="#survey-preview"
+  hx-swap="innerHTML"
+  style="display:none"
+  aria-hidden="true"
+></div>
+{% endif %}
+{% endif %}

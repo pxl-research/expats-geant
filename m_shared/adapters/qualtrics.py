@@ -349,6 +349,23 @@ class QualtricsAdapter(SurveyAdapter):
 # ------------------------------------------------------------------
 
 
+def _normalise_choices(raw: Any) -> dict[str, Any]:
+    """Normalise a Choices/Answers payload to a dict keyed by choice code.
+
+    QSF files can represent choices as a dict (``{"1": {"Display": "..."}, ...}``)
+    or, in some export variants, as a plain list.  Convert a list to a 1-based
+    dict so the rest of the parsing logic stays uniform.
+    """
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, list):
+        return {
+            str(i + 1): (item if isinstance(item, dict) else {"Display": str(item)})
+            for i, item in enumerate(raw)
+        }
+    return {}
+
+
 def _normalise_bl_payload(payload: Any) -> list[dict[str, Any]]:
     """BL Payload may be a list or a dict keyed by block ID."""
     if isinstance(payload, list):
@@ -402,12 +419,12 @@ def _build_question(payload: dict[str, Any], order: int = 0) -> Question | None:
         # Matrix/Likert questions store scale points in "Answers"; all others use "Choices"
         q_type_code = payload.get("QuestionType", "")
         if q_type_code == "Matrix":
-            raw_choices: dict[str, Any] = payload.get("Answers", {})
+            raw_choices: dict[str, Any] = _normalise_choices(payload.get("Answers", {}))
             choice_order: list[str] = [
                 str(c) for c in payload.get("AnswerOrder", list(raw_choices.keys()))
             ]
         else:
-            raw_choices = payload.get("Choices", {})
+            raw_choices = _normalise_choices(payload.get("Choices", {}))
             choice_order = [str(c) for c in payload.get("ChoiceOrder", list(raw_choices.keys()))]
         for code in choice_order:
             if code not in raw_choices:
@@ -474,10 +491,11 @@ def _map_question_type(q_type_code: str, selector: str) -> QuestionType | None:
 
 
 def _strip_html(text: str) -> str:
-    """Remove simple HTML tags from Qualtrics question/choice text."""
+    """Remove simple HTML tags and decode HTML entities from Qualtrics text."""
+    import html
     import re
 
-    return re.sub(r"<[^>]+>", "", text).strip()
+    return html.unescape(re.sub(r"<[^>]+>", "", text)).strip()
 
 
 # ------------------------------------------------------------------
