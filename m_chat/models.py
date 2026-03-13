@@ -50,7 +50,7 @@ class CreateResponse(BaseModel):
 class SuggestRequest(BaseModel):
     question: dict
     session_id: str | None = None
-    n_suggestions: int = Field(default=3, ge=1, le=20)
+    n_suggestions: int = Field(default=3, ge=1, le=5)
 
 
 class SuggestResponse(BaseModel):

@@ -56,23 +56,26 @@ def suggest_tags(
         lang_code = style_profile.get("language", "en")
         lang = _LANGUAGE_NAMES.get(lang_code, lang_code)
 
-    parts = [f"Language: {lang}."]
+    instruction_parts = [f"Language: {lang}."]
 
     if vocabulary:
         existing = ", ".join(sorted(vocabulary.keys()))
-        parts.append(
+        instruction_parts.append(
             f"Existing tags already used in this survey: {existing}. "
             "Prefer reusing existing tags where appropriate."
         )
-        parts.append("Suggest 2–5 tags for the following question. Return a JSON array of strings.")
-    else:
-        parts.append("Suggest 2–5 tags for the following question. Return a JSON array of strings.")
 
-    parts.append(f"\nQuestion: {question.text}")
-    parts.append(f"Type: {question.type.value}")
+    instruction_parts.append(
+        "Suggest 2–5 tags for the following question. Return a JSON array of strings."
+    )
 
-    prompt = "\n".join(parts)
+    system_msg = "\n".join(instruction_parts)
+    user_msg = f"<question>{question.text}</question>\nType: {question.type.value}"
 
-    raw = llm_client.create_completion(messages=[{"role": "user", "content": prompt}])
+    messages = [
+        {"role": "system", "content": system_msg},
+        {"role": "user", "content": user_msg},
+    ]
+    raw = llm_client.create_completion(messages=messages)
     tags = _parse_tags(raw)
     return [normalise_tag(t) for t in tags]

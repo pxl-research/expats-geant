@@ -40,6 +40,7 @@ from m_shared.auth.oauth import (
 )
 from m_shared.llm.client import LLMClient
 from m_shared.models.response import Response as SurveyResponse
+from m_shared.rate_limit import apply_rate_limiting, limiter
 from m_shared.session.manager import SessionManager
 from m_shared.utils.audit import AuditEventType, AuditLogger
 from m_shared.vectordb.utils import sanitize_filename
@@ -167,6 +168,8 @@ def create_app(
         version="0.1.0",
         lifespan=lifespan,
     )
+
+    apply_rate_limiting(app)
 
     # Initialize RAG pipeline if LLM client provided
     rag_pipeline = None
@@ -299,6 +302,7 @@ def create_app(
             )
 
     @app.post("/upload", response_model=UploadResponse)
+    @limiter.limit("5/minute")
     async def upload_document(
         request: Request,
         file: UploadFile = File(...),
@@ -384,6 +388,7 @@ def create_app(
             )
 
     @app.post("/upload-text", response_model=UploadResponse)
+    @limiter.limit("5/minute")
     async def upload_text(request: Request, body: UploadTextRequest):
         """Ingest a plain-text snippet into the session RAG store.
 
@@ -444,6 +449,7 @@ def create_app(
         )
 
     @app.post("/suggest", response_model=SuggestResponse)
+    @limiter.limit("10/minute")
     async def suggest_answer(
         request: Request,
         suggest_request: SuggestRequest,
@@ -511,6 +517,7 @@ def create_app(
             )
 
     @app.post("/suggest/batch", response_model=BatchSuggestResponse)
+    @limiter.limit("3/minute")
     async def suggest_answer_batch(
         request: Request,
         batch_request: BatchSuggestRequest,
