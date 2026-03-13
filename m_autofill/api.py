@@ -900,8 +900,11 @@ def create_app(
             survey = adapter.fetch_survey(body.survey_id)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
-        except (RuntimeError, Exception) as exc:
-            raise HTTPException(status_code=502, detail=f"Platform API call failed: {exc}")
+        except RuntimeError as exc:
+            logger.error("Platform API call failed for format '%s': %s", body.format, exc)
+            raise HTTPException(
+                status_code=502, detail="Platform API call failed. Check server logs for details."
+            )
 
         survey.metadata["format"] = body.format
 
