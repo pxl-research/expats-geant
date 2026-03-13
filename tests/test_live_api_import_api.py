@@ -95,7 +95,7 @@ class TestImportSurveyFromApi:
             json={
                 "format": "lss",
                 "survey_id": "123",
-                "api_url": "http://ls.example.com/rpc",
+                "api_url": "https://ls.example.com/rpc",
                 "username": "admin",
                 "password": "pw",
             },
@@ -144,7 +144,7 @@ class TestImportSurveyFromApi:
             json={
                 "format": "lss",
                 "survey_id": "123",
-                "api_url": "http://x",
+                "api_url": "https://x.example.com",
                 "username": "u",
                 "password": "p",
             },
@@ -180,7 +180,7 @@ class TestImportSurveyFromApi:
             json={
                 "format": "lss",
                 "survey_id": "123",
-                "api_url": "http://x",
+                "api_url": "https://x.example.com",
                 "username": "u",
                 "password": "p",
             },
