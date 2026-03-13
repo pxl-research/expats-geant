@@ -108,6 +108,11 @@ class TestIngestTextIntoStore:
         assert call_kwargs["filename"] == "audit-label"
         assert call_kwargs["file_type"] == ".txt"
 
+    def test_empty_sanitized_label_raises(self, vector_store):
+        """A label that sanitizes to empty (e.g. all symbols) raises ValueError."""
+        with pytest.raises(ValueError, match="empty collection name"):
+            ingest_text_into_store(text="Some text.", label="@@@", store=vector_store)
+
     def test_audit_logger_skipped_without_session(self, vector_store):
         """Audit logger is not called when session_id is absent."""
         mock_logger = MagicMock()
@@ -168,6 +173,16 @@ class TestUploadTextEndpoint:
             json={"text": "   \n\t  "},
         )
         assert resp.status_code == 400
+
+    def test_whitespace_only_label_defaults_to_pasted_text(self, autofill_client, valid_token):
+        """Whitespace-only label is stripped and defaults to 'pasted text'."""
+        resp = autofill_client.post(
+            "/upload-text",
+            headers={"Authorization": f"Bearer {valid_token}"},
+            json={"text": "Some useful context.", "label": "   "},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["filename"] == "pasted text"
 
     def test_unauthenticated_returns_401(self, autofill_client):
         """Missing auth token → 401 Unauthorized."""
