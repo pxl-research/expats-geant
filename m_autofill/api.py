@@ -390,6 +390,12 @@ def create_app(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="text must not be empty"
             )
+        max_text_bytes = max_file_size_mb * 1024 * 1024
+        if len(body.text.encode()) > max_text_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"text exceeds maximum allowed size of {max_file_size_mb} MB",
+            )
 
         session = request.state.session
         claims = request.state.claims
