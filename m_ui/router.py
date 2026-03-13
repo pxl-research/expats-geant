@@ -237,15 +237,16 @@ async def documents_upload(
                 file_errors.append({"filename": upload.filename, "error": exc.detail})
 
     if has_text:
+        label = text_label.strip() or None
         try:
             await api_client.ingest_text_snippet(
                 token=token,
                 session_id=session_id,
                 text=text,
-                label=text_label or None,
+                label=label,
             )
         except APIError as exc:
-            file_errors.append({"filename": text_label or "pasted text", "error": exc.detail})
+            file_errors.append({"filename": label or "pasted text", "error": exc.detail})
 
     if file_errors:
         return templates.TemplateResponse(

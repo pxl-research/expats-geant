@@ -119,6 +119,8 @@ def ingest_text_into_store(
         List of collection names added (empty if label already exists)
     """
     collection_name = sanitize_filename(label)
+    if not collection_name:
+        raise ValueError(f"label {label!r} produces an empty collection name after sanitization")
     if collection_name in set(store.list_documents()):
         return []  # duplicate → silent skip
 
