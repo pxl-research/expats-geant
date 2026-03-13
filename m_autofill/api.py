@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 
-from m_autofill.ingest import ingest_files_into_store
+from m_autofill.ingest import ingest_files_into_store, ingest_text_into_store
 from m_autofill.models import (
     AuditDeleteResponse,
     BatchSuggestRequest,
@@ -22,6 +22,7 @@ from m_autofill.models import (
     SuggestRequest,
     SuggestResponse,
     UploadResponse,
+    UploadTextRequest,
     normalize_to_sections,
 )
 from m_autofill.rag_pipeline import RAGPipeline
@@ -39,6 +40,7 @@ from m_shared.llm.client import LLMClient
 from m_shared.models.response import Response as SurveyResponse
 from m_shared.session.manager import SessionManager
 from m_shared.utils.audit import AuditEventType, AuditLogger
+from m_shared.vectordb.utils import sanitize_filename
 
 _PRIVACY_TEXT = """M-AUTOFILL PRIVACY STATEMENT
 
@@ -333,8 +335,9 @@ def create_app(
                 raise FileValidationError(error_msg)
 
             # Get vector store for session
-            store = manager.get_vector_store(session.session_id)
-            if not store:
+            try:
+                store = manager.get_vector_store(session.session_id)
+            except FileNotFoundError:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND, detail="Session not found or expired"
                 )
@@ -367,6 +370,66 @@ def create_app(
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Upload failed: {e}"
             )
+
+    @app.post("/upload-text", response_model=UploadResponse)
+    async def upload_text(request: Request, body: UploadTextRequest):
+        """Ingest a plain-text snippet into the session RAG store.
+
+        Session is automatically identified from JWT token via middleware.
+
+        Args:
+            body: JSON with `text` (required) and optional `label`
+
+        Returns:
+            Upload confirmation
+
+        Raises:
+            HTTPException: 400 if text is blank, 404 if session not found
+        """
+        if not body.text.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="text must not be empty"
+            )
+        max_text_bytes = max_file_size_mb * 1024 * 1024
+        if len(body.text.encode()) > max_text_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"text exceeds maximum allowed size of {max_file_size_mb} MB",
+            )
+
+        session = request.state.session
+        claims = request.state.claims
+        manager = request.state.session_manager
+
+        try:
+            store = manager.get_vector_store(session.session_id)
+        except FileNotFoundError:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Session not found or expired"
+            )
+
+        label = (body.label or "").strip() or "pasted text"
+        if not sanitize_filename(label):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Label contains no usable characters after sanitization",
+            )
+        ingest_text_into_store(
+            text=body.text,
+            label=label,
+            store=store,
+            session_id=session.session_id,
+            user_id=claims.get("user_id"),
+            audit_logger=audit_logger,
+        )
+
+        return UploadResponse(
+            status="success",
+            filename=label,
+            size_bytes=len(body.text.encode()),
+            upload_timestamp=datetime.now(UTC).isoformat(),
+            session_id=session.session_id,
+        )
 
     @app.post("/suggest", response_model=SuggestResponse)
     async def suggest_answer(

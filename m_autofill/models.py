@@ -150,6 +150,13 @@ class UploadResponse(BaseModel):
     session_id: str
 
 
+class UploadTextRequest(BaseModel):
+    """Request body for plain-text snippet ingestion."""
+
+    text: str
+    label: str | None = None
+
+
 class CitationResponse(BaseModel):
     """Citation information."""
 

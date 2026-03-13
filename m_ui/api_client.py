@@ -125,6 +125,20 @@ async def ingest_document(token: str, session_id: str, file_bytes: bytes, filena
     _raise_for_status(resp)
 
 
+async def ingest_text_snippet(token: str, session_id: str, text: str, label: str | None) -> None:
+    """Forward a text snippet to the M-Autofill ingestion API.
+
+    POST /upload-text — UI holds no text content after forwarding.
+    """
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(
+            f"{AUTOFILL_API_URL}/upload-text",
+            headers=_auth_headers(token),
+            json={"text": text, "label": label},
+        )
+    _raise_for_status(resp)
+
+
 def _raise_for_status(resp: httpx.Response) -> None:
     """Raise APIError for 4xx/5xx responses."""
     if resp.is_error:

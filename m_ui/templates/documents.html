@@ -31,6 +31,17 @@
       <input type="file" id="files" name="files" multiple
              accept=".pdf,.docx,.doc,.txt,.md">
     </div>
+    <div style="margin-bottom:1rem;">
+      <label for="text-snippet">Paste text (optional)</label>
+      <textarea id="text-snippet" name="text" rows="5"
+                style="width:100%; font-size:0.9rem;"
+                placeholder="Paste personal context, CV, or relevant notes here…"></textarea>
+    </div>
+    <div style="margin-bottom:1rem;">
+      <label for="text-label">Label (optional)</label>
+      <input type="text" id="text-label" name="text_label"
+             placeholder="e.g. My CV, Project notes">
+    </div>
     <div style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center;">
       <button type="submit" class="btn btn-primary" id="upload-btn">Upload &amp; Continue</button>
       <a href="/session/{{ session_id }}/review" class="btn btn-ghost">Skip</a>
