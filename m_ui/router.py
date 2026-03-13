@@ -183,6 +183,64 @@ async def upload_survey(
     return RedirectResponse(url=redirect_url, status_code=302)
 
 
+_API_FORMATS = ["lss", "qsf"]
+
+
+@router.post("/upload-from-api")
+async def upload_survey_from_api(
+    request: Request,
+    format: Annotated[str, Form()],
+    survey_id: Annotated[str, Form()],
+    api_url: str = Form(default=""),
+    api_token: str = Form(default=""),
+    datacenter_id: str = Form(default=""),
+    username: str = Form(default=""),
+    password: str = Form(default=""),
+):
+    """Import a survey directly from the platform API and redirect to document upload."""
+    token = get_token(request)
+    if not token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+
+    try:
+        result_id, warning = await api_client.import_survey_from_api(
+            token=token,
+            format=format,
+            survey_id=survey_id,
+            api_url=api_url or None,
+            api_token=api_token or None,
+            datacenter_id=datacenter_id or None,
+            username=username or None,
+            password=password or None,
+        )
+    except APIError as exc:
+        return templates.TemplateResponse(
+            request,
+            "upload.html",
+            {
+                "formats": SURVEY_FORMATS,
+                "api_error": exc.detail,
+                "api_form": {
+                    "format": format,
+                    "survey_id": survey_id,
+                    "api_url": api_url,
+                    "api_token": api_token,
+                    "datacenter_id": datacenter_id,
+                    "username": username,
+                    # password intentionally omitted
+                },
+            },
+            status_code=exc.status_code,
+        )
+
+    redirect_url = f"/session/{result_id}/documents"
+    if warning:
+        from urllib.parse import urlencode
+
+        redirect_url += "?" + urlencode({"warning": warning})
+    return RedirectResponse(url=redirect_url, status_code=302)
+
+
 # ---------------------------------------------------------------------------
 # Document upload
 # ---------------------------------------------------------------------------

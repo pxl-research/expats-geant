@@ -207,6 +207,18 @@ class AuditDeleteResponse(BaseModel):
     message: str
 
 
+class LiveApiImportRequest(BaseModel):
+    """Request to fetch a survey directly from a platform API."""
+
+    format: str = Field(max_length=20)
+    survey_id: str = Field(max_length=100)
+    api_url: str | None = Field(default=None, max_length=500)
+    api_token: str | None = Field(default=None, max_length=500)
+    username: str | None = Field(default=None, max_length=200)
+    password: str | None = Field(default=None, max_length=200)
+    datacenter_id: str | None = Field(default=None, max_length=50)
+
+
 class DevTokenRequest(BaseModel):
     """Request for development token generation."""
 

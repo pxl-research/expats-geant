@@ -301,6 +301,30 @@ class QualtricsAdapter(SurveyAdapter):
             raise RuntimeError(f"Qualtrics create_survey returned no SurveyID: {data}")
         return survey_id
 
+    def fetch_survey(self, survey_id: str) -> Survey:
+        """Fetch a survey from Qualtrics via GET /v3/surveys/{id}.
+
+        Args:
+            survey_id: The Qualtrics survey ID (e.g. "SV_xxxxxxxx").
+
+        Returns:
+            Survey: The parsed survey.
+
+        Raises:
+            ValueError: If API credentials are not configured.
+            RuntimeError: If the API call fails.
+        """
+        if not self._api_token or not self._datacenter_id:
+            raise ValueError("Qualtrics api_token and datacenter_id must be set to fetch surveys.")
+        url = f"{_API_BASE.format(datacenter=self._datacenter_id)}/surveys/{survey_id}"
+        headers = {"X-API-TOKEN": self._api_token}
+        try:
+            resp = requests.get(url, headers=headers, timeout=30)
+            resp.raise_for_status()
+        except requests.RequestException as exc:
+            raise RuntimeError(f"Qualtrics fetch_survey failed: {exc}") from exc
+        return self.import_survey(json.dumps(resp.json()))
+
     def submit_responses(self, survey_id: str, responses: list[Response]) -> None:
         """Submit responses via the Qualtrics Response Import API v3.
 

@@ -19,6 +19,7 @@ from m_autofill.models import (
     DevTokenRequest,
     DevTokenResponse,
     ItemSuggestion,
+    LiveApiImportRequest,
     SessionDeleteResponse,
     SessionStatsResponse,
     SuggestRequest,
@@ -823,6 +824,64 @@ def create_app(
             "The file may contain only display elements or unsupported question types."
             if total_questions == 0
             else None
+        )
+        return {"survey_id": session.session_id, "warning": warning}
+
+    @app.post("/surveys/import-from-api", tags=["Surveys"])
+    async def import_survey_from_api(request: Request, body: LiveApiImportRequest):
+        """Fetch a survey directly from LimeSurvey or Qualtrics and store for the session.
+
+        Credentials are held in memory only for the duration of this request — never
+        logged, persisted, or included in the audit trail.
+        """
+        session = request.state.session
+        manager = request.state.session_manager
+
+        if body.format not in ("lss", "qsf"):
+            raise HTTPException(
+                status_code=422,
+                detail=f"Live API import only supported for 'lss' and 'qsf'. Got: '{body.format}'.",
+            )
+
+        if body.format == "lss":
+            adapter_kwargs = {
+                "api_url": body.api_url,
+                "username": body.username,
+                "password": body.password,
+            }
+        else:  # qsf
+            adapter_kwargs = {
+                "api_token": body.api_token,
+                "datacenter_id": body.datacenter_id,
+            }
+
+        try:
+            adapter = get_adapter(body.format, **adapter_kwargs)
+        except KeyError:
+            raise HTTPException(status_code=422, detail=f"No adapter for format '{body.format}'.")
+
+        try:
+            survey = adapter.fetch_survey(body.survey_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        except (RuntimeError, Exception) as exc:
+            raise HTTPException(status_code=502, detail=f"Platform API call failed: {exc}")
+
+        survey.metadata["format"] = body.format
+
+        session_path = manager._get_session_path(session.session_id)
+        session_path.mkdir(parents=True, exist_ok=True)
+        (session_path / "survey.json").write_text(survey.model_dump_json())
+
+        total_questions = sum(len(s.questions) for s in survey.sections)
+        warning = (
+            "No answerable questions were extracted. "
+            "The file may contain only display elements or unsupported question types."
+            if total_questions == 0
+            else None
+        )
+        logger.info(
+            "Live API import completed for format '%s', session %s", body.format, session.session_id
         )
         return {"survey_id": session.session_id, "warning": warning}
 
