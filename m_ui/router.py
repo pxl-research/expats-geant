@@ -224,10 +224,9 @@ async def upload_survey_from_api(
                     "format": format,
                     "survey_id": survey_id,
                     "api_url": api_url,
-                    "api_token": api_token,
                     "datacenter_id": datacenter_id,
                     "username": username,
-                    # password intentionally omitted
+                    # api_token and password intentionally omitted
                 },
             },
             status_code=exc.status_code,
