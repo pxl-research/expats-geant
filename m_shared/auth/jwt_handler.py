@@ -8,6 +8,8 @@ import jwt
 
 logger = logging.getLogger(__name__)
 
+_ALLOWED_ALGORITHMS = {"HS256", "HS384", "HS512"}
+
 
 class TokenError(Exception):
     """Base exception for token-related errors."""
@@ -60,6 +62,8 @@ def create_token(
         raise ValueError("JWT_SECRET environment variable must be set")
 
     algorithm = os.getenv("JWT_ALGORITHM", "HS256")
+    if algorithm not in _ALLOWED_ALGORITHMS:
+        raise ValueError(f"JWT_ALGORITHM must be one of {_ALLOWED_ALGORITHMS}, got '{algorithm}'")
     if expiration_hours is None:
         expiration_hours = int(os.getenv("JWT_EXPIRATION_HOURS", "24"))
 
@@ -112,6 +116,8 @@ def validate_token(token: str) -> dict:
         raise ValueError("JWT_SECRET environment variable must be set")
 
     algorithm = os.getenv("JWT_ALGORITHM", "HS256")
+    if algorithm not in _ALLOWED_ALGORITHMS:
+        raise ValueError(f"JWT_ALGORITHM must be one of {_ALLOWED_ALGORITHMS}, got '{algorithm}'")
 
     try:
         payload = jwt.decode(token, secret, algorithms=[algorithm])

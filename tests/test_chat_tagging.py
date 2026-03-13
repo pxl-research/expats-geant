@@ -95,7 +95,7 @@ def test_suggest_tags_question_text_in_prompt(mock_llm):
 
     call_args = mock_llm.create_completion.call_args
     messages = call_args[1]["messages"] if "messages" in call_args[1] else call_args[0][0]
-    prompt = messages[0]["content"]
+    prompt = messages[1]["content"]
     assert "What is your job role?" in prompt
 
 

@@ -1,13 +1,15 @@
 """FastAPI endpoints for M-Autofill answer suggestion service."""
 
+import logging
 import os
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 
-from m_autofill.ingest import ingest_files_into_store
+from m_autofill.ingest import ingest_files_into_store, ingest_text_into_store
 from m_autofill.models import (
     AuditDeleteResponse,
     BatchSuggestRequest,
@@ -22,6 +24,7 @@ from m_autofill.models import (
     SuggestRequest,
     SuggestResponse,
     UploadResponse,
+    UploadTextRequest,
     normalize_to_sections,
 )
 from m_autofill.rag_pipeline import RAGPipeline
@@ -37,8 +40,12 @@ from m_shared.auth.oauth import (
 )
 from m_shared.llm.client import LLMClient
 from m_shared.models.response import Response as SurveyResponse
+from m_shared.rate_limit import apply_rate_limiting, limiter
 from m_shared.session.manager import SessionManager
 from m_shared.utils.audit import AuditEventType, AuditLogger
+from m_shared.vectordb.utils import sanitize_filename
+
+logger = logging.getLogger(__name__)
 
 _PRIVACY_TEXT = """M-AUTOFILL PRIVACY STATEMENT
 
@@ -162,6 +169,8 @@ def create_app(
         lifespan=lifespan,
     )
 
+    apply_rate_limiting(app)
+
     # Initialize RAG pipeline if LLM client provided
     rag_pipeline = None
     if llm_client:
@@ -205,16 +214,16 @@ def create_app(
         Raises:
             HTTPException: 403 if called in production environment
         """
-        # Check environment - block in production
+        # Check environment - only allow in development/testing
         environment = os.getenv("ENVIRONMENT", "development").lower()
-        if environment == "production":
+        if environment not in ("development", "testing"):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Token generation endpoint disabled in production",
+                detail="Token generation endpoint is only available in development/testing",
             )
 
-        # Generate session ID from user_id for consistency
-        session_id = f"dev_session_{request.user_id}"
+        # Generate unpredictable session ID
+        session_id = f"dev_session_{uuid.uuid4().hex[:12]}"
 
         # Create token with requested parameters
         try:
@@ -293,6 +302,7 @@ def create_app(
             )
 
     @app.post("/upload", response_model=UploadResponse)
+    @limiter.limit("5/minute")
     async def upload_document(
         request: Request,
         file: UploadFile = File(...),
@@ -317,7 +327,14 @@ def create_app(
         # Save uploaded file temporarily
         temp_dir = manager._get_session_path(session.session_id) / "uploads"
         temp_dir.mkdir(exist_ok=True)
-        file_path = temp_dir / file.filename
+        safe_name = Path(file.filename).name if file.filename else "upload"
+        file_path = temp_dir / safe_name
+        # Guard against path traversal: resolved path must stay within temp_dir
+        if not file_path.resolve().is_relative_to(temp_dir.resolve()):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid filename",
+            )
 
         try:
             # Write file to disk
@@ -333,8 +350,9 @@ def create_app(
                 raise FileValidationError(error_msg)
 
             # Get vector store for session
-            store = manager.get_vector_store(session.session_id)
-            if not store:
+            try:
+                store = manager.get_vector_store(session.session_id)
+            except FileNotFoundError:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND, detail="Session not found or expired"
                 )
@@ -364,11 +382,74 @@ def create_app(
                 status_code=status.HTTP_400_BAD_REQUEST, detail=f"File validation failed: {e}"
             )
         except Exception as e:
+            logger.error("Upload failed for session %s: %s", session.session_id, e)
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Upload failed: {e}"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Upload failed"
             )
 
+    @app.post("/upload-text", response_model=UploadResponse)
+    @limiter.limit("5/minute")
+    async def upload_text(request: Request, body: UploadTextRequest):
+        """Ingest a plain-text snippet into the session RAG store.
+
+        Session is automatically identified from JWT token via middleware.
+
+        Args:
+            body: JSON with `text` (required) and optional `label`
+
+        Returns:
+            Upload confirmation
+
+        Raises:
+            HTTPException: 400 if text is blank, 404 if session not found
+        """
+        if not body.text.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="text must not be empty"
+            )
+        max_text_bytes = max_file_size_mb * 1024 * 1024
+        if len(body.text.encode()) > max_text_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"text exceeds maximum allowed size of {max_file_size_mb} MB",
+            )
+
+        session = request.state.session
+        claims = request.state.claims
+        manager = request.state.session_manager
+
+        try:
+            store = manager.get_vector_store(session.session_id)
+        except FileNotFoundError:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Session not found or expired"
+            )
+
+        label = (body.label or "").strip() or "pasted text"
+        if not sanitize_filename(label):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Label contains no usable characters after sanitization",
+            )
+        ingest_text_into_store(
+            text=body.text,
+            label=label,
+            store=store,
+            session_id=session.session_id,
+            user_id=claims.get("user_id"),
+            audit_logger=audit_logger,
+        )
+
+        return UploadResponse(
+            status="success",
+            filename=label,
+            size_bytes=len(body.text.encode()),
+            upload_timestamp=datetime.now(UTC).isoformat(),
+            session_id=session.session_id,
+        )
+
     @app.post("/suggest", response_model=SuggestResponse)
+    @limiter.limit("10/minute")
     async def suggest_answer(
         request: Request,
         suggest_request: SuggestRequest,
@@ -430,11 +511,13 @@ def create_app(
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
         except Exception as e:
+            logger.error("Suggestion failed for session %s: %s", session.session_id, e)
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Suggestion failed: {e}"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Suggestion failed"
             )
 
     @app.post("/suggest/batch", response_model=BatchSuggestResponse)
+    @limiter.limit("3/minute")
     async def suggest_answer_batch(
         request: Request,
         batch_request: BatchSuggestRequest,
@@ -476,9 +559,10 @@ def create_app(
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
         except Exception as e:
+            logger.error("Batch suggestion failed for session %s: %s", session.session_id, e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Batch suggestion failed: {e}",
+                detail="Batch suggestion failed",
             )
 
         responses = []

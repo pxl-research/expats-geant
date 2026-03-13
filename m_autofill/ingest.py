@@ -93,4 +93,63 @@ def ingest_files_into_store(
 
     return added
 
-    return added
+
+def ingest_text_into_store(
+    *,
+    text: str,
+    label: str,
+    store: ChromaDocumentStore,
+    max_chunk_size: int = 1024,
+    session_id: str | None = None,
+    user_id: str | None = None,
+    audit_logger: AuditLogger | None = None,
+) -> list[str]:
+    """Ingest a plain-text snippet into a Chroma-backed store.
+
+    Args:
+        text: Raw text content to ingest
+        label: Human-readable source label (used as collection name + chunk metadata)
+        store: ChromaDocumentStore instance
+        max_chunk_size: Chunk size in characters
+        session_id: Optional session ID for audit logging
+        user_id: Optional user ID for audit logging
+        audit_logger: Optional audit logger instance
+
+    Returns:
+        List of collection names added (empty if label already exists)
+    """
+    collection_name = sanitize_filename(label)
+    if not collection_name:
+        raise ValueError(f"label {label!r} produces an empty collection name after sanitization")
+    if collection_name in set(store.list_documents()):
+        return []  # duplicate → silent skip
+
+    chunks = iterative_chunking(text, max_size=max_chunk_size)
+    ingested_at = datetime.utcnow().timestamp()
+    meta_info = [
+        {
+            "source": label,
+            "id": f"chunk_{i}",
+            "chunk_index": i,
+            "ingested_at": ingested_at,
+        }
+        for i in range(len(chunks))
+    ]
+
+    store.add_document(
+        document_name=collection_name,
+        chunks=chunks,
+        meta_infos=meta_info,
+        tqdm_func=tqdm,
+    )
+
+    if audit_logger and session_id:
+        audit_logger.log_upload(
+            session_id=session_id,
+            filename=label,
+            file_size=len(text.encode()),
+            file_type=".txt",
+            user_id=user_id,
+        )
+
+    return [collection_name]

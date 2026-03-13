@@ -83,7 +83,7 @@ def test_summarise_style_rules_calls_llm_with_text():
 
     call_args = mock_client.create_completion.call_args
     messages = call_args[1]["messages"] if "messages" in call_args[1] else call_args[0][0]
-    prompt_content = messages[0]["content"]
+    prompt_content = messages[1]["content"]
 
     assert extracted in prompt_content
     assert result == "- Use formal tone\n- Avoid jargon"

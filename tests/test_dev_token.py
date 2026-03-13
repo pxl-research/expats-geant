@@ -71,7 +71,7 @@ def test_dev_token_blocked_in_production(client, tmp_path):
     response = prod_client.post("/dev/token", json={"user_id": "test_user"})
 
     assert response.status_code == 403
-    assert "disabled in production" in response.json()["detail"]
+    assert "only available in development/testing" in response.json()["detail"]
 
     # Cleanup
     os.environ["ENVIRONMENT"] = "development"

@@ -86,13 +86,14 @@ class SessionMiddleware(BaseHTTPMiddleware):
             )
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"detail": f"Invalid token: {e}"},
+                content={"detail": "Invalid or malformed token"},
                 headers={"WWW-Authenticate": "Bearer"},
             )
         except Exception as e:
+            logger.error("Token validation error on %s %s: %s", request.method, request.url.path, e)
             return JSONResponse(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                content={"detail": f"Token validation error: {e}"},
+                content={"detail": "Authentication error"},
             )
 
         # Extract session info from claims
@@ -120,9 +121,12 @@ class SessionMiddleware(BaseHTTPMiddleware):
                     user_id=user_id, jwt_token=token, ttl_hours=self.ttl_hours
                 )
         except Exception as e:
+            logger.error(
+                "Session management error on %s %s: %s", request.method, request.url.path, e
+            )
             return JSONResponse(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                content={"detail": f"Session management error: {e}"},
+                content={"detail": "Session error"},
             )
 
         # Attach session and claims to request state
