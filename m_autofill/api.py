@@ -1,10 +1,12 @@
 """FastAPI endpoints for M-Autofill answer suggestion service."""
 
+import ipaddress
 import logging
 import os
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
@@ -47,6 +49,38 @@ from m_shared.utils.audit import AuditEventType, AuditLogger
 from m_shared.vectordb.utils import sanitize_filename
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_api_url(url: str) -> None:
+    """Validate that api_url is a safe HTTPS URL (not internal/loopback).
+
+    Raises:
+        HTTPException: 400 if the URL is unsafe.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="api_url must use HTTPS"
+        )
+    hostname = parsed.hostname
+    if not hostname:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="api_url must include a valid hostname"
+        )
+    try:
+        addr = ipaddress.ip_address(hostname)
+        if addr.is_private or addr.is_loopback or addr.is_link_local:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="api_url must not point to internal addresses",
+            )
+    except ValueError:
+        if hostname in ("localhost", "127.0.0.1", "::1"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="api_url must not point to internal addresses",
+            )
+
 
 _PRIVACY_TEXT = """M-AUTOFILL PRIVACY STATEMENT
 
@@ -844,6 +878,8 @@ def create_app(
             )
 
         if body.format == "lss":
+            if body.api_url:
+                _validate_api_url(body.api_url)
             adapter_kwargs = {
                 "api_url": body.api_url,
                 "username": body.username,
