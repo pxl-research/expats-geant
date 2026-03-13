@@ -40,6 +40,7 @@ from m_shared.llm.client import LLMClient
 from m_shared.models.response import Response as SurveyResponse
 from m_shared.session.manager import SessionManager
 from m_shared.utils.audit import AuditEventType, AuditLogger
+from m_shared.vectordb.utils import sanitize_filename
 
 _PRIVACY_TEXT = """M-AUTOFILL PRIVACY STATEMENT
 
@@ -401,7 +402,12 @@ def create_app(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Session not found or expired"
             )
 
-        label = body.label or "pasted text"
+        label = (body.label or "").strip() or "pasted text"
+        if not sanitize_filename(label):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Label contains no usable characters after sanitization",
+            )
         ingest_text_into_store(
             text=body.text,
             label=label,
