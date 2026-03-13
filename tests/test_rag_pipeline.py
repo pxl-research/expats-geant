@@ -209,7 +209,7 @@ def test_generate_answer_includes_context(rag_pipeline, mock_llm_client, sample_
     # Verify prompt includes chunk content
     call_args = mock_llm_client.create_completion.call_args
     messages = call_args[1]["messages"]
-    prompt = messages[0]["content"]
+    prompt = messages[1]["content"]
 
     assert "Senior Researcher" in prompt
     assert "employment_contract.pdf" in prompt
