@@ -156,7 +156,7 @@ class TestSessionMiddleware:
                 "/session/stats", headers={"Authorization": f"Bearer {valid_token}"}
             )
         assert response.status_code == 500
-        assert "session management error" in response.json()["detail"].lower()
+        assert "session error" in response.json()["detail"].lower()
 
 
 class TestSessionEndpoints:

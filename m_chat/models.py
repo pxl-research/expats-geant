@@ -1,6 +1,6 @@
 """Pydantic request/response models for the M-Chat API."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # ---------------------------------------------------------------------------
 # Stateless endpoints
@@ -8,8 +8,8 @@ from pydantic import BaseModel
 
 
 class ImportRequest(BaseModel):
-    format: str  # "limesurvey" | "qualtrics" | "surveymonkey" | "qti"
-    content: str  # raw file content
+    format: str = Field(max_length=50)  # "limesurvey" | "qualtrics" | "surveymonkey" | "qti"
+    content: str = Field(max_length=10_000_000)  # raw file content (10 MB limit)
 
 
 class ImportResponse(BaseModel):
@@ -17,7 +17,7 @@ class ImportResponse(BaseModel):
 
 
 class ExportRequest(BaseModel):
-    format: str
+    format: str = Field(max_length=50)
     survey: dict
 
 
@@ -27,13 +27,13 @@ class ExportResponse(BaseModel):
 
 
 class CreateRequest(BaseModel):
-    format: str
+    format: str = Field(max_length=50)
     survey: dict
     # Optional adapter credentials (server falls back to file export if absent)
-    api_url: str | None = None
-    token: str | None = None
-    username: str | None = None
-    password: str | None = None
+    api_url: str | None = Field(default=None, max_length=2000)
+    token: str | None = Field(default=None, max_length=500)
+    username: str | None = Field(default=None, max_length=200)
+    password: str | None = Field(default=None, max_length=200)
 
 
 class CreateResponse(BaseModel):
@@ -50,7 +50,7 @@ class CreateResponse(BaseModel):
 class SuggestRequest(BaseModel):
     question: dict
     session_id: str | None = None
-    n_suggestions: int = 3
+    n_suggestions: int = Field(default=3, ge=1, le=20)
 
 
 class SuggestResponse(BaseModel):
@@ -99,7 +99,7 @@ class ChatSessionListResponse(BaseModel):
 
 
 class ChatTurnRequest(BaseModel):
-    message: str
+    message: str = Field(max_length=50_000)
 
 
 class ChatTurnResponse(BaseModel):
@@ -112,8 +112,8 @@ class ChatSurveyResponse(BaseModel):
 
 
 class StyleUpdateRequest(BaseModel):
-    language: str | None = None
-    free_text: str | None = None
+    language: str | None = Field(default=None, max_length=100)
+    free_text: str | None = Field(default=None, max_length=5000)
 
 
 class StyleProfileResponse(BaseModel):
