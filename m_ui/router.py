@@ -202,6 +202,25 @@ async def upload_survey_from_api(
     if not token:
         return RedirectResponse(url="/auth/login", status_code=302)
 
+    if format not in _API_FORMATS:
+        return templates.TemplateResponse(
+            request,
+            "upload.html",
+            {
+                "formats": SURVEY_FORMATS,
+                "api_error": f"Unsupported format '{format}'. Choose one of: {', '.join(_API_FORMATS)}.",
+                "api_form": {
+                    "format": format,
+                    "survey_id": survey_id,
+                    "api_url": api_url,
+                    "datacenter_id": datacenter_id,
+                    "username": username,
+                    # api_token and password intentionally omitted
+                },
+            },
+            status_code=400,
+        )
+
     try:
         result_id, warning = await api_client.import_survey_from_api(
             token=token,
