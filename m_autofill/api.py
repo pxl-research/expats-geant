@@ -334,8 +334,9 @@ def create_app(
                 raise FileValidationError(error_msg)
 
             # Get vector store for session
-            store = manager.get_vector_store(session.session_id)
-            if not store:
+            try:
+                store = manager.get_vector_store(session.session_id)
+            except FileNotFoundError:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND, detail="Session not found or expired"
                 )
@@ -393,8 +394,9 @@ def create_app(
         claims = request.state.claims
         manager = request.state.session_manager
 
-        store = manager.get_vector_store(session.session_id)
-        if not store:
+        try:
+            store = manager.get_vector_store(session.session_id)
+        except FileNotFoundError:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Session not found or expired"
             )
