@@ -1,10 +1,12 @@
 """FastAPI endpoints for M-Autofill answer suggestion service."""
 
+import ipaddress
 import logging
 import os
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
@@ -19,6 +21,7 @@ from m_autofill.models import (
     DevTokenRequest,
     DevTokenResponse,
     ItemSuggestion,
+    LiveApiImportRequest,
     SessionDeleteResponse,
     SessionStatsResponse,
     SuggestRequest,
@@ -46,6 +49,38 @@ from m_shared.utils.audit import AuditEventType, AuditLogger
 from m_shared.vectordb.utils import sanitize_filename
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_api_url(url: str) -> None:
+    """Validate that api_url is a safe HTTPS URL (not internal/loopback).
+
+    Raises:
+        HTTPException: 400 if the URL is unsafe.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="api_url must use HTTPS"
+        )
+    hostname = parsed.hostname
+    if not hostname:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="api_url must include a valid hostname"
+        )
+    try:
+        addr = ipaddress.ip_address(hostname)
+        if addr.is_private or addr.is_loopback or addr.is_link_local:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="api_url must not point to internal addresses",
+            )
+    except ValueError:
+        if hostname in ("localhost", "127.0.0.1", "::1"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="api_url must not point to internal addresses",
+            )
+
 
 _PRIVACY_TEXT = """M-AUTOFILL PRIVACY STATEMENT
 
@@ -823,6 +858,69 @@ def create_app(
             "The file may contain only display elements or unsupported question types."
             if total_questions == 0
             else None
+        )
+        return {"survey_id": session.session_id, "warning": warning}
+
+    @app.post("/surveys/import-from-api", tags=["Surveys"])
+    async def import_survey_from_api(request: Request, body: LiveApiImportRequest):
+        """Fetch a survey directly from LimeSurvey or Qualtrics and store for the session.
+
+        Credentials are held in memory only for the duration of this request — never
+        logged, persisted, or included in the audit trail.
+        """
+        session = request.state.session
+        manager = request.state.session_manager
+
+        if body.format not in ("lss", "qsf"):
+            raise HTTPException(
+                status_code=422,
+                detail=f"Live API import only supported for 'lss' and 'qsf'. Got: '{body.format}'.",
+            )
+
+        if body.format == "lss":
+            if body.api_url:
+                _validate_api_url(body.api_url)
+            adapter_kwargs = {
+                "api_url": body.api_url,
+                "username": body.username,
+                "password": body.password,
+            }
+        else:  # qsf
+            adapter_kwargs = {
+                "api_token": body.api_token,
+                "datacenter_id": body.datacenter_id,
+            }
+
+        try:
+            adapter = get_adapter(body.format, **adapter_kwargs)
+        except KeyError:
+            raise HTTPException(status_code=422, detail=f"No adapter for format '{body.format}'.")
+
+        try:
+            survey = adapter.fetch_survey(body.survey_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        except RuntimeError as exc:
+            logger.error("Platform API call failed for format '%s': %s", body.format, exc)
+            raise HTTPException(
+                status_code=502, detail="Platform API call failed. Check server logs for details."
+            )
+
+        survey.metadata["format"] = body.format
+
+        session_path = manager._get_session_path(session.session_id)
+        session_path.mkdir(parents=True, exist_ok=True)
+        (session_path / "survey.json").write_text(survey.model_dump_json())
+
+        total_questions = sum(len(s.questions) for s in survey.sections)
+        warning = (
+            "No answerable questions were extracted. "
+            "The file may contain only display elements or unsupported question types."
+            if total_questions == 0
+            else None
+        )
+        logger.info(
+            "Live API import completed for format '%s', session %s", body.format, session.session_id
         )
         return {"survey_id": session.session_id, "warning": warning}
 

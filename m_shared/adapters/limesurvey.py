@@ -18,6 +18,7 @@ LimeSurvey question types mapped to internal QuestionType:
     N        → slider         (Numerical input — mapped to slider with no range)
 """
 
+import base64
 import json
 import logging
 import uuid
@@ -412,6 +413,33 @@ class LimeSurveyAdapter(SurveyAdapter):
         finally:
             self._release_session_key(session_key)
         return str(sid)
+
+    def fetch_survey(self, survey_id: str) -> Survey:
+        """Fetch a survey from LimeSurvey via the RC2 export_survey RPC call.
+
+        Args:
+            survey_id: The LimeSurvey survey ID (numeric sid as string).
+
+        Returns:
+            Survey: The parsed survey.
+
+        Raises:
+            ValueError: If API credentials are not configured.
+            RuntimeError: If the RPC call fails or returns an error.
+        """
+        if not self._api_url or not self._username or not self._password:
+            raise ValueError(
+                "LimeSurvey API URL, username, and password must be set to fetch surveys."
+            )
+        session_key = self._get_session_key()
+        try:
+            result = self._rpc_call("export_survey", [session_key, int(survey_id)])
+            if isinstance(result, dict) and "status" in result:
+                raise RuntimeError(f"LimeSurvey export_survey failed: {result['status']}")
+            lss_xml = base64.b64decode(result).decode("utf-8")
+        finally:
+            self._release_session_key(session_key)
+        return self.import_survey(lss_xml)
 
     def submit_responses(self, survey_id: str, responses: list[Response]) -> None:
         """Submit responses to LimeSurvey via the RemoteControl 2 JSON-RPC API.
