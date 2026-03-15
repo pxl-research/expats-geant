@@ -3,7 +3,12 @@
 import json
 from unittest.mock import Mock
 
-from m_chat.validation_engine import ValidationIssue, validate_question, validate_survey
+from m_chat.validation_engine import (
+    ValidationIssue,
+    _check_survey_tier1,
+    validate_question,
+    validate_survey,
+)
 from m_shared.llm.client import LLMClient
 from m_shared.models.answer_option import AnswerOption
 from m_shared.models.question import Question, QuestionType
@@ -347,3 +352,224 @@ def test_validate_survey_empty_survey():
     survey = Survey(id="s1", title="Empty", sections=[])
     issues = validate_survey(survey)
     assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Tier 1: social_desirability
+# ---------------------------------------------------------------------------
+
+
+def test_social_desirability_do_you_regularly():
+    q = _open_q(text="Do you regularly submit your reports on time?")
+    issues = validate_question(q)
+    codes = [i.code for i in issues]
+    assert "social_desirability" in codes
+
+
+def test_social_desirability_do_you_always():
+    q = _open_q(text="Do you always follow safety procedures?")
+    issues = validate_question(q)
+    codes = [i.code for i in issues]
+    assert "social_desirability" in codes
+
+
+def test_social_desirability_neutral_question_not_flagged():
+    q = _open_q(text="How often do you submit your reports?")
+    issues = validate_question(q)
+    codes = [i.code for i in issues]
+    assert "social_desirability" not in codes
+
+
+# ---------------------------------------------------------------------------
+# Tier 1: missing_neutral_option
+# ---------------------------------------------------------------------------
+
+
+def test_missing_neutral_option_even_no_neutral():
+    q = _choice_q(n_opts=4, opt_texts=["Agree", "Somewhat agree", "Somewhat disagree", "Disagree"])
+    issues = validate_question(q)
+    codes = [i.code for i in issues]
+    assert "missing_neutral_option" in codes
+
+
+def test_missing_neutral_option_even_with_neutral_label():
+    q = _choice_q(n_opts=4, opt_texts=["Agree", "Somewhat agree", "Neutral", "Disagree"])
+    issues = validate_question(q)
+    codes = [i.code for i in issues]
+    assert "missing_neutral_option" not in codes
+
+
+def test_missing_neutral_option_odd_count_not_flagged():
+    q = _choice_q(n_opts=5)
+    issues = validate_question(q)
+    codes = [i.code for i in issues]
+    assert "missing_neutral_option" not in codes
+
+
+def test_missing_neutral_option_no_opinion_counts_as_neutral():
+    q = _choice_q(n_opts=4, opt_texts=["Agree", "Somewhat agree", "No opinion", "Disagree"])
+    issues = validate_question(q)
+    codes = [i.code for i in issues]
+    assert "missing_neutral_option" not in codes
+
+
+# ---------------------------------------------------------------------------
+# Tier 1: unbalanced_anchors
+# ---------------------------------------------------------------------------
+
+
+def test_unbalanced_anchors_all_positive():
+    q = _choice_q(n_opts=4, opt_texts=["Excellent", "Good", "Great", "Better"])
+    issues = validate_question(q)
+    codes = [i.code for i in issues]
+    assert "unbalanced_anchors" in codes
+
+
+def test_unbalanced_anchors_all_negative():
+    q = _choice_q(n_opts=3, opt_texts=["Terrible", "Bad", "Poor"])
+    issues = validate_question(q)
+    codes = [i.code for i in issues]
+    assert "unbalanced_anchors" in codes
+
+
+def test_unbalanced_anchors_balanced_scale_not_flagged():
+    q = _choice_q(
+        n_opts=5,
+        opt_texts=["Strongly agree", "Agree", "Neutral", "Disagree", "Strongly disagree"],
+    )
+    issues = validate_question(q)
+    codes = [i.code for i in issues]
+    assert "unbalanced_anchors" not in codes
+
+
+def test_unbalanced_anchors_fewer_than_3_options_not_flagged():
+    q = _choice_q(n_opts=2, opt_texts=["Good", "Excellent"])
+    issues = validate_question(q)
+    codes = [i.code for i in issues]
+    assert "unbalanced_anchors" not in codes
+
+
+# ---------------------------------------------------------------------------
+# _check_survey_tier1: survey_fatigue
+# ---------------------------------------------------------------------------
+
+
+def _make_large_survey(n_questions: int) -> Survey:
+    questions = [_open_q(qid=f"q{i}", text=f"Question {i}?") for i in range(n_questions)]
+    return _make_survey(questions)
+
+
+def test_survey_fatigue_fires_above_threshold():
+    survey = _make_large_survey(31)
+    issues = _check_survey_tier1(survey)
+    codes = [i.code for i in issues]
+    assert "survey_fatigue" in codes
+    assert issues[0].question_id == "survey"
+    assert issues[0].severity == "warning"
+
+
+def test_survey_fatigue_does_not_fire_at_threshold():
+    survey = _make_large_survey(30)
+    issues = _check_survey_tier1(survey)
+    assert issues == []
+
+
+def test_survey_fatigue_via_validate_survey():
+    survey = _make_large_survey(31)
+    issues = validate_survey(survey)
+    codes = [i.code for i in issues]
+    assert "survey_fatigue" in codes
+
+
+# ---------------------------------------------------------------------------
+# Advisory note integration tests (conversation.py + validation_engine.py)
+# ---------------------------------------------------------------------------
+
+
+def _survey_dict_with_social_desirability() -> dict:
+    return {
+        "id": "s1",
+        "title": "Survey",
+        "description": "",
+        "metadata": {},
+        "sections": [
+            {
+                "id": "sec1",
+                "title": "Section",
+                "description": "",
+                "order": 0,
+                "metadata": {},
+                "questions": [
+                    {
+                        "id": "q1",
+                        "text": "Do you always follow the code of conduct?",
+                        "type": "open_ended",
+                        "answer_options": [],
+                        "order": 0,
+                        "required": True,
+                        "min_value": None,
+                        "max_value": None,
+                        "step": None,
+                        "metadata": {},
+                    }
+                ],
+            }
+        ],
+    }
+
+
+def test_advisory_note_appended_for_new_issue(tmp_path):
+    from unittest.mock import Mock
+
+    from m_chat.conversation import execute_chat_turn
+
+    mock_llm = Mock()
+    mock_llm.create_completion.return_value = (
+        f"Here is the updated survey."
+        f"<survey_update>{json.dumps(_survey_dict_with_social_desirability())}</survey_update>"
+    )
+
+    text, survey_updated = execute_chat_turn(
+        session_id="sess1",
+        message="Add a conduct question.",
+        base_path=str(tmp_path),
+        llm_client=mock_llm,
+        conversation=[],
+    )
+
+    assert survey_updated is True
+    assert "was this intentional?" in text
+
+
+def test_advisory_note_not_shown_for_preexisting_issue(tmp_path):
+    from unittest.mock import Mock
+
+    from m_chat.conversation import execute_chat_turn
+    from m_chat.session import save_draft_survey
+
+    session_id = "sess2"
+    existing_q = Question(
+        id="q1",
+        text="Do you always follow the code of conduct?",
+        type=QuestionType.OPEN_ENDED,
+    )
+    existing_survey = Survey(
+        id="s1",
+        title="Survey",
+        sections=[Section(id="sec1", title="Section", questions=[existing_q])],
+    )
+    save_draft_survey(str(tmp_path), session_id, existing_survey)
+
+    mock_llm = Mock()
+    mock_llm.create_completion.return_value = f"No changes.<survey_update>{json.dumps(_survey_dict_with_social_desirability())}</survey_update>"
+
+    text, survey_updated = execute_chat_turn(
+        session_id=session_id,
+        message="Review the survey.",
+        base_path=str(tmp_path),
+        llm_client=mock_llm,
+        conversation=[],
+    )
+
+    assert survey_updated is True
+    assert "was this intentional?" not in text
