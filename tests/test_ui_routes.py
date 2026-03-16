@@ -256,7 +256,7 @@ class TestUploadFromApiRoute:
             data={
                 "format": "lss",
                 "survey_id": "123",
-                "api_url": "http://ls.example.com/rpc",
+                "api_url": "https://ls.example.com/rpc",
                 "username": "admin",
                 "password": "pw",
                 "api_token": "",
