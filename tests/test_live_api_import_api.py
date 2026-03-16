@@ -150,7 +150,7 @@ class TestImportSurveyFromApi:
             },
         )
         assert resp.status_code == 502
-        assert "Platform API call failed" in resp.json()["detail"]
+        assert "Could not reach the platform" in resp.json()["detail"]
 
     def test_unsupported_format_returns_422(self, client, valid_token):
         """format='qti' is not supported for live API import → 422."""
