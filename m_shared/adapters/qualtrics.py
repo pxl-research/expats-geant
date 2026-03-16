@@ -323,7 +323,8 @@ class QualtricsAdapter(SurveyAdapter):
             resp.raise_for_status()
         except requests.RequestException as exc:
             raise RuntimeError(f"Qualtrics fetch_survey failed: {exc}") from exc
-        return self.import_survey(json.dumps(resp.json()))
+        data = resp.json()
+        return self.import_survey(json.dumps(data.get("result", data)))
 
     def submit_responses(self, survey_id: str, responses: list[Response]) -> None:
         """Submit responses via the Qualtrics Response Import API v3.
