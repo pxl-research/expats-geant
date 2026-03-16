@@ -111,6 +111,37 @@ async def import_survey_file(
     return data["survey_id"], data.get("warning")
 
 
+async def import_survey_from_api(
+    token: str,
+    format: str,
+    survey_id: str,
+    api_url: str | None = None,
+    api_token: str | None = None,
+    datacenter_id: str | None = None,
+    username: str | None = None,
+    password: str | None = None,
+) -> tuple[str, str | None]:
+    """POST /surveys/import-from-api → (session_survey_id, warning)."""
+    payload = {
+        "format": format,
+        "survey_id": survey_id,
+        "api_url": api_url,
+        "api_token": api_token,
+        "datacenter_id": datacenter_id,
+        "username": username,
+        "password": password,
+    }
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            f"{AUTOFILL_API_URL}/surveys/import-from-api",
+            headers=_auth_headers(token),
+            json=payload,
+        )
+    _raise_for_status(resp)
+    data = resp.json()
+    return data["survey_id"], data.get("warning")
+
+
 async def ingest_document(token: str, session_id: str, file_bytes: bytes, filename: str) -> None:
     """Forward a document to the M-Autofill ingestion API.
 

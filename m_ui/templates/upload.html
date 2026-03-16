@@ -20,7 +20,7 @@
     cannot be submitted automatically to the originating platform.
   </div>
 
-  <form method="post" action="/upload" enctype="multipart/form-data">
+  <form id="file-upload-form" method="post" action="/upload" enctype="multipart/form-data">
     <div style="margin-bottom:1rem;">
       <label for="file">Survey file</label>
       <input type="file" id="file" name="file"
@@ -40,6 +40,62 @@
   </form>
 </div>
 
+<section class="card" style="margin-top:1.5rem;">
+  <h2>Import from Platform API</h2>
+  <div class="alert alert-warning" role="alert">
+    &#9888;&#65039; Your credentials are sent to this server and used immediately to fetch
+    the survey. They are never stored or logged.
+    Use this only on trusted networks and in trusted environments.
+  </div>
+
+  {% if api_error %}
+  <div class="alert alert-error">{{ api_error }}</div>
+  {% endif %}
+
+  <form method="post" action="/upload-from-api" id="api-import-form">
+    <label>Platform
+      <select name="format" id="api-format" required>
+        <option value="">— select —</option>
+        <option value="lss" {% if api_form and api_form.format == 'lss' %}selected{% endif %}>LimeSurvey</option>
+        <option value="qsf" {% if api_form and api_form.format == 'qsf' %}selected{% endif %}>Qualtrics</option>
+      </select>
+    </label>
+
+    <div id="ls-fields" style="display:none;">
+      <label>API URL
+        <input name="api_url" type="url" value="{{ api_form.api_url if api_form else '' }}"
+               placeholder="https://survey.example.com/index.php/admin/remotecontrol">
+      </label>
+      <label>Username
+        <input name="username" type="text" value="{{ api_form.username if api_form else '' }}">
+      </label>
+      <label>Password
+        <input name="password" type="password" autocomplete="off">
+      </label>
+    </div>
+
+    <div id="qsf-fields" style="display:none;">
+      <label>API Token
+        <input name="api_token" type="password" autocomplete="off"
+               value="">
+      </label>
+      <label>Datacenter ID
+        <input name="datacenter_id" type="text"
+               value="{{ api_form.datacenter_id if api_form else '' }}"
+               placeholder="e.g. iad1">
+      </label>
+    </div>
+
+    <label>Survey ID
+      <input name="survey_id" type="text" required
+             value="{{ api_form.survey_id if api_form else '' }}"
+             placeholder="e.g. 123456 or SV_xxxxxxxx">
+    </label>
+
+    <button type="submit" id="api-import-btn">Import from API</button>
+  </form>
+</section>
+
 <script>
 // Auto-select format from file extension
 document.getElementById('file').addEventListener('change', function () {
@@ -55,10 +111,25 @@ document.getElementById('file').addEventListener('change', function () {
 });
 
 // Show progress on submit
-document.querySelector('form').addEventListener('submit', function () {
+document.getElementById('file-upload-form').addEventListener('submit', function () {
   const btn = document.getElementById('submit-btn');
   btn.disabled = true;
   btn.textContent = 'Importing…';
+});
+
+const fmt = document.getElementById('api-format');
+const lsF = document.getElementById('ls-fields');
+const qsfF = document.getElementById('qsf-fields');
+function updateFields() {
+  lsF.style.display = fmt.value === 'lss' ? '' : 'none';
+  qsfF.style.display = fmt.value === 'qsf' ? '' : 'none';
+}
+fmt.addEventListener('change', updateFields);
+updateFields();  // restore on error re-render
+
+document.getElementById('api-import-form').addEventListener('submit', function() {
+  document.getElementById('api-import-btn').disabled = true;
+  document.getElementById('api-import-btn').textContent = 'Importing\u2026';
 });
 </script>
 {% endblock %}

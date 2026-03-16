@@ -78,3 +78,7 @@ class SurveyAdapter(ABC):
             NotImplementedError: If not overridden by subclass.
         """
         raise NotImplementedError(f"{self.__class__.__name__} does not support create_survey()")
+
+    def fetch_survey(self, survey_id: str) -> "Survey":
+        """Fetch a survey from the platform API by ID (optional override)."""
+        raise NotImplementedError(f"{type(self).__name__} does not support fetch_survey")

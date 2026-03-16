@@ -243,6 +243,103 @@ class TestReviewPage:
         assert "expired" in resp.text.lower()
 
 
+class TestUploadFromApiRoute:
+    @respx.mock
+    def test_upload_from_api_success_redirects_to_documents(self):
+        """Successful API import redirects to /session/{id}/documents."""
+        respx.post(f"{BASE}/surveys/import-from-api").mock(
+            return_value=httpx.Response(200, json={"survey_id": "api-session-1", "warning": None})
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.post(
+            "/upload-from-api",
+            data={
+                "format": "lss",
+                "survey_id": "123",
+                "api_url": "https://ls.example.com/rpc",
+                "username": "admin",
+                "password": "pw",
+                "api_token": "",
+                "datacenter_id": "",
+            },
+            cookies=TOKEN_COOKIE,
+        )
+        assert resp.status_code == 302
+        assert "/session/api-session-1/documents" in resp.headers["location"]
+
+    @respx.mock
+    def test_upload_from_api_error_rerenders_upload_no_password(self):
+        """API error re-renders upload page with error and form values (no password)."""
+        respx.post(f"{BASE}/surveys/import-from-api").mock(
+            return_value=httpx.Response(400, json={"detail": "LimeSurvey API URL must be set"})
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.post(
+            "/upload-from-api",
+            data={
+                "format": "lss",
+                "survey_id": "123",
+                "api_url": "",
+                "username": "admin",
+                "password": "secret",
+                "api_token": "",
+                "datacenter_id": "",
+            },
+            cookies=TOKEN_COOKIE,
+        )
+        assert resp.status_code == 400
+        assert "LimeSurvey API URL must be set" in resp.text
+        # Survey ID should be preserved
+        assert "123" in resp.text
+        # Password must NOT appear in the rendered HTML
+        assert "secret" not in resp.text
+
+    @respx.mock
+    def test_upload_from_api_qsf_error_rerenders_upload_no_token(self):
+        """API error for QSF re-renders upload page without echoing the API token."""
+        respx.post(f"{BASE}/surveys/import-from-api").mock(
+            return_value=httpx.Response(400, json={"detail": "Qualtrics API token must be set"})
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.post(
+            "/upload-from-api",
+            data={
+                "format": "qsf",
+                "survey_id": "SV_123",
+                "api_url": "",
+                "username": "",
+                "password": "",
+                "api_token": "secret-token",
+                "datacenter_id": "ca1",
+            },
+            cookies=TOKEN_COOKIE,
+        )
+        assert resp.status_code == 400
+        assert "Qualtrics API token must be set" in resp.text
+        # Survey ID should be preserved
+        assert "SV_123" in resp.text
+        # API token must NOT appear in the rendered HTML
+        assert "secret-token" not in resp.text
+
+    def test_upload_from_api_unauthenticated_redirects_to_login(self):
+        """No auth cookie → redirect to /auth/login."""
+        client = TestClient(app, follow_redirects=False)
+        resp = client.post(
+            "/upload-from-api",
+            data={
+                "format": "lss",
+                "survey_id": "123",
+                "api_url": "",
+                "username": "",
+                "password": "",
+                "api_token": "",
+                "datacenter_id": "",
+            },
+        )
+        assert resp.status_code == 302
+        assert "/auth/login" in resp.headers["location"]
+
+
 class TestSubmitRoute:
     @respx.mock
     def test_submit_success_shows_confirmation(self):
