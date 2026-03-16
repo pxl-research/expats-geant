@@ -1,7 +1,12 @@
 # survey-import Specification
 
 ## Purpose
-TBD - created by archiving change add-live-api-import. Update Purpose after archive.
+Defines how the system imports surveys from external platforms, covering two distinct paths:
+live API fetch (pulling a survey definition directly from a platform's API using credentials)
+and file upload (parsing a locally provided file in a supported interchange format such as LSS
+or QSF). The live API fetch path is security-sensitive — credentials are used only for the
+outbound call and must never be logged or persisted. File upload remains the recommended path
+for all non-demo contexts.
 ## Requirements
 ### Requirement: Fetch Survey from LimeSurvey API
 
