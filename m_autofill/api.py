@@ -3,6 +3,7 @@
 import ipaddress
 import logging
 import os
+import re
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -92,6 +93,15 @@ def _validate_api_url(url: str) -> None:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="api_url must not point to internal addresses",
             )
+
+
+def _validate_datacenter_id(datacenter_id: str) -> None:
+    """Validate Qualtrics datacenter ID is a simple alphanumeric string."""
+    if not re.match(r"^[a-zA-Z0-9]+$", datacenter_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid datacenter_id: must be alphanumeric",
+        )
 
 
 def _platform_error_detail(exc: RuntimeError) -> str:
@@ -914,6 +924,8 @@ def create_app(
                 "password": body.password,
             }
         else:  # qsf
+            if body.datacenter_id:
+                _validate_datacenter_id(body.datacenter_id)
             adapter_kwargs = {
                 "api_token": body.api_token,
                 "datacenter_id": body.datacenter_id,
