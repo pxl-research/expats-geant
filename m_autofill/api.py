@@ -89,6 +89,22 @@ def _validate_api_url(url: str) -> None:
             )
 
 
+def _platform_error_detail(exc: RuntimeError) -> str:
+    """Return an actionable 502 detail from a platform RuntimeError.
+
+    Classifies the error into one of three buckets without echoing credentials.
+    The adapter messages are safe to inspect: network errors come from
+    requests.RequestException (no body), and auth/remote errors quote only
+    the platform's own status string.
+    """
+    msg = str(exc).lower()
+    if "authentication failed" in msg:
+        return "Authentication failed. Check your credentials and try again."
+    if any(k in msg for k in ("connection", "timeout", "refused", "unreachable", "max retries")):
+        return "Could not reach the platform. Check the API URL and network connectivity."
+    return f"The platform returned an error: {exc}"
+
+
 _PRIVACY_TEXT = """M-AUTOFILL PRIVACY STATEMENT
 
 DATA COLLECTION:
@@ -909,9 +925,7 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc))
         except RuntimeError as exc:
             logger.error("Platform API call failed for format '%s': %s", body.format, exc)
-            raise HTTPException(
-                status_code=502, detail="Platform API call failed. Check server logs for details."
-            )
+            raise HTTPException(status_code=502, detail=_platform_error_detail(exc))
 
         survey.metadata["format"] = body.format
 
