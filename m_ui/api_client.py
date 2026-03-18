@@ -65,7 +65,7 @@ async def batch_suggest(
     """
     payload = {"assessment_id": survey_id, "items": items}
     logger.debug("batch_suggest payload: %s", payload)
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=300.0) as client:
         resp = await client.post(
             f"{AUTOFILL_API_URL}/suggest/batch",
             headers=_auth_headers(token),

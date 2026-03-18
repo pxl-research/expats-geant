@@ -439,7 +439,12 @@ async def suggest_partial(request: Request, session_id: str):
     except APIError as exc:
         return HTMLResponse(
             f"<p class='error'>Could not load suggestions: {exc.detail}</p>",
-            status_code=exc.status_code,
+            status_code=200,
+        )
+    except Exception as exc:
+        return HTMLResponse(
+            f"<p class='error'>Could not load suggestions: {exc}</p>",
+            status_code=200,
         )
 
     return templates.TemplateResponse(
