@@ -465,7 +465,7 @@ async def answer_report_page(request: Request, session_id: str):
     if not token:
         return RedirectResponse(url="/auth/login", status_code=302)
     try:
-        report = await api_client.fetch_answer_report(token=token, session_id=session_id)
+        report = await api_client.fetch_answer_report(token=token)
     except APIError as exc:
         return _render_error(
             request, f"Could not load answer report: {exc.detail}", exc.status_code
@@ -483,7 +483,7 @@ async def download_answer_report_proxy(request: Request, session_id: str):
     if not token:
         return RedirectResponse(url="/auth/login", status_code=302)
     try:
-        report = await api_client.fetch_answer_report(token=token, session_id=session_id)
+        report = await api_client.fetch_answer_report(token=token)
     except APIError as exc:
         return _render_error(request, exc.detail, exc.status_code)
     if report is None:

@@ -170,7 +170,7 @@ async def ingest_text_snippet(token: str, session_id: str, text: str, label: str
     _raise_for_status(resp)
 
 
-async def fetch_answer_report(token: str, session_id: str) -> list[dict] | None:
+async def fetch_answer_report(token: str) -> list[dict] | None:
     """Fetch the session answer report.
 
     GET /answer-report/download → parsed list, or None if no suggestions yet.
