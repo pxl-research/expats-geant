@@ -5,7 +5,6 @@ from unittest.mock import Mock
 
 from m_chat.validation_engine import (
     ValidationIssue,
-    _check_survey_tier1,
     validate_question,
     validate_survey,
 )
@@ -450,7 +449,7 @@ def test_unbalanced_anchors_fewer_than_3_options_not_flagged():
 
 
 # ---------------------------------------------------------------------------
-# _check_survey_tier1: survey_fatigue
+# Survey-level checks: survey_fatigue
 # ---------------------------------------------------------------------------
 
 
@@ -461,24 +460,18 @@ def _make_large_survey(n_questions: int) -> Survey:
 
 def test_survey_fatigue_fires_above_threshold():
     survey = _make_large_survey(31)
-    issues = _check_survey_tier1(survey)
-    codes = [i.code for i in issues]
-    assert "survey_fatigue" in codes
-    assert issues[0].question_id == "survey"
-    assert issues[0].severity == "warning"
+    issues = validate_survey(survey)
+    fatigue = [i for i in issues if i.code == "survey_fatigue"]
+    assert fatigue
+    assert fatigue[0].question_id == "survey"
+    assert fatigue[0].severity == "warning"
 
 
 def test_survey_fatigue_does_not_fire_at_threshold():
     survey = _make_large_survey(30)
-    issues = _check_survey_tier1(survey)
-    assert issues == []
-
-
-def test_survey_fatigue_via_validate_survey():
-    survey = _make_large_survey(31)
     issues = validate_survey(survey)
     codes = [i.code for i in issues]
-    assert "survey_fatigue" in codes
+    assert "survey_fatigue" not in codes
 
 
 # ---------------------------------------------------------------------------
@@ -519,8 +512,6 @@ def _survey_dict_with_social_desirability() -> dict:
 
 
 def test_advisory_note_appended_for_new_issue(tmp_path):
-    from unittest.mock import Mock
-
     from m_chat.conversation import execute_chat_turn
 
     mock_llm = Mock()
@@ -542,8 +533,6 @@ def test_advisory_note_appended_for_new_issue(tmp_path):
 
 
 def test_advisory_note_not_shown_for_preexisting_issue(tmp_path):
-    from unittest.mock import Mock
-
     from m_chat.conversation import execute_chat_turn
     from m_chat.session import save_draft_survey
 
@@ -577,8 +566,6 @@ def test_advisory_note_not_shown_for_preexisting_issue(tmp_path):
 
 def test_advisory_note_not_shown_for_info_only_issue(tmp_path):
     """An info-severity new issue (e.g. missing_neutral_option) must not trigger an advisory note."""
-    from unittest.mock import Mock
-
     from m_chat.conversation import execute_chat_turn
 
     # single_choice with 4 even options and no neutral label → missing_neutral_option (info only)
