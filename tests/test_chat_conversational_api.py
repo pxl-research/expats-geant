@@ -663,3 +663,85 @@ class TestScenarioIntegration:
         assert r_survey.status_code == 200
         assert r_survey.json()["survey"] is not None
         assert r_survey.json()["survey"]["title"] == "Test Survey"
+
+
+# ---------------------------------------------------------------------------
+# TestMethodologicalAdvisor
+# ---------------------------------------------------------------------------
+
+_SD_SURVEY_DICT = {
+    "id": "s1",
+    "title": "Conduct Survey",
+    "description": "",
+    "metadata": {},
+    "sections": [
+        {
+            "id": "sec1",
+            "title": "Section",
+            "description": "",
+            "order": 0,
+            "metadata": {},
+            "questions": [
+                {
+                    "id": "q1",
+                    "text": "Do you always follow the code of conduct?",
+                    "type": "open_ended",
+                    "answer_options": [],
+                    "order": 0,
+                    "required": True,
+                    "min_value": None,
+                    "max_value": None,
+                    "step": None,
+                    "metadata": {},
+                }
+            ],
+        }
+    ],
+}
+
+
+class TestMethodologicalAdvisor:
+    def test_advisory_note_appears_when_new_issue_introduced(
+        self, client_with_llm, jwt_secret, mock_llm
+    ):
+        headers = _make_auth_headers("user1")
+        sid = _create_chat_session(client_with_llm, headers)
+
+        survey_json = json.dumps(_SD_SURVEY_DICT)
+        mock_llm.create_completion.return_value = (
+            f"Here is the updated survey.<survey_update>{survey_json}</survey_update>"
+        )
+
+        resp = client_with_llm.post(
+            f"/chat/{sid}",
+            json={"message": "Add a conduct question."},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["survey_updated"] is True
+        assert "was this intentional?" in data["message"]
+
+    def test_preexisting_issue_not_resurfaced(
+        self, client_with_llm, jwt_secret, mock_llm, session_manager
+    ):
+        headers = _make_auth_headers("user1")
+        sid = _create_chat_session(client_with_llm, headers)
+
+        # Seed the draft with the SD survey so the issue already exists in baseline
+        save_draft_survey(str(session_manager.base_path), sid, Survey(**_SD_SURVEY_DICT))
+
+        survey_json = json.dumps(_SD_SURVEY_DICT)
+        mock_llm.create_completion.return_value = (
+            f"No changes.<survey_update>{survey_json}</survey_update>"
+        )
+
+        resp = client_with_llm.post(
+            f"/chat/{sid}",
+            json={"message": "Review the survey."},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["survey_updated"] is True
+        assert "was this intentional?" not in data["message"]
