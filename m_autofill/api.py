@@ -3,6 +3,7 @@
 import ipaddress
 import logging
 import os
+import re
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -62,6 +63,11 @@ def _validate_api_url(url: str) -> None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="api_url must use HTTPS"
         )
+    if parsed.username or parsed.password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="api_url must not include credentials",
+        )
     hostname = parsed.hostname
     if not hostname:
         raise HTTPException(
@@ -69,7 +75,14 @@ def _validate_api_url(url: str) -> None:
         )
     try:
         addr = ipaddress.ip_address(hostname)
-        if addr.is_private or addr.is_loopback or addr.is_link_local:
+        if (
+            addr.is_private
+            or addr.is_loopback
+            or addr.is_link_local
+            or addr.is_unspecified
+            or addr.is_multicast
+            or addr.is_reserved
+        ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="api_url must not point to internal addresses",
@@ -80,6 +93,31 @@ def _validate_api_url(url: str) -> None:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="api_url must not point to internal addresses",
             )
+
+
+def _validate_datacenter_id(datacenter_id: str) -> None:
+    """Validate Qualtrics datacenter ID is a simple alphanumeric string."""
+    if not re.match(r"^[a-zA-Z0-9]+$", datacenter_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid datacenter_id: must be alphanumeric",
+        )
+
+
+def _platform_error_detail(exc: RuntimeError) -> str:
+    """Return an actionable 502 detail from a platform RuntimeError.
+
+    Classifies the error into one of three buckets without echoing credentials.
+    The adapter messages are safe to inspect: network errors come from
+    requests.RequestException (no body), and auth/remote errors quote only
+    the platform's own status string.
+    """
+    msg = str(exc).lower()
+    if "authentication failed" in msg:
+        return "Authentication failed. Check your credentials and try again."
+    if any(k in msg for k in ("connection", "timeout", "refused", "unreachable", "max retries")):
+        return "Could not reach the platform. Check the API URL and network connectivity."
+    return f"The platform returned an error: {exc}"
 
 
 _PRIVACY_TEXT = """M-AUTOFILL PRIVACY STATEMENT
@@ -886,6 +924,8 @@ def create_app(
                 "password": body.password,
             }
         else:  # qsf
+            if body.datacenter_id:
+                _validate_datacenter_id(body.datacenter_id)
             adapter_kwargs = {
                 "api_token": body.api_token,
                 "datacenter_id": body.datacenter_id,
@@ -902,9 +942,7 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc))
         except RuntimeError as exc:
             logger.error("Platform API call failed for format '%s': %s", body.format, exc)
-            raise HTTPException(
-                status_code=502, detail="Platform API call failed. Check server logs for details."
-            )
+            raise HTTPException(status_code=502, detail=_platform_error_detail(exc))
 
         survey.metadata["format"] = body.format
 

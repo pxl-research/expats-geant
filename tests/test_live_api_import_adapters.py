@@ -155,11 +155,11 @@ class TestQualtricsFetchSurvey:
 
     @patch("requests.get")
     def test_fetch_survey_success(self, mock_get):
-        """GET /v3/surveys/{id} returns QSF JSON → valid Survey."""
-        # Qualtrics returns the full QSF document directly
+        """GET /v3/surveys/{id} returns v3 envelope → valid Survey."""
+        # Real Qualtrics v3 API wraps the QSF in a {result, meta} envelope
         mock_get.return_value = MagicMock(
             status_code=200,
-            json=lambda: _QSF,
+            json=lambda: {"result": _QSF, "meta": {"httpStatus": "200 - OK"}},
         )
         mock_get.return_value.raise_for_status = MagicMock()
         adapter = self._make_adapter()
@@ -168,6 +168,19 @@ class TestQualtricsFetchSurvey:
         assert survey.id == "SV_abc123"
         assert len(survey.sections) == 1
         assert len(survey.sections[0].questions) == 1
+
+    @patch("requests.get")
+    def test_fetch_survey_success_raw_fallback(self, mock_get):
+        """GET /v3/surveys/{id} returns raw QSF (no envelope) → valid Survey."""
+        mock_get.return_value = MagicMock(
+            status_code=200,
+            json=lambda: _QSF,
+        )
+        mock_get.return_value.raise_for_status = MagicMock()
+        adapter = self._make_adapter()
+        survey = adapter.fetch_survey("SV_abc123")
+        assert survey.title == "Test Survey"
+        assert len(survey.sections) == 1
 
     def test_fetch_survey_missing_credentials(self):
         """Missing credentials raises ValueError before any network call."""
