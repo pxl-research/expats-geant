@@ -92,6 +92,19 @@ async def submit_responses(token: str, session_id: str, responses: dict[str, Any
     _raise_for_status(resp)
 
 
+async def delete_session(token: str) -> None:
+    """Delete the current session and all associated data.
+
+    DELETE /session
+    """
+    async with httpx.AsyncClient() as client:
+        resp = await client.delete(
+            f"{AUTOFILL_API_URL}/session",
+            headers=_auth_headers(token),
+        )
+    _raise_for_status(resp)
+
+
 async def import_survey_file(
     token: str, file_bytes: bytes, filename: str, format: str
 ) -> tuple[str, str | None]:

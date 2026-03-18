@@ -525,6 +525,44 @@ def test_export_page_renders(client):
 
 
 @respx.mock
+def test_export_push_shows_cleanup_modal(client):
+    respx.get(f"{BASE}/chat/{SESSION_ID}/survey").mock(
+        return_value=httpx.Response(200, json={"survey": SAMPLE_SURVEY})
+    )
+    respx.post(f"{BASE}/create").mock(
+        return_value=httpx.Response(200, json={"platform_id": "123", "created_via": "api"})
+    )
+    resp = client.post(
+        f"/session/{SESSION_ID}/export",
+        data={"action": "push", "fmt": "lss"},
+        cookies=COOKIE,
+        headers={"HX-Request": "true"},
+    )
+    assert resp.status_code == 200
+    assert "cleanup-modal" in resp.text
+    assert "Delete session data" in resp.text
+
+
+@respx.mock
+def test_export_download_shows_cleanup_modal(client):
+    respx.get(f"{BASE}/chat/{SESSION_ID}/survey").mock(
+        return_value=httpx.Response(200, json={"survey": SAMPLE_SURVEY})
+    )
+    respx.post(f"{BASE}/export").mock(
+        return_value=httpx.Response(200, json={"content": "<xml/>", "filename": "survey.lss"})
+    )
+    resp = client.post(
+        f"/session/{SESSION_ID}/export",
+        data={"action": "download", "fmt": "lss"},
+        cookies=COOKIE,
+        headers={"HX-Request": "true"},
+    )
+    assert resp.status_code == 200
+    assert "cleanup-modal" in resp.text
+    assert "Delete session data" in resp.text
+
+
+@respx.mock
 def test_reset_session_redirects(client):
     respx.post(f"{BASE}/chat/{SESSION_ID}/reset").mock(
         return_value=httpx.Response(

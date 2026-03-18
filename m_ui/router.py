@@ -563,3 +563,16 @@ async def submit_responses(request: Request, session_id: str):
         "submitted.html",
         {"session_id": session_id},
     )
+
+
+@router.delete("/session")
+async def delete_session(request: Request):
+    """Delete the current session and redirect to home."""
+    token = get_token(request)
+    if not token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    try:
+        await api_client.delete_session(token)
+    except APIError as exc:
+        return _render_error(request, f"Could not delete session: {exc.detail}", exc.status_code)
+    return RedirectResponse(url="/", status_code=302)

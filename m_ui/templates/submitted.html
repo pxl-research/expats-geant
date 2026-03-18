@@ -19,4 +19,11 @@ try {
 } catch (e) {}
 </script>
 
+{% include "partials/session_cleanup_modal.html" %}
+<script>
+  window.addEventListener('load', function() {
+    document.getElementById('cleanup-modal').showModal();
+  });
+</script>
+
 {% endblock %}
