@@ -604,7 +604,7 @@ def create_app(
             report_citations = [
                 {
                     "source": cit.source_id,
-                    "position": cit.position_percentage or 0.0,
+                    "position": cit.position_percentage,
                     "excerpt": cit.highlights[0] if cit.highlights else "",
                 }
                 for cit in result["citations"]
