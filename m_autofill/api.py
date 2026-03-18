@@ -1,6 +1,7 @@
 """FastAPI endpoints for M-Autofill answer suggestion service."""
 
 import ipaddress
+import json
 import logging
 import os
 import re
@@ -10,7 +11,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, status
-from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse
 
 from m_autofill.ingest import ingest_files_into_store, ingest_text_into_store
 from m_autofill.models import (
@@ -214,6 +215,18 @@ def _build_responses_from_body(
             )
         )
     return responses
+
+
+def _append_to_answer_report(session_path: Path, entries: list[dict]) -> None:
+    """Append suggestion entries to the per-session answer_report.json array."""
+    report_path = session_path / "answer_report.json"
+    existing = []
+    if report_path.exists():
+        try:
+            existing = json.loads(report_path.read_text())
+        except Exception as exc:
+            logger.warning("Could not read existing answer report, starting fresh: %s", exc)
+    report_path.write_text(json.dumps(existing + entries, ensure_ascii=False))
 
 
 def create_app(
@@ -574,6 +587,31 @@ def create_app(
                 for cit in result["citations"]
             ]
 
+            report_citations = [
+                {
+                    "source": cit.source_id,
+                    "position": cit.position_percentage or 0.0,
+                    "excerpt": cit.highlights[0] if cit.highlights else "",
+                }
+                for cit in result["citations"]
+            ]
+            try:
+                _append_to_answer_report(
+                    session_manager._get_session_path(session.session_id),
+                    [
+                        {
+                            "question_id": None,
+                            "question": suggest_request.question,
+                            "answer": result["answer"],
+                            "reasoning": result.get("reasoning"),
+                            "citations": report_citations,
+                            "generated_at": datetime.now(UTC).isoformat(),
+                        }
+                    ],
+                )
+            except Exception as exc:
+                logger.warning("Failed to persist answer report entry: %s", exc)
+
             return SuggestResponse(
                 answer=result["answer"],
                 reasoning=result.get("reasoning"),
@@ -660,6 +698,25 @@ def create_app(
                 )
             )
 
+        item_prompts = {item.id: item.prompt for section in sections for item in section.items}
+        try:
+            _append_to_answer_report(
+                session_manager._get_session_path(session.session_id),
+                [
+                    {
+                        "question_id": s.item_id,
+                        "question": item_prompts.get(s.item_id, ""),
+                        "answer": s.suggestion,
+                        "reasoning": s.reasoning,
+                        "citations": [c.model_dump() for c in s.citations],
+                        "generated_at": datetime.now(UTC).isoformat(),
+                    }
+                    for s in responses
+                ],
+            )
+        except Exception as exc:
+            logger.warning("Failed to persist batch answer report: %s", exc)
+
         return BatchSuggestResponse(
             assessment_id=batch_request.assessment_id,
             session_id=session.session_id,
@@ -716,6 +773,22 @@ def create_app(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Report generation failed: {e}",
             )
+
+    @app.get("/answer-report/download")
+    async def download_answer_report(request: Request):
+        """Return the session's answer report as a downloadable JSON file."""
+        session = request.state.session
+        report_path = session_manager._get_session_path(session.session_id) / "answer_report.json"
+        if not report_path.exists():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No suggestions have been generated yet",
+            )
+        return FileResponse(
+            path=report_path,
+            media_type="application/json",
+            filename="answer_report.json",
+        )
 
     @app.delete("/audit-report", response_model=AuditDeleteResponse)
     async def delete_audit_report(request: Request):
