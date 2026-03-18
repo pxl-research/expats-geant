@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import threading
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -217,16 +218,29 @@ def _build_responses_from_body(
     return responses
 
 
+_report_locks: dict[str, threading.Lock] = {}
+_report_locks_lock = threading.Lock()
+
+
+def _get_report_lock(session_path: Path) -> threading.Lock:
+    key = session_path.name
+    with _report_locks_lock:
+        if key not in _report_locks:
+            _report_locks[key] = threading.Lock()
+        return _report_locks[key]
+
+
 def _append_to_answer_report(session_path: Path, entries: list[dict]) -> None:
     """Append suggestion entries to the per-session answer_report.json array."""
     report_path = session_path / "answer_report.json"
-    existing = []
-    if report_path.exists():
-        try:
-            existing = json.loads(report_path.read_text())
-        except Exception as exc:
-            logger.warning("Could not read existing answer report, starting fresh: %s", exc)
-    report_path.write_text(json.dumps(existing + entries, ensure_ascii=False))
+    with _get_report_lock(session_path):
+        existing = []
+        if report_path.exists():
+            try:
+                existing = json.loads(report_path.read_text())
+            except Exception as exc:
+                logger.warning("Could not read existing answer report, starting fresh: %s", exc)
+        report_path.write_text(json.dumps(existing + entries, ensure_ascii=False))
 
 
 def create_app(
