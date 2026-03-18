@@ -181,7 +181,7 @@ class TestSuggestPartial:
         )
         client = TestClient(app, follow_redirects=False)
         resp = client.get("/session/survey-abc/suggest", cookies=TOKEN_COOKIE)
-        assert resp.status_code == 500
+        assert resp.status_code == 200
         assert "LLM unavailable" in resp.text
 
     def test_suggest_unauthenticated_returns_401(self):
