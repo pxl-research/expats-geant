@@ -573,3 +573,62 @@ def test_advisory_note_not_shown_for_preexisting_issue(tmp_path):
 
     assert survey_updated is True
     assert "was this intentional?" not in text
+
+
+def test_advisory_note_not_shown_for_info_only_issue(tmp_path):
+    """An info-severity new issue (e.g. missing_neutral_option) must not trigger an advisory note."""
+    from unittest.mock import Mock
+
+    from m_chat.conversation import execute_chat_turn
+
+    # single_choice with 4 even options and no neutral label → missing_neutral_option (info only)
+    survey_dict = {
+        "id": "s1",
+        "title": "Survey",
+        "description": "",
+        "metadata": {},
+        "sections": [
+            {
+                "id": "sec1",
+                "title": "Section",
+                "description": "",
+                "order": 0,
+                "metadata": {},
+                "questions": [
+                    {
+                        "id": "q1",
+                        "text": "How satisfied are you?",
+                        "type": "single_choice",
+                        "answer_options": [
+                            {"id": "o1", "text": "Very satisfied", "value": None},
+                            {"id": "o2", "text": "Satisfied", "value": None},
+                            {"id": "o3", "text": "Dissatisfied", "value": None},
+                            {"id": "o4", "text": "Very dissatisfied", "value": None},
+                        ],
+                        "order": 0,
+                        "required": True,
+                        "min_value": None,
+                        "max_value": None,
+                        "step": None,
+                        "metadata": {},
+                    }
+                ],
+            }
+        ],
+    }
+
+    mock_llm = Mock()
+    mock_llm.create_completion.return_value = (
+        f"Updated.<survey_update>{json.dumps(survey_dict)}</survey_update>"
+    )
+
+    text, survey_updated = execute_chat_turn(
+        session_id="sess_info",
+        message="Add a satisfaction question.",
+        base_path=str(tmp_path),
+        llm_client=mock_llm,
+        conversation=[],
+    )
+
+    assert survey_updated is True
+    assert "was this intentional?" not in text

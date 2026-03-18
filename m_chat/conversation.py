@@ -132,7 +132,12 @@ def execute_chat_turn(
             save_draft_survey(base_path, session_id, survey_obj)
             survey_updated = True
             new_issues = validate_survey(survey_obj)
-            introduced = [i for i in new_issues if (i.question_id, i.code) not in baseline_keys]
+            introduced = [
+                i
+                for i in new_issues
+                if (i.question_id, i.code) not in baseline_keys
+                and i.severity in ("warning", "error")
+            ]
             if introduced:
                 notes = "\n".join(
                     f"I also noticed: {i.message} — was this intentional?" for i in introduced[:2]
