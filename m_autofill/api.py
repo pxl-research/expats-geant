@@ -718,14 +718,21 @@ def create_app(
                 session_manager._get_session_path(session.session_id),
                 [
                     {
-                        "question_id": s.item_id,
-                        "question": item_prompts.get(s.item_id, ""),
-                        "answer": s.suggestion,
-                        "reasoning": s.reasoning,
-                        "citations": [c.model_dump() for c in s.citations],
+                        "question_id": r["item_id"],
+                        "question": item_prompts.get(r["item_id"], ""),
+                        "answer": r["suggestion"],
+                        "reasoning": r.get("reasoning"),
+                        "citations": [
+                            {
+                                "source": c.source_id,
+                                "position": c.position_percentage,
+                                "excerpt": c.highlights[0] if c.highlights else "",
+                            }
+                            for c in r["citations"]
+                        ],
                         "generated_at": datetime.now(UTC).isoformat(),
                     }
-                    for s in responses
+                    for r in raw_responses
                 ],
             )
         except Exception as exc:
