@@ -459,6 +459,61 @@ async def suggest_partial(request: Request, session_id: str):
 # ---------------------------------------------------------------------------
 
 
+@router.get("/session/{session_id}/answer-report", response_class=HTMLResponse)
+async def answer_report_page(request: Request, session_id: str):
+    token = get_token(request)
+    if not token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    try:
+        await api_client.get_survey(token=token, survey_id=session_id)
+    except APIError as exc:
+        if exc.status_code in (404, 410):
+            return templates.TemplateResponse(
+                request,
+                "error.html",
+                {
+                    "message": "Your session has expired. Please start a new session.",
+                    "session_expired": True,
+                },
+                status_code=410,
+            )
+        return _render_error(request, f"Could not validate session: {exc.detail}", exc.status_code)
+    try:
+        report = await api_client.fetch_answer_report(token=token)
+    except APIError as exc:
+        return _render_error(
+            request, f"Could not load answer report: {exc.detail}", exc.status_code
+        )
+    return templates.TemplateResponse(
+        request, "answer_report.html", {"session_id": session_id, "report": report}
+    )
+
+
+@router.get("/session/{session_id}/answer-report/download")
+async def download_answer_report_proxy(request: Request, session_id: str):
+    from fastapi.responses import JSONResponse
+
+    token = get_token(request)
+    if not token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    try:
+        await api_client.get_survey(token=token, survey_id=session_id)
+    except APIError as exc:
+        if exc.status_code in (404, 410):
+            return _render_error(request, "Session not found or expired.", exc.status_code)
+        return _render_error(request, f"Could not validate session: {exc.detail}", exc.status_code)
+    try:
+        report = await api_client.fetch_answer_report(token=token)
+    except APIError as exc:
+        return _render_error(request, exc.detail, exc.status_code)
+    if report is None:
+        return _render_error(request, "No answer report available yet.", 404)
+    return JSONResponse(
+        content=report,
+        headers={"Content-Disposition": "attachment; filename=answer_report.json"},
+    )
+
+
 @router.post("/session/{session_id}/submit")
 async def submit_responses(request: Request, session_id: str):
     """Collect form data, call submit API, redirect to submitted.html or show error."""

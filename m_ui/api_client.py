@@ -170,6 +170,22 @@ async def ingest_text_snippet(token: str, session_id: str, text: str, label: str
     _raise_for_status(resp)
 
 
+async def fetch_answer_report(token: str) -> list[dict] | None:
+    """Fetch the session answer report.
+
+    GET /answer-report/download → parsed list, or None if no suggestions yet.
+    """
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{AUTOFILL_API_URL}/answer-report/download",
+            headers=_auth_headers(token),
+        )
+    if resp.status_code == 404:
+        return None
+    _raise_for_status(resp)
+    return resp.json()
+
+
 def _raise_for_status(resp: httpx.Response) -> None:
     """Raise APIError for 4xx/5xx responses."""
     if resp.is_error:

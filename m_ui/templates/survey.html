@@ -43,6 +43,10 @@
 <p style="margin-bottom:1.25rem;">{{ survey.description }}</p>
 {% endif %}
 
+<div style="text-align:right; margin-bottom:1rem;">
+  <a href="/session/{{ session_id }}/answer-report" class="btn btn-ghost" style="font-size:0.8rem;">View answer report</a>
+</div>
+
 {% if not can_submit %}
 <div class="display-only-banner">
   <span class="icon">ℹ️</span>
