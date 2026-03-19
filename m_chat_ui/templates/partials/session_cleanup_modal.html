@@ -1,0 +1,28 @@
+<dialog id="cleanup-modal" style="border:1px solid var(--border); border-radius:var(--radius); padding:2rem; max-width:420px; width:90%">
+  <h2 style="margin-bottom:0.5rem; font-size:1.1rem;">Delete session data?</h2>
+  <p style="color:var(--text-muted); margin-bottom:1.5rem; font-size:0.9rem;">
+    Your survey draft, style profile, and uploaded documents can now be removed.
+    Your session will also expire automatically if you prefer to wait.
+  </p>
+  <p id="cleanup-error" hidden style="color:var(--danger, #c0392b); font-size:0.85rem; margin-bottom:1rem;">Could not delete session. Please try again.</p>
+  <div style="display:flex; gap:0.75rem; justify-content:flex-end">
+    <button type="button" class="btn btn-ghost" onclick="document.getElementById('cleanup-modal').close()">Keep session</button>
+    <button type="button" class="btn btn-danger" onclick="chatDeleteAndRedirect()">Delete session data</button>
+  </div>
+</dialog>
+<script>
+function chatDeleteAndRedirect() {
+  var sid = window._cleanupSessionId || '';
+  fetch('/session/' + encodeURIComponent(sid), {method: 'DELETE', credentials: 'same-origin'})
+    .then(function(resp) {
+      if (resp.ok) {
+        window.location.href = '/';
+      } else {
+        document.getElementById('cleanup-error').hidden = false;
+      }
+    })
+    .catch(function() {
+      document.getElementById('cleanup-error').hidden = false;
+    });
+}
+</script>

@@ -38,6 +38,58 @@ _LEADING_PHRASES = [
     "is it not",
 ]
 
+_SOCIAL_DESIRABILITY_PHRASES = [
+    "do you regularly",
+    "do you always",
+    "do you make sure",
+    "do you ensure",
+    "do you consistently",
+]
+
+_NEUTRAL_LABELS = ("neither", "neutral", "no opinion", "n/a", "not applicable")
+
+# Check negative before positive to handle substrings like "agree" inside "disagree".
+_NEGATIVE_WORDS = frozenset(
+    {
+        "poor",
+        "bad",
+        "terrible",
+        "disagree",
+        "never",
+        "dissatisfied",
+        "negative",
+        "worse",
+        "unhelpful",
+        "ineffective",
+    }
+)
+_POSITIVE_WORDS = frozenset(
+    {
+        "excellent",
+        "good",
+        "great",
+        "agree",
+        "always",
+        "satisfied",
+        "positive",
+        "better",
+        "helpful",
+        "effective",
+    }
+)
+
+_SURVEY_FATIGUE_THRESHOLD = 30
+
+
+def _classify_sentiment(text: str) -> str | None:
+    """Return 'positive', 'negative', or None for an answer option label."""
+    lower = text.lower()
+    if any(w in lower for w in _NEGATIVE_WORDS):
+        return "negative"
+    if any(w in lower for w in _POSITIVE_WORDS):
+        return "positive"
+    return None
+
 
 def _is_double_barreled(text: str) -> bool:
     """Heuristic: detect ' and ' or ' or ' joining two non-trivial clause fragments.
@@ -134,7 +186,65 @@ def _check_question_tier1(question: Question) -> list[ValidationIssue]:
                     )
                 )
 
+    # Social desirability
+    for phrase in _SOCIAL_DESIRABILITY_PHRASES:
+        if phrase in text_lower:
+            issues.append(
+                ValidationIssue(
+                    question_id=qid,
+                    severity="warning",
+                    code="social_desirability",
+                    message=f"Question may imply a socially expected answer: '{phrase}'.",
+                )
+            )
+            break
+
+    # Missing neutral option (single_choice, even number of options ≥ 4, no neutral label)
+    if question.type == QuestionType.SINGLE_CHOICE:
+        n_opts = len(question.answer_options)
+        if n_opts >= 4 and n_opts % 2 == 0:
+            opt_texts_lower = [opt.text.lower() for opt in question.answer_options]
+            if not any(label in t for t in opt_texts_lower for label in _NEUTRAL_LABELS):
+                issues.append(
+                    ValidationIssue(
+                        question_id=qid,
+                        severity="info",
+                        code="missing_neutral_option",
+                        message="Even-numbered scale with no neutral option forces a directional response.",
+                    )
+                )
+
+    # Unbalanced anchors (all options ≥ 3 lean the same sentiment direction)
+    if question.type in (QuestionType.SINGLE_CHOICE, QuestionType.MULTIPLE_CHOICE):
+        n_opts = len(question.answer_options)
+        if n_opts >= 3:
+            sentiments = [_classify_sentiment(opt.text) for opt in question.answer_options]
+            if None not in sentiments and len(set(sentiments)) == 1:
+                issues.append(
+                    ValidationIssue(
+                        question_id=qid,
+                        severity="warning",
+                        code="unbalanced_anchors",
+                        message="All answer options lean the same sentiment direction; consider adding a balanced counterpart.",
+                    )
+                )
+
     return issues
+
+
+def _check_survey_tier1(survey: Survey) -> list[ValidationIssue]:
+    """Survey-level deterministic checks (not per-question)."""
+    total = sum(len(s.questions) for s in survey.sections)
+    if total > _SURVEY_FATIGUE_THRESHOLD:
+        return [
+            ValidationIssue(
+                question_id="survey",
+                severity="warning",
+                code="survey_fatigue",
+                message=f"Survey has {total} questions; consider splitting into shorter instruments to reduce respondent fatigue.",
+            )
+        ]
+    return []
 
 
 # ---------------------------------------------------------------------------
@@ -321,6 +431,8 @@ def validate_survey(
     for section in survey.sections:
         for question in section.questions:
             issues.extend(_check_question_tier1(question))
+
+    issues.extend(_check_survey_tier1(survey))
 
     if llm_client is not None:
         issues.extend(_llm_validate_survey_batch(survey, llm_client, style_profile))

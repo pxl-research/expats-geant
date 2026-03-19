@@ -1,5 +1,6 @@
 """All routes for the M-UI survey review frontend."""
 
+import logging
 import os
 from typing import Annotated
 
@@ -18,6 +19,7 @@ from m_ui.auth import (
     set_token_cookie,
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
@@ -439,7 +441,13 @@ async def suggest_partial(request: Request, session_id: str):
     except APIError as exc:
         return HTMLResponse(
             f"<p class='error'>Could not load suggestions: {exc.detail}</p>",
-            status_code=exc.status_code,
+            status_code=200,
+        )
+    except Exception:
+        logger.exception("Unexpected error loading suggestions")
+        return HTMLResponse(
+            "<p class='error'>Could not load suggestions: an unexpected error occurred.</p>",
+            status_code=200,
         )
 
     return templates.TemplateResponse(
@@ -452,6 +460,61 @@ async def suggest_partial(request: Request, session_id: str):
 # ---------------------------------------------------------------------------
 # Submit
 # ---------------------------------------------------------------------------
+
+
+@router.get("/session/{session_id}/answer-report", response_class=HTMLResponse)
+async def answer_report_page(request: Request, session_id: str):
+    token = get_token(request)
+    if not token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    try:
+        await api_client.get_survey(token=token, survey_id=session_id)
+    except APIError as exc:
+        if exc.status_code in (404, 410):
+            return templates.TemplateResponse(
+                request,
+                "error.html",
+                {
+                    "message": "Your session has expired. Please start a new session.",
+                    "session_expired": True,
+                },
+                status_code=410,
+            )
+        return _render_error(request, f"Could not validate session: {exc.detail}", exc.status_code)
+    try:
+        report = await api_client.fetch_answer_report(token=token)
+    except APIError as exc:
+        return _render_error(
+            request, f"Could not load answer report: {exc.detail}", exc.status_code
+        )
+    return templates.TemplateResponse(
+        request, "answer_report.html", {"session_id": session_id, "report": report}
+    )
+
+
+@router.get("/session/{session_id}/answer-report/download")
+async def download_answer_report_proxy(request: Request, session_id: str):
+    from fastapi.responses import JSONResponse
+
+    token = get_token(request)
+    if not token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    try:
+        await api_client.get_survey(token=token, survey_id=session_id)
+    except APIError as exc:
+        if exc.status_code in (404, 410):
+            return _render_error(request, "Session not found or expired.", exc.status_code)
+        return _render_error(request, f"Could not validate session: {exc.detail}", exc.status_code)
+    try:
+        report = await api_client.fetch_answer_report(token=token)
+    except APIError as exc:
+        return _render_error(request, exc.detail, exc.status_code)
+    if report is None:
+        return _render_error(request, "No answer report available yet.", 404)
+    return JSONResponse(
+        content=report,
+        headers={"Content-Disposition": "attachment; filename=answer_report.json"},
+    )
 
 
 @router.post("/session/{session_id}/submit")
@@ -503,3 +566,16 @@ async def submit_responses(request: Request, session_id: str):
         "submitted.html",
         {"session_id": session_id},
     )
+
+
+@router.delete("/session")
+async def delete_session(request: Request):
+    """Delete the current session and redirect to home."""
+    token = get_token(request)
+    if not token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    try:
+        await api_client.delete_session(token)
+    except APIError as exc:
+        return _render_error(request, f"Could not delete session: {exc.detail}", exc.status_code)
+    return RedirectResponse(url="/", status_code=302)

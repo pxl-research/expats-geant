@@ -260,3 +260,66 @@ survey ID fields.
 - **THEN** the security warning is visible before any credential input fields are shown,
   regardless of which platform is selected
 
+### Requirement: Answer Report Page
+
+The UI SHALL provide a dedicated answer report page rendering the session's suggestion
+results in a human-readable format. Each suggestion SHALL be presented as a card showing:
+question text, suggested answer, reasoning (when available), and cited sources with
+document name, position, and excerpt.
+
+A "Download as JSON" link SHALL allow the user to save the raw report file.
+
+#### Scenario: Report page renders all suggestions
+
+- **WHEN** the user navigates to the answer report page after suggestions have been generated
+- **THEN** one card per question is displayed with answer, reasoning, and citation details
+
+#### Scenario: Report page with no suggestions
+
+- **WHEN** the user navigates to the answer report page before any suggestion has been generated
+- **THEN** an informative message is shown explaining that no suggestions are available yet
+
+---
+
+### Requirement: Answer Report Links on Review and Submission Pages
+
+The UI SHALL provide a link to the answer report page on the survey review page and on
+the submission confirmation page, so users can access their evidence trail before
+deleting their session.
+
+#### Scenario: Link visible on review page
+
+- **WHEN** the user is on the survey review page
+- **THEN** a "View answer report" link is visible linking to the report page
+
+#### Scenario: Link visible on submission confirmation
+
+- **WHEN** the user reaches the submission confirmation page
+- **THEN** a "View answer report" link is visible before the session cleanup prompt
+
+### Requirement: Session Cleanup Prompt on Submission Completion
+
+After responses are successfully submitted to the survey platform, the UI SHALL display
+a non-blocking modal prompt offering the user the option to delete their session data.
+
+The modal SHALL explain that documents, suggestions, and vectors can now be removed, and
+provide a primary "Delete session data" action and a secondary "Keep session" dismiss.
+
+Selecting "Delete session data" SHALL call the session deletion endpoint and redirect the
+user to the start page. Dismissing the modal SHALL have no side effect.
+
+#### Scenario: Modal appears after successful submission
+
+- **WHEN** the user lands on the submission confirmation page
+- **THEN** a modal prompt is shown offering to delete session data
+
+#### Scenario: User deletes session data
+
+- **WHEN** the user clicks "Delete session data" in the modal
+- **THEN** the session is deleted and the user is redirected to the home page
+
+#### Scenario: User keeps session
+
+- **WHEN** the user clicks "Keep session" or dismisses the modal
+- **THEN** the modal closes and the user remains on the confirmation page with the session intact
+

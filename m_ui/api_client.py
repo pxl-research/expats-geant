@@ -65,7 +65,7 @@ async def batch_suggest(
     """
     payload = {"assessment_id": survey_id, "items": items}
     logger.debug("batch_suggest payload: %s", payload)
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=300.0) as client:
         resp = await client.post(
             f"{AUTOFILL_API_URL}/suggest/batch",
             headers=_auth_headers(token),
@@ -88,6 +88,19 @@ async def submit_responses(token: str, session_id: str, responses: dict[str, Any
             f"{AUTOFILL_API_URL}/sessions/{session_id}/submit",
             headers=_auth_headers(token),
             json=responses,
+        )
+    _raise_for_status(resp)
+
+
+async def delete_session(token: str) -> None:
+    """Delete the current session and all associated data.
+
+    DELETE /session
+    """
+    async with httpx.AsyncClient() as client:
+        resp = await client.delete(
+            f"{AUTOFILL_API_URL}/session",
+            headers=_auth_headers(token),
         )
     _raise_for_status(resp)
 
@@ -168,6 +181,22 @@ async def ingest_text_snippet(token: str, session_id: str, text: str, label: str
             json={"text": text, "label": label},
         )
     _raise_for_status(resp)
+
+
+async def fetch_answer_report(token: str) -> list[dict] | None:
+    """Fetch the session answer report.
+
+    GET /answer-report/download → parsed list, or None if no suggestions yet.
+    """
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{AUTOFILL_API_URL}/answer-report/download",
+            headers=_auth_headers(token),
+        )
+    if resp.status_code == 404:
+        return None
+    _raise_for_status(resp)
+    return resp.json()
 
 
 def _raise_for_status(resp: httpx.Response) -> None:

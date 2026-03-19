@@ -24,6 +24,10 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip3 install --no-cache-dir -r requirements.txt
 
+# Pre-download ChromaDB embedding model so it is baked into the image
+# (avoids a ~80 MB download on first request at runtime)
+RUN python3 -c "from chromadb.utils.embedding_functions import DefaultEmbeddingFunction; DefaultEmbeddingFunction()(['warmup'])"
+
 # Copy application code
 COPY m_autofill/ ./m_autofill/
 COPY m_shared/ ./m_shared/
