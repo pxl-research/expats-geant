@@ -4,6 +4,7 @@
     Your documents, suggestions, and vectors can now be removed. This cannot be undone.
     If you prefer, your session will expire automatically after its TTL.
   </p>
+  <p id="cleanup-error" hidden style="color:var(--danger, #c0392b); font-size:0.85rem; margin-bottom:1rem;">Could not delete session. Please try again.</p>
   <div style="display:flex; gap:0.75rem; justify-content:flex-end">
     <button type="button" class="btn btn-ghost" onclick="document.getElementById('cleanup-modal').close()">Keep session</button>
     <button type="button" class="btn btn-danger" onclick="deleteAndRedirect()">Delete session data</button>
@@ -12,6 +13,15 @@
 <script>
 function deleteAndRedirect() {
   fetch('/session', {method: 'DELETE', credentials: 'same-origin'})
-    .finally(function() { window.location.href = '/'; });
+    .then(function(resp) {
+      if (resp.ok) {
+        window.location.href = '/';
+      } else {
+        document.getElementById('cleanup-error').hidden = false;
+      }
+    })
+    .catch(function() {
+      document.getElementById('cleanup-error').hidden = false;
+    });
 }
 </script>
