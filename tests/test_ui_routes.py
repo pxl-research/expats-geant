@@ -356,6 +356,21 @@ class TestSubmitRoute:
         assert "Submitted" in resp.text
 
     @respx.mock
+    def test_submit_shows_cleanup_modal(self):
+        respx.post(f"{BASE}/sessions/survey-abc/submit").mock(
+            return_value=httpx.Response(200, json={"status": "ok"})
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.post(
+            "/session/survey-abc/submit",
+            data={"q_q1": "My answer"},
+            cookies=TOKEN_COOKIE,
+        )
+        assert resp.status_code == 200
+        assert "cleanup-modal" in resp.text
+        assert "Delete session data" in resp.text
+
+    @respx.mock
     def test_submit_error_preserves_answers(self):
         respx.post(f"{BASE}/sessions/survey-abc/submit").mock(
             return_value=httpx.Response(503, json={"detail": "Platform down"})

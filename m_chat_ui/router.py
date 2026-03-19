@@ -461,6 +461,7 @@ async def export_submit(
                     "result": result,
                     "platform_id": result.get("platform_id"),
                     "created_via": result.get("created_via"),
+                    "session_id": session_id,
                 },
             )
         else:
@@ -473,6 +474,7 @@ async def export_submit(
                     "fmt": fmt,
                     "content": result.get("content", ""),
                     "filename": f"survey.{fmt}",
+                    "session_id": session_id,
                 },
             )
     except APIError as exc:

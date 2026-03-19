@@ -1,5 +1,6 @@
 """FastAPI endpoints for M-Autofill answer suggestion service."""
 
+import asyncio
 import ipaddress
 import json
 import logging
@@ -457,8 +458,9 @@ def create_app(
                     status_code=status.HTTP_404_NOT_FOUND, detail="Session not found or expired"
                 )
 
-            # Ingest file into vector store
-            ingest_files_into_store(
+            # Ingest file into vector store (offloaded to thread pool — blocks on parse+embed)
+            await asyncio.to_thread(
+                ingest_files_into_store,
                 file_paths=[str(file_path)],
                 store=store,
                 session_id=session.session_id,
@@ -531,7 +533,8 @@ def create_app(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Label contains no usable characters after sanitization",
             )
-        ingest_text_into_store(
+        await asyncio.to_thread(
+            ingest_text_into_store,
             text=body.text,
             label=label,
             store=store,
@@ -577,8 +580,9 @@ def create_app(
         claims = request.state.claims
 
         try:
-            # Generate suggestion
-            result = rag_pipeline.suggest_answer(
+            # Generate suggestion (offloaded to thread pool — blocks on vector search + LLM)
+            result = await asyncio.to_thread(
+                rag_pipeline.suggest_answer,
                 question=suggest_request.question,
                 session_id=session.session_id,
                 user_id=claims.get("user_id"),
