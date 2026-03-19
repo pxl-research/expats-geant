@@ -1,7 +1,10 @@
 # answer-report Specification
 
 ## Purpose
-TBD - created by archiving change add-answer-report. Update Purpose after archive.
+Tracks per-session suggestion results (question, answer, reasoning, citations) in a
+persistent `answer_report.json` file. Gives respondents a downloadable audit trail of
+all AI-generated answers and their evidence sources. The report is scoped to the session
+and deleted with it, in line with the platform's data-minimization principles.
 ## Requirements
 ### Requirement: Persist Suggestion Results
 
