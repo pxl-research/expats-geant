@@ -1,5 +1,6 @@
 """All routes for the M-UI survey review frontend."""
 
+import logging
 import os
 from typing import Annotated
 
@@ -18,6 +19,7 @@ from m_ui.auth import (
     set_token_cookie,
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
@@ -441,9 +443,10 @@ async def suggest_partial(request: Request, session_id: str):
             f"<p class='error'>Could not load suggestions: {exc.detail}</p>",
             status_code=200,
         )
-    except Exception as exc:
+    except Exception:
+        logger.exception("Unexpected error loading suggestions")
         return HTMLResponse(
-            f"<p class='error'>Could not load suggestions: {exc}</p>",
+            "<p class='error'>Could not load suggestions: an unexpected error occurred.</p>",
             status_code=200,
         )
 
