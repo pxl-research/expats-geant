@@ -1,5 +1,6 @@
 """FastAPI application for M-Chat survey transform and tool endpoints."""
 
+import asyncio
 import ipaddress
 import os
 import re
@@ -704,7 +705,8 @@ def create_app(
             )
         base_path = str(session_manager.base_path)
         conversation = load_conversation(base_path, session_id)
-        text, survey_updated = execute_chat_turn(
+        text, survey_updated = await asyncio.to_thread(
+            execute_chat_turn,
             session_id=session_id,
             message=body.message,
             base_path=base_path,
@@ -796,8 +798,12 @@ def create_app(
         tmp_path = uploads_dir / f"style_guide{suffix}"
         await _save_and_validate_upload(file, tmp_path, int(os.getenv("MAX_FILE_SIZE_MB", "10")))
 
-        extracted = extract_style_document(str(tmp_path))
-        summary = summarise_style_rules(extracted, llm_client) if llm_client else extracted[:300]
+        extracted = await asyncio.to_thread(extract_style_document, str(tmp_path))
+        summary = (
+            await asyncio.to_thread(summarise_style_rules, extracted, llm_client)
+            if llm_client
+            else extracted[:300]
+        )
 
         profile = load_style_profile(base_path, session_id)
         profile["document_summary"] = summary
@@ -844,14 +850,18 @@ def create_app(
         await _save_and_validate_upload(file, saved_path, int(os.getenv("MAX_FILE_SIZE_MB", "10")))
 
         try:
-            extracted = document_to_markdown(str(saved_path))
+            extracted = await asyncio.to_thread(document_to_markdown, str(saved_path))
             stem = Path(safe_name).stem
             md_path = docs_dir / f"{stem}.md"
             md_path.write_text(extracted)
         finally:
             saved_path.unlink(missing_ok=True)
 
-        summary = _llm_topic_summary(extracted, llm_client) if llm_client else extracted[:200]
+        summary = (
+            await asyncio.to_thread(_llm_topic_summary, extracted, llm_client)
+            if llm_client
+            else extracted[:200]
+        )
 
         return DocumentUploadResponse(
             filename=file.filename,
