@@ -234,6 +234,7 @@ def _get_report_lock(session_path: Path) -> threading.Lock:
 def _append_to_answer_report(session_path: Path, entries: list[dict]) -> None:
     """Append suggestion entries to the per-session answer_report.json array."""
     report_path = session_path / "answer_report.json"
+    tmp_path = report_path.with_suffix(".json.tmp")
     with _get_report_lock(session_path):
         existing = []
         if report_path.exists():
@@ -241,7 +242,8 @@ def _append_to_answer_report(session_path: Path, entries: list[dict]) -> None:
                 existing = json.loads(report_path.read_text())
             except Exception as exc:
                 logger.warning("Could not read existing answer report, starting fresh: %s", exc)
-        report_path.write_text(json.dumps(existing + entries, ensure_ascii=False))
+        tmp_path.write_text(json.dumps(existing + entries, ensure_ascii=False))
+        os.replace(tmp_path, report_path)
 
 
 def create_app(
@@ -679,7 +681,9 @@ def create_app(
 
         try:
             sections = normalize_to_sections(batch_request)
-            raw_responses = rag_pipeline.suggest_batch(
+            # Offloaded to thread pool — blocks on vector search + LLM calls
+            raw_responses = await asyncio.to_thread(
+                rag_pipeline.suggest_batch,
                 sections=sections,
                 session_id=session.session_id,
                 assessment_id=batch_request.assessment_id,
