@@ -29,7 +29,7 @@
     {% endif %}
   </div>
 </div>
-<script>window._cleanupSessionId = '{{ session_id }}';</script>
+<script>window._cleanupSessionId = {{ session_id | tojson }};</script>
 {% include "partials/session_cleanup_modal.html" %}
 <script>document.getElementById('cleanup-modal').showModal();</script>
 
@@ -92,7 +92,7 @@ function copyExport() {
   });
 }
 </script>
-<script>window._cleanupSessionId = '{{ session_id }}';</script>
+<script>window._cleanupSessionId = {{ session_id | tojson }};</script>
 {% include "partials/session_cleanup_modal.html" %}
 <script>
 document.getElementById('download-link').addEventListener('click', function() {
