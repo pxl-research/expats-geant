@@ -47,6 +47,7 @@ Coverage threshold: `--cov-fail-under=80` (configured in `pyproject.toml` / `set
 | `test_upload_text.py` | Text snippet ingestion — ingest helper, API endpoint, and UI route |
 | `test_live_api_import_api.py` | `POST /surveys/import-from-api` endpoint integration tests |
 | `test_answer_report.py` | Per-session `answer_report.json` persistence and download endpoint |
+| `test_autofill_suggest_stream.py` | `POST /suggest/stream` SSE endpoint: event format, done sentinel, mid-stream error handling |
 
 ### M-Chat (`m_chat/`)
 
@@ -79,8 +80,8 @@ Coverage threshold: `--cov-fail-under=80` (configured in `pyproject.toml` / `set
 
 | File | Description |
 |---|---|
-| `test_ui_routes.py` | UI route rendering (survey list, detail, review pages) |
-| `test_ui_modes.py` | Upload and batch suggest UI modes |
+| `test_ui_routes.py` | UI route rendering including SSE suggest-stream proxy |
+| `test_ui_modes.py` | Upload UI modes |
 | `test_ui_api_client.py` | M-UI → M-Autofill API client |
 | `test_ui_documents.py` | Document upload UI flow |
 
@@ -105,7 +106,28 @@ TOKEN=$(curl -s -X POST "$BASE_URL/dev/token" \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
 ```
 
-### 3. Curl smoke tests
+### 3. E2E spot-check scripts
+
+Four automated scripts cover the full deployed stack:
+
+```bash
+# M-Autofill: upload → suggest → audit → cleanup (52 checks)
+python tests/scripts/e2e_api_spot_check.py --base-url $BASE_URL
+
+# M-Autofill: /suggest/stream SSE endpoint (27 checks)
+python tests/scripts/e2e_stream_spot_check.py --base-url $BASE_URL
+
+# M-Autofill: audit trail accuracy, timestamps, GDPR deletion (80 checks)
+python tests/scripts/e2e_audit_spot_check.py --base-url $BASE_URL
+
+# M-Chat: import/export, validate, suggest, tag (30 checks)
+python tests/scripts/e2e_chat_spot_check.py --base-url $CHAT_URL
+
+# M-Chat: conversational session lifecycle (33 checks)
+python tests/scripts/e2e_chat_conversational_spot_check.py --base-url $CHAT_URL
+```
+
+### 4. Curl smoke tests
 
 ```bash
 # M-Autofill health
