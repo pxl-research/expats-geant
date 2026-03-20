@@ -17,7 +17,7 @@ M-Autofill is a RAG (Retrieval-Augmented Generation) module that helps responden
 
 - ChromaDB vector database for intelligent document retrieval
 - Chunk-based storage with metadata (source, position, timestamp) for precise citations
-- Multi-format support: PDF, DOCX, TXT, images (OCR), audio (transcription), video
+- Multi-format support: PDF, DOCX, TXT, MD, PPTX, XLSX, XLS
 
 📝 **Citation & Transparency**
 

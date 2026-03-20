@@ -44,6 +44,9 @@ Coverage threshold: `--cov-fail-under=80` (configured in `pyproject.toml` / `set
 | `test_llm_client.py` | LLM client (OpenRouter/OpenAI) |
 | `test_validation.py` | File upload validation |
 | `test_validators.py` | Input validators |
+| `test_upload_text.py` | Text snippet ingestion — ingest helper, API endpoint, and UI route |
+| `test_live_api_import_api.py` | `POST /surveys/import-from-api` endpoint integration tests |
+| `test_answer_report.py` | Per-session `answer_report.json` persistence and download endpoint |
 
 ### M-Chat (`m_chat/`)
 
@@ -70,6 +73,7 @@ Coverage threshold: `--cov-fail-under=80` (configured in `pyproject.toml` / `set
 | `test_auth.py` | JWT middleware: valid tokens, expired tokens, missing headers |
 | `test_dev_token.py` | `/dev/token` endpoint: generation, production disable |
 | `test_oauth.py` | OIDC login and callback flows |
+| `test_live_api_import_adapters.py` | `LimeSurveyAdapter.fetch_survey` and `QualtricsAdapter.fetch_survey` unit tests |
 
 ### M-UI (`m_ui/`)
 

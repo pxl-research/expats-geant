@@ -376,7 +376,7 @@ All endpoints except `/`, `/health`, `/privacy`, `/dev/token`, `/auth/login`, an
 
 | Endpoint | Method | Description |
 |---|---|---|
-| `/upload` | POST | Upload evidence document (PDF, DOCX, TXT, MD) |
+| `/upload` | POST | Upload evidence document (PDF, DOCX, TXT, MD, PPTX, XLSX, XLS) |
 | `/suggest` | POST | Single-question answer suggestion with citations and reasoning |
 | `/suggest/batch` | POST | Multi-question batch suggestions from QTI-inspired JSON payload |
 | `/session/stats` | GET | Session TTL, document count, isolation info |
