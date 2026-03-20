@@ -210,13 +210,3 @@ pytest tests/test_session_manager.py tests/test_session_isolation.py tests/test_
 - Shared between M-Chat and M-Autofill modules
 - Located in `m_shared` for reusability
 
-## API Integration (Upcoming)
-
-The SessionManager will be exposed via FastAPI endpoints:
-
-- `POST /sessions` - Create session from JWT
-- `GET /sessions/{session_id}` - Get session info
-- `DELETE /sessions/{session_id}` - Delete session
-- `POST /cleanup` - Trigger expired session cleanup (admin)
-
-See [openspec/changes/setup-vector-db/](../../openspec/changes/setup-vector-db/) for implementation tasks.
