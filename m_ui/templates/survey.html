@@ -61,15 +61,14 @@
 <div class="alert alert-error">Submission failed: {{ submit_error }}</div>
 {% endif %}
 
-<!-- Load suggestions via HTMX on page load -->
+<!-- SSE connection: one suggestion streams in per question as it completes -->
 <div id="suggestions-container"
-     hx-get="/session/{{ session_id }}/suggest"
-     hx-trigger="load"
-     hx-swap="innerHTML">
-  <p class="suggestion-loading"><span class="spinner"></span>Loading AI suggestions…</p>
+     hx-ext="sse"
+     sse-connect="/session/{{ session_id }}/suggest-stream">
+  <div sse-swap="suggestion" hx-swap="none" style="display:none;"></div>
 </div>
 
-<form method="post" action="/session/{{ session_id }}/submit" id="survey-form">
+<form method="post" action="/session/{{ session_id }}/submit" id="survey-form" data-session-id="{{ session_id }}">
 
 {% for section in survey.sections | default([]) %}
   {% if survey.sections | length > 1 %}
@@ -139,11 +138,10 @@
         <textarea name="q_{{ question.id }}" rows="2" placeholder="Your answer…"></textarea>
       {% endif %}
 
-      <!-- Suggestion block for this question (populated by JS from HTMX load) -->
+      <!-- Suggestion zone: replaced in-place by OOB swap when SSE event arrives -->
       <div class="suggestion-zone"
-           id="sug-{{ question.id }}"
-           data-question-id="{{ question.id }}"
-           data-session-id="{{ session_id }}">
+           id="sug-{{ question.id }}">
+        <p class="suggestion-loading"><span class="spinner"></span>Generating suggestion…</p>
       </div>
     </div>
   </div>
@@ -163,19 +161,7 @@
   const reviewState = new ReviewState("{{ session_id }}");
   document.addEventListener("DOMContentLoaded", () => reviewState.restoreAll());
 
-  // Re-attach after HTMX swap
-  document.body.addEventListener("htmx:afterSwap", (e) => {
-    if (e.detail.target.id === "suggestions-container") {
-      // Move each suggestion block into the corresponding .suggestion-zone
-      const container = document.getElementById("suggestions-container");
-      container.querySelectorAll("[data-for-question]").forEach(block => {
-        const qid = block.dataset.forQuestion;
-        const zone = document.getElementById("sug-" + qid);
-        if (zone) zone.appendChild(block);
-      });
-      // Restore saved accept/dismiss state now that suggestion DOM is in place
-      reviewState.restoreAll();
-    }
-  });
+  // Restore accept/dismiss state whenever a suggestion block arrives via SSE OOB swap
+  document.body.addEventListener("htmx:oobAfterSwap", () => reviewState.restoreAll());
 </script>
 {% endblock %}

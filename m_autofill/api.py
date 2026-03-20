@@ -13,7 +13,13 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, status
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import (
+    FileResponse,
+    JSONResponse,
+    PlainTextResponse,
+    RedirectResponse,
+    StreamingResponse,
+)
 
 from m_autofill.ingest import ingest_files_into_store, ingest_text_into_store
 from m_autofill.models import (
@@ -752,6 +758,95 @@ def create_app(
             generated_at=datetime.now(UTC).isoformat(),
             model=rag_pipeline.llm_client.model_name,
             responses=responses,
+        )
+
+    @app.post("/suggest/stream")
+    @limiter.limit("3/minute")
+    async def suggest_answer_stream(request: Request, batch_request: BatchSuggestRequest):
+        """Stream answer suggestions one-by-one via Server-Sent Events.
+
+        Emits one ``event: suggestion`` per item as each LLM call completes,
+        followed by ``event: done`` when all items have been processed.
+        """
+        if not rag_pipeline:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="RAG pipeline not initialized (LLM client missing)",
+            )
+
+        session = request.state.session
+        claims = request.state.claims
+        sections = normalize_to_sections(batch_request)
+        item_prompts = {item.id: item.prompt for sec in sections for item in sec.items}
+
+        async def event_generator():
+            all_results = []
+            try:
+                async for r in rag_pipeline.suggest_batch_stream(
+                    sections,
+                    session.session_id,
+                    batch_request.assessment_id,
+                    user_id=claims.get("user_id"),
+                ):
+                    all_results.append(r)
+                    citations = [
+                        CitationResult(
+                            source=c.source_id,
+                            excerpt=c.highlights[0] if c.highlights else "",
+                            position=c.position_percentage or 0.0,
+                        )
+                        for c in r["citations"]
+                    ]
+                    item_sug = ItemSuggestion(
+                        item_id=r["item_id"],
+                        type=r["type"],
+                        suggestion=r["suggestion"],
+                        selected_id=r.get("selected_id"),
+                        selected_ids=r.get("selected_ids"),
+                        reasoning=r.get("reasoning"),
+                        citations=citations,
+                    )
+                    yield f"event: suggestion\ndata: {item_sug.model_dump_json()}\n\n"
+            except ValueError as e:
+                logger.error("Stream suggest session error: %s", e)
+                yield f"event: error\ndata: {json.dumps({'detail': str(e)})}\n\n"
+                return
+            except Exception as e:
+                logger.error("Stream suggest unexpected error: %s", e)
+                yield f"event: error\ndata: {json.dumps({'detail': 'Suggestion stream failed'})}\n\n"
+                return
+
+            try:
+                _append_to_answer_report(
+                    session_manager._get_session_path(session.session_id),
+                    [
+                        {
+                            "question_id": r["item_id"],
+                            "question": item_prompts.get(r["item_id"], ""),
+                            "answer": r["suggestion"],
+                            "reasoning": r.get("reasoning"),
+                            "citations": [
+                                {
+                                    "source": c.source_id,
+                                    "position": c.position_percentage,
+                                    "excerpt": c.highlights[0] if c.highlights else "",
+                                }
+                                for c in r["citations"]
+                            ],
+                            "generated_at": datetime.now(UTC).isoformat(),
+                        }
+                        for r in all_results
+                    ],
+                )
+            except Exception as exc:
+                logger.warning("Failed to persist stream answer report: %s", exc)
+
+            yield "event: done\ndata: {}\n\n"
+
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
         )
 
     @app.get("/audit-report")

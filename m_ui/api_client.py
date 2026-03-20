@@ -56,28 +56,6 @@ async def get_capabilities(token: str, format: str) -> set[str]:
     return set(data)
 
 
-async def batch_suggest(
-    token: str, session_id: str, survey_id: str, items: list[dict]
-) -> list[dict]:
-    """Fetch AI suggestions for all questions in a survey session.
-
-    POST /suggest/batch → list of ItemSuggestion dicts
-    """
-    payload = {"assessment_id": survey_id, "items": items}
-    logger.debug("batch_suggest payload: %s", payload)
-    async with httpx.AsyncClient(timeout=300.0) as client:
-        resp = await client.post(
-            f"{AUTOFILL_API_URL}/suggest/batch",
-            headers=_auth_headers(token),
-            json=payload,
-        )
-    if resp.is_error:
-        logger.error("batch_suggest %s: %s", resp.status_code, resp.text)
-    _raise_for_status(resp)
-    data = resp.json()
-    return data.get("responses", [])
-
-
 async def submit_responses(token: str, session_id: str, responses: dict[str, Any]) -> None:
     """Submit survey responses via M-Autofill adapter.
 
