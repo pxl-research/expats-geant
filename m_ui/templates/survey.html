@@ -62,6 +62,7 @@
 {% endif %}
 
 <!-- SSE connection: one suggestion streams in per question as it completes -->
+<div id="stream-error-banner" class="alert alert-error" style="display:none;" role="alert"></div>
 <div id="suggestions-container"
      hx-ext="sse"
      sse-connect="/session/{{ session_id }}/suggest-stream">
@@ -163,5 +164,26 @@
 
   // Restore accept/dismiss state whenever a suggestion block arrives via SSE OOB swap
   document.body.addEventListener("htmx:oobAfterSwap", () => reviewState.restoreAll());
+
+  // Handle SSE error and done events to clear pending spinners
+  function clearRemainingSpinners(message) {
+    document.querySelectorAll(".suggestion-loading").forEach(el => {
+      el.closest(".suggestion-zone").innerHTML =
+        `<p style="color:var(--text-muted);font-size:0.875rem;">${message}</p>`;
+    });
+  }
+
+  document.getElementById("suggestions-container").addEventListener("htmx:sseMessage", function(e) {
+    if (e.detail.type === "error") {
+      let detail = "Suggestion stream failed.";
+      try { detail = JSON.parse(e.detail.data).detail || detail; } catch { /* use default */ }
+      const banner = document.getElementById("stream-error-banner");
+      banner.textContent = "Could not load suggestions: " + detail;
+      banner.style.display = "";
+      clearRemainingSpinners("Suggestion unavailable.");
+    } else if (e.detail.type === "done") {
+      clearRemainingSpinners("No suggestion available.");
+    }
+  });
 </script>
 {% endblock %}
