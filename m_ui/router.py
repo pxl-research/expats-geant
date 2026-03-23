@@ -442,6 +442,15 @@ async def suggest_stream(session_id: str, request: Request):
                     headers=_auth_headers(token),
                     timeout=None,
                 ) as resp:
+                    if resp.status_code >= 400:
+                        logger.error("Autofill API returned %s", resp.status_code)
+                        yield f'event: error\ndata: {{"detail": "Autofill service error ({resp.status_code})"}}\n\n'
+                        return
+                    content_type = resp.headers.get("content-type", "")
+                    if "text/event-stream" not in content_type:
+                        logger.error("Unexpected content-type from autofill API: %s", content_type)
+                        yield 'event: error\ndata: {"detail": "Autofill service returned an unexpected response."}\n\n'
+                        return
                     event_type = None
                     async for line in resp.aiter_lines():
                         if line.startswith("event:"):
