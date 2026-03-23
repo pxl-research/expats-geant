@@ -1,10 +1,9 @@
-{% for sug in suggestions %}
 <div class="suggestion-block"
-     id="sug-block-{{ sug.item_id }}"
-     data-for-question="{{ sug.item_id }}"
+     id="sug-{{ sug.item_id }}"
+     hx-swap-oob="true"
      data-suggestion="{{ sug.suggestion | default('') | e }}"
      data-selected-id="{{ sug.selected_id | default('') }}"
-     style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:0.875rem; margin-bottom:0.5rem;">
+     style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:0.875rem; margin-top:1rem; padding-top:1rem; border-top:1px solid var(--border, #e2e8f0);">
 
   <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:0.5rem;">
     <div>
@@ -47,9 +46,6 @@
   {% endif %}
 
 </div>
-{% else %}
-<p style="font-size:0.85rem; color:#64748b; font-style:italic;">No suggestions available.</p>
-{% endfor %}
 
 <script>
 function acceptSuggestion(questionId, btn) {
@@ -57,7 +53,6 @@ function acceptSuggestion(questionId, btn) {
   const value = block.dataset.suggestion;
   const selectedId = block.dataset.selectedId;
 
-  // Pre-fill the form input
   const textarea = document.getElementById("input-" + questionId);
   if (textarea) {
     textarea.value = value;

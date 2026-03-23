@@ -1,16 +1,17 @@
 """All routes for the M-UI survey review frontend."""
 
+import json
 import logging
 import os
 from typing import Annotated
 
 import httpx
 from fastapi import APIRouter, File, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
 from m_ui import api_client
-from m_ui.api_client import APIError
+from m_ui.api_client import APIError, auth_headers
 from m_ui.auth import (
     AUTOFILL_API_URL,
     AUTOFILL_PUBLIC_URL,
@@ -416,44 +417,66 @@ def _survey_to_batch_items(survey: dict) -> list[dict]:
     return items
 
 
-@router.get("/session/{session_id}/suggest", response_class=HTMLResponse)
-async def suggest_partial(request: Request, session_id: str):
-    """HTMX endpoint: fetch and return suggestion_block.html partial."""
+@router.get("/session/{session_id}/suggest-stream")
+async def suggest_stream(session_id: str, request: Request):
+    """SSE proxy: streams suggestion HTML blocks from the autofill API."""
     token = get_token(request)
     if not token:
-        return HTMLResponse("<p>Not authenticated.</p>", status_code=401)
+        return HTMLResponse("Unauthorized", status_code=401)
 
     try:
-        survey = await api_client.get_survey(token=token, survey_id=session_id)
-        items = _survey_to_batch_items(survey)
-        if not items:
-            return HTMLResponse(
-                "<p style='color:#92400e; background:#fffbeb; border:1px solid #fde68a;"
-                " border-radius:6px; padding:0.75rem;'>"
-                "⚠️ No answerable questions were found in this survey file. "
-                "The file may contain only display elements or use unsupported question types."
-                "</p>",
-                status_code=200,
-            )
-        suggestions = await api_client.batch_suggest(
-            token=token, session_id=session_id, survey_id=session_id, items=items
-        )
+        survey = await api_client.get_survey(token, session_id)
     except APIError as exc:
-        return HTMLResponse(
-            f"<p class='error'>Could not load suggestions: {exc.detail}</p>",
-            status_code=200,
-        )
-    except Exception:
-        logger.exception("Unexpected error loading suggestions")
-        return HTMLResponse(
-            "<p class='error'>Could not load suggestions: an unexpected error occurred.</p>",
-            status_code=200,
-        )
+        return HTMLResponse(f"Error: {exc.detail}", status_code=exc.status_code)
 
-    return templates.TemplateResponse(
-        request,
-        "partials/suggestion_block.html",
-        {"session_id": session_id, "suggestions": suggestions},
+    items = _survey_to_batch_items(survey)
+    body = {"assessment_id": session_id, "items": items}
+
+    async def proxy_generator():
+        try:
+            async with httpx.AsyncClient() as client:
+                async with client.stream(
+                    "POST",
+                    f"{AUTOFILL_API_URL}/suggest/stream",
+                    json=body,
+                    headers=auth_headers(token),
+                    timeout=None,
+                ) as resp:
+                    if resp.status_code >= 400:
+                        logger.error("Autofill API returned %s", resp.status_code)
+                        yield f'event: error\ndata: {{"detail": "Autofill service error ({resp.status_code})"}}\n\n'
+                        return
+                    content_type = resp.headers.get("content-type", "")
+                    if "text/event-stream" not in content_type:
+                        logger.error("Unexpected content-type from autofill API: %s", content_type)
+                        yield 'event: error\ndata: {"detail": "Autofill service returned an unexpected response."}\n\n'
+                        return
+                    event_type = None
+                    async for line in resp.aiter_lines():
+                        if line.startswith("event:"):
+                            event_type = line[len("event:") :].strip()
+                        elif line.startswith("data:") and event_type == "suggestion":
+                            data = json.loads(line[len("data:") :].strip())
+                            html = templates.get_template("partials/suggestion_block.html").render(
+                                sug=data
+                            )
+                            data_lines = "\n".join(f"data: {line}" for line in html.splitlines())
+                            yield f"event: suggestion\n{data_lines}\n\n"
+                            event_type = None
+                        elif line.startswith("data:") and event_type == "done":
+                            yield "event: done\ndata: {}\n\n"
+                            return
+                        elif line.startswith("data:") and event_type == "error":
+                            yield f"event: error\ndata: {line[len('data:'):].strip()}\n\n"
+                            return
+        except Exception as e:
+            logger.error("SSE proxy error: %s", e)
+            yield 'event: error\ndata: {"message": "Suggestion stream failed."}\n\n'
+
+    return StreamingResponse(
+        proxy_generator(),
+        media_type="text/event-stream",
+        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
     )
 
 

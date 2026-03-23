@@ -58,7 +58,7 @@ class ReviewState {
   restoreAll() {
     const map = this.load();
     for (const [questionId, saved] of Object.entries(map)) {
-      const block = document.getElementById("sug-block-" + questionId);
+      const block = document.getElementById("sug-" + questionId);
       const textarea = document.getElementById("input-" + questionId);
 
       if (saved.state === "dismissed") {
