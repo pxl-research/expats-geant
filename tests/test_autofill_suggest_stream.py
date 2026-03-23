@@ -132,7 +132,7 @@ class TestSuggestStream:
         resp = client.post("/suggest/stream", json=BATCH_PAYLOAD)
         assert resp.status_code == 401
 
-    def test_mid_stream_failure_emits_degraded_suggestion(self, client, auth_token):
+    def test_mid_stream_error_emits_error_event(self, client, auth_token):
         async def _stream_with_error(*args, **kwargs):
             yield _FAKE_RESULT_1
             raise RuntimeError("LLM blew up")
@@ -143,7 +143,9 @@ class TestSuggestStream:
                 json=BATCH_PAYLOAD,
                 headers={"Authorization": f"Bearer {auth_token}"},
             )
-        # Should emit the first suggestion before the error
+        # First suggestion emitted before the stream raised
         assert "Software Engineer" in resp.text
-        # Error event should be emitted, not a crash
+        # Stream-level error yields event: error and no event: done
         assert resp.status_code == 200
+        assert "event: error" in resp.text
+        assert "event: done" not in resp.text
