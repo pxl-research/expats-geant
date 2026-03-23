@@ -173,6 +173,11 @@ class TestDownloadEndpoint:
         data = resp.json()
         assert isinstance(data, list)
         assert len(data) == 1
+        entry = data[0]
+        assert entry["question"] == "When are audits conducted?"
+        assert "answer" in entry
+        assert "reasoning" in entry
+        assert "citations" in entry
 
     def test_download_returns_404_when_no_suggestions(self, client, auth_token, session_manager):
         """6.3b — Fresh session with no suggestions → 404."""
