@@ -451,7 +451,8 @@ async def suggest_stream(session_id: str, request: Request):
                             html = templates.get_template("partials/suggestion_block.html").render(
                                 sug=data
                             )
-                            yield f"event: suggestion\ndata: {html}\n\n"
+                            data_lines = "\n".join(f"data: {line}" for line in html.splitlines())
+                            yield f"event: suggestion\n{data_lines}\n\n"
                             event_type = None
                         elif line.startswith("data:") and event_type == "done":
                             yield "event: done\ndata: {}\n\n"
