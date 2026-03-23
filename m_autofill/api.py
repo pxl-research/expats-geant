@@ -780,7 +780,6 @@ def create_app(
         item_prompts = {item.id: item.prompt for sec in sections for item in sec.items}
 
         async def event_generator():
-            all_results = []
             try:
                 async for r in rag_pipeline.suggest_batch_stream(
                     sections,
@@ -788,7 +787,6 @@ def create_app(
                     batch_request.assessment_id,
                     user_id=claims.get("user_id"),
                 ):
-                    all_results.append(r)
                     citations = [
                         CitationResult(
                             source=c.source_id,
@@ -807,6 +805,29 @@ def create_app(
                         citations=citations,
                     )
                     yield f"event: suggestion\ndata: {item_sug.model_dump_json()}\n\n"
+                    try:
+                        _append_to_answer_report(
+                            session_manager._get_session_path(session.session_id),
+                            [
+                                {
+                                    "question_id": r["item_id"],
+                                    "question": item_prompts.get(r["item_id"], ""),
+                                    "answer": r["suggestion"],
+                                    "reasoning": r.get("reasoning"),
+                                    "citations": [
+                                        {
+                                            "source": c.source_id,
+                                            "position": c.position_percentage,
+                                            "excerpt": c.highlights[0] if c.highlights else "",
+                                        }
+                                        for c in r["citations"]
+                                    ],
+                                    "generated_at": datetime.now(UTC).isoformat(),
+                                }
+                            ],
+                        )
+                    except Exception as exc:
+                        logger.warning("Failed to persist stream answer report entry: %s", exc)
             except ValueError as e:
                 logger.error("Stream suggest session error: %s", e)
                 yield f"event: error\ndata: {json.dumps({'detail': str(e)})}\n\n"
@@ -815,31 +836,6 @@ def create_app(
                 logger.error("Stream suggest unexpected error: %s", e)
                 yield f"event: error\ndata: {json.dumps({'detail': 'Suggestion stream failed'})}\n\n"
                 return
-
-            try:
-                _append_to_answer_report(
-                    session_manager._get_session_path(session.session_id),
-                    [
-                        {
-                            "question_id": r["item_id"],
-                            "question": item_prompts.get(r["item_id"], ""),
-                            "answer": r["suggestion"],
-                            "reasoning": r.get("reasoning"),
-                            "citations": [
-                                {
-                                    "source": c.source_id,
-                                    "position": c.position_percentage,
-                                    "excerpt": c.highlights[0] if c.highlights else "",
-                                }
-                                for c in r["citations"]
-                            ],
-                            "generated_at": datetime.now(UTC).isoformat(),
-                        }
-                        for r in all_results
-                    ],
-                )
-            except Exception as exc:
-                logger.warning("Failed to persist stream answer report: %s", exc)
 
             yield "event: done\ndata: {}\n\n"
 
