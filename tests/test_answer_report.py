@@ -87,7 +87,9 @@ class TestSingleSuggestionCreatesReport:
         report_path = session_manager._get_session_path(session.session_id) / "answer_report.json"
         assert report_path.exists(), "answer_report.json should be created after /suggest"
 
-        entries = json.loads(report_path.read_text())
+        entries = [
+            json.loads(line) for line in report_path.read_text().splitlines() if line.strip()
+        ]
         assert len(entries) == 1
         entry = entries[0]
         assert "question" in entry
@@ -138,7 +140,9 @@ class TestMultipleSuggestionsAccumulate:
 
         report_path = session_manager._get_session_path(session.session_id) / "answer_report.json"
         assert report_path.exists()
-        entries = json.loads(report_path.read_text())
+        entries = [
+            json.loads(line) for line in report_path.read_text().splitlines() if line.strip()
+        ]
         assert len(entries) == 3  # 2 from batch1 + 1 from batch2
 
 
