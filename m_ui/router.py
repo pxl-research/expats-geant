@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
 from m_ui import api_client
-from m_ui.api_client import APIError, _auth_headers
+from m_ui.api_client import APIError, auth_headers
 from m_ui.auth import (
     AUTOFILL_API_URL,
     AUTOFILL_PUBLIC_URL,
@@ -439,7 +439,7 @@ async def suggest_stream(session_id: str, request: Request):
                     "POST",
                     f"{AUTOFILL_API_URL}/suggest/stream",
                     json=body,
-                    headers=_auth_headers(token),
+                    headers=auth_headers(token),
                     timeout=None,
                 ) as resp:
                     if resp.status_code >= 400:

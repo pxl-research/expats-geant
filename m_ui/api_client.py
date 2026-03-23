@@ -20,7 +20,7 @@ class APIError(Exception):
         super().__init__(f"API error {status_code}: {detail}")
 
 
-def _auth_headers(token: str) -> dict[str, str]:
+def auth_headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
@@ -32,7 +32,7 @@ async def get_survey(token: str, survey_id: str) -> dict[str, Any]:
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             f"{AUTOFILL_API_URL}/surveys/{survey_id}",
-            headers=_auth_headers(token),
+            headers=auth_headers(token),
         )
     _raise_for_status(resp)
     return resp.json()
@@ -46,7 +46,7 @@ async def get_capabilities(token: str, format: str) -> set[str]:
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             f"{AUTOFILL_API_URL}/adapters/{format}/capabilities",
-            headers=_auth_headers(token),
+            headers=auth_headers(token),
         )
     _raise_for_status(resp)
     data = resp.json()
@@ -64,7 +64,7 @@ async def submit_responses(token: str, session_id: str, responses: dict[str, Any
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             f"{AUTOFILL_API_URL}/sessions/{session_id}/submit",
-            headers=_auth_headers(token),
+            headers=auth_headers(token),
             json=responses,
         )
     _raise_for_status(resp)
@@ -78,7 +78,7 @@ async def delete_session(token: str) -> None:
     async with httpx.AsyncClient() as client:
         resp = await client.delete(
             f"{AUTOFILL_API_URL}/session",
-            headers=_auth_headers(token),
+            headers=auth_headers(token),
         )
     _raise_for_status(resp)
 
@@ -93,7 +93,7 @@ async def import_survey_file(
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
             f"{AUTOFILL_API_URL}/surveys/import",
-            headers=_auth_headers(token),
+            headers=auth_headers(token),
             data={"format": format},
             files={"file": (filename, file_bytes)},
         )
@@ -125,7 +125,7 @@ async def import_survey_from_api(
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
             f"{AUTOFILL_API_URL}/surveys/import-from-api",
-            headers=_auth_headers(token),
+            headers=auth_headers(token),
             json=payload,
         )
     _raise_for_status(resp)
@@ -141,7 +141,7 @@ async def ingest_document(token: str, session_id: str, file_bytes: bytes, filena
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(
             f"{AUTOFILL_API_URL}/upload",
-            headers=_auth_headers(token),
+            headers=auth_headers(token),
             files={"file": (filename, file_bytes)},
         )
     _raise_for_status(resp)
@@ -155,7 +155,7 @@ async def ingest_text_snippet(token: str, session_id: str, text: str, label: str
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(
             f"{AUTOFILL_API_URL}/upload-text",
-            headers=_auth_headers(token),
+            headers=auth_headers(token),
             json={"text": text, "label": label},
         )
     _raise_for_status(resp)
@@ -169,7 +169,7 @@ async def fetch_answer_report(token: str) -> list[dict] | None:
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             f"{AUTOFILL_API_URL}/answer-report/download",
-            headers=_auth_headers(token),
+            headers=auth_headers(token),
         )
     if resp.status_code == 404:
         return None
