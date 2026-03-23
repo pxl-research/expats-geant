@@ -20,6 +20,8 @@ from m_shared.models.question import QuestionType
 from m_shared.session import SessionManager
 from m_shared.utils import AuditLogger
 
+logger = logging.getLogger(__name__)
+
 _ANSWER_SYSTEM_PROMPT = (
     "You help survey respondents answer questions based on uploaded document excerpts.\n"
     "- Answer directly and concisely (max 3-4 sentences)\n"
@@ -318,13 +320,13 @@ class RAGPipeline:
             reasoning = data.get("reasoning") or None
             selected_raw = data.get("selected") or None
             if answer is None:
-                logging.warning("LLM returned empty/missing answer; falling back to raw text")
+                logger.warning("LLM returned empty/missing answer; falling back to raw text")
                 answer = raw
             if isinstance(selected_raw, str) and selected_raw.upper() == "NONE":
                 selected_raw = None
             return answer, reasoning, selected_raw
         except (json.JSONDecodeError, ValueError):
-            logging.warning("LLM response was not valid JSON; falling back to raw text as answer")
+            logger.warning("LLM response was not valid JSON; falling back to raw text as answer")
             return raw, None, None
 
     def _parse_selected_id(
@@ -729,14 +731,14 @@ class RAGPipeline:
                         user_id,
                     )
                 except Exception as e:
-                    logging.error("Item %s failed: %s", item.id, e)
+                    logger.exception("Item %s failed: %s", item.id, e)
                     result = {
                         "item_id": item.id,
                         "type": item.type.value,
                         "suggestion": "Unable to generate a suggestion.",
                         "selected_id": None,
                         "selected_ids": None,
-                        "reasoning": None,
+                        "reasoning": str(e),
                         "citations": [],
                     }
                 yield result
