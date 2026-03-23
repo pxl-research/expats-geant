@@ -379,6 +379,7 @@ All endpoints except `/`, `/health`, `/privacy`, `/dev/token`, `/auth/login`, an
 | `/upload` | POST | Upload evidence document (PDF, DOCX, TXT, MD, PPTX, XLSX, XLS) |
 | `/suggest` | POST | Single-question answer suggestion with citations and reasoning |
 | `/suggest/batch` | POST | Multi-question batch suggestions from QTI-inspired JSON payload |
+| `/suggest/stream` | POST | Same as `/suggest/batch` but streams results via Server-Sent Events — one `event: suggestion` per item as it completes, then `event: done` |
 | `/session/stats` | GET | Session TTL, document count, isolation info |
 | `/audit-report` | GET | Full session audit trail (JSON or plaintext) |
 | `/session` | DELETE | Delete session and all associated data immediately |
@@ -530,6 +531,35 @@ A flat `items` list (no `sections`) is also accepted — items are treated as a 
 | `citations[].position` | float | Normalised document position (0.0–1.0) |
 
 > **Input format** is inspired by [QTI 3.0](https://www.imsglobal.org/spec/qti/v3p0/impl) (IMS Global). Supported types: `open_ended`, `single_choice`, `multiple_choice`, `ranking`, `slider`. See `openspec/specs/interchange-formats/` for full standards alignment documentation.
+
+#### Stream Batch Answer Suggestions
+
+Accepts the same request body as `/suggest/batch` but returns results progressively via [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events). One `event: suggestion` is emitted as soon as each item's LLM call completes, followed by a final `event: done`. This avoids browser timeouts for large surveys and lets the UI render suggestions question-by-question.
+
+```bash
+POST /suggest/stream
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{ ...same body as /suggest/batch... }
+```
+
+**Response** (`Content-Type: text/event-stream`):
+
+```
+event: suggestion
+data: {"item_id":"q1","type":"open_ended","suggestion":"Personal data is retained for 36 months...","selected_id":null,"selected_ids":null,"reasoning":null,"citations":[...]}
+
+event: suggestion
+data: {"item_id":"q2","type":"single_choice","suggestion":"Partially","selected_id":"partial",...}
+
+event: done
+data: {}
+```
+
+On error, an `event: error` is emitted with a JSON `{"detail": "..."}` payload instead of `event: done`.
+
+The answer report is persisted to `answer_report.json` after all items have been streamed, identical to the batch endpoint.
 
 #### Get Session Statistics
 

@@ -8,8 +8,10 @@ This module orchestrates the complete RAG flow:
 All operations are session-isolated to ensure user privacy and data separation.
 """
 
+import asyncio
 import json
 import logging
+from collections.abc import AsyncGenerator
 from datetime import datetime
 
 from m_shared.llm import LLMClient
@@ -17,6 +19,8 @@ from m_shared.models.citation import Citation
 from m_shared.models.question import QuestionType
 from m_shared.session import SessionManager
 from m_shared.utils import AuditLogger
+
+logger = logging.getLogger(__name__)
 
 _ANSWER_SYSTEM_PROMPT = (
     "You help survey respondents answer questions based on uploaded document excerpts.\n"
@@ -316,13 +320,13 @@ class RAGPipeline:
             reasoning = data.get("reasoning") or None
             selected_raw = data.get("selected") or None
             if answer is None:
-                logging.warning("LLM returned empty/missing answer; falling back to raw text")
+                logger.warning("LLM returned empty/missing answer; falling back to raw text")
                 answer = raw
             if isinstance(selected_raw, str) and selected_raw.upper() == "NONE":
                 selected_raw = None
             return answer, reasoning, selected_raw
         except (json.JSONDecodeError, ValueError):
-            logging.warning("LLM response was not valid JSON; falling back to raw text as answer")
+            logger.warning("LLM response was not valid JSON; falling back to raw text as answer")
             return raw, None, None
 
     def _parse_selected_id(
@@ -558,6 +562,97 @@ class RAGPipeline:
             },
         }
 
+    def _process_item(
+        self,
+        item,
+        section_context: str,
+        sibling_prompts: list[str],
+        session_id: str,
+        assessment_id: str,
+        user_id: str | None,
+    ) -> dict:
+        """Process a single item through the full RAG pipeline.
+
+        Args:
+            item: BatchSuggestItem to process
+            section_context: Section title for context
+            sibling_prompts: All prompts in the section (current item filtered out internally)
+            session_id: Session identifier
+            assessment_id: Assessment identifier for audit logging
+            user_id: Optional user ID for audit logging
+
+        Returns:
+            Suggestion dict with item_id, type, suggestion, selected_id, selected_ids,
+            reasoning, and citations.
+        """
+        context_prompts = [p for p in sibling_prompts if p != item.prompt]
+
+        chunks = self.retrieve(item.prompt, session_id)
+
+        if not chunks:
+            return {
+                "item_id": item.id,
+                "type": item.type.value,
+                "suggestion": "No relevant information found in your documents for this question.",
+                "selected_id": None,
+                "selected_ids": None,
+                "reasoning": "No document chunks matched this question. Please answer manually.",
+                "citations": [],
+            }
+
+        is_choice = item.type in (QuestionType.SINGLE_CHOICE, QuestionType.MULTIPLE_CHOICE)
+        is_multi = item.type == QuestionType.MULTIPLE_CHOICE
+        choices = item.choices if is_choice else None
+
+        try:
+            answer, reasoning, selected_raw = self._generate_answer_with_reasoning(
+                question=item.prompt,
+                retrieved_chunks=chunks,
+                section_context=section_context,
+                sibling_prompts=context_prompts,
+                choices=choices,
+                question_type=item.type.value,
+            )
+        except RuntimeError as e:
+            return {
+                "item_id": item.id,
+                "type": item.type.value,
+                "suggestion": "Generation failed.",
+                "selected_id": None,
+                "selected_ids": None,
+                "reasoning": str(e),
+                "citations": [],
+            }
+
+        selected_id, selected_ids = None, None
+        if is_choice:
+            selected_id, selected_ids = self._parse_selected_id(
+                selected_raw, item.choices, multi=is_multi
+            )
+
+        citations = self.format_citations(chunks, item.prompt, answer)
+
+        if self.audit_logger:
+            self.audit_logger.log_suggestion(
+                session_id=session_id,
+                question=item.prompt,
+                suggested_answer=answer,
+                sources_used=[c.source_id for c in citations],
+                model=self.llm_client.model_name,
+                user_id=user_id,
+                question_id=item.id,
+            )
+
+        return {
+            "item_id": item.id,
+            "type": item.type.value,
+            "suggestion": answer,
+            "selected_id": selected_id,
+            "selected_ids": selected_ids,
+            "reasoning": reasoning,
+            "citations": citations,
+        }
+
     def suggest_batch(
         self,
         sections: list,
@@ -586,86 +681,64 @@ class RAGPipeline:
             raise ValueError("Session ID is required")
 
         responses = []
-
         for section in sections:
             sibling_prompts = [item.prompt for item in section.items]
-
             for item in section.items:
-                # Sibling context excludes the current item's own prompt
-                context_prompts = [p for p in sibling_prompts if p != item.prompt]
-
-                chunks = self.retrieve(item.prompt, session_id)
-
-                if not chunks:
-                    responses.append(
-                        {
-                            "item_id": item.id,
-                            "type": item.type.value,
-                            "suggestion": "No relevant information found in your documents for this question.",
-                            "selected_id": None,
-                            "selected_ids": None,
-                            "reasoning": "No document chunks matched this question. Please answer manually.",
-                            "citations": [],
-                        }
-                    )
-                    continue
-
-                is_choice = item.type in (QuestionType.SINGLE_CHOICE, QuestionType.MULTIPLE_CHOICE)
-                is_multi = item.type == QuestionType.MULTIPLE_CHOICE
-                choices = item.choices if is_choice else None
-
-                try:
-                    answer, reasoning, selected_raw = self._generate_answer_with_reasoning(
-                        question=item.prompt,
-                        retrieved_chunks=chunks,
-                        section_context=section.title,
-                        sibling_prompts=context_prompts,
-                        choices=choices,
-                        question_type=item.type.value,
-                    )
-                except RuntimeError as e:
-                    responses.append(
-                        {
-                            "item_id": item.id,
-                            "type": item.type.value,
-                            "suggestion": "Generation failed.",
-                            "selected_id": None,
-                            "selected_ids": None,
-                            "reasoning": str(e),
-                            "citations": [],
-                        }
-                    )
-                    continue
-
-                selected_id, selected_ids = None, None
-                if is_choice:
-                    selected_id, selected_ids = self._parse_selected_id(
-                        selected_raw, item.choices, multi=is_multi
-                    )
-
-                citations = self.format_citations(chunks, item.prompt, answer)
-
-                if self.audit_logger:
-                    self.audit_logger.log_suggestion(
-                        session_id=session_id,
-                        question=item.prompt,
-                        suggested_answer=answer,
-                        sources_used=[c.source_id for c in citations],
-                        model=self.llm_client.model_name,
-                        user_id=user_id,
-                        question_id=item.id,
-                    )
-
                 responses.append(
-                    {
+                    self._process_item(
+                        item,
+                        section.title or "",
+                        sibling_prompts,
+                        session_id,
+                        assessment_id,
+                        user_id,
+                    )
+                )
+        return responses
+
+    async def suggest_batch_stream(
+        self,
+        sections: list,
+        session_id: str,
+        assessment_id: str,
+        user_id: str | None = None,
+    ) -> AsyncGenerator[dict, None]:
+        """Yield suggestion dicts one at a time as each LLM call completes.
+
+        Same logic as suggest_batch but yields each result immediately via
+        asyncio.to_thread so the caller can stream responses.
+
+        Args:
+            sections: Normalized list of BatchSuggestSection objects
+            session_id: Session identifier
+            assessment_id: Assessment identifier for audit logging
+            user_id: Optional user ID for audit logging
+
+        Yields:
+            Suggestion dict per item, in input order
+        """
+        for section in sections:
+            siblings = [i.prompt for i in section.items]
+            for item in section.items:
+                try:
+                    result = await asyncio.to_thread(
+                        self._process_item,
+                        item,
+                        section.title or "",
+                        siblings,
+                        session_id,
+                        assessment_id,
+                        user_id,
+                    )
+                except Exception as e:
+                    logger.exception("Item %s failed: %s", item.id, e)
+                    result = {
                         "item_id": item.id,
                         "type": item.type.value,
-                        "suggestion": answer,
-                        "selected_id": selected_id,
-                        "selected_ids": selected_ids,
-                        "reasoning": reasoning,
-                        "citations": citations,
+                        "suggestion": "Unable to generate a suggestion.",
+                        "selected_id": None,
+                        "selected_ids": None,
+                        "reasoning": str(e),
+                        "citations": [],
                     }
-                )
-
-        return responses
+                yield result

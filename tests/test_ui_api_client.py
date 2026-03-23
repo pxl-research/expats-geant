@@ -6,7 +6,6 @@ import respx
 
 from m_ui.api_client import (
     APIError,
-    batch_suggest,
     get_capabilities,
     get_survey,
     import_survey_file,
@@ -61,44 +60,6 @@ async def test_get_capabilities_api_error():
     with pytest.raises(APIError) as exc_info:
         await get_capabilities(TOKEN, "unknown")
     assert exc_info.value.status_code == 422
-
-
-@pytest.mark.asyncio
-@respx.mock
-async def test_batch_suggest_returns_list():
-    respx.post(f"{BASE}/suggest/batch").mock(
-        return_value=httpx.Response(
-            200,
-            json={
-                "assessment_id": "s1",
-                "session_id": "sess1",
-                "generated_at": "2026-01-01T00:00:00Z",
-                "model": "llama",
-                "responses": [
-                    {
-                        "item_id": "q1",
-                        "type": "open_ended",
-                        "suggestion": "Answer A",
-                        "citations": [],
-                    }
-                ],
-            },
-        )
-    )
-    result = await batch_suggest(TOKEN, "sess1", "s1", items=[])
-    assert len(result) == 1
-    assert result[0]["item_id"] == "q1"
-
-
-@pytest.mark.asyncio
-@respx.mock
-async def test_batch_suggest_server_error():
-    respx.post(f"{BASE}/suggest/batch").mock(
-        return_value=httpx.Response(500, json={"detail": "LLM error"})
-    )
-    with pytest.raises(APIError) as exc_info:
-        await batch_suggest(TOKEN, "sess1", "s1", items=[])
-    assert exc_info.value.status_code == 500
 
 
 @pytest.mark.asyncio

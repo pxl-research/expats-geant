@@ -140,82 +140,61 @@ class TestUploadRoute:
         assert "/auth/login" in resp.headers["location"]
 
 
-class TestSuggestPartial:
-    @respx.mock
-    def test_suggest_returns_suggestion_html(self):
-        respx.get(f"{BASE}/surveys/survey-abc").mock(
-            return_value=httpx.Response(200, json=SURVEY_FIXTURE)
-        )
-        respx.post(f"{BASE}/suggest/batch").mock(
-            return_value=httpx.Response(
-                200,
-                json={
-                    "assessment_id": "survey-abc",
-                    "session_id": "survey-abc",
-                    "generated_at": "2026-01-01T00:00:00Z",
-                    "model": "llama",
-                    "responses": [
-                        {
-                            "item_id": "q1",
-                            "type": "open_ended",
-                            "suggestion": "Software Engineer",
-                            "citations": [],
-                        },
-                    ],
-                },
-            )
-        )
+class TestSuggestStream:
+    def test_suggest_stream_unauthenticated_returns_401(self):
         client = TestClient(app, follow_redirects=False)
-        resp = client.get("/session/survey-abc/suggest", cookies=TOKEN_COOKIE)
-        assert resp.status_code == 200
-        assert "Software Engineer" in resp.text
-        assert "AI Suggestion" in resp.text
-
-    @respx.mock
-    def test_suggest_api_error_returns_error_html(self):
-        respx.get(f"{BASE}/surveys/survey-abc").mock(
-            return_value=httpx.Response(200, json=SURVEY_FIXTURE)
-        )
-        respx.post(f"{BASE}/suggest/batch").mock(
-            return_value=httpx.Response(500, json={"detail": "LLM unavailable"})
-        )
-        client = TestClient(app, follow_redirects=False)
-        resp = client.get("/session/survey-abc/suggest", cookies=TOKEN_COOKIE)
-        assert resp.status_code == 200
-        assert "LLM unavailable" in resp.text
-
-    def test_suggest_unauthenticated_returns_401(self):
-        client = TestClient(app, follow_redirects=False)
-        resp = client.get("/session/survey-abc/suggest")
+        resp = client.get("/session/survey-abc/suggest-stream")
         assert resp.status_code == 401
 
     @respx.mock
-    def test_suggest_passes_questions_to_batch(self):
-        """Verify question items are extracted from survey and sent to batch endpoint."""
+    def test_suggest_stream_returns_event_stream(self):
+        """SSE proxy returns text/event-stream content type."""
         respx.get(f"{BASE}/surveys/survey-abc").mock(
             return_value=httpx.Response(200, json=SURVEY_FIXTURE)
         )
-        batch_mock = respx.post(f"{BASE}/suggest/batch").mock(
+        sse_body = (
+            "event: suggestion\n"
+            'data: {"item_id":"q1","type":"open_ended","suggestion":"Software Engineer",'
+            '"selected_id":null,"selected_ids":null,"reasoning":null,"citations":[]}\n\n'
+            "event: done\ndata: {}\n\n"
+        )
+        respx.post(f"{BASE}/suggest/stream").mock(
             return_value=httpx.Response(
-                200,
-                json={
-                    "assessment_id": "survey-abc",
-                    "session_id": "survey-abc",
-                    "generated_at": "2026-01-01T00:00:00Z",
-                    "model": "llama",
-                    "responses": [],
-                },
+                200, text=sse_body, headers={"content-type": "text/event-stream"}
             )
         )
         client = TestClient(app, follow_redirects=False)
-        client.get("/session/survey-abc/suggest", cookies=TOKEN_COOKIE)
-        sent = batch_mock.calls[0].request
-        import json
+        resp = client.get("/session/survey-abc/suggest-stream", cookies=TOKEN_COOKIE)
+        assert resp.status_code == 200
+        assert "text/event-stream" in resp.headers["content-type"]
 
-        body = json.loads(sent.content)
-        item_ids = [i["id"] for i in body["items"]]
-        assert "q1" in item_ids
-        assert "q2" in item_ids
+    @respx.mock
+    def test_suggest_stream_proxy_emits_suggestion_html(self):
+        """Proxy renders suggestion_block.html and emits it as SSE."""
+        respx.get(f"{BASE}/surveys/survey-abc").mock(
+            return_value=httpx.Response(200, json=SURVEY_FIXTURE)
+        )
+        sse_body = (
+            "event: suggestion\n"
+            'data: {"item_id":"q1","type":"open_ended","suggestion":"Senior Researcher",'
+            '"selected_id":null,"selected_ids":null,"reasoning":null,"citations":[]}\n\n'
+            "event: done\ndata: {}\n\n"
+        )
+        respx.post(f"{BASE}/suggest/stream").mock(
+            return_value=httpx.Response(
+                200, text=sse_body, headers={"content-type": "text/event-stream"}
+            )
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.get("/session/survey-abc/suggest-stream", cookies=TOKEN_COOKIE)
+        assert "Senior Researcher" in resp.text
+        assert "AI Suggestion" in resp.text
+
+    def test_old_suggest_endpoint_removed(self):
+        """GET /session/{id}/suggest no longer exists (returns 404)."""
+        client = TestClient(app, follow_redirects=False)
+        resp = client.get("/session/survey-abc/suggest", cookies=TOKEN_COOKIE)
+        assert resp.status_code == 404
 
 
 class TestReviewPage:
