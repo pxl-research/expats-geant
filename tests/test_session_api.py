@@ -735,3 +735,102 @@ class TestFullSessionFlow:
         )
         assert response.status_code == 200
         assert response.json()["deleted"] is True
+
+
+class TestSubmitEndpointErrors:
+    """Error paths in POST /sessions/{session_id}/submit."""
+
+    @pytest.fixture
+    def submit_client(self, app):
+        """TestClient that returns JSON for all error responses."""
+        return TestClient(app, raise_server_exceptions=False)
+
+    @pytest.fixture
+    def token_and_session(self, valid_token, session_manager):
+        """Pre-create the session so we know the actual session_id (hash of token)."""
+        session = session_manager.create_session(user_id="test_user_123", jwt_token=valid_token)
+        return valid_token, session
+
+    def test_submit_session_mismatch(self, submit_client, valid_token):
+        """URL session_id differs from the session derived from the token → 403."""
+        response = submit_client.post(
+            "/sessions/wrong_session_id/submit",
+            headers={"Authorization": f"Bearer {valid_token}"},
+            json={},
+        )
+        assert response.status_code == 403
+
+    def test_submit_survey_not_found(self, submit_client, token_and_session):
+        """Session exists but survey.json absent → 404."""
+        token, session = token_and_session
+        response = submit_client.post(
+            f"/sessions/{session.session_id}/submit",
+            headers={"Authorization": f"Bearer {token}"},
+            json={},
+        )
+        assert response.status_code == 404
+
+    def test_submit_format_missing(self, submit_client, token_and_session, session_manager):
+        """survey.json has no format in metadata → 422."""
+        import json as _json
+
+        token, session = token_and_session
+        survey_path = session_manager._get_session_path(session.session_id) / "survey.json"
+        survey_path.write_text(_json.dumps({"id": "s1", "metadata": {}}))
+        response = submit_client.post(
+            f"/sessions/{session.session_id}/submit",
+            headers={"Authorization": f"Bearer {token}"},
+            json={},
+        )
+        assert response.status_code == 422
+
+    def test_submit_adapter_not_found(self, submit_client, token_and_session, session_manager):
+        """Unknown format string → 422."""
+        import json as _json
+
+        token, session = token_and_session
+        survey_path = session_manager._get_session_path(session.session_id) / "survey.json"
+        survey_path.write_text(_json.dumps({"id": "s1", "metadata": {"format": "unknown_fmt"}}))
+        response = submit_client.post(
+            f"/sessions/{session.session_id}/submit",
+            headers={"Authorization": f"Bearer {token}"},
+            json={},
+        )
+        assert response.status_code == 422
+
+    def test_submit_capability_not_supported(
+        self, submit_client, token_and_session, session_manager
+    ):
+        """Format qti exists but lacks submit capability → 422."""
+        import json as _json
+
+        token, session = token_and_session
+        survey_path = session_manager._get_session_path(session.session_id) / "survey.json"
+        survey_path.write_text(_json.dumps({"id": "s1", "metadata": {"format": "qti"}}))
+        response = submit_client.post(
+            f"/sessions/{session.session_id}/submit",
+            headers={"Authorization": f"Bearer {token}"},
+            json={},
+        )
+        assert response.status_code == 422
+
+    def test_submit_adapter_raises(self, submit_client, token_and_session, session_manager):
+        """Adapter submit_responses raises RuntimeError → 502."""
+        import json as _json
+        from unittest.mock import MagicMock, patch
+
+        token, session = token_and_session
+        survey_path = session_manager._get_session_path(session.session_id) / "survey.json"
+        survey_path.write_text(_json.dumps({"id": "s1", "metadata": {"format": "mock_fmt"}}))
+
+        mock_adapter = MagicMock()
+        mock_adapter.capabilities.return_value = ["import", "export", "submit"]
+        mock_adapter.submit_responses.side_effect = RuntimeError("platform failed")
+
+        with patch("m_autofill.api.get_adapter", return_value=mock_adapter):
+            response = submit_client.post(
+                f"/sessions/{session.session_id}/submit",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"q_1": "answer"},
+            )
+        assert response.status_code == 502
