@@ -15,11 +15,13 @@ core system exclusively via its public HTTP API. The UI SHALL NOT import Python 
 - **THEN** it calls `GET /surveys/{survey_id}` on the M-Autofill API
 - **AND** does not access the internal database or model layer directly
 
-#### Scenario: UI calls API for suggestions
+#### Scenario: UI streams suggestions via SSE proxy
 
 - **WHEN** the UI needs to populate suggestions for a survey session
-- **THEN** it calls the M-Autofill batch suggest endpoint with the survey ID and session context
-- **AND** renders the returned suggestions and citations without any internal processing
+- **THEN** the browser connects to the m-ui SSE proxy endpoint `GET /session/{id}/suggest-stream`
+- **AND** m-ui forwards the request to `POST /suggest/stream` on M-Autofill, injecting the auth token
+- **AND** each suggestion event is re-rendered as HTML and forwarded to the browser as it arrives
+- **AND** the UI does not call the bulk `POST /suggest/batch` endpoint for the review page
 
 ### Requirement: Survey Rendering
 
@@ -50,9 +52,18 @@ HTML input controls.
 
 ### Requirement: Inline Suggestion Display
 
-The UI SHALL display AI-generated suggestions alongside each question in the same view. Each
-suggestion SHALL show the suggested answer, the LLM reasoning (if available), and all associated
+The UI SHALL display AI-generated suggestions alongside each question in the same view,
+rendering each suggestion as soon as it is received from the SSE stream. Each suggestion
+SHALL show the suggested answer, the LLM reasoning (if available), and all associated
 citations (source and excerpt).
+
+#### Scenario: Suggestions appear progressively
+
+- **WHEN** the review page loads
+- **THEN** the UI connects to the SSE stream endpoint
+- **AND** each suggestion is rendered into its corresponding question zone as it arrives
+- **AND** questions without a suggestion yet show a per-question loading indicator
+- **AND** the page is interactive throughout — the respondent does not need to wait for all suggestions
 
 #### Scenario: Suggestion shown with citation
 
@@ -64,6 +75,12 @@ citations (source and excerpt).
 
 - **WHEN** the suggestion engine returns a suggestion with no citations
 - **THEN** the UI renders the suggestion text and reasoning (if present) without a citation block
+
+#### Scenario: Stream error shown inline
+
+- **WHEN** the SSE stream closes with an error before all suggestions have been delivered
+- **THEN** questions that did not receive a suggestion display an inline error message
+- **AND** questions that already received a suggestion are unaffected
 
 ### Requirement: User Review and Edit
 
