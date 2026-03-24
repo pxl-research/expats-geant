@@ -892,17 +892,23 @@ def create_app(
     async def download_answer_report(request: Request):
         """Return the session's answer report as a downloadable JSON file."""
         session = request.state.session
-        report_path = session_manager._get_session_path(session.session_id) / "answer_report.json"
+        session_path = session_manager._get_session_path(session.session_id)
+        report_path = session_path / "answer_report.json"
         if not report_path.exists():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="No suggestions have been generated yet",
             )
-        data = [
-            json.loads(line)
-            for line in report_path.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
+
+        def _read():
+            with _get_report_lock(session_path):
+                return [
+                    json.loads(line)
+                    for line in report_path.read_text(encoding="utf-8").splitlines()
+                    if line.strip()
+                ]
+
+        data = await asyncio.to_thread(_read)
         return Response(
             content=json.dumps(data, ensure_ascii=False),
             media_type="application/json",
