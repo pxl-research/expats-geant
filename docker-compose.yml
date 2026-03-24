@@ -1,6 +1,8 @@
 # Docker Compose for Expats
 # Services: cue-api (8001), ui (8002), shape-api (8003), shape_ui (8004), keycloak (8080)
 
+name: expats
+
 services:
   cue-api:
     build:
