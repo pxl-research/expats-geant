@@ -25,6 +25,8 @@ Integration tests for router:
 - DELETE /session/{id} redirects to home
 """
 
+from unittest.mock import AsyncMock, patch
+
 import httpx
 import pytest
 import respx
@@ -592,10 +594,13 @@ def test_auth_login_redirects(client):
     assert "auth/login" in resp.headers["location"]
 
 
-def test_auth_logout_clears_cookie(client):
+@patch(
+    "shape_ui.router.get_logout_url", new_callable=AsyncMock, return_value="http://keycloak/logout"
+)
+def test_auth_logout_clears_cookie(mock_logout_url, client):
     resp = client.get("/auth/logout", cookies=COOKIE, follow_redirects=False)
     assert resp.status_code == 302
-    assert "/auth/login" in resp.headers["location"]
+    assert resp.headers["location"] == "http://keycloak/logout"
     # Cookie should be cleared
     set_cookie = resp.headers.get("set-cookie", "")
     assert "chat_token" in set_cookie

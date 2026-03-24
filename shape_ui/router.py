@@ -14,7 +14,9 @@ from shape_ui.api_client import APIError
 from shape_ui.auth import (
     MCHAT_API_URL,
     MCHAT_PUBLIC_URL,
+    SHAPE_UI_PUBLIC_URL,
     clear_token_cookie,
+    get_logout_url,
     get_token,
     set_token_cookie,
 )
@@ -134,8 +136,9 @@ async def auth_callback(
 
 @router.get("/auth/logout")
 async def auth_logout():
-    """Clear auth cookie and redirect to login."""
-    response = RedirectResponse(url="/auth/login", status_code=302)
+    """Clear auth cookie and end the OIDC session at the provider."""
+    logout_url = await get_logout_url(post_logout_redirect_uri=SHAPE_UI_PUBLIC_URL)
+    response = RedirectResponse(url=logout_url, status_code=302)
     clear_token_cookie(response)
     return response
 

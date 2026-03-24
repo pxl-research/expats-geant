@@ -15,7 +15,9 @@ from cue_ui.api_client import APIError, auth_headers
 from cue_ui.auth import (
     AUTOFILL_API_URL,
     AUTOFILL_PUBLIC_URL,
+    CUE_UI_PUBLIC_URL,
     clear_token_cookie,
+    get_logout_url,
     get_token,
     set_token_cookie,
 )
@@ -113,8 +115,9 @@ async def auth_callback(
 
 @router.get("/auth/logout")
 async def auth_logout():
-    """Clear auth cookie and redirect to login."""
-    response = RedirectResponse(url="/auth/login", status_code=302)
+    """Clear auth cookie and end the OIDC session at the provider."""
+    logout_url = await get_logout_url(post_logout_redirect_uri=CUE_UI_PUBLIC_URL)
+    response = RedirectResponse(url=logout_url, status_code=302)
     clear_token_cookie(response)
     return response
 

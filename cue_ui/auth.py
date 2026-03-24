@@ -1,7 +1,9 @@
 """Cookie helpers and OAuth redirect logic for cue_ui."""
 
 import os
+import urllib.parse
 
+import httpx
 from fastapi import Request
 
 COOKIE_NAME = "autofill_token"
@@ -11,6 +13,9 @@ AUTOFILL_API_URL = os.getenv("AUTOFILL_API_URL", "http://localhost:8001")
 
 # Browser-accessible URL for OAuth redirects (must be reachable by the end user's browser)
 AUTOFILL_PUBLIC_URL = os.getenv("AUTOFILL_PUBLIC_URL", "http://localhost:8001")
+
+# Public base URL of this UI (used as post-logout redirect target)
+CUE_UI_PUBLIC_URL = os.getenv("CUE_UI_PUBLIC_URL", "http://localhost:8002")
 
 # Set COOKIE_SECURE=true in production (HTTPS deployments)
 _COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
@@ -36,6 +41,26 @@ def set_token_cookie(response, token: str) -> None:
 def clear_token_cookie(response) -> None:
     """Remove auth cookie."""
     response.delete_cookie(key=COOKIE_NAME)
+
+
+async def get_logout_url(post_logout_redirect_uri: str | None = None) -> str:
+    """Return the OIDC provider end_session URL for single sign-out."""
+    issuer_url = os.getenv("OIDC_ISSUER_URL", "http://localhost:8080/realms/expats")
+    client_id = os.getenv("OIDC_CLIENT_ID", "cue-api")
+    discovery_url = issuer_url.rstrip("/") + "/.well-known/openid-configuration"
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(discovery_url, timeout=5)
+            resp.raise_for_status()
+            end_session_endpoint = resp.json().get("end_session_endpoint")
+    except Exception:
+        return post_logout_redirect_uri or "/"
+    if not end_session_endpoint:
+        return post_logout_redirect_uri or "/"
+    params = {"client_id": client_id}
+    if post_logout_redirect_uri:
+        params["post_logout_redirect_uri"] = post_logout_redirect_uri
+    return f"{end_session_endpoint}?{urllib.parse.urlencode(params)}"
 
 
 def require_auth(request: Request) -> str:
