@@ -1,6 +1,18 @@
-# M-Autofill Deployment Guide
+# Deployment Guide
 
-This guide covers deploying the M-Autofill API service using Docker.
+This guide covers deploying the Expat-GÉANT platform using Docker.
+
+## Services Overview
+
+| Service | Port | Description |
+|---|---|---|
+| `m-autofill` | `8001` | Respondent answer suggestion API |
+| `ui` | `8002` | M-UI survey review frontend (Jinja2 + HTMX) |
+| `m-chat` | `8003` | Administrator questionnaire design API |
+| `m_chat_ui` | `8004` | M-Chat browser UI |
+| `keycloak` | `8080` | Bundled identity provider (OIDC) |
+
+All five services start together via `docker-compose up`. Keycloak auto-imports the `expat-geant` realm on first start.
 
 ## Prerequisites
 
@@ -126,6 +138,68 @@ docker-compose logs -f m-chat
 ```
 
 See [MCHAT_API.md](MCHAT_API.md) for the full API reference.
+
+---
+
+## M-UI Service
+
+M-UI is the browser-based survey review frontend for respondents.
+
+- **Service name**: `ui` (docker-compose)
+- **Port**: `8002`
+- **Health check**: visit `http://localhost:8002` — redirects to Keycloak login
+
+### Additional Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `AUTOFILL_API_URL` | `http://m-autofill:8001` | Internal (Docker) URL for M-Autofill |
+| `AUTOFILL_PUBLIC_URL` | `http://localhost:8001` | Browser-accessible URL for M-Autofill |
+
+### Verify M-UI is running
+
+```bash
+# Open in browser (expects Keycloak login redirect)
+open http://localhost:8002
+```
+
+---
+
+## M-Chat UI Service
+
+M-Chat UI is the browser-based frontend for the questionnaire design co-pilot.
+
+- **Service name**: `m_chat_ui` (docker-compose)
+- **Port**: `8004`
+
+### Additional Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `MCHAT_API_URL` | `http://m-chat:8003` | Internal (Docker) URL for M-Chat |
+| `MCHAT_PUBLIC_URL` | `http://localhost:8003` | Browser-accessible URL for M-Chat |
+
+### Verify M-Chat UI is running
+
+```bash
+open http://localhost:8004
+```
+
+---
+
+## Keycloak Service
+
+Keycloak is the bundled identity provider, pre-configured with the `expat-geant` realm.
+
+- **Service name**: `keycloak` (docker-compose)
+- **Port**: `8080`
+- **Admin console**: `http://localhost:8080` (user: `admin`, password from `KEYCLOAK_ADMIN_PASSWORD`, default: `admin`)
+
+The realm import in `keycloak/` is loaded automatically on first start. OIDC redirect flows are handled by M-UI (`/auth/callback` on port 8002), which proxies the token back to the browser.
+
+```bash
+docker-compose logs -f keycloak
+```
 
 ---
 

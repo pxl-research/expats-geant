@@ -142,6 +142,7 @@ Session identity is carried in the JWT token (Authorization header). All endpoin
 | `POST` | `/upload` | Upload a document into the session |
 | `POST` | `/suggest` | Single-question answer suggestion |
 | `POST` | `/suggest/batch` | Multi-question batch suggestion (QTI-inspired input) |
+| `POST` | `/suggest/stream` | Same as batch, streamed via Server-Sent Events |
 | `GET` | `/session/stats` | Session status, TTL, document count |
 | `DELETE` | `/session` | End session and delete all data |
 | `GET` | `/audit-report` | Download session audit report (JSON or plaintext) |

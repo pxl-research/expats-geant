@@ -1,5 +1,5 @@
-# Docker Compose for M-Autofill Service
-# Privacy-first answer suggestion service deployment
+# Docker Compose for Expat-GÉANT
+# Services: m-autofill (8001), ui (8002), m-chat (8003), m_chat_ui (8004), keycloak (8080)
 
 services:
   m-autofill:
