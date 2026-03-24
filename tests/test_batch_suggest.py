@@ -325,3 +325,149 @@ class TestParseSelectedId:
     def test_multi_choice_none(self, pipeline, choices):
         selected_id, selected_ids = pipeline._parse_selected_id(None, choices, multi=True)
         assert selected_ids is None
+
+
+# ---------------------------------------------------------------------------
+# API error-branch coverage for /suggest and /suggest/batch
+# ---------------------------------------------------------------------------
+
+
+class TestSuggestAPIErrorBranches:
+    """Cover rag_pipeline=None and exception paths in /suggest and /suggest/batch."""
+
+    @pytest.fixture
+    def jwt_secret(self, monkeypatch):
+        monkeypatch.setenv("JWT_SECRET", "test-secret-key")
+        monkeypatch.setenv("JWT_ALGORITHM", "HS256")
+        monkeypatch.setenv("JWT_EXPIRATION_HOURS", "24")
+        return "test-secret-key"
+
+    @pytest.fixture
+    def session_manager(self, tmp_path):
+        from m_shared.session.manager import SessionManager
+
+        return SessionManager(base_path=str(tmp_path / "sessions"))
+
+    @pytest.fixture
+    def mock_llm(self):
+        from unittest.mock import MagicMock
+
+        llm = MagicMock()
+        llm.model_name = "test-model"
+        llm.temperature = 0.4
+        return llm
+
+    @pytest.fixture
+    def auth_token(self, jwt_secret):
+        from m_shared.auth.jwt_handler import create_token
+
+        return create_token(
+            user_id="test_user",
+            session_id="dev_session_test_user",
+            org="test_org",
+            roles=["respondent"],
+        )
+
+    @pytest.fixture
+    def client_no_rag(self, session_manager):
+        """App WITHOUT llm_client so rag_pipeline is None."""
+        from fastapi.testclient import TestClient
+
+        from m_autofill.api import create_app
+        from m_shared.auth.middleware import SessionMiddleware
+
+        app = create_app(session_manager=session_manager)
+        app.add_middleware(SessionMiddleware, session_manager=session_manager, ttl_hours=24)
+        return TestClient(app, raise_server_exceptions=False)
+
+    @pytest.fixture
+    def client_with_rag(self, session_manager, mock_llm):
+        """App WITH llm_client so rag_pipeline is initialised."""
+        from fastapi.testclient import TestClient
+
+        from m_autofill.api import create_app
+        from m_shared.auth.middleware import SessionMiddleware
+
+        app = create_app(session_manager=session_manager, llm_client=mock_llm)
+        app.add_middleware(SessionMiddleware, session_manager=session_manager, ttl_hours=24)
+        return TestClient(app, raise_server_exceptions=False)
+
+    # -- /suggest --
+
+    def test_suggest_no_rag_pipeline(self, client_no_rag, auth_token):
+        """POST /suggest with rag_pipeline=None → 500."""
+        response = client_no_rag.post(
+            "/suggest",
+            json={"question": "What is the answer?"},
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+        assert response.status_code == 500
+        assert "RAG pipeline not initialized" in response.json()["detail"]
+
+    def test_suggest_value_error(self, client_with_rag, auth_token):
+        """POST /suggest when suggest_answer raises ValueError → 404."""
+        from unittest.mock import patch
+
+        with patch(
+            "m_autofill.rag_pipeline.RAGPipeline.suggest_answer",
+            side_effect=ValueError("no documents found"),
+        ):
+            response = client_with_rag.post(
+                "/suggest",
+                json={"question": "What is the answer?"},
+                headers={"Authorization": f"Bearer {auth_token}"},
+            )
+        assert response.status_code == 404
+        assert "no documents found" in response.json()["detail"]
+
+    def test_suggest_exception(self, client_with_rag, auth_token):
+        """POST /suggest when suggest_answer raises unexpected Exception → 500."""
+        from unittest.mock import patch
+
+        with patch(
+            "m_autofill.rag_pipeline.RAGPipeline.suggest_answer",
+            side_effect=RuntimeError("LLM error"),
+        ):
+            response = client_with_rag.post(
+                "/suggest",
+                json={"question": "What is the answer?"},
+                headers={"Authorization": f"Bearer {auth_token}"},
+            )
+        assert response.status_code == 500
+        assert "Suggestion failed" in response.json()["detail"]
+
+    # -- /suggest/batch --
+
+    def test_batch_suggest_no_rag_pipeline(self, client_no_rag, auth_token):
+        """POST /suggest/batch with rag_pipeline=None → 500."""
+        payload = {
+            "assessment_id": "test",
+            "items": [{"id": "q1", "type": "open_ended", "prompt": "What?", "choices": []}],
+        }
+        response = client_no_rag.post(
+            "/suggest/batch",
+            json=payload,
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+        assert response.status_code == 500
+        assert "RAG pipeline not initialized" in response.json()["detail"]
+
+    def test_batch_suggest_value_error(self, client_with_rag, auth_token):
+        """POST /suggest/batch when suggest_batch raises ValueError → 404."""
+        from unittest.mock import patch
+
+        payload = {
+            "assessment_id": "test",
+            "items": [{"id": "q1", "type": "open_ended", "prompt": "What?", "choices": []}],
+        }
+        with patch(
+            "m_autofill.rag_pipeline.RAGPipeline.suggest_batch",
+            side_effect=ValueError("session not found"),
+        ):
+            response = client_with_rag.post(
+                "/suggest/batch",
+                json=payload,
+                headers={"Authorization": f"Bearer {auth_token}"},
+            )
+        assert response.status_code == 404
+        assert "session not found" in response.json()["detail"]

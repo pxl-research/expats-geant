@@ -14,10 +14,10 @@ from urllib.parse import urlparse
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import (
-    FileResponse,
     JSONResponse,
     PlainTextResponse,
     RedirectResponse,
+    Response,
     StreamingResponse,
 )
 
@@ -238,18 +238,12 @@ def _get_report_lock(session_path: Path) -> threading.Lock:
 
 
 def _append_to_answer_report(session_path: Path, entries: list[dict]) -> None:
-    """Append suggestion entries to the per-session answer_report.json array."""
+    """Append suggestion entries to the per-session answer_report.json (JSONL format)."""
     report_path = session_path / "answer_report.json"
-    tmp_path = report_path.with_suffix(".json.tmp")
     with _get_report_lock(session_path):
-        existing = []
-        if report_path.exists():
-            try:
-                existing = json.loads(report_path.read_text())
-            except Exception as exc:
-                logger.warning("Could not read existing answer report, starting fresh: %s", exc)
-        tmp_path.write_text(json.dumps(existing + entries, ensure_ascii=False))
-        os.replace(tmp_path, report_path)
+        with open(report_path, "a", encoding="utf-8") as f:
+            for entry in entries:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
 def create_app(
@@ -898,16 +892,27 @@ def create_app(
     async def download_answer_report(request: Request):
         """Return the session's answer report as a downloadable JSON file."""
         session = request.state.session
-        report_path = session_manager._get_session_path(session.session_id) / "answer_report.json"
+        session_path = session_manager._get_session_path(session.session_id)
+        report_path = session_path / "answer_report.json"
         if not report_path.exists():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="No suggestions have been generated yet",
             )
-        return FileResponse(
-            path=report_path,
+
+        def _read():
+            with _get_report_lock(session_path):
+                return [
+                    json.loads(line)
+                    for line in report_path.read_text(encoding="utf-8").splitlines()
+                    if line.strip()
+                ]
+
+        data = await asyncio.to_thread(_read)
+        return Response(
+            content=json.dumps(data, ensure_ascii=False),
             media_type="application/json",
-            filename="answer_report.json",
+            headers={"Content-Disposition": 'attachment; filename="answer_report.json"'},
         )
 
     @app.delete("/audit-report", response_model=AuditDeleteResponse)

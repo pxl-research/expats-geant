@@ -87,7 +87,9 @@ class TestSingleSuggestionCreatesReport:
         report_path = session_manager._get_session_path(session.session_id) / "answer_report.json"
         assert report_path.exists(), "answer_report.json should be created after /suggest"
 
-        entries = json.loads(report_path.read_text())
+        entries = [
+            json.loads(line) for line in report_path.read_text().splitlines() if line.strip()
+        ]
         assert len(entries) == 1
         entry = entries[0]
         assert "question" in entry
@@ -138,7 +140,9 @@ class TestMultipleSuggestionsAccumulate:
 
         report_path = session_manager._get_session_path(session.session_id) / "answer_report.json"
         assert report_path.exists()
-        entries = json.loads(report_path.read_text())
+        entries = [
+            json.loads(line) for line in report_path.read_text().splitlines() if line.strip()
+        ]
         assert len(entries) == 3  # 2 from batch1 + 1 from batch2
 
 
@@ -169,6 +173,11 @@ class TestDownloadEndpoint:
         data = resp.json()
         assert isinstance(data, list)
         assert len(data) == 1
+        entry = data[0]
+        assert entry["question"] == "When are audits conducted?"
+        assert "answer" in entry
+        assert "reasoning" in entry
+        assert "citations" in entry
 
     def test_download_returns_404_when_no_suggestions(self, client, auth_token, session_manager):
         """6.3b — Fresh session with no suggestions → 404."""
