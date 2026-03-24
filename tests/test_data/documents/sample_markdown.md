@@ -1,6 +1,6 @@
 # Sample Document
 
-This is a test document for the M-Autofill ingestion pipeline.
+This is a test document for the Cue ingestion pipeline.
 
 ## Section 1: Introduction
 

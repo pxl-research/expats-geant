@@ -1,4 +1,4 @@
-"""M-Chat session data helpers — pure file I/O, no business logic."""
+"""Shape session data helpers — pure file I/O, no business logic."""
 
 import json
 from datetime import UTC, datetime

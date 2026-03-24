@@ -1,4 +1,4 @@
-"""Core ingestion logic for M-Autofill (no UI).
+"""Core ingestion logic for Cue (no UI).
 
 Adapted from `demo_code/demos/rag/launch_upload_ui.py`.
 

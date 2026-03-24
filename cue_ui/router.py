@@ -1,4 +1,4 @@
-"""All routes for the M-UI survey review frontend."""
+"""All routes for the Cue UI survey review frontend."""
 
 import json
 import logging
@@ -58,7 +58,7 @@ async def health():
 
 @router.get("/auth/login")
 async def auth_login():
-    """Redirect browser to M-Autofill OIDC login (public URL, browser-accessible)."""
+    """Redirect browser to Cue OIDC login (public URL, browser-accessible)."""
     return RedirectResponse(url=f"{AUTOFILL_PUBLIC_URL}/auth/login")
 
 
@@ -69,7 +69,7 @@ async def auth_callback(
     state: str | None = None,
     token: str | None = None,
 ):
-    """Handle OIDC callback: proxy code+state to M-Autofill server-side, set cookie."""
+    """Handle OIDC callback: proxy code+state to Cue server-side, set cookie."""
     if token:
         # Direct token handoff (e.g. dev/manual flow)
         response = RedirectResponse(url="/", status_code=302)
@@ -291,7 +291,7 @@ async def documents_upload(
     text: str = Form(default=""),
     text_label: str = Form(default=""),
 ):
-    """Forward each uploaded document and/or text snippet to M-Autofill ingestion API."""
+    """Forward each uploaded document and/or text snippet to Cue ingestion API."""
     token = get_token(request)
     if not token:
         return RedirectResponse(url="/auth/login", status_code=302)

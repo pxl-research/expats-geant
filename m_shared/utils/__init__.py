@@ -1,4 +1,4 @@
-"""Shared utilities for M-Autofill and M-Chat."""
+"""Shared utilities for Cue and Shape."""
 
 from m_shared.utils.audit import (
     AuditEventType,

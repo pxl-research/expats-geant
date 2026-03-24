@@ -1,4 +1,4 @@
-"""HTTP client wrapper for M-Autofill API calls."""
+"""HTTP client wrapper for Cue API calls."""
 
 import logging
 import os
@@ -12,7 +12,7 @@ AUTOFILL_API_URL = os.getenv("AUTOFILL_API_URL", "http://localhost:8001")
 
 
 class APIError(Exception):
-    """Raised when the M-Autofill API returns an error response."""
+    """Raised when the Cue API returns an error response."""
 
     def __init__(self, status_code: int, detail: str) -> None:
         self.status_code = status_code
@@ -25,7 +25,7 @@ def auth_headers(token: str) -> dict[str, str]:
 
 
 async def get_survey(token: str, survey_id: str) -> dict[str, Any]:
-    """Fetch survey by ID from M-Autofill API.
+    """Fetch survey by ID from Cue API.
 
     GET /surveys/{survey_id} → Survey dict
     """
@@ -57,7 +57,7 @@ async def get_capabilities(token: str, format: str) -> set[str]:
 
 
 async def submit_responses(token: str, session_id: str, responses: dict[str, Any]) -> None:
-    """Submit survey responses via M-Autofill adapter.
+    """Submit survey responses via Cue adapter.
 
     POST /sessions/{session_id}/submit
     """
@@ -134,7 +134,7 @@ async def import_survey_from_api(
 
 
 async def ingest_document(token: str, session_id: str, file_bytes: bytes, filename: str) -> None:
-    """Forward a document to the M-Autofill ingestion API.
+    """Forward a document to the Cue ingestion API.
 
     POST /upload — UI holds no document content.
     """
@@ -148,7 +148,7 @@ async def ingest_document(token: str, session_id: str, file_bytes: bytes, filena
 
 
 async def ingest_text_snippet(token: str, session_id: str, text: str, label: str | None) -> None:
-    """Forward a text snippet to the M-Autofill ingestion API.
+    """Forward a text snippet to the Cue ingestion API.
 
     POST /upload-text — UI holds no text content after forwarding.
     """

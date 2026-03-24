@@ -14,8 +14,8 @@
   "clients": [
     {
       "clientId": "cue-api",
-      "name": "M-Autofill",
-      "description": "Expats M-Autofill answer suggestion service",
+      "name": "Cue",
+      "description": "Expats Cue answer suggestion service",
       "enabled": true,
       "publicClient": false,
       "secret": "change-me",

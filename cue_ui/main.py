@@ -1,4 +1,4 @@
-"""FastAPI app factory for M-UI survey review frontend."""
+"""FastAPI app factory for Cue UI survey review frontend."""
 
 import os
 from pathlib import Path
@@ -12,10 +12,10 @@ _STATIC_DIR = Path(__file__).parent / "static"
 
 
 def create_app() -> FastAPI:
-    """Create and configure the M-UI FastAPI application."""
+    """Create and configure the Cue UI FastAPI application."""
     app = FastAPI(
-        title="M-UI",
-        description="Survey review frontend for M-Autofill",
+        title="Cue UI",
+        description="Survey review frontend for Cue",
         version="0.1.0",
     )
 

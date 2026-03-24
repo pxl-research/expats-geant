@@ -1,4 +1,4 @@
-"""FastAPI endpoints for M-Autofill answer suggestion service."""
+"""FastAPI endpoints for Cue answer suggestion service."""
 
 import asyncio
 import ipaddress
@@ -129,7 +129,7 @@ def _platform_error_detail(exc: RuntimeError) -> str:
     return f"The platform returned an error: {exc}"
 
 
-_PRIVACY_TEXT = """M-AUTOFILL PRIVACY STATEMENT
+_PRIVACY_TEXT = """CUE PRIVACY STATEMENT
 
 DATA COLLECTION:
 - Documents you upload are processed temporarily during your session
@@ -253,7 +253,7 @@ def create_app(
     max_file_size_mb: int = 50,
     lifespan=None,
 ) -> FastAPI:
-    """Create FastAPI application with M-Autofill endpoints.
+    """Create FastAPI application with Cue endpoints.
 
     Args:
         session_manager: SessionManager instance
@@ -266,7 +266,7 @@ def create_app(
         Configured FastAPI app
     """
     app = FastAPI(
-        title="M-Autofill API",
+        title="Cue API",
         description="Evidence-based answer suggestion service",
         version="0.1.0",
         lifespan=lifespan,

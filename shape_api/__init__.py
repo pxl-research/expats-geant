@@ -1,4 +1,4 @@
-"""M-Chat: questionnaire design co-pilot for survey administrators."""
+"""Shape: questionnaire design co-pilot for survey administrators."""
 
 from shape_api.style import build_style_context, extract_style_document, summarise_style_rules
 from shape_api.suggestion_engine import SuggestionResult, suggest_question

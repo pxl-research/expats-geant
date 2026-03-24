@@ -1,4 +1,4 @@
-"""Pydantic models for M-Autofill API."""
+"""Pydantic models for Cue API."""
 
 from pydantic import BaseModel, Field, model_validator
 

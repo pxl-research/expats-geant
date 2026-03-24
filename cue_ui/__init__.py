@@ -1,1 +1,1 @@
-"""M-UI: Survey review frontend for M-Autofill."""
+"""Cue UI: Survey review frontend for Cue."""

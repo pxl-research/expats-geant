@@ -1,4 +1,4 @@
-"""All routes for the M-Chat UI survey authoring frontend."""
+"""All routes for the Shape UI survey authoring frontend."""
 
 import os
 from typing import Annotated
@@ -79,7 +79,7 @@ async def health():
 
 @router.get("/auth/login")
 async def auth_login():
-    """Redirect browser to M-Chat OIDC login (public URL, browser-accessible)."""
+    """Redirect browser to Shape OIDC login (public URL, browser-accessible)."""
     return RedirectResponse(url=f"{MCHAT_PUBLIC_URL}/auth/login")
 
 
@@ -90,7 +90,7 @@ async def auth_callback(
     state: str | None = None,
     token: str | None = None,
 ):
-    """Handle OIDC callback: proxy code+state to M-Chat server-side, set cookie."""
+    """Handle OIDC callback: proxy code+state to Shape server-side, set cookie."""
     if token:
         # Direct token handoff (e.g. dev/manual flow)
         response = RedirectResponse(url="/", status_code=302)

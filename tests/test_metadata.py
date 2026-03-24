@@ -113,7 +113,7 @@ class TestMetadataPreservation:
 
         # Query each document's content
         results1 = store.query(query_text="multiple paragraphs", n_results=5)
-        results2 = store.query(query_text="M-Autofill", n_results=5)
+        results2 = store.query(query_text="Cue", n_results=5)
 
         # Check sources are different
         if results1 and results2:

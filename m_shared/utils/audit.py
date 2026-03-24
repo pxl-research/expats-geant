@@ -1,4 +1,4 @@
-"""Audit logging for M-Autofill session transparency and compliance.
+"""Audit logging for Cue session transparency and compliance.
 
 Provides session-level audit trails capturing all user activity:
 - Document uploads

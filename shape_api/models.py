@@ -1,4 +1,4 @@
-"""Pydantic request/response models for the M-Chat API."""
+"""Pydantic request/response models for the Shape API."""
 
 from pydantic import BaseModel, Field
 

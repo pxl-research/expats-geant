@@ -1,4 +1,4 @@
-"""HTTP client wrapper for M-Chat API calls."""
+"""HTTP client wrapper for Shape API calls."""
 
 import logging
 import os
@@ -12,7 +12,7 @@ MCHAT_API_URL = os.getenv("MCHAT_API_URL", "http://localhost:8003")
 
 
 class APIError(Exception):
-    """Raised when the M-Chat API returns an error response."""
+    """Raised when the Shape API returns an error response."""
 
     def __init__(self, status_code: int, detail: str) -> None:
         self.status_code = status_code

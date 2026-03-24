@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-End-to-end spot-check for the M-Autofill API.
+End-to-end spot-check for the Cue API.
 
 Covers:
   6.1  Happy-path flow  — upload docs, suggest answers, audit report, cleanup
@@ -288,11 +288,11 @@ def test_happy_path(client: httpx.Client, token: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="M-Autofill API end-to-end spot check")
+    parser = argparse.ArgumentParser(description="Cue API end-to-end spot check")
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL, help="API base URL")
     args = parser.parse_args()
 
-    print(f"\nM-Autofill API spot check  →  {args.base_url}\n")
+    print(f"\nCue API spot check  →  {args.base_url}\n")
 
     with httpx.Client(base_url=args.base_url, timeout=30) as client:
         if not check_server(client):

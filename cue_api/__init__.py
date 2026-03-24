@@ -1,4 +1,4 @@
-"""M-Autofill module (package scaffold).
+"""Cue module (package scaffold).
 
 This package will host the respondent-side evidence-based assistant.
 """

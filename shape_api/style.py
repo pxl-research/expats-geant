@@ -1,4 +1,4 @@
-"""Style guide document processing for M-Chat."""
+"""Style guide document processing for Shape."""
 
 from m_shared.llm.client import LLMClient
 from m_shared.vectordb.utils import document_to_markdown

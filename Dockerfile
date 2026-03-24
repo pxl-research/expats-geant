@@ -1,4 +1,4 @@
-# Dockerfile for M-Autofill Service
+# Dockerfile for Cue Service
 # Privacy-first answer suggestion service with RAG pipeline
 
 FROM python:3.12-slim

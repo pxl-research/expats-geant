@@ -1,1 +1,1 @@
-"""M-Chat UI: HTMX/FastAPI web interface for the M-Chat survey authoring API."""
+"""Shape UI: HTMX/FastAPI web interface for the Shape survey authoring API."""

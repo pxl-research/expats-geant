@@ -1,4 +1,4 @@
-"""FastAPI application for M-Chat survey transform and tool endpoints."""
+"""FastAPI application for Shape survey transform and tool endpoints."""
 
 import asyncio
 import ipaddress
@@ -230,7 +230,7 @@ def create_app(
     llm_client=None,
     adapter_registry=None,
 ) -> FastAPI:
-    """Create the M-Chat FastAPI application.
+    """Create the Shape FastAPI application.
 
     Args:
         session_manager: SessionManager for auth session handling.
@@ -241,7 +241,7 @@ def create_app(
         Configured FastAPI application.
     """
     app = FastAPI(
-        title="M-Chat API",
+        title="Shape API",
         description="Survey transform and AI tool endpoints",
         version="0.1.0",
     )
