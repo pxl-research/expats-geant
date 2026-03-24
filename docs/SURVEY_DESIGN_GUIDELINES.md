@@ -1,7 +1,7 @@
 # Survey Design Guidelines
 
 A concise reference for scientifically backed survey design principles, drawn from the
-academic and professional literature. These guidelines inform M-Chat's suggestion and
+academic and professional literature. These guidelines inform Shape's suggestion and
 validation engines.
 
 ---

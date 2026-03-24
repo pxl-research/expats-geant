@@ -1,10 +1,10 @@
-# M-Chat: Administrator Questionnaire Design Co-Pilot
+# Shape: Administrator Questionnaire Design Co-Pilot
 
 An AI-powered assistant that accelerates questionnaire and survey design with guardrails, consistency checks, intelligent tagging, and conversational authoring.
 
 ## What's Built
 
-M-Chat is fully implemented. The module provides:
+Shape is fully implemented. The module provides:
 
 - **Suggestion engine** — proposes improved phrasings for survey questions, respecting style profiles
 - **Validation engine** — Tier 1 deterministic rules (double-barreled questions, missing choices, etc.) + Tier 2 LLM checks
@@ -96,14 +96,14 @@ Full API reference: [docs/MCHAT_API.md](../docs/MCHAT_API.md)
 ## Testing
 
 ```bash
-# Run all M-Chat tests (from repo root)
+# Run all Shape tests (from repo root)
 pytest tests/test_chat*.py -v
 
 # Run with coverage
 pytest tests/test_chat*.py -v --cov=shape_api --cov-report=term-missing
 ```
 
-There are 9 M-Chat test files covering ~234 tests:
+There are 9 Shape test files covering ~234 tests:
 
 | File | Coverage |
 |---|---|
@@ -115,7 +115,7 @@ There are 9 M-Chat test files covering ~234 tests:
 | `test_chat_tagging.py` | Tagging engine unit tests |
 | `test_chat_session.py` | Session I/O helpers |
 | `test_chat_style.py` | Style extraction and summarisation |
-| `test_chat_ui.py` | M-Chat UI integration |
+| `test_chat_ui.py` | Shape UI integration |
 
 Run the full suite for accurate coverage (single-file runs will fail `--cov-fail-under=80`):
 
@@ -127,7 +127,7 @@ pytest tests/ -v --tb=short
 
 | Variable | Default | Description |
 |---|---|---|
-| `JWT_SECRET` | `change-me-in-production` | JWT signing secret (shared with M-Autofill) |
+| `JWT_SECRET` | `change-me-in-production` | JWT signing secret (shared with Cue) |
 | `OPENROUTER_API_KEY` | — | LLM API key (required for suggest/tag/chat) |
 | `LLM_MODEL` | `anthropic/claude-haiku-4.5` | LLM model identifier |
 | `SESSION_TTL_HOURS` | `24` | Chat session lifetime in hours |
@@ -137,7 +137,7 @@ pytest tests/ -v --tb=short
 
 ## Links
 
-- [M-Chat API Reference](../docs/MCHAT_API.md)
+- [Shape API Reference](../docs/MCHAT_API.md)
 - [Data Model](../docs/DATA_MODEL.md)
 - [Adapter Guide](../docs/ADAPTERS.md)
 - [Testing Guide](../docs/TESTING.md)

@@ -11,7 +11,7 @@ This document outlines the phased approach to building Expats from January to Ju
 
 ## Phase 1: Foundation & Shared Infrastructure (Jan–Feb)
 
-**Goal:** Establish core building blocks for both M-Chat and M-Autofill.
+**Goal:** Establish core building blocks for both Shape and Cue.
 
 **Deliverables:**
 
@@ -42,7 +42,7 @@ This document outlines the phased approach to building Expats from January to Ju
 
 ## Phase 2: Document Processing & Vector Search (Feb–Mar)
 
-**Goal:** Enable document upload, chunking, and semantic search for M-Autofill.
+**Goal:** Enable document upload, chunking, and semantic search for Cue.
 
 **Status:** ✅ Phase 2.1 (Document Ingestion) **COMPLETE**
 
@@ -112,7 +112,7 @@ This document outlines the phased approach to building Expats from January to Ju
 
 ---
 
-## Phase 3: M-Autofill (Answer Suggestion Module) (Mar–Apr)
+## Phase 3: Cue (Answer Suggestion Module) (Mar–Apr)
 
 **Goal:** Complete RAG pipeline with answer suggestions, citations, audit logging, and REST API endpoints.
 
@@ -185,7 +185,7 @@ This document outlines the phased approach to building Expats from January to Ju
 - [x] REST API endpoints (upload, suggest, audit report retrieval, cleanup)
 - [x] FastAPI integration with session/auth middleware
 - [x] Integration tests: full user session flow (23/23 tests passing)
-- [x] Docker container for M-Autofill service
+- [x] Docker container for Cue service
 - [x] docker-compose.yml for deployment
 
 **Key Files:**
@@ -212,7 +212,7 @@ This document outlines the phased approach to building Expats from January to Ju
 
 ---
 
-## Phase 4: M-Chat (Questionnaire Design Module) (Feb–Mar)
+## Phase 4: Shape (Questionnaire Design Module) (Feb–Mar)
 
 **Goal:** Complete questionnaire design assistant with validation, suggestions, tagging, and QTI support.
 
@@ -222,7 +222,7 @@ This document outlines the phased approach to building Expats from January to Ju
 
 **Deliverables:**
 
-- [x] Session infrastructure for M-Chat (per-user session folders, draft survey, tag vocabulary, conversation history, uploaded documents)
+- [x] Session infrastructure for Shape (per-user session folders, draft survey, tag vocabulary, conversation history, uploaded documents)
 - [x] Suggestion engine (LLM-based question rewording, with/without survey context) — [specs/questionnaire-design](specs/questionnaire-design/spec.md)
 - [x] Validation engine (deterministic rule checks + LLM-assisted; rules grounded in `docs/SURVEY_DESIGN_GUIDELINES.md`)
 - [x] Auto-tagging engine (tag suggestion with session vocabulary awareness)
@@ -248,7 +248,7 @@ This document outlines the phased approach to building Expats from January to Ju
 - [x] Document upload for survey drafting
 - [x] FastAPI integration with session/auth middleware
 - [x] Unit tests for engines and adapters (89 tests: 47 adapter + 42 API)
-- [x] Docker container for M-Chat service
+- [x] Docker container for Shape service
 
 **Key Files:**
 
@@ -264,7 +264,7 @@ This document outlines the phased approach to building Expats from January to Ju
 
 **Deliverables:**
 
-- [x] M-Chat UI (`shape_ui/` service, HTMX-based)
+- [x] Shape UI (`shape_ui/` service, HTMX-based)
 - [x] Landing page (list/resume sessions or start new)
 - [x] Style setup page (language, preferences, style guide upload)
 - [x] Chat page (message input, assistant response, live survey preview sidebar)
@@ -274,7 +274,7 @@ This document outlines the phased approach to building Expats from January to Ju
 **Key Files:**
 
 - [x] `shape_ui/` (UI service package)
-- [x] `docker-compose.yml` (updated with M-Chat UI service)
+- [x] `docker-compose.yml` (updated with Shape UI service)
 
 ---
 
@@ -297,7 +297,7 @@ This document outlines the phased approach to building Expats from January to Ju
 
 **Deliverables:**
 
-- [ ] Docker Compose setup with both services (M-Chat + M-Autofill + Keycloak)
+- [ ] Docker Compose setup with both services (Shape + Cue + Keycloak)
 - [ ] Deployment to PXL + Belnet partner institutions
 - [ ] Configure Keycloak realm for each pilot institution (optional: federate with institutional IdP via Keycloak admin panel — no code changes required; see `docs/KEYCLOAK_SETUP.md`)
 - [ ] Session persistence (file-based audit reports, user downloads)
@@ -311,7 +311,7 @@ This document outlines the phased approach to building Expats from January to Ju
 
 **Key Components:**
 
-- `docker-compose.yml` (M-Chat, M-Autofill, Keycloak)
+- `docker-compose.yml` (Shape, Cue, Keycloak)
 - `keycloak/realm-export.json` (pre-configured realm, auto-imported on first startup)
 - Monitoring & logging setup (`logs/security.log` already in place)
 - Pilot testing protocol & evaluation scripts
@@ -397,9 +397,9 @@ Each proposal will include a `proposal.md`, `tasks.md`, and spec deltas updating
 
 **After Phase 2:** Full document ingestion pipeline working; semantic search accurate.
 
-**After Phase 3:** M-Autofill functional end-to-end; citations match sources; manual testing validates quality.
+**After Phase 3:** Cue functional end-to-end; citations match sources; manual testing validates quality.
 
-**After Phase 4:** M-Chat functional; QTI round-trip successful; validation rules enforced.
+**After Phase 4:** Shape functional; QTI round-trip successful; validation rules enforced.
 
 **After Phase 5:** Pilot deployment successful; metrics collection in progress.
 

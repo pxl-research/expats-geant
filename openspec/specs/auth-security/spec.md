@@ -4,7 +4,7 @@ JWT-based token authentication, OAuth 2.0 integration, and session-based access 
 
 ## Purpose
 
-Provide secure, session-scoped access to M-Autofill APIs using JWT tokens. Support institutional federated authentication and enforce session isolation between users.
+Provide secure, session-scoped access to Cue APIs using JWT tokens. Support institutional federated authentication and enforce session isolation between users.
 ## Requirements
 ### Requirement: JWT Token Generation
 
@@ -136,7 +136,7 @@ The system SHALL provide a `/dev/token` endpoint for generating JWT tokens durin
 
 ### Requirement: Federated Authentication Integration Documentation
 
-The system SHALL provide comprehensive documentation for institutional partners integrating with the M-Autofill API using federated authentication. Documentation SHALL specify JWT token requirements including required claims (`sub`, `org`, `roles`, `exp`), token format (Bearer token in Authorization header), and recommended expiration (1-24 hours). Documentation SHALL include JWT generation examples in multiple programming languages, describe the session lifecycle and isolation model, provide troubleshooting guidance for common authentication issues, and reference planned OAuth 2.0/OIDC support in Phase 5.
+The system SHALL provide comprehensive documentation for institutional partners integrating with the Cue API using federated authentication. Documentation SHALL specify JWT token requirements including required claims (`sub`, `org`, `roles`, `exp`), token format (Bearer token in Authorization header), and recommended expiration (1-24 hours). Documentation SHALL include JWT generation examples in multiple programming languages, describe the session lifecycle and isolation model, provide troubleshooting guidance for common authentication issues, and reference planned OAuth 2.0/OIDC support in Phase 5.
 
 #### Scenario: Institution generates JWT token
 

@@ -137,7 +137,7 @@ The `isolation_scope` field controls data partitioning (`user`, `org`, or `tenan
 
 ---
 
-## M-Autofill API Models
+## Cue API Models
 
 The batch suggest API uses a **leaner parallel structure** optimised for the suggestion workflow. It mirrors the Survey/Section/Question hierarchy but strips out fields that are not needed at request time.
 
@@ -239,7 +239,7 @@ flowchart TD
     F[User uploads documents] --> G[ChromaDB vector store]
     G --> H[RAG pipeline]
 
-    B -->|batch suggest request| I[M-Autofill API]
+    B -->|batch suggest request| I[Cue API]
     H --> I
     I --> J[LLM]
     J --> K[ItemSuggestion\n+ CitationResult]

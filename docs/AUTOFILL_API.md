@@ -1,8 +1,8 @@
-# M-Autofill Integration Guide
+# Cue Integration Guide
 
-This guide explains how to integrate M-Autofill with institutional authentication systems and test the API during development.
+This guide explains how to integrate Cue with institutional authentication systems and test the API during development.
 
-> For M-Chat API, see [MCHAT_API.md](MCHAT_API.md).
+> For Shape API, see [MCHAT_API.md](MCHAT_API.md).
 
 ## Table of Contents
 
@@ -18,7 +18,7 @@ This guide explains how to integrate M-Autofill with institutional authenticatio
 
 ## Deployment
 
-The recommended way to run M-Autofill is via Docker Compose.
+The recommended way to run Cue is via Docker Compose.
 
 ### Prerequisites
 
@@ -117,7 +117,7 @@ docker-compose down -v
 
 ## Authentication Model
 
-M-Autofill uses a **federated authentication** approach with two options:
+Cue uses a **federated authentication** approach with two options:
 
 - **OIDC login** (recommended): Built-in `/auth/login` and `/auth/callback` endpoints work with any OIDC provider — Keycloak, Azure AD, Google, institutional eduGAIN/SAML bridges, etc. See [OIDC Login](#oidc-login) below.
 - **Pre-issued JWT**: Your existing IdP can issue tokens directly (see [JWT Requirements](#jwt-requirements)).
@@ -171,7 +171,7 @@ import jwt
 from datetime import datetime, timedelta, timezone
 
 def create_institutional_token(user_id: str, org: str) -> str:
-    secret = "your_jwt_secret"  # Same as M-Autofill's JWT_SECRET
+    secret = "your_jwt_secret"  # Same as Cue's JWT_SECRET
 
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(hours=24)
@@ -251,12 +251,12 @@ JWT_EXPIRATION_HOURS=24
 
 ## OIDC Login
 
-M-Autofill includes built-in OIDC support. Any standard OIDC provider works: Keycloak (bundled), Azure AD, Google, institutional eduGAIN bridges, etc.
+Cue includes built-in OIDC support. Any standard OIDC provider works: Keycloak (bundled), Azure AD, Google, institutional eduGAIN bridges, etc.
 
 ### How It Works
 
 ```
-Browser                M-Autofill             OIDC Provider
+Browser                Cue             OIDC Provider
   │                       │                        │
   │  GET /auth/login       │                        │
   ├──────────────────────>│                        │
@@ -329,7 +329,7 @@ If your institution issues JWTs directly (without OIDC redirect flow), the token
 | `roles` | array | e.g. `["respondent"]` |
 | `iat` / `exp` | timestamp | Standard JWT timing claims |
 
-The token must be signed with the same `JWT_SECRET` configured in M-Autofill.
+The token must be signed with the same `JWT_SECRET` configured in Cue.
 
 ---
 
@@ -341,7 +341,7 @@ Sessions are **automatically created** on first authenticated request:
 
 1. User authenticates with IdP and receives JWT
 2. User makes first API request (e.g., `POST /upload`)
-3. M-Autofill middleware extracts `session_id` from JWT
+3. Cue middleware extracts `session_id` from JWT
 4. Session folder created: `sessions/{session_id}/`
 5. Session metadata saved with TTL (default: 24 hours)
 
@@ -630,7 +630,7 @@ curl -X POST http://localhost:8001/dev/token
 
 ### "Invalid token signature"
 
-**Cause**: JWT_SECRET mismatch between IdP and M-Autofill
+**Cause**: JWT_SECRET mismatch between IdP and Cue
 
 **Solution**:
 

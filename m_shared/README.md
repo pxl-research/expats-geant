@@ -1,10 +1,10 @@
 # M-Shared: Common Utilities & Infrastructure
 
-Shared utilities, data models, and client abstractions for both M-Chat and M-Autofill modules.
+Shared utilities, data models, and client abstractions for both Shape and Cue modules.
 
 ## Overview
 
-M-Shared provides the foundational infrastructure and utilities that both M-Chat and M-Autofill depend on:
+M-Shared provides the foundational infrastructure and utilities that both Shape and Cue depend on:
 
 - **LLM client abstraction** — Unified interface to OpenRouter, OpenAI-compatible APIs, and local LLMs
 - **Vector DB client** — ChromaDB wrapper with tenant/session isolation
@@ -246,7 +246,7 @@ See root `requirements.txt`. Key libraries:
 
 ## Integration
 
-M-Shared is imported by M-Chat and M-Autofill. Both modules depend on:
+M-Shared is imported by Shape and Cue. Both modules depend on:
 
 ```python
 from m_shared.llm import get_llm_client
@@ -268,5 +268,5 @@ from m_shared.auth import create_token, validate_token
 ## References
 
 - [Project Context](../openspec/project.md)
-- [M-Autofill Module](../cue_api/README.md)
-- [M-Chat Module](../shape_api/README.md)
+- [Cue Module](../cue_api/README.md)
+- [Shape Module](../shape_api/README.md)

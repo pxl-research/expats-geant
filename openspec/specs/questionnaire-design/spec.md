@@ -1,4 +1,4 @@
-# Capability: Questionnaire Design (M-Chat)
+# Capability: Questionnaire Design (Shape)
 
 ## Purpose
 
@@ -204,7 +204,7 @@ The system SHALL allow administrators to upload source documents (PPTX, DOCX, PD
 
 ### Requirement: Session Style Profile and Language
 
-The system SHALL maintain a style profile per M-Chat session that influences all LLM-generated suggestions, validation feedback, and generated question text. The style profile SHALL include: a `language` field (ISO 639-1, default `"en"`), a `free_text` field for admin-typed style preferences, and a `document_summary` field populated when the admin uploads an institutional style guide document. If no style preferences are provided, the system SHALL apply sensible defaults: English language, neutral formal tone, and rules from the platform's survey design guidelines. The style profile SHALL persist for the lifetime of the session and survive session resume. The admin SHALL be able to update the language or free-text preference at any point during the session.
+The system SHALL maintain a style profile per Shape session that influences all LLM-generated suggestions, validation feedback, and generated question text. The style profile SHALL include: a `language` field (ISO 639-1, default `"en"`), a `free_text` field for admin-typed style preferences, and a `document_summary` field populated when the admin uploads an institutional style guide document. If no style preferences are provided, the system SHALL apply sensible defaults: English language, neutral formal tone, and rules from the platform's survey design guidelines. The style profile SHALL persist for the lifetime of the session and survive session resume. The admin SHALL be able to update the language or free-text preference at any point during the session.
 
 #### Scenario: Default style profile applied
 

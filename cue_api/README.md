@@ -1,10 +1,10 @@
-# M-Autofill: Evidence-Based Answer Suggestion Assistant
+# Cue: Evidence-Based Answer Suggestion Assistant
 
 An AI-powered respondent assistant that retrieves relevant passages from user documents, proposes concise answers with full citations, and transparently explains how suggestions were derived.
 
 ## Overview
 
-M-Autofill is a RAG (Retrieval-Augmented Generation) module that helps respondents complete surveys and forms more accurately and efficiently. When a respondent needs to answer a question, they can upload supporting documents (PDFs, Word docs, images, audio, video, or webpages). M-Autofill:
+Cue is a RAG (Retrieval-Augmented Generation) module that helps respondents complete surveys and forms more accurately and efficiently. When a respondent needs to answer a question, they can upload supporting documents (PDFs, Word docs, images, audio, video, or webpages). Cue:
 
 1. **Retrieves**: Finds the most relevant passages from uploaded documents using semantic search
 2. **Generates**: Proposes a concise draft answer informed by those passages
@@ -298,7 +298,7 @@ See root `requirements.txt` for full list. Key libraries:
 
 ## Citation Accuracy & Quality Metrics
 
-M-Autofill's core value is accurate, verifiable citations. Monitor:
+Cue's core value is accurate, verifiable citations. Monitor:
 
 - **Citation accuracy**: Do suggested answers actually come from cited sources?
 - **Relevance**: Are retrieved passages actually useful for answering the question?
@@ -308,7 +308,7 @@ Manual review and LLM-based evaluation frameworks (e.g., RAGAS-style) planned fo
 
 ## Integration
 
-M-Autofill is designed as an embeddable SDK. Integrate via:
+Cue is designed as an embeddable SDK. Integrate via:
 
 1. **REST API**: Call endpoints directly from existing survey/form tools
 2. **QTI 3.0**: Import/export questionnaires in QTI format for interoperability
@@ -327,5 +327,5 @@ See [M-Shared](../m_shared/README.md) for client SDKs and utilities.
 ## References
 
 - [Project Context](../openspec/project.md)
-- [M-Chat Module](../shape_api/README.md)
+- [Shape Module](../shape_api/README.md)
 - [M-Shared Utilities](../m_shared/README.md)

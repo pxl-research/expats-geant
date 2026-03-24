@@ -6,7 +6,7 @@ Upload, parse, and prepare documents for semantic search and answer suggestion.
 ## Requirements
 ### Requirement: Multi-Format Document Upload
 
-The system SHALL accept documents in common formats for M-Autofill sessions.
+The system SHALL accept documents in common formats for Cue sessions.
 
 #### Scenario: Upload text file
 

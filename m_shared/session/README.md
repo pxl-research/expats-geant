@@ -207,6 +207,6 @@ pytest tests/test_session_manager.py tests/test_session_isolation.py tests/test_
 
 - SessionManager **uses** ChromaDocumentStore, not extends it
 - Clear separation of concerns: session management vs vector operations
-- Shared between M-Chat and M-Autofill modules
+- Shared between Shape and Cue modules
 - Located in `m_shared` for reusability
 

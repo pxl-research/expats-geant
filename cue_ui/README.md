@@ -1,10 +1,10 @@
-# M-UI: Survey Review Frontend
+# Cue UI: Survey Review Frontend
 
 Server-rendered FastAPI app (Jinja2 + HTMX) that lets respondents upload a survey,
 optionally upload source documents, review AI suggestions per question, and submit responses
 back to the originating platform.
 
-Communicates with M-Autofill exclusively via HTTP — imports nothing from `cue_api/` or `m_shared/`.
+Communicates with Cue exclusively via HTTP — imports nothing from `cue_api/` or `m_shared/`.
 
 ## Running
 
@@ -14,15 +14,15 @@ Communicates with M-Autofill exclusively via HTTP — imports nothing from `cue_
 docker compose up --build
 ```
 
-- M-Autofill API: http://localhost:8001
-- M-UI frontend:  http://localhost:8002
+- Cue API: http://localhost:8001
+- Cue UI frontend:  http://localhost:8002
 
 ### Standalone (dev)
 
 ```bash
 pip install -r cue_ui/requirements.txt
 
-# Point at a running M-Autofill instance
+# Point at a running Cue instance
 export AUTOFILL_API_URL=http://localhost:8001
 
 python -m uvicorn cue_ui.main:app --host 127.0.0.1 --port 8002 --reload
@@ -66,7 +66,7 @@ Browser ──► cue_ui (FastAPI, port 8002)
 |------|---------|
 | `main.py` | App factory, static file mount |
 | `router.py` | All routes (auth, upload, review, submit) |
-| `api_client.py` | httpx wrapper — one function per M-Autofill endpoint |
+| `api_client.py` | httpx wrapper — one function per Cue endpoint |
 | `auth.py` | HttpOnly cookie read/write, OAuth redirect helpers |
 | `templates/survey.html` | Main review page with question controls |
 | `static/review-state.js` | localStorage helper (accept/edit/dismiss state) |

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Core domain models shared across M-Chat and M-Autofill.
+Core domain models shared across Shape and Cue.
 ## Requirements
 ### Requirement: Survey Model
 

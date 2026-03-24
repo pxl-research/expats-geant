@@ -5,7 +5,7 @@ TBD - created by archiving change implement-chat-ui. Update Purpose after archiv
 ## Requirements
 ### Requirement: Session Landing Page
 
-The M-Chat UI SHALL provide a landing page that lists the authenticated user's active survey design sessions and allows starting a new session.
+The Shape UI SHALL provide a landing page that lists the authenticated user's active survey design sessions and allows starting a new session.
 
 #### Scenario: Resume existing session
 
@@ -20,7 +20,7 @@ The M-Chat UI SHALL provide a landing page that lists the authenticated user's a
 
 ### Requirement: Style Setup Page
 
-The M-Chat UI SHALL present a style setup step after session creation where the user can set their language preference, type style notes, and optionally upload an institutional style guide document. The step SHALL be skippable to allow users to start chatting immediately with defaults applied.
+The Shape UI SHALL present a style setup step after session creation where the user can set their language preference, type style notes, and optionally upload an institutional style guide document. The step SHALL be skippable to allow users to start chatting immediately with defaults applied.
 
 #### Scenario: Set language and style
 
@@ -39,7 +39,7 @@ The M-Chat UI SHALL present a style setup step after session creation where the 
 
 ### Requirement: Chat Interface
 
-The M-Chat UI SHALL provide a conversational chat interface for iterative survey design. The interface SHALL display conversation history, a live preview of the current survey draft, and controls to upload source documents, reset the draft, or navigate to export.
+The Shape UI SHALL provide a conversational chat interface for iterative survey design. The interface SHALL display conversation history, a live preview of the current survey draft, and controls to upload source documents, reset the draft, or navigate to export.
 
 #### Scenario: Send message and receive response
 
@@ -60,7 +60,7 @@ The M-Chat UI SHALL provide a conversational chat interface for iterative survey
 
 ### Requirement: Export and Publish Page
 
-The M-Chat UI SHALL provide an export page where the user selects a target platform and either downloads the survey as a file or pushes it directly to the platform via its API.
+The Shape UI SHALL provide an export page where the user selects a target platform and either downloads the survey as a file or pushes it directly to the platform via its API.
 
 #### Scenario: Push to platform
 

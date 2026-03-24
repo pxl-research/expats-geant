@@ -1,4 +1,4 @@
-# Capability: Answer Suggestion (M-Autofill)
+# Capability: Answer Suggestion (Cue)
 
 ## Purpose
 

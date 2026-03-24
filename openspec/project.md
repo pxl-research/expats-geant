@@ -4,8 +4,8 @@
 
 An AI-assisted survey platform designed to improve questionnaire quality and response completeness while prioritizing privacy and user control. Two AI helpers work together:
 
-- **M-Chat**: Assists administrators in designing better questionnaires faster (suggestions, style guidelines, evaluation rules)
-- **M-Autofill**: Supports respondents with evidence-based answer suggestions drawn from their uploaded documents, with full citations and transparency
+- **Shape**: Assists administrators in designing better questionnaires faster (suggestions, style guidelines, evaluation rules)
+- **Cue**: Supports respondents with evidence-based answer suggestions drawn from their uploaded documents, with full citations and transparency
 
 The platform operates "privacy by default" with on-premise deployment options, strict tenant isolation, and minimal data processing. Pilot runs Jan-May 2026 at PXL University College and partner institutions, with results shared at GÉANT TNC and core components released as open-source for the GÉANT community.
 
@@ -71,7 +71,7 @@ Our executables are pip3 and python3 (not pip and python)
 - `cue-api/`: Answer suggestion assistant (document processing, RAG, citation generation)
 - `m-shared/`: Common utilities (LLM client abstraction, vector DB client, data models, auth, error handling)
 
-**M-Autofill Document Processing Pipeline:**
+**Cue Document Processing Pipeline:**
 
 - File upload (PDF, DOCX, text, audio, video) → pre-process to text → chunk using configurable strategy → generate embeddings → store in ChromaDB
 - Original files discarded after processing to minimize data retention
