@@ -1,16 +1,16 @@
-"""Cookie helpers and OAuth redirect logic for m_chat_ui."""
+"""Cookie helpers and OAuth redirect logic for cue_ui."""
 
 import os
 
 from fastapi import Request
 
-COOKIE_NAME = "chat_token"
+COOKIE_NAME = "autofill_token"
 
 # Server-to-server URL (Docker-internal or localhost)
-MCHAT_API_URL = os.getenv("MCHAT_API_URL", "http://localhost:8003")
+AUTOFILL_API_URL = os.getenv("AUTOFILL_API_URL", "http://localhost:8001")
 
 # Browser-accessible URL for OAuth redirects (must be reachable by the end user's browser)
-MCHAT_PUBLIC_URL = os.getenv("MCHAT_PUBLIC_URL", "http://localhost:8003")
+AUTOFILL_PUBLIC_URL = os.getenv("AUTOFILL_PUBLIC_URL", "http://localhost:8001")
 
 # Set COOKIE_SECURE=true in production (HTTPS deployments)
 _COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
@@ -36,3 +36,15 @@ def set_token_cookie(response, token: str) -> None:
 def clear_token_cookie(response) -> None:
     """Remove auth cookie."""
     response.delete_cookie(key=COOKIE_NAME)
+
+
+def require_auth(request: Request) -> str:
+    """FastAPI dependency: return token or redirect to login."""
+    token = get_token(request)
+    if not token:
+        raise _AuthRedirect()
+    return token
+
+
+class _AuthRedirect(Exception):
+    """Sentinel used by middleware to trigger login redirect."""

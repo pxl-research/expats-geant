@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from m_autofill.api import create_app
+from cue_api.api import create_app
 from m_shared.auth.jwt_handler import create_token
 from m_shared.session.manager import SessionManager
 
@@ -52,7 +52,7 @@ class TestSuggestReasoning:
         self, client, auth_token, tmp_path, tmp_session_manager, mock_llm
     ):
         """reasoning field present on /suggest response (may be null)."""
-        from m_autofill.ingest import ingest_files_into_store
+        from cue_api.ingest import ingest_files_into_store
 
         doc = tmp_path / "policy.txt"
         doc.write_text("Data is retained for 36 months after contract termination.")
@@ -84,7 +84,7 @@ class TestSuggestReasoning:
         session = tmp_session_manager.create_session(user_id="test_user", jwt_token=auth_token)
         store = tmp_session_manager.get_vector_store(session.session_id)
 
-        from m_autofill.ingest import ingest_files_into_store
+        from cue_api.ingest import ingest_files_into_store
 
         ingest_files_into_store(file_paths=[str(doc)], store=store, session_id=session.session_id)
 
@@ -108,7 +108,7 @@ class TestSuggestReasoning:
 
 class TestBatchSuggestEndpoint:
     def _seed_doc(self, tmp_path, tmp_session_manager, auth_token):
-        from m_autofill.ingest import ingest_files_into_store
+        from cue_api.ingest import ingest_files_into_store
 
         doc = tmp_path / "doc.txt"
         doc.write_text(

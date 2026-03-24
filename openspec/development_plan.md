@@ -1,6 +1,6 @@
 # Development Plan
 
-This document outlines the phased approach to building Expat-GÉANT from January to June 2026, aligned with the baseline capability specs in `specs/`.
+This document outlines the phased approach to building Expats from January to June 2026, aligned with the baseline capability specs in `specs/`.
 
 ## Project Timeline
 
@@ -64,8 +64,8 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 **Key Files (Completed):**
 
-- ✅ `m_autofill/ingest.py` (Upload, parse, chunk via `ingest_files_into_store()`)
-- ✅ `m_autofill/validation.py` (File validation with size/type checks)
+- ✅ `cue_api/ingest.py` (Upload, parse, chunk via `ingest_files_into_store()`)
+- ✅ `cue_api/validation.py` (File validation with size/type checks)
 - ✅ `m_shared/vectordb/utils.py` (Text extraction, chunking algorithms)
 - ✅ `tests/test_document_ingestion.py` (13 tests for text extraction)
 - ✅ `tests/test_chunking.py` (24 tests for all chunking strategies)
@@ -128,7 +128,7 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 **Key Files:**
 
-- `m_autofill/rag_pipeline.py` (Retrieval, generation, citations) — 392 lines
+- `cue_api/rag_pipeline.py` (Retrieval, generation, citations) — 392 lines
 - `tests/test_rag_pipeline.py` — 31 unit tests
 - `tests/test_rag_integration.py` — 8 integration tests
 
@@ -157,8 +157,8 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 - [x] `m_shared/utils/audit.py` (Audit logging & reports) — 540 lines
 - [x] `m_shared/utils/__init__.py` (Package exports)
-- [x] `m_autofill/ingest.py` (Upload event logging)
-- [x] `m_autofill/rag_pipeline.py` (Suggestion event logging)
+- [x] `cue_api/ingest.py` (Upload event logging)
+- [x] `cue_api/rag_pipeline.py` (Suggestion event logging)
 - [x] `m_shared/session/manager.py` (Session lifecycle & retention enforcement)
 - [x] `tests/test_audit.py` — 25 unit tests
 - [x] `tests/test_audit_integration.py` — 8 integration tests
@@ -190,7 +190,7 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 **Key Files:**
 
-- [x] `m_autofill/api.py` (FastAPI endpoints) — 422 lines, 6 endpoints
+- [x] `cue_api/api.py` (FastAPI endpoints) — 422 lines, 6 endpoints
 - [x] `tests/test_session_api.py` — 586 lines, 23 tests
 - [x] `Dockerfile` and `docker-compose.yml`
 - [x] `m_shared/auth/middleware.py` — Updated public endpoints
@@ -230,10 +230,10 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 **Key Files:**
 
-- [x] `m_chat/session.py` (session I/O helpers, style profile, draft survey)
-- [x] `m_chat/suggestion_engine.py` (LLM-based suggestions)
-- [x] `m_chat/validation_engine.py` (style & compliance checks)
-- [x] `m_chat/tagging_engine.py` (auto-tagging)
+- [x] `shape_api/session.py` (session I/O helpers, style profile, draft survey)
+- [x] `shape_api/suggestion_engine.py` (LLM-based suggestions)
+- [x] `shape_api/validation_engine.py` (style & compliance checks)
+- [x] `shape_api/tagging_engine.py` (auto-tagging)
 
 ---
 
@@ -252,8 +252,8 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 **Key Files:**
 
-- [x] `m_chat/api.py` (FastAPI endpoints — stateless + stateful)
-- [x] `m_chat/models.py` (Pydantic request/response models)
+- [x] `shape_api/api.py` (FastAPI endpoints — stateless + stateful)
+- [x] `shape_api/models.py` (Pydantic request/response models)
 - [x] `m_shared/adapters/` (all four adapters with `create_survey()`)
 - [x] `tests/test_chat_adapters.py` (47 tests)
 - [x] `tests/test_chat_api.py` (42 tests)
@@ -264,16 +264,16 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 **Deliverables:**
 
-- [x] M-Chat UI (`m_chat_ui/` service, HTMX-based)
+- [x] M-Chat UI (`shape_ui/` service, HTMX-based)
 - [x] Landing page (list/resume sessions or start new)
 - [x] Style setup page (language, preferences, style guide upload)
 - [x] Chat page (message input, assistant response, live survey preview sidebar)
 - [x] Export page (platform selector, file export or adapter push)
-- [x] Docker container for `m_chat_ui`, registered in `docker-compose.yml`
+- [x] Docker container for `shape_ui`, registered in `docker-compose.yml`
 
 **Key Files:**
 
-- [x] `m_chat_ui/` (UI service package)
+- [x] `shape_ui/` (UI service package)
 - [x] `docker-compose.yml` (updated with M-Chat UI service)
 
 ---

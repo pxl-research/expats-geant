@@ -1,6 +1,6 @@
 # Data Model
 
-This document describes the internal data structures used across the Expat-GÉANT platform. The model is designed as a **platform-agnostic common denominator** — broad enough to represent questionnaires from a variety of survey tools, while staying simple enough to remain easy to work with.
+This document describes the internal data structures used across the Expats platform. The model is designed as a **platform-agnostic common denominator** — broad enough to represent questionnaires from a variety of survey tools, while staying simple enough to remain easy to work with.
 
 ---
 
@@ -280,4 +280,4 @@ Platform-specific fields that do not fit this common structure are preserved in 
 | `Response` | [m_shared/models/response.py](../m_shared/models/response.py) |
 | `Session` | [m_shared/models/session.py](../m_shared/models/session.py) |
 | `Citation` | [m_shared/models/citation.py](../m_shared/models/citation.py) |
-| Batch API models | [m_autofill/models.py](../m_autofill/models.py) |
+| Batch API models | [cue_api/models.py](../cue_api/models.py) |

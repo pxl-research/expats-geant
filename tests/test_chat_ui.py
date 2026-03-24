@@ -1,4 +1,4 @@
-"""Tests for m_chat_ui: api_client unit tests and router integration tests.
+"""Tests for shape_ui: api_client unit tests and router integration tests.
 
 Unit tests for api_client:
 - create_session success / API error
@@ -30,7 +30,7 @@ import pytest
 import respx
 from fastapi.testclient import TestClient
 
-from m_chat_ui.api_client import (
+from shape_ui.api_client import (
     APIError,
     create_session,
     create_survey_on_platform,
@@ -46,7 +46,7 @@ from m_chat_ui.api_client import (
     upload_content_doc,
     upload_style_doc,
 )
-from m_chat_ui.main import create_app
+from shape_ui.main import create_app
 
 BASE = "http://localhost:8003"
 TOKEN = "test-jwt-token"
@@ -588,7 +588,7 @@ def test_delete_session_redirects_to_home(client):
 def test_auth_login_redirects(client):
     resp = client.get("/auth/login", follow_redirects=False)
     assert resp.status_code in (302, 307)
-    # Redirects to m-chat public URL
+    # Redirects to shape-api public URL
     assert "auth/login" in resp.headers["location"]
 
 

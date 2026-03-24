@@ -9,9 +9,9 @@ from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from m_chat_ui import api_client
-from m_chat_ui.api_client import APIError
-from m_chat_ui.auth import (
+from shape_ui import api_client
+from shape_ui.api_client import APIError
+from shape_ui.auth import (
     MCHAT_API_URL,
     MCHAT_PUBLIC_URL,
     clear_token_cookie,
@@ -96,7 +96,7 @@ async def auth_callback(
         return response
 
     if code and state:
-        # OIDC authorization code flow: forward to m-chat server-side
+        # OIDC authorization code flow: forward to shape-api server-side
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(

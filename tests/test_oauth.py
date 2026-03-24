@@ -23,8 +23,8 @@ from m_shared.auth.oauth import (
 # Helpers
 # ---------------------------------------------------------------------------
 
-ISSUER = "http://localhost:8080/realms/expat-geant"
-CLIENT_ID = "m-autofill"
+ISSUER = "http://localhost:8080/realms/expats"
+CLIENT_ID = "cue-api"
 CLIENT_SECRET = "change-me"
 REDIRECT_URI = "http://localhost:8001/auth/callback"
 
@@ -69,7 +69,7 @@ def reset_caches():
 
 class TestNormalizeSub:
     def test_basic(self):
-        result = _normalize_sub("http://localhost:8080/realms/expat-geant", "user123")
+        result = _normalize_sub("http://localhost:8080/realms/expats", "user123")
         assert result == "localhost:8080:user123"
 
     def test_two_providers_produce_distinct_ids(self):

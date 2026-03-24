@@ -76,7 +76,7 @@ def suggest_question(
     Returns:
         List of SuggestionResult objects (may be fewer than n_suggestions on LLM failure)
     """
-    from m_chat.style import build_style_context
+    from shape_api.style import build_style_context
 
     system_msg = (
         build_style_context(style_profile or {})

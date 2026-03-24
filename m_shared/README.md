@@ -268,5 +268,5 @@ from m_shared.auth import create_token, validate_token
 ## References
 
 - [Project Context](../openspec/project.md)
-- [M-Autofill Module](../m_autofill/README.md)
-- [M-Chat Module](../m_chat/README.md)
+- [M-Autofill Module](../cue_api/README.md)
+- [M-Chat Module](../shape_api/README.md)

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from m_autofill.ingest import ingest_files_into_store
+from cue_api.ingest import ingest_files_into_store
 from m_shared.vectordb import ChromaDocumentStore
 
 # Test data directory

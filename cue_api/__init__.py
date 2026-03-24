@@ -3,7 +3,7 @@
 This package will host the respondent-side evidence-based assistant.
 """
 
-from m_autofill.ingest import ingest_files_into_store
-from m_autofill.rag_tools import RAGTools, rag_tool_descriptors
+from cue_api.ingest import ingest_files_into_store
+from cue_api.rag_tools import RAGTools, rag_tool_descriptors
 
 __all__ = ["ingest_files_into_store", "RAGTools", "rag_tool_descriptors"]

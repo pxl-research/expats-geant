@@ -4,7 +4,7 @@ import httpx
 import respx
 from fastapi.testclient import TestClient
 
-from m_ui.main import app
+from cue_ui.main import app
 
 TOKEN_COOKIE = {"autofill_token": "test-jwt-token"}
 BASE = "http://localhost:8001"

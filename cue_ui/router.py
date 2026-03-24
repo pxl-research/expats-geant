@@ -10,9 +10,9 @@ from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
-from m_ui import api_client
-from m_ui.api_client import APIError, auth_headers
-from m_ui.auth import (
+from cue_ui import api_client
+from cue_ui.api_client import APIError, auth_headers
+from cue_ui.auth import (
     AUTOFILL_API_URL,
     AUTOFILL_PUBLIC_URL,
     clear_token_cookie,
@@ -75,7 +75,7 @@ async def auth_callback(
         return response
 
     if code and state:
-        # OIDC authorization code flow: forward to m-autofill server-side
+        # OIDC authorization code flow: forward to cue-api server-side
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(

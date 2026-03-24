@@ -1,18 +1,18 @@
 # Deployment Guide
 
-This guide covers deploying the Expat-GÉANT platform using Docker.
+This guide covers deploying the Expats platform using Docker.
 
 ## Services Overview
 
 | Service | Port | Description |
 |---|---|---|
-| `m-autofill` | `8001` | Respondent answer suggestion API |
+| `cue-api` | `8001` | Respondent answer suggestion API |
 | `ui` | `8002` | M-UI survey review frontend (Jinja2 + HTMX) |
-| `m-chat` | `8003` | Administrator questionnaire design API |
-| `m_chat_ui` | `8004` | M-Chat browser UI |
+| `shape-api` | `8003` | Administrator questionnaire design API |
+| `shape_ui` | `8004` | M-Chat browser UI |
 | `keycloak` | `8080` | Bundled identity provider (OIDC) |
 
-All five services start together via `docker-compose up`. Keycloak auto-imports the `expat-geant` realm on first start.
+All five services start together via `docker-compose up`. Keycloak auto-imports the `expats` realm on first start.
 
 ## Prerequisites
 
@@ -27,8 +27,8 @@ This is the **recommended** deployment method.
 ### 1. Clone and Configure
 
 ```bash
-git clone https://github.com/pxl-be/expat-geant.git
-cd expat-geant
+git clone https://github.com/pxl-be/expats.git
+cd expats
 
 # Copy environment template
 cp .env.example .env
@@ -85,10 +85,10 @@ open http://localhost:8001/docs
 
 ```bash
 # View logs (follow mode)
-docker-compose logs -f m-autofill
+docker-compose logs -f cue-api
 
 # Check recent logs
-docker-compose logs --tail=50 m-autofill
+docker-compose logs --tail=50 cue-api
 ```
 
 ### 6. Stop the Service
@@ -105,11 +105,11 @@ docker-compose down -v
 
 M-Chat is the questionnaire design co-pilot API.
 
-- **Service name**: `m-chat` (docker-compose)
+- **Service name**: `shape-api` (docker-compose)
 - **Port**: `8003`
 - **Health check**: `http://localhost:8003/health`
 - **API docs**: `http://localhost:8003/docs`
-- **Chat UI**: `http://localhost:8004` (service `m_chat_ui`)
+- **Chat UI**: `http://localhost:8004` (service `shape_ui`)
 
 ### Additional Environment Variables
 
@@ -134,7 +134,7 @@ open http://localhost:8003/docs
 ### Monitor M-Chat logs
 
 ```bash
-docker-compose logs -f m-chat
+docker-compose logs -f shape-api
 ```
 
 See [MCHAT_API.md](MCHAT_API.md) for the full API reference.
@@ -153,7 +153,7 @@ M-UI is the browser-based survey review frontend for respondents.
 
 | Variable | Default | Description |
 |---|---|---|
-| `AUTOFILL_API_URL` | `http://m-autofill:8001` | Internal (Docker) URL for M-Autofill |
+| `AUTOFILL_API_URL` | `http://cue-api:8001` | Internal (Docker) URL for M-Autofill |
 | `AUTOFILL_PUBLIC_URL` | `http://localhost:8001` | Browser-accessible URL for M-Autofill |
 
 ### Verify M-UI is running
@@ -169,14 +169,14 @@ open http://localhost:8002
 
 M-Chat UI is the browser-based frontend for the questionnaire design co-pilot.
 
-- **Service name**: `m_chat_ui` (docker-compose)
+- **Service name**: `shape_ui` (docker-compose)
 - **Port**: `8004`
 
 ### Additional Environment Variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `MCHAT_API_URL` | `http://m-chat:8003` | Internal (Docker) URL for M-Chat |
+| `MCHAT_API_URL` | `http://shape-api:8003` | Internal (Docker) URL for M-Chat |
 | `MCHAT_PUBLIC_URL` | `http://localhost:8003` | Browser-accessible URL for M-Chat |
 
 ### Verify M-Chat UI is running
@@ -189,7 +189,7 @@ open http://localhost:8004
 
 ## Keycloak Service
 
-Keycloak is the bundled identity provider, pre-configured with the `expat-geant` realm.
+Keycloak is the bundled identity provider, pre-configured with the `expats` realm.
 
 - **Service name**: `keycloak` (docker-compose)
 - **Port**: `8080`
@@ -210,14 +210,14 @@ If you prefer not to use Docker Compose:
 ### Build the Image
 
 ```bash
-docker build -t m-autofill:latest .
+docker build -t cue-api:latest .
 ```
 
 ### Run the Container
 
 ```bash
 docker run -d \
-  --name m-autofill \
+  --name cue-api \
   -p 8001:8001 \
   -e JWT_SECRET="your-secure-secret-here" \
   -e OPENROUTER_API_KEY="sk-or-v1-xxxxx" \
@@ -226,23 +226,23 @@ docker run -d \
   -v sessions_data:/app/data/sessions \
   -v chroma_data:/app/data/chroma \
   --restart unless-stopped \
-  m-autofill:latest
+  cue-api:latest
 ```
 
 ### Container Management
 
 ```bash
 # View logs
-docker logs -f m-autofill
+docker logs -f cue-api
 
 # Stop container
-docker stop m-autofill
+docker stop cue-api
 
 # Start stopped container
-docker start m-autofill
+docker start cue-api
 
 # Remove container
-docker rm -f m-autofill
+docker rm -f cue-api
 ```
 
 ## Local Development (Without Docker)
@@ -407,7 +407,7 @@ curl http://localhost:8001/health
 
 # API root
 curl http://localhost:8001/
-# Expected: {"service":"m-autofill","status":"running"}
+# Expected: {"service":"cue-api","status":"running"}
 ```
 
 ### Public Endpoints (No Auth Required)
@@ -474,7 +474,7 @@ For production deployments with institutional authentication, see:
 **Check logs:**
 
 ```bash
-docker logs m-autofill
+docker logs cue-api
 ```
 
 **Common issues:**
@@ -579,4 +579,4 @@ server {
 - Documentation: [README.md](../README.md)
 - Integration guide: [docs/AUTOFILL_API.md](AUTOFILL_API.md)
 - Project specs: [openspec/project.md](../openspec/project.md)
-- Issues: [GitHub Issues](https://github.com/pxl-be/expat-geant/issues)
+- Issues: [GitHub Issues](https://github.com/pxl-be/expats/issues)

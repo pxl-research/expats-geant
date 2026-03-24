@@ -6,10 +6,10 @@ from pathlib import Path
 
 import uvicorn
 
-from m_chat.api import create_app
 from m_shared.auth.middleware import SessionMiddleware
 from m_shared.llm.client import LLMClient
 from m_shared.session.manager import SessionManager
+from shape_api.api import create_app
 
 
 def main():

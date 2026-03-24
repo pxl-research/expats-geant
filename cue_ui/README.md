@@ -4,7 +4,7 @@ Server-rendered FastAPI app (Jinja2 + HTMX) that lets respondents upload a surve
 optionally upload source documents, review AI suggestions per question, and submit responses
 back to the originating platform.
 
-Communicates with M-Autofill exclusively via HTTP — imports nothing from `m_autofill/` or `m_shared/`.
+Communicates with M-Autofill exclusively via HTTP — imports nothing from `cue_api/` or `m_shared/`.
 
 ## Running
 
@@ -20,12 +20,12 @@ docker compose up --build
 ### Standalone (dev)
 
 ```bash
-pip install -r m_ui/requirements.txt
+pip install -r cue_ui/requirements.txt
 
 # Point at a running M-Autofill instance
 export AUTOFILL_API_URL=http://localhost:8001
 
-python -m uvicorn m_ui.main:app --host 127.0.0.1 --port 8002 --reload
+python -m uvicorn cue_ui.main:app --host 127.0.0.1 --port 8002 --reload
 ```
 
 ## Manual E2E Test Flow
@@ -47,17 +47,17 @@ With the full stack running (`docker compose up`):
 pytest tests/test_ui_*.py -v
 ```
 
-All m_ui tests mock external HTTP calls (respx) — no running server required.
+All cue_ui tests mock external HTTP calls (respx) — no running server required.
 
 ## Architecture
 
 ```
-Browser ──► m_ui (FastAPI, port 8002)
+Browser ──► cue_ui (FastAPI, port 8002)
                 │  Jinja2 + HTMX, server-rendered
                 │  HttpOnly cookie stores JWT
                 │
                 ▼ httpx + Bearer JWT
-            m_autofill API (port 8001)
+            cue_api API (port 8001)
 ```
 
 ## Key Files

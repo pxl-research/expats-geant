@@ -17,7 +17,7 @@ M-Chat is fully implemented. The module provides:
 ## Module Structure
 
 ```
-m_chat/
+shape_api/
 ├── __init__.py
 ├── api.py                # FastAPI app factory (create_app)
 ├── models.py             # Pydantic request/response models
@@ -100,7 +100,7 @@ Full API reference: [docs/MCHAT_API.md](../docs/MCHAT_API.md)
 pytest tests/test_chat*.py -v
 
 # Run with coverage
-pytest tests/test_chat*.py -v --cov=m_chat --cov-report=term-missing
+pytest tests/test_chat*.py -v --cov=shape_api --cov-report=term-missing
 ```
 
 There are 9 M-Chat test files covering ~234 tests:

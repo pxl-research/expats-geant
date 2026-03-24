@@ -5,7 +5,7 @@ All code is open-source for non-commercial use only.
 
 ## Overview
 
-**Expat-GÉANT** is a proof-of-concept developed by PXL University College to build and evaluate privacy-first, standalone AI modules for the European research and education community.
+**Expats** is a proof-of-concept developed by PXL University College to build and evaluate privacy-first, standalone AI modules for the European research and education community.
 
 ### Core Components
 
@@ -39,9 +39,9 @@ All code is open-source for non-commercial use only.
 
 ```
 .
-├── m_autofill/     # Respondent answer suggestion assistant (REST API, port 8001)
-├── m_ui/           # Survey review frontend (Jinja2 + HTMX, port 8002)
-├── m_chat/         # Administrator questionnaire design assistant (REST API, port 8003)
+├── cue_api/     # Respondent answer suggestion assistant (REST API, port 8001)
+├── cue_ui/           # Survey review frontend (Jinja2 + HTMX, port 8002)
+├── shape_api/         # Administrator questionnaire design assistant (REST API, port 8003)
 ├── m_shared/       # Common utilities (LLM clients, vector DB, data models, auth)
 ├── tests/          # All tests (pytest)
 ├── docs/           # Deployment, integration, and API reference guides
@@ -70,8 +70,8 @@ All code is open-source for non-commercial use only.
 
 ```bash
 # Clone repository
-git clone https://github.com/pxl-be/expat-geant.git
-cd expat-geant
+git clone https://github.com/pxl-be/expats.git
+cd expats
 
 # Configure environment
 cp .env.example .env
@@ -97,8 +97,8 @@ See [Deployment Guide](docs/DEPLOYMENT.md) for full configuration options, manua
 - [Testing Guide](docs/TESTING.md) — Conformance test suite, coverage, smoke tests
 - [Data Model](docs/DATA_MODEL.md) — Internal data structures, Mermaid diagrams, platform mapping
 - [Adapter Guide](docs/ADAPTERS.md) — Writing custom survey platform adapters
-- [M-Autofill Module](m_autofill/README.md) — Answer suggestion assistant
-- [M-Chat Module](m_chat/README.md) — Questionnaire design assistant
+- [M-Autofill Module](cue_api/README.md) — Answer suggestion assistant
+- [M-Chat Module](shape_api/README.md) — Questionnaire design assistant
 - [Shared Utilities](m_shared/README.md) — Common infrastructure
 
 ## Contributing
@@ -107,8 +107,8 @@ See [Deployment Guide](docs/DEPLOYMENT.md) for full configuration options, manua
 
 ```bash
 # Clone repository
-git clone https://github.com/pxl-be/expat-geant.git
-cd expat-geant
+git clone https://github.com/pxl-be/expats.git
+cd expats
 
 # Create virtual environment
 python3 -m venv .venv

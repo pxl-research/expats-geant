@@ -2,14 +2,14 @@
 
 import pytest
 
-from m_autofill.models import (
+from cue_api.models import (
     BatchChoice,
     BatchSuggestItem,
     BatchSuggestRequest,
     BatchSuggestSection,
     normalize_to_sections,
 )
-from m_autofill.rag_pipeline import RAGPipeline
+from cue_api.rag_pipeline import RAGPipeline
 from m_shared.models.question import QuestionType
 
 # ---------------------------------------------------------------------------
@@ -373,7 +373,7 @@ class TestSuggestAPIErrorBranches:
         """App WITHOUT llm_client so rag_pipeline is None."""
         from fastapi.testclient import TestClient
 
-        from m_autofill.api import create_app
+        from cue_api.api import create_app
         from m_shared.auth.middleware import SessionMiddleware
 
         app = create_app(session_manager=session_manager)
@@ -385,7 +385,7 @@ class TestSuggestAPIErrorBranches:
         """App WITH llm_client so rag_pipeline is initialised."""
         from fastapi.testclient import TestClient
 
-        from m_autofill.api import create_app
+        from cue_api.api import create_app
         from m_shared.auth.middleware import SessionMiddleware
 
         app = create_app(session_manager=session_manager, llm_client=mock_llm)
@@ -409,7 +409,7 @@ class TestSuggestAPIErrorBranches:
         from unittest.mock import patch
 
         with patch(
-            "m_autofill.rag_pipeline.RAGPipeline.suggest_answer",
+            "cue_api.rag_pipeline.RAGPipeline.suggest_answer",
             side_effect=ValueError("no documents found"),
         ):
             response = client_with_rag.post(
@@ -425,7 +425,7 @@ class TestSuggestAPIErrorBranches:
         from unittest.mock import patch
 
         with patch(
-            "m_autofill.rag_pipeline.RAGPipeline.suggest_answer",
+            "cue_api.rag_pipeline.RAGPipeline.suggest_answer",
             side_effect=RuntimeError("LLM error"),
         ):
             response = client_with_rag.post(
@@ -461,7 +461,7 @@ class TestSuggestAPIErrorBranches:
             "items": [{"id": "q1", "type": "open_ended", "prompt": "What?", "choices": []}],
         }
         with patch(
-            "m_autofill.rag_pipeline.RAGPipeline.suggest_batch",
+            "cue_api.rag_pipeline.RAGPipeline.suggest_batch",
             side_effect=ValueError("session not found"),
         ):
             response = client_with_rag.post(

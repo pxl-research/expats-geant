@@ -67,8 +67,8 @@ Our executables are pip3 and python3 (not pip and python)
 
 **Modular Organization:**
 
-- `m-chat/`: Questionnaire design assistant (suggestion generation, QTI validation, style rule application)
-- `m-autofill/`: Answer suggestion assistant (document processing, RAG, citation generation)
+- `shape-api/`: Questionnaire design assistant (suggestion generation, QTI validation, style rule application)
+- `cue-api/`: Answer suggestion assistant (document processing, RAG, citation generation)
 - `m-shared/`: Common utilities (LLM client abstraction, vector DB client, data models, auth, error handling)
 
 **M-Autofill Document Processing Pipeline:**
@@ -126,7 +126,7 @@ Our executables are pip3 and python3 (not pip and python)
 
 **Repository Structure:**
 
-- GitHub monorepo containing `m-chat/`, `m-autofill/`, and `m-shared/` modules
+- GitHub monorepo containing `shape-api/`, `cue-api/`, and `m-shared/` modules
 
 **Branching Strategy:**
 
@@ -227,10 +227,10 @@ discarded on import and not represented in the internal data model.
 - Store raw platform-native logic in `question.metadata["display_logic"]` during import
   and restore it verbatim on export (opaque round-tripping — no internal model changes).
 - A first-class `conditions` field on `Question` and active AI reasoning about branching
-  logic in m-chat are post-PoC scope.
+  logic in shape-api are post-PoC scope.
 
-**Relevant for:** m-chat (questionnaire design, round-trip fidelity); not relevant for
-m-autofill (suggestion system does not need to execute branching logic).
+**Relevant for:** shape-api (questionnaire design, round-trip fidelity); not relevant for
+cue-api (suggestion system does not need to execute branching logic).
 
 ### Matrix / Grid Questions
 

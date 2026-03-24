@@ -29,7 +29,7 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 RUN python3 -c "from chromadb.utils.embedding_functions import DefaultEmbeddingFunction; DefaultEmbeddingFunction()(['warmup'])"
 
 # Copy application code
-COPY m_autofill/ ./m_autofill/
+COPY cue_api/ ./cue_api/
 COPY m_shared/ ./m_shared/
 COPY run_api.py ./run_api.py
 

@@ -4,7 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from m_autofill.rag_pipeline import RAGPipeline
+from cue_api.rag_pipeline import RAGPipeline
 from m_shared.models.citation import Citation
 
 

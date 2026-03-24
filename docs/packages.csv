@@ -1,0 +1,31 @@
+Package,Version,License
+openai,2.16.0,Apache-2.0
+chromadb,1.4.1,Apache-2.0
+markitdown,0.1.4,MIT
+tiktoken,0.12.0,MIT
+fastapi,0.128.0,MIT
+uvicorn,0.40.0,BSD-3-Clause
+httpx,0.28.1,BSD-3-Clause
+python-multipart,0.0.22,Apache-2.0
+PyJWT,2.11.0,MIT
+Authlib,1.6.9,BSD-3-Clause
+defusedxml,0.7.1,PSFL
+slowapi,0.1.9,MIT
+requests,2.32.5,Apache-2.0
+tqdm,4.67.2,MPL-2.0 AND MIT
+Jinja2,3.1.6,BSD-3-Clause
+itsdangerous,2.2.0,BSD-3-Clause
+Markdown,3.10.2,BSD-3-Clause
+ruff,0.15.2,MIT
+mypy,1.19.1,MIT
+types-requests,2.32.4,Apache-2.0
+pre-commit,4.5.1,MIT
+pytest,9.0.2,MIT
+pytest-mock,3.15.1,MIT
+pytest-cov,7.0.0,MIT
+pytest-asyncio,1.3.0,Apache-2.0
+respx,0.22.0,BSD-3-Clause
+Docker,(host-installed),Apache-2.0
+Docker Compose,(host-installed),Apache-2.0
+Keycloak,26.0,Apache-2.0
+Python,3.12,PSF

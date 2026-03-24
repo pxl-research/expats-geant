@@ -41,7 +41,7 @@ M-Chat is the administrator co-pilot for questionnaire design. It provides state
 
 - **Base URL**: `http://localhost:8003`
 - **Interactive docs**: `http://localhost:8003/docs`
-- **Service**: `m-chat` (Docker Compose)
+- **Service**: `shape-api` (Docker Compose)
 - **Port**: `8003`
 
 All endpoints except `/`, `/health`, `/dev/token`, `/auth/login`, and `/auth/callback` require a valid JWT in the `Authorization: Bearer <token>` header.

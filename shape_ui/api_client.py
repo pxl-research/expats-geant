@@ -281,7 +281,7 @@ async def get_conversation(token: str, session_id: str) -> list[dict[str, Any]]:
     Uses GET /chat/{session_id} — conversation history is not directly exposed
     by the API, so we return an empty list here (UI builds it from sends).
     """
-    # The m_chat API doesn't have a dedicated conversation history endpoint;
+    # The shape_api API doesn't have a dedicated conversation history endpoint;
     # the chat page loads history from session context.
     # Return empty list; actual messages are accumulated client-side via HTMX.
     return []

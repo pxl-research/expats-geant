@@ -1,6 +1,6 @@
 # Testing Guide
 
-This document describes the conformance test suite for the Expat-GÉANT project (D2.1 deliverable).
+This document describes the conformance test suite for the Expats project (D2.1 deliverable).
 
 ## Running the Full Suite
 
@@ -24,7 +24,7 @@ Coverage threshold: `--cov-fail-under=80` (configured in `pyproject.toml` / `set
 
 ## Test Suite Map
 
-### M-Autofill (`m_autofill/`)
+### M-Autofill (`cue_api/`)
 
 | File | Description |
 |---|---|
@@ -49,7 +49,7 @@ Coverage threshold: `--cov-fail-under=80` (configured in `pyproject.toml` / `set
 | `test_answer_report.py` | Per-session `answer_report.json` persistence and download endpoint |
 | `test_autofill_suggest_stream.py` | `POST /suggest/stream` SSE endpoint: event format, done sentinel, mid-stream error handling |
 
-### M-Chat (`m_chat/`)
+### M-Chat (`shape_api/`)
 
 | File | Description |
 |---|---|
@@ -76,7 +76,7 @@ Coverage threshold: `--cov-fail-under=80` (configured in `pyproject.toml` / `set
 | `test_oauth.py` | OIDC login and callback flows |
 | `test_live_api_import_adapters.py` | `LimeSurveyAdapter.fetch_survey` and `QualtricsAdapter.fetch_survey` unit tests |
 
-### M-UI (`m_ui/`)
+### M-UI (`cue_ui/`)
 
 | File | Description |
 |---|---|
@@ -173,4 +173,4 @@ open htmlcov/index.html
 pytest tests/ --cov=. --cov-report=xml
 ```
 
-The coverage threshold is 80% across the full codebase. Key modules with high coverage: `m_shared/`, `m_autofill/`, `m_chat/`.
+The coverage threshold is 80% across the full codebase. Key modules with high coverage: `m_shared/`, `cue_api/`, `shape_api/`.

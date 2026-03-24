@@ -35,7 +35,7 @@ M-Autofill is a RAG (Retrieval-Augmented Generation) module that helps responden
 ## Module Structure
 
 ```
-m_autofill/
+cue_api/
 ├── __init__.py
 ├── api.py                   # FastAPI endpoints
 ├── ingest.py                # Document upload and ingestion pipeline
@@ -327,5 +327,5 @@ See [M-Shared](../m_shared/README.md) for client SDKs and utilities.
 ## References
 
 - [Project Context](../openspec/project.md)
-- [M-Chat Module](../m_chat/README.md)
+- [M-Chat Module](../shape_api/README.md)
 - [M-Shared Utilities](../m_shared/README.md)

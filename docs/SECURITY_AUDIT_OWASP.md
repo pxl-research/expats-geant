@@ -1,6 +1,6 @@
 # Security Audit: OWASP Top 10 for LLM Applications (2025)
 
-**Project:** Expat-GÉANT Survey Platform
+**Project:** Expats Survey Platform
 **Audit Date:** 2026-03-13
 **Codebase State:** Pre-Production / PoC
 **Overall Risk:** MEDIUM — manageable with the fixes described below before any production deployment
@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-This is a multi-module FastAPI platform with AI-powered answer suggestion (`m_autofill` — RAG pipeline) and questionnaire design assistance (`m_chat` — LLM tool endpoints). The codebase demonstrates sound fundamentals: JWT auth, OIDC integration, path-traversal guards, defused XML parsing, and per-user session isolation. The most urgent gaps are **prompt injection in LLM calls**, **default secrets in docker-compose**, and **absent API-level rate limiting**.
+This is a multi-module FastAPI platform with AI-powered answer suggestion (`cue_api` — RAG pipeline) and questionnaire design assistance (`shape_api` — LLM tool endpoints). The codebase demonstrates sound fundamentals: JWT auth, OIDC integration, path-traversal guards, defused XML parsing, and per-user session isolation. The most urgent gaps are **prompt injection in LLM calls**, **default secrets in docker-compose**, and **absent API-level rate limiting**.
 
 ---
 
@@ -21,7 +21,7 @@ Untrusted content — user-supplied question text and document chunks retrieved 
 ### Evidence
 
 ```python
-# m_autofill/rag_pipeline.py (approximate lines 155–168)
+# cue_api/rag_pipeline.py (approximate lines 155–168)
 prompt = f"""Based on the following document excerpts, provide a concise answer to the question.
 
 Question: {question}
@@ -36,7 +36,7 @@ Instructions:
 Answer:"""
 ```
 
-A similar pattern exists in `m_chat/suggestion_engine.py` and `m_chat/api.py`.
+A similar pattern exists in `shape_api/suggestion_engine.py` and `shape_api/api.py`.
 
 ### Attack Scenario
 ```
@@ -116,7 +116,7 @@ No pinned hashes (`--hash`) in `requirements.txt`; no AI-specific Software Bill 
 ## LLM04: Data and Model Poisoning
 
 ### Issue
-Documents uploaded to the RAG pipeline (`m_autofill`) are chunked and inserted into ChromaDB without integrity validation. There is no check for adversarially crafted documents (e.g., documents containing thousands of repetitions of an injection payload to skew similarity search).
+Documents uploaded to the RAG pipeline (`cue_api`) are chunked and inserted into ChromaDB without integrity validation. There is no check for adversarially crafted documents (e.g., documents containing thousands of repetitions of an injection payload to skew similarity search).
 
 ### Risk Level
 **MEDIUM**
@@ -147,7 +147,7 @@ No evidence of `eval()` or `exec()` on model output (good). However, model-gener
 ## LLM06: Excessive Agency
 
 ### Issue
-The `m_chat` tool endpoints (`/suggest`, `/validate`, `/tag`) require auth, but there is no explicit scope/permission separation between read-only operations and write operations (e.g., `create_survey` on adapters). The LLM engines have access to all four adapters without scoping by user role.
+The `shape_api` tool endpoints (`/suggest`, `/validate`, `/tag`) require auth, but there is no explicit scope/permission separation between read-only operations and write operations (e.g., `create_survey` on adapters). The LLM engines have access to all four adapters without scoping by user role.
 
 ### Risk Level
 **MEDIUM**
@@ -162,7 +162,7 @@ The `m_chat` tool endpoints (`/suggest`, `/validate`, `/tag`) require auth, but 
 ## LLM07: System Prompt Leakage
 
 ### Issue
-System prompts in `m_chat/suggestion_engine.py` and `m_autofill/rag_pipeline.py` contain internal operational instructions. While no hard secrets were found in the prompts themselves, the prompts do not instruct the model to refuse requests to reveal them.
+System prompts in `shape_api/suggestion_engine.py` and `cue_api/rag_pipeline.py` contain internal operational instructions. While no hard secrets were found in the prompts themselves, the prompts do not instruct the model to refuse requests to reveal them.
 
 ### Risk Level
 **LOW**
@@ -181,7 +181,7 @@ System prompts in `m_chat/suggestion_engine.py` and `m_autofill/rag_pipeline.py`
 ## LLM08: Vector and Embedding Weaknesses
 
 ### Issue
-The ChromaDB collection in `m_autofill` does not appear to enforce per-user access control at the vector store level. Retrieval queries filter by metadata (session/user), but if the filter is absent or bypassed, chunks from other users could be returned.
+The ChromaDB collection in `cue_api` does not appear to enforce per-user access control at the vector store level. Retrieval queries filter by metadata (session/user), but if the filter is absent or bypassed, chunks from other users could be returned.
 
 ### Risk Level
 **MEDIUM**
@@ -259,12 +259,12 @@ No `SlowAPI`, `fastapi-limiter`, or equivalent middleware is present in any `cre
 | JWT authentication with validation | `m_shared/auth/middleware.py` | ✅ |
 | OIDC with issuer/audience/state validation | `m_shared/auth/oauth.py` | ✅ |
 | Per-user session isolation | `m_shared/session/manager.py` | ✅ |
-| Path traversal guard on file uploads | `m_autofill/api.py` | ✅ |
+| Path traversal guard on file uploads | `cue_api/api.py` | ✅ |
 | Defused XML parsing (XXE/bomb prevention) | `m_shared/adapters/limesurvey.py` | ✅ |
-| File type allowlist on upload | `m_autofill/validation.py` | ✅ |
-| File size limits (50 MB default) | `m_autofill/api.py` | ✅ |
-| HTTPS enforcement on adapter URLs | `m_chat/api.py` | ✅ |
-| SSRF partial mitigation (loopback/private IP block) | `m_chat/api.py` | ✅ |
+| File type allowlist on upload | `cue_api/validation.py` | ✅ |
+| File size limits (50 MB default) | `cue_api/api.py` | ✅ |
+| HTTPS enforcement on adapter URLs | `shape_api/api.py` | ✅ |
+| SSRF partial mitigation (loopback/private IP block) | `shape_api/api.py` | ✅ |
 
 ---
 

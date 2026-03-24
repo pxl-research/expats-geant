@@ -1,12 +1,12 @@
-# Docker Compose for Expat-GÉANT
-# Services: m-autofill (8001), ui (8002), m-chat (8003), m_chat_ui (8004), keycloak (8080)
+# Docker Compose for Expats
+# Services: cue-api (8001), ui (8002), shape-api (8003), shape_ui (8004), keycloak (8080)
 
 services:
-  m-autofill:
+  cue-api:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: m-autofill
+    container_name: cue-api
     deploy:
       resources:
         limits:
@@ -22,10 +22,10 @@ services:
       - JWT_EXPIRATION_HOURS=24
 
       # OIDC: 'keycloak' resolves in Docker (DNS) and on Mac host (/etc/hosts: 127.0.0.1 keycloak)
-      - OIDC_ISSUER_URL=http://keycloak:8080/realms/expat-geant
-      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-m-autofill}
+      - OIDC_ISSUER_URL=http://keycloak:8080/realms/expats
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-cue-api}
       - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-change-me}
-      # Redirect Keycloak's authorization code to m_ui (m_ui proxies it server-side)
+      # Redirect Keycloak's authorization code to cue_ui (cue_ui proxies it server-side)
       - OIDC_REDIRECT_URI=${OIDC_REDIRECT_URI:-http://localhost:8002/auth/callback}
 
       # LLM Configuration
@@ -72,13 +72,13 @@ services:
       start_period: 10s
 
     networks:
-      - m-autofill-network
+      - cue-api-network
 
-  m-chat:
+  shape-api:
     build:
       context: .
-      dockerfile: m_chat/Dockerfile
-    container_name: m-chat
+      dockerfile: shape_api/Dockerfile
+    container_name: shape-api
     deploy:
       resources:
         limits:
@@ -91,8 +91,8 @@ services:
       - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
       - JWT_ALGORITHM=HS256
       - JWT_EXPIRATION_HOURS=24
-      - OIDC_ISSUER_URL=http://keycloak:8080/realms/expat-geant
-      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-m-chat}
+      - OIDC_ISSUER_URL=http://keycloak:8080/realms/expats
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-shape-api}
       - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-change-me}
       - OIDC_REDIRECT_URI=${OIDC_REDIRECT_URI:-http://localhost:8002/auth/callback}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
@@ -117,13 +117,13 @@ services:
       retries: 3
       start_period: 10s
     networks:
-      - m-autofill-network
+      - cue-api-network
 
   ui:
     build:
       context: .
-      dockerfile: m_ui/Dockerfile
-    container_name: m-ui
+      dockerfile: cue_ui/Dockerfile
+    container_name: cue-ui
     deploy:
       resources:
         limits:
@@ -134,21 +134,21 @@ services:
       - "8002:8002"
     environment:
       # Server-to-server URL (Docker-internal network)
-      - AUTOFILL_API_URL=http://m-autofill:8001
+      - AUTOFILL_API_URL=http://cue-api:8001
       # Browser-accessible URL (must be reachable by the end user's browser)
       - AUTOFILL_PUBLIC_URL=${AUTOFILL_PUBLIC_URL:-http://localhost:8001}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     depends_on:
-      - m-autofill
+      - cue-api
     restart: unless-stopped
     networks:
-      - m-autofill-network
+      - cue-api-network
 
-  m_chat_ui:
+  shape_ui:
     build:
       context: .
-      dockerfile: m_chat_ui/Dockerfile
-    container_name: m-chat-ui
+      dockerfile: shape_ui/Dockerfile
+    container_name: shape-ui
     deploy:
       resources:
         limits:
@@ -158,14 +158,14 @@ services:
     ports:
       - "8004:8004"
     environment:
-      - MCHAT_API_URL=http://m-chat:8003
+      - MCHAT_API_URL=http://shape-api:8003
       - MCHAT_PUBLIC_URL=${MCHAT_PUBLIC_URL:-http://localhost:8003}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     depends_on:
-      - m-chat
+      - shape-api
     restart: unless-stopped
     networks:
-      - m-autofill-network
+      - cue-api-network
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
@@ -191,7 +191,7 @@ services:
     volumes:
       - ./keycloak:/opt/keycloak/data/import
     networks:
-      - m-autofill-network
+      - cue-api-network
 
 volumes:
   sessions_data:
@@ -202,5 +202,5 @@ volumes:
     driver: local
 
 networks:
-  m-autofill-network:
+  cue-api-network:
     driver: bridge

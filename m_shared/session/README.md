@@ -133,7 +133,7 @@ Supported filter keys:
 
 ```python
 from m_shared.session import SessionManager
-from m_autofill.ingest import ingest_files_into_store
+from cue_api.ingest import ingest_files_into_store
 
 # Initialize
 manager = SessionManager()

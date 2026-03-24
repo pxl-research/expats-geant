@@ -5,9 +5,9 @@ TBD - created by archiving change add-survey-ui. Update Purpose after archive.
 ## Requirements
 ### Requirement: API Separation
 
-The survey UI SHALL be a standalone module (`m_ui/`) that communicates with the M-Autofill
+The survey UI SHALL be a standalone module (`cue_ui/`) that communicates with the M-Autofill
 core system exclusively via its public HTTP API. The UI SHALL NOT import Python modules from
-`m_autofill/` or `m_shared/` directly.
+`cue_api/` or `m_shared/` directly.
 
 #### Scenario: UI calls API for survey data
 
@@ -18,8 +18,8 @@ core system exclusively via its public HTTP API. The UI SHALL NOT import Python 
 #### Scenario: UI streams suggestions via SSE proxy
 
 - **WHEN** the UI needs to populate suggestions for a survey session
-- **THEN** the browser connects to the m-ui SSE proxy endpoint `GET /session/{id}/suggest-stream`
-- **AND** m-ui forwards the request to `POST /suggest/stream` on M-Autofill, injecting the auth token
+- **THEN** the browser connects to the cue-ui SSE proxy endpoint `GET /session/{id}/suggest-stream`
+- **AND** cue-ui forwards the request to `POST /suggest/stream` on M-Autofill, injecting the auth token
 - **AND** each suggestion event is re-rendered as HTML and forwarded to the browser as it arrives
 - **AND** the UI does not call the bulk `POST /suggest/batch` endpoint for the review page
 

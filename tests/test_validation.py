@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from m_autofill.validation import (
+from cue_api.validation import (
     MAX_FILE_SIZE_BYTES,
     SUPPORTED_EXTENSIONS,
     FileValidationError,

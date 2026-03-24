@@ -1,9 +1,9 @@
-"""Tests for m_chat.style — style document processing."""
+"""Tests for shape_api.style — style document processing."""
 
 from unittest.mock import Mock
 
-from m_chat.style import build_style_context, extract_style_document, summarise_style_rules
 from m_shared.llm.client import LLMClient
+from shape_api.style import build_style_context, extract_style_document, summarise_style_rules
 
 # ---------------------------------------------------------------------------
 # build_style_context

@@ -51,7 +51,7 @@ LOG_LEVEL=INFO
 ### 2. Build the image
 
 ```bash
-docker build -t m-autofill:latest .
+docker build -t cue-api:latest .
 ```
 
 ### 3. Start the service
@@ -285,12 +285,12 @@ Browser                M-Autofill             OIDC Provider
 ### Quick Start with Bundled Keycloak
 
 ```bash
-# 1. Start services (Keycloak auto-imports the expat-geant realm)
+# 1. Start services (Keycloak auto-imports the expats realm)
 docker-compose up
 
 # 2. Set OIDC env vars
-OIDC_ISSUER_URL=http://localhost:8080/realms/expat-geant
-OIDC_CLIENT_ID=m-autofill
+OIDC_ISSUER_URL=http://localhost:8080/realms/expats
+OIDC_CLIENT_ID=cue-api
 OIDC_CLIENT_SECRET=change-me
 OIDC_REDIRECT_URI=http://localhost:8001/auth/callback
 

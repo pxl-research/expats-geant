@@ -11,9 +11,24 @@ from uuid import uuid4
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse
 
-from m_autofill.validation import validate_file_upload
-from m_chat.conversation import execute_chat_turn
-from m_chat.models import (
+from cue_api.validation import validate_file_upload
+from m_shared.adapters.base import SurveyAdapter
+from m_shared.adapters.registry import get_adapter
+from m_shared.auth.jwt_handler import create_token
+from m_shared.auth.oauth import (
+    OIDCConfigurationError,
+    OIDCStateError,
+    OIDCTokenError,
+    exchange_code,
+    get_authorization_url,
+)
+from m_shared.models.question import Question
+from m_shared.models.survey import Survey
+from m_shared.rate_limit import apply_rate_limiting, limiter
+from m_shared.session.manager import SessionManager
+from m_shared.vectordb.utils import document_to_markdown
+from shape_api.conversation import execute_chat_turn
+from shape_api.models import (
     ChatSessionListResponse,
     ChatSessionResponse,
     ChatSurveyResponse,
@@ -36,7 +51,7 @@ from m_chat.models import (
     ValidateRequest,
     ValidateResponse,
 )
-from m_chat.session import (
+from shape_api.session import (
     DEFAULT_STYLE_PROFILE,
     append_message,
     clear_draft_and_vocabulary,
@@ -50,25 +65,10 @@ from m_chat.session import (
     save_tag_vocabulary,
     update_vocabulary,
 )
-from m_chat.style import extract_style_document, summarise_style_rules
-from m_chat.suggestion_engine import suggest_question
-from m_chat.tagging_engine import suggest_tags
-from m_chat.validation_engine import validate_question, validate_survey
-from m_shared.adapters.base import SurveyAdapter
-from m_shared.adapters.registry import get_adapter
-from m_shared.auth.jwt_handler import create_token
-from m_shared.auth.oauth import (
-    OIDCConfigurationError,
-    OIDCStateError,
-    OIDCTokenError,
-    exchange_code,
-    get_authorization_url,
-)
-from m_shared.models.question import Question
-from m_shared.models.survey import Survey
-from m_shared.rate_limit import apply_rate_limiting, limiter
-from m_shared.session.manager import SessionManager
-from m_shared.vectordb.utils import document_to_markdown
+from shape_api.style import extract_style_document, summarise_style_rules
+from shape_api.suggestion_engine import suggest_question
+from shape_api.tagging_engine import suggest_tags
+from shape_api.validation_engine import validate_question, validate_survey
 
 
 def _validate_api_url(url: str) -> None:
@@ -262,7 +262,7 @@ def create_app(
 
     @app.get("/")
     async def root():
-        return {"service": "m-chat", "status": "running"}
+        return {"service": "shape-api", "status": "running"}
 
     @app.get("/health")
     async def health():

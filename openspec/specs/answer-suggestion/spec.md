@@ -135,5 +135,5 @@ SHALL be offloaded to a thread pool via `asyncio.run_in_executor`.
 - MVP scope: Basic RAG retrieval + LLM generation + citations (no re-ranking, no answer ranking/filtering)
 - Session isolation: Ephemeral per-session ChromaDB instance
 - TTL-based cleanup integrated with vector-db capability
-- Located in `m_autofill/rag_pipeline.py`
+- Located in `cue_api/rag_pipeline.py`
 - Depends on: document-ingestion, vector-db, llm-integration, data-models

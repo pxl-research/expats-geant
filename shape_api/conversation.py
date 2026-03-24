@@ -4,16 +4,16 @@ import json
 import logging
 import re
 
-from m_chat.session import (
+from m_shared.models.survey import Survey
+from shape_api.session import (
     load_documents_context,
     load_draft_survey,
     load_style_profile,
     save_draft_survey,
 )
-from m_chat.style import build_style_context
-from m_chat.suggestion_engine import compact_survey_summary
-from m_chat.validation_engine import validate_survey
-from m_shared.models.survey import Survey
+from shape_api.style import build_style_context
+from shape_api.suggestion_engine import compact_survey_summary
+from shape_api.validation_engine import validate_survey
 
 _LAST_N_MESSAGES = 20
 

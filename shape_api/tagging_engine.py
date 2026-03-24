@@ -51,7 +51,7 @@ def suggest_tags(
     """
     lang = "English"
     if style_profile:
-        from m_chat.style import _LANGUAGE_NAMES
+        from shape_api.style import _LANGUAGE_NAMES
 
         lang_code = style_profile.get("language", "en")
         lang = _LANGUAGE_NAMES.get(lang_code, lang_code)

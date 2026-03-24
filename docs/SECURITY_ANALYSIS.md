@@ -1,7 +1,7 @@
 # Security Analysis Report
 
 **Date:** 2026-03-13
-**Scope:** Full codebase audit of expat-geant (m_autofill, m_chat, m_shared, m_ui, m_chat_ui)
+**Scope:** Full codebase audit of expats (cue_api, shape_api, m_shared, cue_ui, shape_ui)
 **Methodology:** Manual static analysis of all authentication, authorization, API, adapter, session management, and file handling code.
 
 ---
@@ -14,9 +14,9 @@ The codebase demonstrates good security practices in several areas: `defusedxml`
 
 ## Findings
 
-### HIGH — H1: Path Traversal in m_autofill File Upload
+### HIGH — H1: Path Traversal in cue_api File Upload
 
-**File:** `m_autofill/api.py:322`
+**File:** `cue_api/api.py:322`
 
 ```python
 file_path = temp_dir / file.filename  # file.filename is unsanitized
@@ -24,7 +24,7 @@ file_path = temp_dir / file.filename  # file.filename is unsanitized
 
 `file.filename` is user-controlled and used directly as a path component. A malicious filename like `../../metadata.json` escapes the uploads directory. The file is written to the traversed path *before* validation runs, creating a write-before-validate vulnerability.
 
-**Compare:** `m_chat/api.py:760` correctly uses `Path(file.filename).name` to strip directory components.
+**Compare:** `shape_api/api.py:760` correctly uses `Path(file.filename).name` to strip directory components.
 
 **Fix:** Use `Path(file.filename).name` and verify the resolved path is within the target directory.
 
@@ -32,7 +32,7 @@ file_path = temp_dir / file.filename  # file.filename is unsanitized
 
 ### HIGH — H2: SSRF via User-Controlled `api_url` in /create
 
-**File:** `m_chat/api.py:282`, `m_chat/models.py:33`
+**File:** `shape_api/api.py:282`, `shape_api/models.py:33`
 
 The `/create` endpoint accepts an arbitrary `api_url` from the request body and passes it directly to `LimeSurveyAdapter`, which issues a `requests.post()` to that URL. An authenticated user can point this at internal services (e.g., `http://169.254.169.254/`, `http://localhost:6379/`).
 
@@ -42,9 +42,9 @@ For Qualtrics, `api_url` is used as `datacenter_id` and interpolated into `https
 
 ---
 
-### HIGH — H3: Unbounded Input Fields in m_chat Models
+### HIGH — H3: Unbounded Input Fields in shape_api Models
 
-**File:** `m_chat/models.py`
+**File:** `shape_api/models.py`
 
 Multiple fields accept arbitrary-length strings with no `max_length`:
 - `ChatTurnRequest.message` (line 102) — stored to disk, sent to LLM
@@ -52,7 +52,7 @@ Multiple fields accept arbitrary-length strings with no `max_length`:
 - `StyleUpdateRequest.free_text` (line 116) — injected into LLM prompts
 - `SuggestRequest.n_suggestions` (line 53) — no upper bound; value of 1,000,000 triggers unbounded LLM calls
 
-**Compare:** `m_autofill/models.py` properly uses `max_length=2000` on similar fields.
+**Compare:** `cue_api/models.py` properly uses `max_length=2000` on similar fields.
 
 **Fix:** Add `max_length` constraints to all string fields and `Field(ge=1, le=20)` to `n_suggestions`.
 
@@ -60,7 +60,7 @@ Multiple fields accept arbitrary-length strings with no `max_length`:
 
 ### HIGH — H4: `/dev/token` Defaults to Open
 
-**Files:** `m_autofill/api.py:211`, `m_chat/api.py:198`
+**Files:** `cue_api/api.py:211`, `shape_api/api.py:198`
 
 The `/dev/token` endpoint issues a valid JWT for **any user_id** with no authentication. It is only blocked when `ENVIRONMENT == "production"` (exact match). Default is `"development"`, meaning a misconfigured deployment (missing env var) leaves it wide open. Values like `"prod"`, `"staging"`, or `"Production"` also leave it open.
 
@@ -76,9 +76,9 @@ The `/dev/token` endpoint issues a valid JWT for **any user_id** with no authent
 - `m_shared/auth/middleware.py:89` — `f"Invalid token: {e}"`
 - `m_shared/auth/middleware.py:95` — `f"Token validation error: {e}"`
 - `m_shared/auth/middleware.py:125` — `f"Session management error: {e}"`
-- `m_autofill/api.py:371` — `f"Upload failed: {e}"`
-- `m_autofill/api.py:497` — `f"Suggestion failed: {e}"`
-- `m_autofill/api.py:544` — `f"Batch suggestion failed: {e}"`
+- `cue_api/api.py:371` — `f"Upload failed: {e}"`
+- `cue_api/api.py:497` — `f"Suggestion failed: {e}"`
+- `cue_api/api.py:544` — `f"Batch suggestion failed: {e}"`
 
 Raw Python exception messages can expose internal details (file paths, library internals, algorithm info). These should be logged server-side and replaced with generic messages in the HTTP response.
 
@@ -188,9 +188,9 @@ Tokens carry a `roles` claim (e.g., `["administrator"]`, `["respondent"]`) but n
 
 | ID | Severity | Fix | Effort |
 |----|----------|-----|--------|
-| H1 | HIGH | Sanitize filename in m_autofill upload | Small |
+| H1 | HIGH | Sanitize filename in cue_api upload | Small |
 | H2 | HIGH | Validate api_url scheme and block private IPs | Medium |
-| H3 | HIGH | Add max_length/bounds to m_chat models | Small |
+| H3 | HIGH | Add max_length/bounds to shape_api models | Small |
 | H4 | HIGH | Positive allowlist for /dev/token environment guard | Small |
 | M1 | MEDIUM | Generic error messages, log details server-side | Small |
 | M2 | MEDIUM | Add CORSMiddleware | Small |
@@ -205,9 +205,9 @@ Tokens carry a `roles` claim (e.g., `["administrator"]`, `["respondent"]`) but n
 
 The following remediations were implemented on 2026-03-13. All 875 tests pass after changes (coverage: 88.61%).
 
-### H1 — Path Traversal in m_autofill File Upload
+### H1 — Path Traversal in cue_api File Upload
 
-**File:** `m_autofill/api.py:322`
+**File:** `cue_api/api.py:322`
 
 **Before:**
 ```python
@@ -222,13 +222,13 @@ if not file_path.resolve().is_relative_to(temp_dir.resolve()):
     raise HTTPException(status_code=400, detail="Invalid filename")
 ```
 
-**Why:** `file.filename` is client-controlled. A value like `../../metadata.json` would escape the uploads directory. `Path.name` strips directory components, and `is_relative_to()` provides a defense-in-depth check. This matches the pattern already used in `m_chat/api.py:760`.
+**Why:** `file.filename` is client-controlled. A value like `../../metadata.json` would escape the uploads directory. `Path.name` strips directory components, and `is_relative_to()` provides a defense-in-depth check. This matches the pattern already used in `shape_api/api.py:760`.
 
 ---
 
 ### H2 — SSRF via User-Controlled `api_url`
 
-**File:** `m_chat/api.py:69-142`
+**File:** `shape_api/api.py:69-142`
 
 **Before:** `api_url` from the request body was passed directly to `LimeSurveyAdapter` (which calls `requests.post(api_url, ...)`) and as Qualtrics `datacenter_id` (interpolated into a hostname) with no validation.
 
@@ -242,9 +242,9 @@ Both are called in `_get_adapter()` before adapter instantiation. `HTTPException
 
 ---
 
-### H3 — Unbounded Input Fields in m_chat Models
+### H3 — Unbounded Input Fields in shape_api Models
 
-**File:** `m_chat/models.py`
+**File:** `shape_api/models.py`
 
 **Before:**
 ```python
@@ -274,7 +274,7 @@ All string fields across `ImportRequest`, `ExportRequest`, `CreateRequest`, `Cha
 
 ### H4 — `/dev/token` Environment Guard
 
-**Files:** `m_autofill/api.py:212`, `m_chat/api.py:199`
+**Files:** `cue_api/api.py:212`, `shape_api/api.py:199`
 
 **Before:**
 ```python
@@ -296,7 +296,7 @@ session_id = f"dev_session_{uuid4().hex[:12]}"
 
 ### M1 — Internal Exception Details Leaked to Clients
 
-**Files:** `m_shared/auth/middleware.py:83-96,122-126`, `m_autofill/api.py:371,497,544`
+**Files:** `m_shared/auth/middleware.py:83-96,122-126`, `cue_api/api.py:371,497,544`
 
 **Before:**
 ```python

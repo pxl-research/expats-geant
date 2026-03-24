@@ -1,7 +1,7 @@
 {
-  "realm": "expat-geant",
+  "realm": "expats",
   "enabled": true,
-  "displayName": "Expat-GÉANT",
+  "displayName": "Expats",
   "registrationAllowed": true,
   "registrationEmailAsUsername": true,
   "rememberMe": false,
@@ -13,9 +13,9 @@
   "defaultSignatureAlgorithm": "RS256",
   "clients": [
     {
-      "clientId": "m-autofill",
+      "clientId": "cue-api",
       "name": "M-Autofill",
-      "description": "Expat-GÉANT M-Autofill answer suggestion service",
+      "description": "Expats M-Autofill answer suggestion service",
       "enabled": true,
       "publicClient": false,
       "secret": "change-me",

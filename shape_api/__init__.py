@@ -1,9 +1,9 @@
 """M-Chat: questionnaire design co-pilot for survey administrators."""
 
-from m_chat.style import build_style_context, extract_style_document, summarise_style_rules
-from m_chat.suggestion_engine import SuggestionResult, suggest_question
-from m_chat.tagging_engine import suggest_tags
-from m_chat.validation_engine import ValidationIssue, validate_question, validate_survey
+from shape_api.style import build_style_context, extract_style_document, summarise_style_rules
+from shape_api.suggestion_engine import SuggestionResult, suggest_question
+from shape_api.tagging_engine import suggest_tags
+from shape_api.validation_engine import ValidationIssue, validate_question, validate_survey
 
 __all__ = [
     "suggest_question",

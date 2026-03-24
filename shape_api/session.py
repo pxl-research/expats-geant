@@ -74,7 +74,7 @@ def update_vocabulary(vocab: dict, new_tags: list[str], question_id: str) -> dic
     Returns:
         Updated vocabulary dict
     """
-    from m_chat.tagging_engine import normalise_tag
+    from shape_api.tagging_engine import normalise_tag
 
     updated = dict(vocab)
     for raw_tag in new_tags:

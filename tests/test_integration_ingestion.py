@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from m_autofill.ingest import ingest_files_into_store
-from m_autofill.validation import FileValidationError, validate_file_or_raise
+from cue_api.ingest import ingest_files_into_store
+from cue_api.validation import FileValidationError, validate_file_or_raise
 from m_shared.vectordb import ChromaDocumentStore
 
 # Test data directory

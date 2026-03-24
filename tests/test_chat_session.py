@@ -1,6 +1,11 @@
-"""Tests for m_chat.session — file I/O helpers."""
+"""Tests for shape_api.session — file I/O helpers."""
 
-from m_chat.session import (
+from m_shared.models.answer_option import AnswerOption
+from m_shared.models.question import Question, QuestionType
+from m_shared.models.section import Section
+from m_shared.models.survey import Survey
+from m_shared.session import SessionManager
+from shape_api.session import (
     DEFAULT_STYLE_PROFILE,
     append_message,
     get_session_path,
@@ -13,11 +18,6 @@ from m_chat.session import (
     save_tag_vocabulary,
     update_vocabulary,
 )
-from m_shared.models.answer_option import AnswerOption
-from m_shared.models.question import Question, QuestionType
-from m_shared.models.section import Section
-from m_shared.models.survey import Survey
-from m_shared.session import SessionManager
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -21,8 +21,8 @@ from fastapi.responses import (
     StreamingResponse,
 )
 
-from m_autofill.ingest import ingest_files_into_store, ingest_text_into_store
-from m_autofill.models import (
+from cue_api.ingest import ingest_files_into_store, ingest_text_into_store
+from cue_api.models import (
     AuditDeleteResponse,
     BatchSuggestRequest,
     BatchSuggestResponse,
@@ -40,8 +40,8 @@ from m_autofill.models import (
     UploadTextRequest,
     normalize_to_sections,
 )
-from m_autofill.rag_pipeline import RAGPipeline
-from m_autofill.validation import FileValidationError, validate_file_upload
+from cue_api.rag_pipeline import RAGPipeline
+from cue_api.validation import FileValidationError, validate_file_upload
 from m_shared.adapters.registry import get_adapter
 from m_shared.auth.jwt_handler import create_token
 from m_shared.auth.oauth import (
@@ -292,7 +292,7 @@ def create_app(
     @app.get("/")
     async def root():
         """Health check endpoint."""
-        return {"service": "m-autofill", "status": "running"}
+        return {"service": "cue-api", "status": "running"}
 
     @app.get("/health")
     async def health():

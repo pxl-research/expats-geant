@@ -93,4 +93,4 @@ as the source identifier in chunk metadata (defaults to `"pasted text"` when omi
 - MVP scope: Text, PDF, DOCX formats only (no audio/video transcription yet)
 - Uses MarkItDown or similar library for text extraction
 - Documents stored temporarily during session, deleted on cleanup
-- Located in `m_autofill/document_processor.py`
+- Located in `cue_api/document_processor.py`

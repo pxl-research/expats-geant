@@ -295,7 +295,7 @@ def _llm_validate_question(
     llm_client: LLMClient,
     style_profile: dict | None,
 ) -> list[ValidationIssue]:
-    from m_chat.style import build_style_context
+    from shape_api.style import build_style_context
 
     style_ctx = build_style_context(style_profile or {})
     system_msg = (
@@ -320,7 +320,7 @@ def _llm_validate_survey_batch(
     llm_client: LLMClient,
     style_profile: dict | None,
 ) -> list[ValidationIssue]:
-    from m_chat.style import build_style_context
+    from shape_api.style import build_style_context
 
     style_ctx = build_style_context(style_profile or {})
 

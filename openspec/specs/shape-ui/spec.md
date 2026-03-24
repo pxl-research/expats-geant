@@ -1,4 +1,4 @@
-# m-chat-ui Specification
+# shape-ui Specification
 
 ## Purpose
 TBD - created by archiving change implement-chat-ui. Update Purpose after archive.
