@@ -705,5 +705,5 @@ limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
 
 ---
 
-**Last Updated**: February 2026  
-**Version**: 0.2.0 (Batch Suggest + Reasoning)
+**Last Updated**: March 2026
+**Version**: 0.3.0 (Streaming batch suggestions)
