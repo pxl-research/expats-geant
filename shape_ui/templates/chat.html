@@ -330,6 +330,7 @@ body { overflow: hidden; }
           hx-target="#messages"
           hx-swap="beforeend"
           hx-encoding="multipart/form-data"
+          hx-indicator="#send-indicator"
           hx-on::after-request="this.reset(); document.querySelector('.chat-textarea').style.height='44px'"
         >
           <div class="chat-input-row">
