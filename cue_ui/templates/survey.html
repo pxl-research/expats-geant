@@ -43,9 +43,12 @@
 <p style="margin-bottom:1.25rem;">{{ survey.description }}</p>
 {% endif %}
 
-<div style="text-align:right; margin-bottom:1rem;">
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+  <button type="button" class="btn btn-ghost" style="font-size:0.8rem; color:var(--danger, #c0392b);"
+          onclick="document.getElementById('cleanup-modal').showModal()">Start over</button>
   <a href="/session/{{ session_id }}/answer-report" class="btn btn-ghost" style="font-size:0.8rem;">View answer report</a>
 </div>
+{% include "partials/session_cleanup_modal.html" %}
 
 {% if not can_submit %}
 <div class="display-only-banner">

@@ -96,6 +96,10 @@ class CitationResult(BaseModel):
     position: float = Field(
         ..., ge=0.0, le=1.0, description="Normalized position in document (0.0–1.0)"
     )
+    distance: float = Field(
+        default=0.0, description="Semantic similarity distance (lower = more relevant)"
+    )
+    full_text: str = Field(default="", description="Full text of the source chunk")
 
 
 class ItemSuggestion(BaseModel):

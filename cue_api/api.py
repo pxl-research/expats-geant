@@ -277,8 +277,12 @@ def create_app(
     # Initialize RAG pipeline if LLM client provided
     rag_pipeline = None
     if llm_client:
+        max_citation_distance = float(os.getenv("CUE_MAX_CITATION_DISTANCE", "1.5"))
         rag_pipeline = RAGPipeline(
-            session_manager=session_manager, llm_client=llm_client, audit_logger=audit_logger
+            session_manager=session_manager,
+            llm_client=llm_client,
+            audit_logger=audit_logger,
+            max_citation_distance=max_citation_distance,
         )
 
     # Add exception handler for HTTPException
@@ -680,6 +684,8 @@ def create_app(
                     source=c.source_id,
                     excerpt=c.highlights[0] if c.highlights else "",
                     position=c.position_percentage or 0.0,
+                    distance=c.metadata.get("distance") or 0.0,
+                    full_text=c.metadata.get("full_text") or "",
                 )
                 for c in r["citations"]
             ]
@@ -761,6 +767,8 @@ def create_app(
                             source=c.source_id,
                             excerpt=c.highlights[0] if c.highlights else "",
                             position=c.position_percentage or 0.0,
+                            distance=c.metadata.get("distance") or 0.0,
+                            full_text=c.metadata.get("full_text") or "",
                         )
                         for c in r["citations"]
                     ]
