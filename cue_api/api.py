@@ -1,6 +1,7 @@
 """FastAPI endpoints for Cue answer suggestion service."""
 
 import asyncio
+import hmac
 import ipaddress
 import json
 import logging
@@ -20,6 +21,7 @@ from fastapi.responses import (
     Response,
     StreamingResponse,
 )
+from pydantic import BaseModel
 
 from cue_api.ingest import ingest_files_into_store, ingest_text_into_store
 from cue_api.models import (
@@ -28,8 +30,6 @@ from cue_api.models import (
     BatchSuggestResponse,
     CitationResponse,
     CitationResult,
-    DevTokenRequest,
-    DevTokenResponse,
     ItemSuggestion,
     LiveApiImportRequest,
     SessionDeleteResponse,
@@ -299,56 +299,21 @@ def create_app(
         """Health check endpoint."""
         return {"status": "healthy"}
 
-    @app.post("/dev/token", response_model=DevTokenResponse, tags=["Development"])
-    async def generate_dev_token(request: DevTokenRequest):
-        """Generate JWT token for development/testing (disabled in production).
+    class TokenRequest(BaseModel):
+        user_id: str
+        api_secret: str
 
-        This endpoint allows developers to easily generate valid JWT tokens for testing
-        the API without needing to set up a full authentication infrastructure.
-
-        **IMPORTANT**: This endpoint is only available when ENVIRONMENT != "production"
-
-        Args:
-            request: Token generation parameters (user_id, org, roles)
-
-        Returns:
-            JWT token and metadata
-
-        Raises:
-            HTTPException: 403 if called in production environment
-        """
-        # Check environment - only allow in development/testing
-        environment = os.getenv("ENVIRONMENT", "development").lower()
-        if environment not in ("development", "testing"):
+    @app.post("/auth/token", tags=["Auth"])
+    async def issue_api_token(body: TokenRequest):
+        """Issue a JWT for server-to-server callers presenting a shared API secret."""
+        expected = os.getenv("API_SECRET", "")
+        if not expected or not hmac.compare_digest(body.api_secret, expected):
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Token generation endpoint is only available in development/testing",
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API secret"
             )
-
-        # Generate unpredictable session ID
-        session_id = f"dev_session_{uuid.uuid4().hex[:12]}"
-
-        # Create token with requested parameters
-        try:
-            token = create_token(
-                user_id=request.user_id,
-                session_id=session_id,
-                org=request.org,
-                roles=request.roles,
-                expiration_hours=int(os.getenv("JWT_EXPIRATION_HOURS", "24")),
-            )
-
-            return DevTokenResponse(
-                token=token,
-                user_id=request.user_id,
-                expires_in_hours=int(os.getenv("JWT_EXPIRATION_HOURS", "24")),
-                message="Token generated successfully. Use in Authorization header: Bearer <token>",
-            )
-        except ValueError as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Token generation failed: {str(e)}",
-            )
+        session_id = uuid.uuid4().hex[:12]
+        token = create_token(user_id=body.user_id, session_id=session_id, org="api", roles=["user"])
+        return {"token": token, "user_id": body.user_id}
 
     @app.get("/session/stats", response_model=SessionStatsResponse)
     async def get_session_stats(request: Request):
@@ -468,6 +433,8 @@ def create_app(
                 session_id=session.session_id,
                 user_id=claims.get("user_id"),
                 audit_logger=audit_logger,
+                llm_client=llm_client,
+                model_name=llm_client.model_name if llm_client else None,
             )
 
             file_size = os.path.getsize(file_path)

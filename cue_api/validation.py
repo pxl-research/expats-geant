@@ -4,7 +4,20 @@ import os
 from pathlib import Path
 
 # Supported file types
-SUPPORTED_EXTENSIONS = {".txt", ".pdf", ".docx", ".md", ".pptx", ".xlsx", ".xls"}
+SUPPORTED_EXTENSIONS = {
+    ".txt",
+    ".pdf",
+    ".docx",
+    ".md",
+    ".pptx",
+    ".xlsx",
+    ".xls",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".webp",
+}
 
 # Maximum file size in bytes (default 50MB)
 MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024

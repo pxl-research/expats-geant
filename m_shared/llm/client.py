@@ -26,6 +26,7 @@ class LLMClient(OpenAI):
         custom_headers: dict | None = None,
         max_retries: int = 3,
         retry_backoff_factor: float = 2.0,
+        thinking_budget: int | None = None,
     ):
         """
         Initialize LLM client.
@@ -39,6 +40,8 @@ class LLMClient(OpenAI):
             custom_headers: Custom headers to include in API requests
             max_retries: Maximum number of retries for rate limit/transient errors
             retry_backoff_factor: Exponential backoff multiplier for retries
+            thinking_budget: Token budget for extended thinking (Claude 3.5+/4.x only).
+                Overrides THINKING_BUDGET_TOKENS env var. Leave None to disable.
         """
         # Load from environment if not provided
         api_key = api_key or os.getenv("OPENROUTER_API_KEY")
@@ -62,13 +65,27 @@ class LLMClient(OpenAI):
                 "X-Title": "PXL Expats-GEANT",
             }
 
+        budget_env = os.getenv("THINKING_BUDGET_TOKENS")
         self.model_name: str = model_name
         self.tools_list: Iterable | None = tools_list
         self.temperature: float = temperature
         self.extra_headers: dict = custom_headers
         self.max_retries: int = max_retries
         self.retry_backoff_factor: float = retry_backoff_factor
+        self.thinking_budget: int | None = thinking_budget or (
+            int(budget_env) if budget_env else None
+        )
         self._tokenizer = None  # Lazy load tokenizer
+
+    def _inject_thinking(self, kwargs: dict) -> dict:
+        """Inject extended-thinking config into extra_body if thinking_budget is set."""
+        if self.thinking_budget is not None:
+            extra_body = kwargs.get("extra_body", {})
+            extra_body.setdefault(
+                "thinking", {"type": "enabled", "budget_tokens": self.thinking_budget}
+            )
+            kwargs["extra_body"] = extra_body
+        return kwargs
 
     def create_completion_stream(self, messages: list[dict], stream: bool = True, **kwargs):
         """
@@ -82,6 +99,7 @@ class LLMClient(OpenAI):
         Returns:
             Streaming response from the LLM
         """
+        kwargs = self._inject_thinking(kwargs)
         return self._retry_with_backoff(
             self.chat.completions.create,
             model=self.model_name,
@@ -104,6 +122,7 @@ class LLMClient(OpenAI):
         Returns:
             Generated response text
         """
+        kwargs = self._inject_thinking(kwargs)
         response = self._retry_with_backoff(
             self.chat.completions.create,
             model=self.model_name,

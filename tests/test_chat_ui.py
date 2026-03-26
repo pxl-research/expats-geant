@@ -578,13 +578,12 @@ def test_reset_session_redirects(client):
 
 
 @respx.mock
-def test_delete_session_redirects_to_home(client):
+def test_delete_session_returns_200(client):
     respx.delete(f"{BASE}/chat/{SESSION_ID}").mock(
         return_value=httpx.Response(200, json={"deleted": True, "session_id": SESSION_ID})
     )
-    resp = client.delete(f"/session/{SESSION_ID}", cookies=COOKIE, follow_redirects=False)
-    assert resp.status_code == 302
-    assert resp.headers["location"] == "/"
+    resp = client.delete(f"/session/{SESSION_ID}", cookies=COOKIE)
+    assert resp.status_code == 200
 
 
 def test_auth_login_redirects(client):
