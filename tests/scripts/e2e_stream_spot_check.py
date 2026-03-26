@@ -378,11 +378,11 @@ def test_performance(client: httpx.Client, headers: dict) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="M-Autofill /suggest/stream e2e spot check")
+    parser = argparse.ArgumentParser(description="Cue /suggest/stream e2e spot check")
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL)
     args = parser.parse_args()
 
-    print(f"\nM-Autofill stream spot check  →  {args.base_url}\n")
+    print(f"\nCue stream spot check  →  {args.base_url}\n")
 
     with httpx.Client(base_url=args.base_url, timeout=30) as client:
         if not check_server(client):

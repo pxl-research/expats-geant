@@ -2,7 +2,7 @@
 
 import pytest
 
-from m_autofill.rag_tools import RAGTools
+from cue_api.rag_tools import RAGTools
 from m_shared.vectordb import ChromaDocumentStore
 
 
@@ -15,7 +15,7 @@ def store(tmp_path):
 @pytest.fixture
 def store_with_docs(tmp_path):
     """Store with a small document ingested."""
-    from m_autofill.ingest import ingest_files_into_store
+    from cue_api.ingest import ingest_files_into_store
 
     s = ChromaDocumentStore(path=str(tmp_path / "chroma"))
     doc = tmp_path / "sample.txt"

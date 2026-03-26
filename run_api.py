@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Startup script for M-Autofill API service."""
+"""Startup script for Cue API service."""
 
 import asyncio
 import logging
@@ -10,7 +10,7 @@ from pathlib import Path
 
 import uvicorn
 
-from m_autofill.api import create_app
+from cue_api.api import create_app
 from m_shared.auth.middleware import SessionMiddleware
 from m_shared.llm.client import LLMClient
 from m_shared.session.manager import SessionManager
@@ -67,7 +67,7 @@ class ScheduledCleanupRunner:
 
 
 def main():
-    """Initialize and run the M-Autofill API."""
+    """Initialize and run the Cue API."""
 
     # Configuration from environment
     sessions_base_path = os.getenv("SESSIONS_BASE_PATH", "./data/sessions")
@@ -93,7 +93,7 @@ def main():
     logging.getLogger("m_shared.auth").addHandler(_security_handler)
 
     # Initialize components
-    print("Initializing M-Autofill service...")
+    print("Initializing Cue service...")
 
     session_manager = SessionManager(base_path=sessions_base_path)
     print(f"✓ SessionManager initialized (base: {sessions_base_path})")

@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
-from m_autofill.api import create_app
+from cue_api.api import create_app
 from m_shared.auth.jwt_handler import create_token
 from m_shared.auth.middleware import SessionMiddleware
 from m_shared.session.manager import SessionManager
@@ -68,7 +68,7 @@ class TestSessionMiddleware:
         """Public endpoints should not require authentication."""
         response = client.get("/")
         assert response.status_code == 200
-        assert response.json() == {"service": "m-autofill", "status": "running"}
+        assert response.json() == {"service": "cue-api", "status": "running"}
 
         response = client.get("/health")
         assert response.status_code == 200
@@ -330,7 +330,7 @@ class TestSuggestEndpoint:
         """Create app with mocked LLM client."""
         from unittest.mock import Mock
 
-        from m_autofill.api import create_app
+        from cue_api.api import create_app
         from m_shared.auth.middleware import SessionMiddleware
         from m_shared.llm.client import LLMClient
         from m_shared.utils.audit import AuditLogger
@@ -389,7 +389,7 @@ class TestAuditReportEndpoint:
     @pytest.fixture
     def app_with_audit(self, session_manager):
         """Create app with audit logger."""
-        from m_autofill.api import create_app
+        from cue_api.api import create_app
         from m_shared.auth.middleware import SessionMiddleware
         from m_shared.utils.audit import AuditLogger
 
@@ -445,7 +445,7 @@ class TestAuditReportDeletion:
 
     @pytest.fixture
     def app_with_audit(self, session_manager):
-        from m_autofill.api import create_app
+        from cue_api.api import create_app
         from m_shared.auth.middleware import SessionMiddleware
         from m_shared.utils.audit import AuditLogger
 
@@ -525,7 +525,7 @@ class TestAuthEndpoints:
         from unittest.mock import AsyncMock, patch
 
         with patch(
-            "m_autofill.api.get_authorization_url",
+            "cue_api.api.get_authorization_url",
             new=AsyncMock(return_value=("https://provider.example.com/auth?state=abc", "abc")),
         ):
             response = client.get("/auth/login", follow_redirects=False)
@@ -538,7 +538,7 @@ class TestAuthEndpoints:
         from unittest.mock import AsyncMock, patch
 
         with patch(
-            "m_autofill.api.get_authorization_url",
+            "cue_api.api.get_authorization_url",
             new=AsyncMock(return_value=("https://provider.example.com/auth?state=abc", "abc")),
         ):
             response = client.get("/auth/login", follow_redirects=False)
@@ -552,7 +552,7 @@ class TestAuthEndpoints:
         from m_shared.auth.oauth import OIDCConfigurationError
 
         with patch(
-            "m_autofill.api.get_authorization_url",
+            "cue_api.api.get_authorization_url",
             new=AsyncMock(side_effect=OIDCConfigurationError("OIDC_ISSUER_URL not set")),
         ):
             response = client.get("/auth/login")
@@ -565,7 +565,7 @@ class TestAuthEndpoints:
         from unittest.mock import AsyncMock, patch
 
         with patch(
-            "m_autofill.api.get_authorization_url",
+            "cue_api.api.get_authorization_url",
             new=AsyncMock(side_effect=Exception("Connection refused")),
         ):
             response = client.get("/auth/login")
@@ -578,7 +578,7 @@ class TestAuthEndpoints:
         from unittest.mock import AsyncMock, patch
 
         with patch(
-            "m_autofill.api.exchange_code",
+            "cue_api.api.exchange_code",
             new=AsyncMock(return_value="platform.jwt.token"),
         ):
             response = client.get("/auth/callback?code=authcode123&state=validstate")
@@ -593,7 +593,7 @@ class TestAuthEndpoints:
         from unittest.mock import AsyncMock, patch
 
         with patch(
-            "m_autofill.api.exchange_code",
+            "cue_api.api.exchange_code",
             new=AsyncMock(return_value="platform.jwt.token"),
         ):
             response = client.get("/auth/callback?code=code&state=state")
@@ -607,7 +607,7 @@ class TestAuthEndpoints:
         from m_shared.auth.oauth import OIDCStateError
 
         with patch(
-            "m_autofill.api.exchange_code",
+            "cue_api.api.exchange_code",
             new=AsyncMock(side_effect=OIDCStateError("state not found")),
         ):
             response = client.get("/auth/callback?code=code&state=badstate")
@@ -622,7 +622,7 @@ class TestAuthEndpoints:
         from m_shared.auth.oauth import OIDCTokenError
 
         with patch(
-            "m_autofill.api.exchange_code",
+            "cue_api.api.exchange_code",
             new=AsyncMock(side_effect=OIDCTokenError("token expired")),
         ):
             response = client.get("/auth/callback?code=code&state=validstate")
@@ -637,7 +637,7 @@ class TestAuthEndpoints:
         from m_shared.auth.oauth import OIDCConfigurationError
 
         with patch(
-            "m_autofill.api.exchange_code",
+            "cue_api.api.exchange_code",
             new=AsyncMock(side_effect=OIDCConfigurationError("missing env")),
         ):
             response = client.get("/auth/callback?code=code&state=state")
@@ -650,7 +650,7 @@ class TestAuthEndpoints:
         from unittest.mock import AsyncMock, patch
 
         with patch(
-            "m_autofill.api.exchange_code",
+            "cue_api.api.exchange_code",
             new=AsyncMock(side_effect=Exception("network error")),
         ):
             response = client.get("/auth/callback?code=code&state=state")
@@ -667,7 +667,7 @@ class TestFullSessionFlow:
         """Create fully configured app."""
         from unittest.mock import Mock
 
-        from m_autofill.api import create_app
+        from cue_api.api import create_app
         from m_shared.auth.middleware import SessionMiddleware
         from m_shared.llm.client import LLMClient
         from m_shared.utils.audit import AuditLogger
@@ -827,7 +827,7 @@ class TestSubmitEndpointErrors:
         mock_adapter.capabilities.return_value = ["import", "export", "submit"]
         mock_adapter.submit_responses.side_effect = RuntimeError("platform failed")
 
-        with patch("m_autofill.api.get_adapter", return_value=mock_adapter):
+        with patch("cue_api.api.get_adapter", return_value=mock_adapter):
             response = submit_client.post(
                 f"/sessions/{session.session_id}/submit",
                 headers={"Authorization": f"Bearer {token}"},

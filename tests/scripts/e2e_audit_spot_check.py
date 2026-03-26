@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-End-to-end spot-check for M-Autofill audit logging & compliance.
+End-to-end spot-check for Cue audit logging & compliance.
 
 Covers:
   7.1a  Audit accuracy   — log entries match actual events performed
@@ -441,11 +441,11 @@ def test_retention_and_deletion(client: httpx.Client, token: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="M-Autofill audit logging e2e spot check")
+    parser = argparse.ArgumentParser(description="Cue audit logging e2e spot check")
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL)
     args = parser.parse_args()
 
-    print(f"\nM-Autofill audit spot check  →  {args.base_url}\n")
+    print(f"\nCue audit spot check  →  {args.base_url}\n")
 
     with httpx.Client(base_url=args.base_url, timeout=30) as client:
         if not check_server(client):

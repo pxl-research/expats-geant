@@ -1,10 +1,10 @@
-"""Integration tests for m_ui routes — renders pages with TestClient."""
+"""Integration tests for cue_ui routes — renders pages with TestClient."""
 
 import httpx
 import respx
 from fastapi.testclient import TestClient
 
-from m_ui.main import app
+from cue_ui.main import app
 
 TOKEN_COOKIE = {"autofill_token": "test-jwt-token"}
 BASE = "http://localhost:8001"
@@ -74,7 +74,7 @@ class TestAuthCallback:
 
     @respx.mock
     def test_callback_oidc_code_proxied_to_autofill(self):
-        """OIDC flow: ?code&state proxied server-side to m-autofill."""
+        """OIDC flow: ?code&state proxied server-side to cue-api."""
         respx.get(f"{BASE}/auth/callback").mock(
             return_value=httpx.Response(200, json={"token": "oidc-jwt"})
         )
@@ -86,7 +86,7 @@ class TestAuthCallback:
 
     @respx.mock
     def test_callback_oidc_autofill_error_returns_502(self):
-        """If m-autofill returns an error, surface a 502."""
+        """If cue-api returns an error, surface a 502."""
         respx.get(f"{BASE}/auth/callback").mock(
             return_value=httpx.Response(500, json={"detail": "Keycloak error"})
         )

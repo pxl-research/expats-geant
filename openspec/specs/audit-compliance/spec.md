@@ -178,5 +178,5 @@ The system SHALL maintain accurate, tamper-evident audit logs.
 - MVP scope: Session-level audit logging (not system-wide admin logs)
 - Audit report structure mirrors user experience: questions → suggestions → sources → user edits
 - Retention policy: ~1 year for unclaimed reports; user can request earlier deletion
-- Located in `m_shared/utils/` or `m_autofill/audit.py`
+- Located in `m_shared/utils/` or `cue_api/audit.py`
 - Privacy endpoint: standard EULA/privacy disclosure (separate from functionality)

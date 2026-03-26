@@ -19,16 +19,16 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from m_chat.api import create_app
-from m_chat.session import (
-    DEFAULT_STYLE_PROFILE,
-    save_draft_survey,
-    save_tag_vocabulary,
-)
 from m_shared.auth.jwt_handler import create_token
 from m_shared.auth.middleware import SessionMiddleware
 from m_shared.models.survey import Survey
 from m_shared.session.manager import SessionManager
+from shape_api.api import create_app
+from shape_api.session import (
+    DEFAULT_STYLE_PROFILE,
+    save_draft_survey,
+    save_tag_vocabulary,
+)
 
 # ---------------------------------------------------------------------------
 # Reused sample payloads (mirrors test_chat_api.py)
@@ -360,7 +360,7 @@ class TestStyleEndpoints:
         headers = _make_auth_headers("user1")
         sid = _create_chat_session(client, headers)
 
-        with patch("m_chat.api.extract_style_document", return_value="Use short sentences."):
+        with patch("shape_api.api.extract_style_document", return_value="Use short sentences."):
             resp = client.post(
                 f"/chat/{sid}/style/upload",
                 files={"file": ("style_guide.txt", BytesIO(b"Use short sentences."), "text/plain")},
@@ -389,7 +389,7 @@ class TestDocumentUpload:
         sid = _create_chat_session(client, headers)
         extracted_text = "This document covers student wellbeing metrics."
 
-        with patch("m_chat.api.document_to_markdown", return_value=extracted_text):
+        with patch("shape_api.api.document_to_markdown", return_value=extracted_text):
             resp = client.post(
                 f"/chat/{sid}/upload",
                 files={"file": ("data.txt", BytesIO(b"raw content"), "text/plain")},
@@ -498,7 +498,7 @@ class TestScenarioIntegration:
         # Step 1: Upload content doc — LLM called for topic summary
         mock_llm.create_completion.return_value = "Employee satisfaction survey topics"
         with patch(
-            "m_chat.api.document_to_markdown",
+            "shape_api.api.document_to_markdown",
             return_value="Employee satisfaction content for survey design.",
         ):
             r_upload = client_with_llm.post(

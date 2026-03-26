@@ -96,12 +96,38 @@ def _purge_expired_states() -> None:
 def _normalize_sub(iss: str, sub: str) -> str:
     """Return a stable, cross-provider user_id from issuer URL and subject claim.
 
-    Example: iss="http://localhost:8080/realms/expat-geant", sub="abc123"
+    Example: iss="http://localhost:8080/realms/expats", sub="abc123"
              -> "localhost:8080:abc123"
     """
     parsed = urlparse(iss)
     iss_host = parsed.netloc or parsed.path
     return f"{iss_host}:{sub}"
+
+
+async def get_logout_url(post_logout_redirect_uri: str | None = None) -> str:
+    """Return the OIDC provider's end_session URL.
+
+    Args:
+        post_logout_redirect_uri: Where the provider should redirect after logout.
+
+    Returns:
+        Full logout URL to redirect the user to.
+    """
+    issuer_url, client_id, _, _ = _get_oidc_settings()
+    discovery = await _fetch_discovery(issuer_url)
+    end_session_endpoint = discovery.get("end_session_endpoint")
+    if not end_session_endpoint:
+        # Fallback for providers without end_session_endpoint
+        return post_logout_redirect_uri or "/"
+
+    if post_logout_redirect_uri:
+        import urllib.parse
+
+        params = urllib.parse.urlencode(
+            {"client_id": client_id, "post_logout_redirect_uri": post_logout_redirect_uri}
+        )
+        return f"{end_session_endpoint}?{params}"
+    return end_session_endpoint
 
 
 async def get_authorization_url(redirect_uri: str | None = None) -> tuple[str, str]:

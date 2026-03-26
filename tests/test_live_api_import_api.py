@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from m_autofill.api import create_app
+from cue_api.api import create_app
 from m_shared.auth.jwt_handler import create_token
 from m_shared.auth.middleware import SessionMiddleware
 from m_shared.models.question import Question, QuestionType

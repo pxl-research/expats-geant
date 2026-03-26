@@ -1,6 +1,6 @@
-"""Core domain models for Expat-GÉANT.
+"""Core domain models for Expats.
 
-Shared data models used across M-Chat and M-Autofill modules.
+Shared data models used across Shape and Cue modules.
 """
 
 from m_shared.models.answer_option import AnswerOption

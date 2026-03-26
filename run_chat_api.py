@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""Startup script for M-Chat API service."""
+"""Startup script for Shape API service."""
 
 import os
 from pathlib import Path
 
 import uvicorn
 
-from m_chat.api import create_app
 from m_shared.auth.middleware import SessionMiddleware
 from m_shared.llm.client import LLMClient
 from m_shared.session.manager import SessionManager
+from shape_api.api import create_app
 
 
 def main():
-    """Initialize and run the M-Chat API."""
+    """Initialize and run the Shape API."""
 
     sessions_base_path = os.getenv("SESSIONS_BASE_PATH", "./data/sessions")
     port = int(os.getenv("CHAT_PORT", "8003"))
@@ -21,7 +21,7 @@ def main():
 
     Path(sessions_base_path).mkdir(parents=True, exist_ok=True)
 
-    print("Initializing M-Chat service...")
+    print("Initializing Shape service...")
 
     session_manager = SessionManager(base_path=sessions_base_path)
     print(f"✓ SessionManager initialized (base: {sessions_base_path})")

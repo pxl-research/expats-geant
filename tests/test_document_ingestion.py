@@ -36,7 +36,7 @@ class TestTextExtraction:
         assert isinstance(result, str)
         assert "# Sample Document" in result
         assert "## Section 1" in result
-        assert "M-Autofill" in result
+        assert "Cue" in result
 
     def test_extract_empty_file(self):
         """Test extraction from empty file."""

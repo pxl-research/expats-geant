@@ -4,8 +4,8 @@
 
 An AI-assisted survey platform designed to improve questionnaire quality and response completeness while prioritizing privacy and user control. Two AI helpers work together:
 
-- **M-Chat**: Assists administrators in designing better questionnaires faster (suggestions, style guidelines, evaluation rules)
-- **M-Autofill**: Supports respondents with evidence-based answer suggestions drawn from their uploaded documents, with full citations and transparency
+- **Shape**: Assists administrators in designing better questionnaires faster (suggestions, style guidelines, evaluation rules)
+- **Cue**: Supports respondents with evidence-based answer suggestions drawn from their uploaded documents, with full citations and transparency
 
 The platform operates "privacy by default" with on-premise deployment options, strict tenant isolation, and minimal data processing. Pilot runs Jan-May 2026 at PXL University College and partner institutions, with results shared at GÉANT TNC and core components released as open-source for the GÉANT community.
 
@@ -67,11 +67,11 @@ Our executables are pip3 and python3 (not pip and python)
 
 **Modular Organization:**
 
-- `m-chat/`: Questionnaire design assistant (suggestion generation, QTI validation, style rule application)
-- `m-autofill/`: Answer suggestion assistant (document processing, RAG, citation generation)
+- `shape-api/`: Questionnaire design assistant (suggestion generation, QTI validation, style rule application)
+- `cue-api/`: Answer suggestion assistant (document processing, RAG, citation generation)
 - `m-shared/`: Common utilities (LLM client abstraction, vector DB client, data models, auth, error handling)
 
-**M-Autofill Document Processing Pipeline:**
+**Cue Document Processing Pipeline:**
 
 - File upload (PDF, DOCX, text, audio, video) → pre-process to text → chunk using configurable strategy → generate embeddings → store in ChromaDB
 - Original files discarded after processing to minimize data retention
@@ -126,7 +126,7 @@ Our executables are pip3 and python3 (not pip and python)
 
 **Repository Structure:**
 
-- GitHub monorepo containing `m-chat/`, `m-autofill/`, and `m-shared/` modules
+- GitHub monorepo containing `shape-api/`, `cue-api/`, and `m-shared/` modules
 
 **Branching Strategy:**
 
@@ -227,10 +227,10 @@ discarded on import and not represented in the internal data model.
 - Store raw platform-native logic in `question.metadata["display_logic"]` during import
   and restore it verbatim on export (opaque round-tripping — no internal model changes).
 - A first-class `conditions` field on `Question` and active AI reasoning about branching
-  logic in m-chat are post-PoC scope.
+  logic in shape-api are post-PoC scope.
 
-**Relevant for:** m-chat (questionnaire design, round-trip fidelity); not relevant for
-m-autofill (suggestion system does not need to execute branching logic).
+**Relevant for:** shape-api (questionnaire design, round-trip fidelity); not relevant for
+cue-api (suggestion system does not need to execute branching logic).
 
 ### Matrix / Grid Questions
 

@@ -1,10 +1,10 @@
-"""Unit tests for m_ui.api_client — all HTTP calls mocked with respx."""
+"""Unit tests for cue_ui.api_client — all HTTP calls mocked with respx."""
 
 import httpx
 import pytest
 import respx
 
-from m_ui.api_client import (
+from cue_ui.api_client import (
     APIError,
     get_capabilities,
     get_survey,

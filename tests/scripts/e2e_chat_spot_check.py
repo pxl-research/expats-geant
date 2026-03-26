@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-End-to-end spot-check for the M-Chat tool endpoints.
+End-to-end spot-check for the Shape tool endpoints.
 
 Covers:
   1.  Pre-flight     — health check, dev token
@@ -372,11 +372,11 @@ def test_tag(client: httpx.Client, token: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="M-Chat API end-to-end spot check")
+    parser = argparse.ArgumentParser(description="Shape API end-to-end spot check")
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL, help="API base URL")
     args = parser.parse_args()
 
-    print(f"\nM-Chat API spot check  →  {args.base_url}\n")
+    print(f"\nShape API spot check  →  {args.base_url}\n")
 
     with httpx.Client(base_url=args.base_url, timeout=30) as client:
         if not check_server(client):

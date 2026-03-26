@@ -1,4 +1,4 @@
-"""Tests for m_chat_ui: api_client unit tests and router integration tests.
+"""Tests for shape_ui: api_client unit tests and router integration tests.
 
 Unit tests for api_client:
 - create_session success / API error
@@ -25,12 +25,14 @@ Integration tests for router:
 - DELETE /session/{id} redirects to home
 """
 
+from unittest.mock import AsyncMock, patch
+
 import httpx
 import pytest
 import respx
 from fastapi.testclient import TestClient
 
-from m_chat_ui.api_client import (
+from shape_ui.api_client import (
     APIError,
     create_session,
     create_survey_on_platform,
@@ -46,7 +48,7 @@ from m_chat_ui.api_client import (
     upload_content_doc,
     upload_style_doc,
 )
-from m_chat_ui.main import create_app
+from shape_ui.main import create_app
 
 BASE = "http://localhost:8003"
 TOKEN = "test-jwt-token"
@@ -588,14 +590,17 @@ def test_delete_session_redirects_to_home(client):
 def test_auth_login_redirects(client):
     resp = client.get("/auth/login", follow_redirects=False)
     assert resp.status_code in (302, 307)
-    # Redirects to m-chat public URL
+    # Redirects to shape-api public URL
     assert "auth/login" in resp.headers["location"]
 
 
-def test_auth_logout_clears_cookie(client):
+@patch(
+    "shape_ui.router.get_logout_url", new_callable=AsyncMock, return_value="http://keycloak/logout"
+)
+def test_auth_logout_clears_cookie(mock_logout_url, client):
     resp = client.get("/auth/logout", cookies=COOKIE, follow_redirects=False)
     assert resp.status_code == 302
-    assert "/auth/login" in resp.headers["location"]
+    assert resp.headers["location"] == "http://keycloak/logout"
     # Cookie should be cleared
     set_cookie = resp.headers.get("set-cookie", "")
     assert "chat_token" in set_cookie

@@ -1,8 +1,8 @@
-# M-Chat API Reference
+# Shape API Reference
 
-M-Chat is the administrator co-pilot for questionnaire design. It provides stateless survey transform endpoints (import/export/create) and AI tool endpoints (suggest/validate/tag), plus a full conversational session API for iterative survey authoring.
+Shape is the administrator co-pilot for questionnaire design. It provides stateless survey transform endpoints (import/export/create) and AI tool endpoints (suggest/validate/tag), plus a full conversational session API for iterative survey authoring.
 
-> For M-Autofill API, see [AUTOFILL_API.md](AUTOFILL_API.md).
+> For Cue API, see [AUTOFILL_API.md](AUTOFILL_API.md).
 
 ## Table of Contents
 
@@ -41,7 +41,7 @@ M-Chat is the administrator co-pilot for questionnaire design. It provides state
 
 - **Base URL**: `http://localhost:8003`
 - **Interactive docs**: `http://localhost:8003/docs`
-- **Service**: `m-chat` (Docker Compose)
+- **Service**: `shape-api` (Docker Compose)
 - **Port**: `8003`
 
 All endpoints except `/`, `/health`, `/dev/token`, `/auth/login`, and `/auth/callback` require a valid JWT in the `Authorization: Bearer <token>` header.
@@ -50,7 +50,7 @@ All endpoints except `/`, `/health`, `/dev/token`, `/auth/login`, and `/auth/cal
 
 ## Authentication
 
-M-Chat uses the same JWT authentication model as M-Autofill. See [AUTOFILL_API.md — Authentication Model](AUTOFILL_API.md#authentication-model) and [JWT Requirements](AUTOFILL_API.md#jwt-requirements) for full details.
+Shape uses the same JWT authentication model as Cue. See [AUTOFILL_API.md — Authentication Model](AUTOFILL_API.md#authentication-model) and [JWT Requirements](AUTOFILL_API.md#jwt-requirements) for full details.
 
 ### Quick start (development)
 
