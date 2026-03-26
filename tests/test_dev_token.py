@@ -19,7 +19,8 @@ def client(tmp_path):
     session_manager = SessionManager(base_path=str(tmp_path / "sessions"))
     app = create_app(session_manager=session_manager)
 
-    yield TestClient(app)
+    with TestClient(app) as c:
+        yield c
 
     os.environ.pop("API_SECRET", None)
 
