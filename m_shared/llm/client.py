@@ -82,7 +82,7 @@ class LLMClient(OpenAI):
     def _inject_thinking(self, kwargs: dict) -> dict:
         """Inject extended-thinking config into extra_body if thinking_budget is set."""
         if self.thinking_budget is not None:
-            extra_body = kwargs.get("extra_body", {})
+            extra_body = kwargs.get("extra_body") or {}
             extra_body.setdefault(
                 "thinking", {"type": "enabled", "budget_tokens": self.thinking_budget}
             )
