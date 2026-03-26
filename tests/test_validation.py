@@ -159,7 +159,7 @@ class TestValidateFileType:
         """Test unsupported extensions return False."""
         assert not validate_file_type("test.exe")
         assert not validate_file_type("test.zip")
-        assert not validate_file_type("test.jpg")
+        assert not validate_file_type("test.bmp")
 
     def test_case_insensitive(self):
         """Test extension checking is case-insensitive."""

@@ -434,7 +434,7 @@ def create_app(
                 user_id=claims.get("user_id"),
                 audit_logger=audit_logger,
                 llm_client=llm_client,
-                model_name=llm_client.model_name if llm_client else None,
+                model_name=getattr(llm_client, "model_name", None),
             )
 
             file_size = os.path.getsize(file_path)
