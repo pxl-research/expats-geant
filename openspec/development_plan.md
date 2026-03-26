@@ -341,7 +341,7 @@ This document outlines the phased approach to building Expats from January to Ju
 - [x] Integration documentation (SDK examples, API reference) — `docs/AUTOFILL_API.md` (709 lines), `docs/MCHAT_API.md` (693 lines), `docs/ADAPTERS.md` (297 lines)
 - [ ] Admin templates & institutional reuse guides — `docs/KEYCLOAK_SETUP.md` covers Keycloak setup; broader admin/reuse templates still missing
 - [ ] Live demo for GÉANT TNC (May 2026)
-- [ ] Open-source release (restricted license TBD) — no `LICENSE` file in repo root yet
+- [ ] Open-source release (restricted license TBD) — `LICENSE` file present in repo root
 - [ ] Architecture & lessons-learned writeup
 
 **Dependencies:** Phase 5
