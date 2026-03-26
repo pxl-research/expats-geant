@@ -353,6 +353,10 @@ body { overflow: hidden; }
                 <div class="spinner"></div>
                 <span>Thinking…</span>
               </span>
+              <span class="htmx-indicator" id="upload-indicator">
+                <div class="spinner"></div>
+                <span>Processing…</span>
+              </span>
               <label
                 class="btn btn-ghost btn-sm upload-inline"
                 title="Upload a reference document"
@@ -369,6 +373,7 @@ body { overflow: hidden; }
                   hx-swap="innerHTML"
                   hx-encoding="multipart/form-data"
                   hx-trigger="change"
+                  hx-indicator="#upload-indicator"
                 >
               </label>
             </div>

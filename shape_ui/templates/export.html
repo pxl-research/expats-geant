@@ -149,12 +149,20 @@
       hx-indicator="#export-spinner"
     >
       <input type="hidden" name="fmt" id="fmt-input" value="{{ formats[0].id if formats else '' }}">
-      <input type="hidden" name="action" id="action-input" value="{{ 'push' if formats and formats[0].push else 'download' }}">
+      <input type="hidden" name="action" id="action-input" value="download">
+
+      <!-- Action toggle (shown only for push-capable platforms) -->
+      <div id="action-toggle" style="display:none; margin-top:1.25rem">
+        <div class="divider" style="margin-top:0; margin-bottom:1rem"></div>
+        <span style="font-size:0.875rem; font-weight:500; color:var(--text); margin-right:0.75rem">Delivery</span>
+        <button type="button" class="btn btn-sm btn-primary" id="toggle-download" onclick="setAction('download')">Download</button>
+        <button type="button" class="btn btn-sm btn-ghost" id="toggle-push" onclick="setAction('push')">Push to API</button>
+      </div>
 
       <!-- Credential panel (push platforms only) -->
-      <div id="credential-panel" class="credential-panel {% if formats and formats[0].push %}visible{% endif %}">
+      <div id="credential-panel" class="credential-panel">
         <div class="divider"></div>
-        <h3 style="margin-bottom:1rem">Platform credentials <span class="label-hint">(optional — leave blank to download file)</span></h3>
+        <h3 style="margin-bottom:1rem">Platform credentials</h3>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.875rem">
           <div class="form-group" style="margin-bottom:0">
             <label for="api_url">API URL / Datacenter</label>
@@ -178,7 +186,7 @@
       <div style="margin-top:1.5rem; display:flex; align-items:center; gap:1rem">
         <button type="submit" class="btn btn-primary" {% if not survey %}disabled{% endif %} id="export-btn">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          <span id="export-btn-label">Export</span>
+          <span id="export-btn-label">Download</span>
         </button>
         <span class="htmx-indicator" id="export-spinner">
           <div class="spinner"></div>
@@ -195,28 +203,33 @@
 {% block scripts %}
 <script>
 function selectPlatform(btn, fmtId, isPush) {
-  // Update all cards
   document.querySelectorAll('.platform-card').forEach(function(c) {
     c.classList.remove('selected');
     c.setAttribute('aria-pressed', 'false');
   });
   btn.classList.add('selected');
   btn.setAttribute('aria-pressed', 'true');
-
-  // Update hidden inputs
   document.getElementById('fmt-input').value = fmtId;
-  document.getElementById('action-input').value = isPush ? 'push' : 'download';
+  document.getElementById('action-toggle').style.display = isPush ? '' : 'none';
+  setAction('download');
+}
 
-  // Show/hide credential panel
-  const panel = document.getElementById('credential-panel');
-  if (isPush) {
+function setAction(action) {
+  document.getElementById('action-input').value = action;
+  var panel   = document.getElementById('credential-panel');
+  var btnDl   = document.getElementById('toggle-download');
+  var btnPush = document.getElementById('toggle-push');
+  if (action === 'push') {
     panel.classList.add('visible');
+    btnDl.className   = 'btn btn-sm btn-ghost';
+    btnPush.className = 'btn btn-sm btn-primary';
+    document.getElementById('export-btn-label').textContent = 'Push to platform';
   } else {
     panel.classList.remove('visible');
+    btnDl.className   = 'btn btn-sm btn-primary';
+    btnPush.className = 'btn btn-sm btn-ghost';
+    document.getElementById('export-btn-label').textContent = 'Download';
   }
-
-  // Update button label
-  document.getElementById('export-btn-label').textContent = isPush ? 'Push to platform' : 'Download';
 }
 </script>
 {% endblock %}
