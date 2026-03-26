@@ -214,6 +214,13 @@ function selectPlatform(btn, fmtId, isPush) {
   setAction('download');
 }
 
+(function() {
+  var selected = document.querySelector('.platform-card.selected');
+  if (selected && selected.dataset.push === 'true') {
+    document.getElementById('action-toggle').style.display = '';
+  }
+})();
+
 function setAction(action) {
   document.getElementById('action-input').value = action;
   var panel   = document.getElementById('credential-panel');
