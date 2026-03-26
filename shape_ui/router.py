@@ -522,5 +522,8 @@ async def delete_session(request: Request, session_id: str):
         return _render_error(request, f"Could not delete session: {exc.detail}", exc.status_code)
 
     if request.headers.get("HX-Request") == "true":
-        return Response(headers={"HX-Redirect": "/"})
-    return HTMLResponse("", status_code=200)
+        current_url = request.headers.get("HX-Current-URL", "")
+        if "/chat" in current_url:
+            return Response(headers={"HX-Redirect": "/"})
+        return Response(status_code=200)
+    return RedirectResponse(url="/", status_code=302)
