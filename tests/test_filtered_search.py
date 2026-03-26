@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from m_autofill.ingest import ingest_files_into_store
+from cue_api.ingest import ingest_files_into_store
 from m_shared.session import SessionManager
 from m_shared.vectordb import ChromaDocumentStore
 
@@ -108,7 +108,7 @@ class TestQueryWithFilterIntegration:
         """RAGPipeline.retrieve() forwards filters to query_with_filter."""
         from unittest.mock import MagicMock
 
-        from m_autofill.rag_pipeline import RAGPipeline
+        from cue_api.rag_pipeline import RAGPipeline
 
         manager = SessionManager(base_path=str(tmp_path))
         session = manager.create_session(user_id="u1", jwt_token="tok1")
@@ -140,7 +140,7 @@ class TestQueryWithFilterIntegration:
         """RAGPipeline.retrieve() without filters still works as before."""
         from unittest.mock import MagicMock
 
-        from m_autofill.rag_pipeline import RAGPipeline
+        from cue_api.rag_pipeline import RAGPipeline
 
         manager = SessionManager(base_path=str(tmp_path))
         session = manager.create_session(user_id="u2", jwt_token="tok2")

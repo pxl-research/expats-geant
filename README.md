@@ -5,13 +5,13 @@ All code is open-source for non-commercial use only.
 
 ## Overview
 
-**Expat-GÉANT** is a proof-of-concept developed by PXL University College to build and evaluate privacy-first, standalone AI modules for the European research and education community.
+**Expats** is a proof-of-concept developed by PXL University College to build and evaluate privacy-first, standalone AI modules for the European research and education community.
 
 ### Core Components
 
-- **M-Chat**: Administrator co-pilot for questionnaire design — accelerates creation with guardrails, consistency checks, tagging, and summarization
-- **M-Autofill**: Respondent assistant for evidence-based answer suggestions — retrieves relevant passages from user documents, proposes concise answers with citations, and explains reasoning
-- **M-UI**: Browser-based survey review frontend — server-rendered FastAPI app (Jinja2 + HTMX) for uploading surveys, reviewing AI suggestions, and submitting responses without custom integration work
+- **Shape**: Administrator co-pilot for questionnaire design — accelerates creation with guardrails, consistency checks, tagging, and summarization
+- **Cue**: Respondent assistant for evidence-based answer suggestions — retrieves relevant passages from user documents, proposes concise answers with citations, and explains reasoning
+- **Cue UI**: Browser-based survey review frontend — server-rendered FastAPI app (Jinja2 + HTMX) for uploading surveys, reviewing AI suggestions, and submitting responses without custom integration work
 - **M-Shared**: Common utilities and foundational infrastructure for both modules
 
 ## Key Features
@@ -39,9 +39,9 @@ All code is open-source for non-commercial use only.
 
 ```
 .
-├── m_autofill/     # Respondent answer suggestion assistant (REST API, port 8001)
-├── m_ui/           # Survey review frontend (Jinja2 + HTMX, port 8002)
-├── m_chat/         # Administrator questionnaire design assistant (REST API, port 8003)
+├── cue_api/     # Respondent answer suggestion assistant (REST API, port 8001)
+├── cue_ui/           # Survey review frontend (Jinja2 + HTMX, port 8002)
+├── shape_api/         # Administrator questionnaire design assistant (REST API, port 8003)
 ├── m_shared/       # Common utilities (LLM clients, vector DB, data models, auth)
 ├── tests/          # All tests (pytest)
 ├── docs/           # Deployment, integration, and API reference guides
@@ -70,8 +70,8 @@ All code is open-source for non-commercial use only.
 
 ```bash
 # Clone repository
-git clone https://github.com/pxl-be/expat-geant.git
-cd expat-geant
+git clone https://github.com/pxl-be/expats.git
+cd expats
 
 # Configure environment
 cp .env.example .env
@@ -81,10 +81,10 @@ cp .env.example .env
 docker-compose up --build
 ```
 
-The M-Autofill API is available at `http://localhost:8001` (interactive docs at `/docs`).
-The M-UI survey review frontend is available at `http://localhost:8002`.
-The M-Chat API is available at `http://localhost:8003` (interactive docs at `/docs`).
-The M-Chat UI is available at `http://localhost:8004`.
+The Cue API is available at `http://localhost:8001` (interactive docs at `/docs`).
+The Cue UI survey review frontend is available at `http://localhost:8002`.
+The Shape API is available at `http://localhost:8003` (interactive docs at `/docs`).
+The Shape UI is available at `http://localhost:8004`.
 
 See [Deployment Guide](docs/DEPLOYMENT.md) for full configuration options, manual Docker setup, data persistence, and production security guidance.
 
@@ -92,13 +92,13 @@ See [Deployment Guide](docs/DEPLOYMENT.md) for full configuration options, manua
 
 - [Project Context](openspec/project.md) — Detailed specifications, tech stack, conventions, and constraints
 - [Deployment Guide](docs/DEPLOYMENT.md) — Docker & local setup, environment variables, testing
-- [M-Autofill API](docs/AUTOFILL_API.md) — JWT/auth setup, institutional SSO, M-Autofill endpoint reference
-- [M-Chat API](docs/MCHAT_API.md) — M-Chat endpoint reference, conversational session API
+- [Cue API](docs/AUTOFILL_API.md) — JWT/auth setup, institutional SSO, Cue endpoint reference
+- [Shape API](docs/MCHAT_API.md) — Shape endpoint reference, conversational session API
 - [Testing Guide](docs/TESTING.md) — Conformance test suite, coverage, smoke tests
 - [Data Model](docs/DATA_MODEL.md) — Internal data structures, Mermaid diagrams, platform mapping
 - [Adapter Guide](docs/ADAPTERS.md) — Writing custom survey platform adapters
-- [M-Autofill Module](m_autofill/README.md) — Answer suggestion assistant
-- [M-Chat Module](m_chat/README.md) — Questionnaire design assistant
+- [Cue Module](cue_api/README.md) — Answer suggestion assistant
+- [Shape Module](shape_api/README.md) — Questionnaire design assistant
 - [Shared Utilities](m_shared/README.md) — Common infrastructure
 
 ## Contributing
@@ -107,8 +107,8 @@ See [Deployment Guide](docs/DEPLOYMENT.md) for full configuration options, manua
 
 ```bash
 # Clone repository
-git clone https://github.com/pxl-be/expat-geant.git
-cd expat-geant
+git clone https://github.com/pxl-be/expats.git
+cd expats
 
 # Create virtual environment
 python3 -m venv .venv

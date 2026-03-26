@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from m_autofill.ingest import ingest_files_into_store
-from m_autofill.rag_pipeline import RAGPipeline
+from cue_api.ingest import ingest_files_into_store
+from cue_api.rag_pipeline import RAGPipeline
 from m_shared.llm import LLMClient
 from m_shared.session import SessionManager
 from m_shared.utils import AuditEventType, AuditLogger

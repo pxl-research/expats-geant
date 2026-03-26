@@ -1,6 +1,6 @@
 # Testing Guide
 
-This document describes the conformance test suite for the Expat-GÉANT project (D2.1 deliverable).
+This document describes the conformance test suite for the Expats project (D2.1 deliverable).
 
 ## Running the Full Suite
 
@@ -24,11 +24,11 @@ Coverage threshold: `--cov-fail-under=80` (configured in `pyproject.toml` / `set
 
 ## Test Suite Map
 
-### M-Autofill (`m_autofill/`)
+### Cue (`cue_api/`)
 
 | File | Description |
 |---|---|
-| `test_session_api.py` | M-Autofill API endpoints (upload, suggest, batch suggest, session stats, delete) |
+| `test_session_api.py` | Cue API endpoints (upload, suggest, batch suggest, session stats, delete) |
 | `test_batch_suggest.py` | Batch suggestion endpoint with sections and flat item lists |
 | `test_rag_pipeline.py` | RAG pipeline: document ingestion, chunking, retrieval |
 | `test_rag_integration.py` | End-to-end RAG with ChromaDB (integration) |
@@ -49,7 +49,7 @@ Coverage threshold: `--cov-fail-under=80` (configured in `pyproject.toml` / `set
 | `test_answer_report.py` | Per-session `answer_report.json` persistence and download endpoint |
 | `test_autofill_suggest_stream.py` | `POST /suggest/stream` SSE endpoint: event format, done sentinel, mid-stream error handling |
 
-### M-Chat (`m_chat/`)
+### Shape (`shape_api/`)
 
 | File | Description |
 |---|---|
@@ -61,7 +61,7 @@ Coverage threshold: `--cov-fail-under=80` (configured in `pyproject.toml` / `set
 | `test_chat_tagging.py` | Tagging engine and vocabulary persistence |
 | `test_chat_session.py` | Session I/O helpers (load/save draft, vocabulary, style, conversation) |
 | `test_chat_style.py` | Style document extraction and summarisation |
-| `test_chat_ui.py` | M-Chat UI integration |
+| `test_chat_ui.py` | Shape UI integration |
 
 ### Shared (`m_shared/`)
 
@@ -76,13 +76,13 @@ Coverage threshold: `--cov-fail-under=80` (configured in `pyproject.toml` / `set
 | `test_oauth.py` | OIDC login and callback flows |
 | `test_live_api_import_adapters.py` | `LimeSurveyAdapter.fetch_survey` and `QualtricsAdapter.fetch_survey` unit tests |
 
-### M-UI (`m_ui/`)
+### Cue UI (`cue_ui/`)
 
 | File | Description |
 |---|---|
 | `test_ui_routes.py` | UI route rendering including SSE suggest-stream proxy |
 | `test_ui_modes.py` | Upload UI modes |
-| `test_ui_api_client.py` | M-UI → M-Autofill API client |
+| `test_ui_api_client.py` | Cue UI → Cue API client |
 | `test_ui_documents.py` | Document upload UI flow |
 
 ## Running Against a Deployed Instance
@@ -93,8 +93,8 @@ To smoke-test a running deployment:
 
 ```bash
 export JWT_SECRET=your-deployed-secret
-export BASE_URL=http://localhost:8001   # M-Autofill
-export CHAT_URL=http://localhost:8003   # M-Chat
+export BASE_URL=http://localhost:8001   # Cue
+export CHAT_URL=http://localhost:8003   # Shape
 ```
 
 ### 2. Generate a token
@@ -111,34 +111,34 @@ TOKEN=$(curl -s -X POST "$BASE_URL/dev/token" \
 Four automated scripts cover the full deployed stack:
 
 ```bash
-# M-Autofill: upload → suggest → audit → cleanup (52 checks)
+# Cue: upload → suggest → audit → cleanup (52 checks)
 python tests/scripts/e2e_api_spot_check.py --base-url $BASE_URL
 
-# M-Autofill: /suggest/stream SSE endpoint (27 checks)
+# Cue: /suggest/stream SSE endpoint (27 checks)
 python tests/scripts/e2e_stream_spot_check.py --base-url $BASE_URL
 
-# M-Autofill: audit trail accuracy, timestamps, GDPR deletion (80 checks)
+# Cue: audit trail accuracy, timestamps, GDPR deletion (80 checks)
 python tests/scripts/e2e_audit_spot_check.py --base-url $BASE_URL
 
-# M-Chat: import/export, validate, suggest, tag (30 checks)
+# Shape: import/export, validate, suggest, tag (30 checks)
 python tests/scripts/e2e_chat_spot_check.py --base-url $CHAT_URL
 
-# M-Chat: conversational session lifecycle (33 checks)
+# Shape: conversational session lifecycle (33 checks)
 python tests/scripts/e2e_chat_conversational_spot_check.py --base-url $CHAT_URL
 ```
 
 ### 4. Curl smoke tests
 
 ```bash
-# M-Autofill health
+# Cue health
 curl $BASE_URL/health
 # {"status":"healthy"}
 
-# M-Chat health
+# Shape health
 curl $CHAT_URL/health
 # {"status":"healthy"}
 
-# Authenticated M-Chat suggest
+# Authenticated Shape suggest
 curl -X POST $CHAT_URL/suggest \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
@@ -173,4 +173,4 @@ open htmlcov/index.html
 pytest tests/ --cov=. --cov-report=xml
 ```
 
-The coverage threshold is 80% across the full codebase. Key modules with high coverage: `m_shared/`, `m_autofill/`, `m_chat/`.
+The coverage threshold is 80% across the full codebase. Key modules with high coverage: `m_shared/`, `cue_api/`, `shape_api/`.

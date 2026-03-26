@@ -1,4 +1,4 @@
-"""Platform survey adapters for Expat-GÉANT.
+"""Platform survey adapters for Expats.
 
 Each adapter translates between a specific survey platform's format and
 the internal Survey model. Use `capabilities()` to check what operations

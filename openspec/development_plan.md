@@ -1,6 +1,6 @@
 # Development Plan
 
-This document outlines the phased approach to building Expat-GÉANT from January to June 2026, aligned with the baseline capability specs in `specs/`.
+This document outlines the phased approach to building Expats from January to June 2026, aligned with the baseline capability specs in `specs/`.
 
 ## Project Timeline
 
@@ -11,7 +11,7 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 ## Phase 1: Foundation & Shared Infrastructure (Jan–Feb)
 
-**Goal:** Establish core building blocks for both M-Chat and M-Autofill.
+**Goal:** Establish core building blocks for both Shape and Cue.
 
 **Deliverables:**
 
@@ -42,7 +42,7 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 ## Phase 2: Document Processing & Vector Search (Feb–Mar)
 
-**Goal:** Enable document upload, chunking, and semantic search for M-Autofill.
+**Goal:** Enable document upload, chunking, and semantic search for Cue.
 
 **Status:** ✅ Phase 2.1 (Document Ingestion) **COMPLETE**
 
@@ -64,8 +64,8 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 **Key Files (Completed):**
 
-- ✅ `m_autofill/ingest.py` (Upload, parse, chunk via `ingest_files_into_store()`)
-- ✅ `m_autofill/validation.py` (File validation with size/type checks)
+- ✅ `cue_api/ingest.py` (Upload, parse, chunk via `ingest_files_into_store()`)
+- ✅ `cue_api/validation.py` (File validation with size/type checks)
 - ✅ `m_shared/vectordb/utils.py` (Text extraction, chunking algorithms)
 - ✅ `tests/test_document_ingestion.py` (13 tests for text extraction)
 - ✅ `tests/test_chunking.py` (24 tests for all chunking strategies)
@@ -112,7 +112,7 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 ---
 
-## Phase 3: M-Autofill (Answer Suggestion Module) (Mar–Apr)
+## Phase 3: Cue (Answer Suggestion Module) (Mar–Apr)
 
 **Goal:** Complete RAG pipeline with answer suggestions, citations, audit logging, and REST API endpoints.
 
@@ -128,7 +128,7 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 **Key Files:**
 
-- `m_autofill/rag_pipeline.py` (Retrieval, generation, citations) — 392 lines
+- `cue_api/rag_pipeline.py` (Retrieval, generation, citations) — 392 lines
 - `tests/test_rag_pipeline.py` — 31 unit tests
 - `tests/test_rag_integration.py` — 8 integration tests
 
@@ -157,8 +157,8 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 - [x] `m_shared/utils/audit.py` (Audit logging & reports) — 540 lines
 - [x] `m_shared/utils/__init__.py` (Package exports)
-- [x] `m_autofill/ingest.py` (Upload event logging)
-- [x] `m_autofill/rag_pipeline.py` (Suggestion event logging)
+- [x] `cue_api/ingest.py` (Upload event logging)
+- [x] `cue_api/rag_pipeline.py` (Suggestion event logging)
 - [x] `m_shared/session/manager.py` (Session lifecycle & retention enforcement)
 - [x] `tests/test_audit.py` — 25 unit tests
 - [x] `tests/test_audit_integration.py` — 8 integration tests
@@ -185,12 +185,12 @@ This document outlines the phased approach to building Expat-GÉANT from January
 - [x] REST API endpoints (upload, suggest, audit report retrieval, cleanup)
 - [x] FastAPI integration with session/auth middleware
 - [x] Integration tests: full user session flow (23/23 tests passing)
-- [x] Docker container for M-Autofill service
+- [x] Docker container for Cue service
 - [x] docker-compose.yml for deployment
 
 **Key Files:**
 
-- [x] `m_autofill/api.py` (FastAPI endpoints) — 422 lines, 6 endpoints
+- [x] `cue_api/api.py` (FastAPI endpoints) — 422 lines, 6 endpoints
 - [x] `tests/test_session_api.py` — 586 lines, 23 tests
 - [x] `Dockerfile` and `docker-compose.yml`
 - [x] `m_shared/auth/middleware.py` — Updated public endpoints
@@ -212,7 +212,7 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 ---
 
-## Phase 4: M-Chat (Questionnaire Design Module) (Feb–Mar)
+## Phase 4: Shape (Questionnaire Design Module) (Feb–Mar)
 
 **Goal:** Complete questionnaire design assistant with validation, suggestions, tagging, and QTI support.
 
@@ -222,7 +222,7 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 **Deliverables:**
 
-- [x] Session infrastructure for M-Chat (per-user session folders, draft survey, tag vocabulary, conversation history, uploaded documents)
+- [x] Session infrastructure for Shape (per-user session folders, draft survey, tag vocabulary, conversation history, uploaded documents)
 - [x] Suggestion engine (LLM-based question rewording, with/without survey context) — [specs/questionnaire-design](specs/questionnaire-design/spec.md)
 - [x] Validation engine (deterministic rule checks + LLM-assisted; rules grounded in `docs/SURVEY_DESIGN_GUIDELINES.md`)
 - [x] Auto-tagging engine (tag suggestion with session vocabulary awareness)
@@ -230,10 +230,10 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 **Key Files:**
 
-- [x] `m_chat/session.py` (session I/O helpers, style profile, draft survey)
-- [x] `m_chat/suggestion_engine.py` (LLM-based suggestions)
-- [x] `m_chat/validation_engine.py` (style & compliance checks)
-- [x] `m_chat/tagging_engine.py` (auto-tagging)
+- [x] `shape_api/session.py` (session I/O helpers, style profile, draft survey)
+- [x] `shape_api/suggestion_engine.py` (LLM-based suggestions)
+- [x] `shape_api/validation_engine.py` (style & compliance checks)
+- [x] `shape_api/tagging_engine.py` (auto-tagging)
 
 ---
 
@@ -248,12 +248,12 @@ This document outlines the phased approach to building Expat-GÉANT from January
 - [x] Document upload for survey drafting
 - [x] FastAPI integration with session/auth middleware
 - [x] Unit tests for engines and adapters (89 tests: 47 adapter + 42 API)
-- [x] Docker container for M-Chat service
+- [x] Docker container for Shape service
 
 **Key Files:**
 
-- [x] `m_chat/api.py` (FastAPI endpoints — stateless + stateful)
-- [x] `m_chat/models.py` (Pydantic request/response models)
+- [x] `shape_api/api.py` (FastAPI endpoints — stateless + stateful)
+- [x] `shape_api/models.py` (Pydantic request/response models)
 - [x] `m_shared/adapters/` (all four adapters with `create_survey()`)
 - [x] `tests/test_chat_adapters.py` (47 tests)
 - [x] `tests/test_chat_api.py` (42 tests)
@@ -264,17 +264,17 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 **Deliverables:**
 
-- [x] M-Chat UI (`m_chat_ui/` service, HTMX-based)
+- [x] Shape UI (`shape_ui/` service, HTMX-based)
 - [x] Landing page (list/resume sessions or start new)
 - [x] Style setup page (language, preferences, style guide upload)
 - [x] Chat page (message input, assistant response, live survey preview sidebar)
 - [x] Export page (platform selector, file export or adapter push)
-- [x] Docker container for `m_chat_ui`, registered in `docker-compose.yml`
+- [x] Docker container for `shape_ui`, registered in `docker-compose.yml`
 
 **Key Files:**
 
-- [x] `m_chat_ui/` (UI service package)
-- [x] `docker-compose.yml` (updated with M-Chat UI service)
+- [x] `shape_ui/` (UI service package)
+- [x] `docker-compose.yml` (updated with Shape UI service)
 
 ---
 
@@ -297,7 +297,7 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 **Deliverables:**
 
-- [ ] Docker Compose setup with both services (M-Chat + M-Autofill + Keycloak)
+- [ ] Docker Compose setup with both services (Shape + Cue + Keycloak)
 - [ ] Deployment to PXL + Belnet partner institutions
 - [ ] Configure Keycloak realm for each pilot institution (optional: federate with institutional IdP via Keycloak admin panel — no code changes required; see `docs/KEYCLOAK_SETUP.md`)
 - [ ] Session persistence (file-based audit reports, user downloads)
@@ -311,7 +311,7 @@ This document outlines the phased approach to building Expat-GÉANT from January
 
 **Key Components:**
 
-- `docker-compose.yml` (M-Chat, M-Autofill, Keycloak)
+- `docker-compose.yml` (Shape, Cue, Keycloak)
 - `keycloak/realm-export.json` (pre-configured realm, auto-imported on first startup)
 - Monitoring & logging setup (`logs/security.log` already in place)
 - Pilot testing protocol & evaluation scripts
@@ -397,9 +397,9 @@ Each proposal will include a `proposal.md`, `tasks.md`, and spec deltas updating
 
 **After Phase 2:** Full document ingestion pipeline working; semantic search accurate.
 
-**After Phase 3:** M-Autofill functional end-to-end; citations match sources; manual testing validates quality.
+**After Phase 3:** Cue functional end-to-end; citations match sources; manual testing validates quality.
 
-**After Phase 4:** M-Chat functional; QTI round-trip successful; validation rules enforced.
+**After Phase 4:** Shape functional; QTI round-trip successful; validation rules enforced.
 
 **After Phase 5:** Pilot deployment successful; metrics collection in progress.
 

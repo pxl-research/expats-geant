@@ -1,16 +1,16 @@
-"""Tests for m_chat.suggestion_engine."""
+"""Tests for shape_api.suggestion_engine."""
 
 import json
 from unittest.mock import Mock
 
 import pytest
 
-from m_chat.suggestion_engine import SuggestionResult, compact_survey_summary, suggest_question
 from m_shared.llm.client import LLMClient
 from m_shared.models.answer_option import AnswerOption
 from m_shared.models.question import Question, QuestionType
 from m_shared.models.section import Section
 from m_shared.models.survey import Survey
+from shape_api.suggestion_engine import SuggestionResult, compact_survey_summary, suggest_question
 
 # ---------------------------------------------------------------------------
 # Fixtures

@@ -5,7 +5,7 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
-from m_autofill.api import create_app
+from cue_api.api import create_app
 from m_shared.auth.jwt_handler import validate_token
 from m_shared.session.manager import SessionManager
 

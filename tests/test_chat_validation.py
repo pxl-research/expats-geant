@@ -1,18 +1,18 @@
-"""Tests for m_chat.validation_engine."""
+"""Tests for shape_api.validation_engine."""
 
 import json
 from unittest.mock import Mock
 
-from m_chat.validation_engine import (
-    ValidationIssue,
-    validate_question,
-    validate_survey,
-)
 from m_shared.llm.client import LLMClient
 from m_shared.models.answer_option import AnswerOption
 from m_shared.models.question import Question, QuestionType
 from m_shared.models.section import Section
 from m_shared.models.survey import Survey
+from shape_api.validation_engine import (
+    ValidationIssue,
+    validate_question,
+    validate_survey,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -512,7 +512,7 @@ def _survey_dict_with_social_desirability() -> dict:
 
 
 def test_advisory_note_appended_for_new_issue(tmp_path):
-    from m_chat.conversation import execute_chat_turn
+    from shape_api.conversation import execute_chat_turn
 
     mock_llm = Mock()
     mock_llm.create_completion.return_value = (
@@ -533,8 +533,8 @@ def test_advisory_note_appended_for_new_issue(tmp_path):
 
 
 def test_advisory_note_not_shown_for_preexisting_issue(tmp_path):
-    from m_chat.conversation import execute_chat_turn
-    from m_chat.session import save_draft_survey
+    from shape_api.conversation import execute_chat_turn
+    from shape_api.session import save_draft_survey
 
     session_id = "sess2"
     existing_q = Question(
@@ -566,7 +566,7 @@ def test_advisory_note_not_shown_for_preexisting_issue(tmp_path):
 
 def test_advisory_note_not_shown_for_info_only_issue(tmp_path):
     """An info-severity new issue (e.g. missing_neutral_option) must not trigger an advisory note."""
-    from m_chat.conversation import execute_chat_turn
+    from shape_api.conversation import execute_chat_turn
 
     # single_choice with 4 even options and no neutral label → missing_neutral_option (info only)
     survey_dict = {

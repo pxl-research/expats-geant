@@ -1,4 +1,4 @@
-"""Session management for M-Autofill and M-Chat.
+"""Session management for Cue and Shape.
 
 Provides session lifecycle management, TTL-based cleanup, and isolated storage.
 """

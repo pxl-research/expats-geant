@@ -1,14 +1,14 @@
-"""Tests for m_chat.tagging_engine."""
+"""Tests for shape_api.tagging_engine."""
 
 from unittest.mock import Mock
 
 import pytest
 
-from m_chat.session import update_vocabulary
-from m_chat.tagging_engine import normalise_tag, suggest_tags
 from m_shared.llm.client import LLMClient
 from m_shared.models.answer_option import AnswerOption
 from m_shared.models.question import Question, QuestionType
+from shape_api.session import update_vocabulary
+from shape_api.tagging_engine import normalise_tag, suggest_tags
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -5,21 +5,23 @@ TBD - created by archiving change add-survey-ui. Update Purpose after archive.
 ## Requirements
 ### Requirement: API Separation
 
-The survey UI SHALL be a standalone module (`m_ui/`) that communicates with the M-Autofill
+The survey UI SHALL be a standalone module (`cue_ui/`) that communicates with the Cue
 core system exclusively via its public HTTP API. The UI SHALL NOT import Python modules from
-`m_autofill/` or `m_shared/` directly.
+`cue_api/` or `m_shared/` directly.
 
 #### Scenario: UI calls API for survey data
 
 - **WHEN** the UI needs to render a survey
-- **THEN** it calls `GET /surveys/{survey_id}` on the M-Autofill API
+- **THEN** it calls `GET /surveys/{survey_id}` on the Cue API
 - **AND** does not access the internal database or model layer directly
 
-#### Scenario: UI calls API for suggestions
+#### Scenario: UI streams suggestions via SSE proxy
 
 - **WHEN** the UI needs to populate suggestions for a survey session
-- **THEN** it calls the M-Autofill batch suggest endpoint with the survey ID and session context
-- **AND** renders the returned suggestions and citations without any internal processing
+- **THEN** the browser connects to the cue-ui SSE proxy endpoint `GET /session/{id}/suggest-stream`
+- **AND** cue-ui forwards the request to `POST /suggest/stream` on Cue, injecting the auth token
+- **AND** each suggestion event is re-rendered as HTML and forwarded to the browser as it arrives
+- **AND** the UI does not call the bulk `POST /suggest/batch` endpoint for the review page
 
 ### Requirement: Survey Rendering
 
@@ -50,9 +52,18 @@ HTML input controls.
 
 ### Requirement: Inline Suggestion Display
 
-The UI SHALL display AI-generated suggestions alongside each question in the same view. Each
-suggestion SHALL show the suggested answer, the LLM reasoning (if available), and all associated
+The UI SHALL display AI-generated suggestions alongside each question in the same view,
+rendering each suggestion as soon as it is received from the SSE stream. Each suggestion
+SHALL show the suggested answer, the LLM reasoning (if available), and all associated
 citations (source and excerpt).
+
+#### Scenario: Suggestions appear progressively
+
+- **WHEN** the review page loads
+- **THEN** the UI connects to the SSE stream endpoint
+- **AND** each suggestion is rendered into its corresponding question zone as it arrives
+- **AND** questions without a suggestion yet show a per-question loading indicator
+- **AND** the page is interactive throughout — the respondent does not need to wait for all suggestions
 
 #### Scenario: Suggestion shown with citation
 
@@ -64,6 +75,12 @@ citations (source and excerpt).
 
 - **WHEN** the suggestion engine returns a suggestion with no citations
 - **THEN** the UI renders the suggestion text and reasoning (if present) without a citation block
+
+#### Scenario: Stream error shown inline
+
+- **WHEN** the SSE stream closes with an error before all suggestions have been delivered
+- **THEN** questions that did not receive a suggestion display an inline error message
+- **AND** questions that already received a suggestion are unaffected
 
 ### Requirement: User Review and Edit
 
@@ -158,7 +175,7 @@ accept, edit, or dismiss action without requiring a server round-trip or explici
 ### Requirement: Document Upload
 
 The UI SHALL allow respondents to upload one or more source documents (e.g. PDFs, Word files)
-before reviewing suggestions. Uploaded documents are forwarded to the M-Autofill document
+before reviewing suggestions. Uploaded documents are forwarded to the Cue document
 ingestion API; the UI SHALL NOT process or store document content itself. Document upload is
 optional — respondents may skip it and proceed with suggestions derived from previously ingested
 documents.
@@ -166,7 +183,7 @@ documents.
 #### Scenario: Document uploaded successfully
 
 - **WHEN** a respondent uploads one or more documents on the document upload step
-- **THEN** the UI posts each file to the M-Autofill document ingestion API endpoint
+- **THEN** the UI posts each file to the Cue document ingestion API endpoint
 - **AND** proceeds to the survey review page once all uploads are confirmed
 - **AND** the UI does not retain or process the document content locally
 
@@ -190,14 +207,14 @@ documents.
 
 ### Requirement: Response Submission
 
-When the respondent submits the completed form, the UI SHALL send all responses to the M-Autofill
+When the respondent submits the completed form, the UI SHALL send all responses to the Cue
 API, which delegates to the adapter's `submit_responses()`. The UI SHALL display a clear success
 or error state after the submission attempt.
 
 #### Scenario: Successful submission
 
 - **WHEN** the respondent clicks submit and all required questions are answered
-- **THEN** the UI POSTs the responses to the M-Autofill submit endpoint
+- **THEN** the UI POSTs the responses to the Cue submit endpoint
 - **AND** displays a confirmation page on success
 
 #### Scenario: Submission error

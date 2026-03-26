@@ -1,6 +1,6 @@
 # Data Model
 
-This document describes the internal data structures used across the Expat-GÉANT platform. The model is designed as a **platform-agnostic common denominator** — broad enough to represent questionnaires from a variety of survey tools, while staying simple enough to remain easy to work with.
+This document describes the internal data structures used across the Expats platform. The model is designed as a **platform-agnostic common denominator** — broad enough to represent questionnaires from a variety of survey tools, while staying simple enough to remain easy to work with.
 
 ---
 
@@ -137,7 +137,7 @@ The `isolation_scope` field controls data partitioning (`user`, `org`, or `tenan
 
 ---
 
-## M-Autofill API Models
+## Cue API Models
 
 The batch suggest API uses a **leaner parallel structure** optimised for the suggestion workflow. It mirrors the Survey/Section/Question hierarchy but strips out fields that are not needed at request time.
 
@@ -239,7 +239,7 @@ flowchart TD
     F[User uploads documents] --> G[ChromaDB vector store]
     G --> H[RAG pipeline]
 
-    B -->|batch suggest request| I[M-Autofill API]
+    B -->|batch suggest request| I[Cue API]
     H --> I
     I --> J[LLM]
     J --> K[ItemSuggestion\n+ CitationResult]
@@ -280,4 +280,4 @@ Platform-specific fields that do not fit this common structure are preserved in 
 | `Response` | [m_shared/models/response.py](../m_shared/models/response.py) |
 | `Session` | [m_shared/models/session.py](../m_shared/models/session.py) |
 | `Citation` | [m_shared/models/citation.py](../m_shared/models/citation.py) |
-| Batch API models | [m_autofill/models.py](../m_autofill/models.py) |
+| Batch API models | [cue_api/models.py](../cue_api/models.py) |

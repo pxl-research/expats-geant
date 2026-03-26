@@ -1,4 +1,4 @@
-"""Integration tests for m_chat/api.py endpoints.
+"""Integration tests for shape_api/api.py endpoints.
 
 Covers:
 - Public endpoints (/ and /health)
@@ -23,10 +23,10 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from m_chat.api import create_app
 from m_shared.auth.jwt_handler import create_token
 from m_shared.auth.middleware import SessionMiddleware
 from m_shared.session.manager import SessionManager
+from shape_api.api import create_app
 
 # ---------------------------------------------------------------------------
 # Sample payloads
@@ -210,7 +210,7 @@ class TestPublicEndpoints:
     def test_root_no_auth_required(self, client):
         response = client.get("/")
         assert response.status_code == 200
-        assert response.json()["service"] == "m-chat"
+        assert response.json()["service"] == "shape-api"
 
     def test_health_no_auth_required(self, client):
         response = client.get("/health")

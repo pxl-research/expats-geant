@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from m_autofill.ingest import ingest_files_into_store
-from m_autofill.validation import FileValidationError, validate_file_or_raise
+from cue_api.ingest import ingest_files_into_store
+from cue_api.validation import FileValidationError, validate_file_or_raise
 from m_shared.vectordb import ChromaDocumentStore
 
 # Test data directory
@@ -81,7 +81,7 @@ class TestDocumentIngestionIntegration:
 
         # Query each document's content
         results1 = store.query(query_text="multiple paragraphs", n_results=3)
-        results2 = store.query(query_text="M-Autofill", n_results=3)
+        results2 = store.query(query_text="Cue", n_results=3)
         results3 = store.query(query_text="chunking algorithm", n_results=3)
 
         assert len(results1) > 0

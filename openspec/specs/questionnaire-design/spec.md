@@ -1,4 +1,4 @@
-# Capability: Questionnaire Design (M-Chat)
+# Capability: Questionnaire Design (Shape)
 
 ## Purpose
 
@@ -204,7 +204,7 @@ The system SHALL allow administrators to upload source documents (PPTX, DOCX, PD
 
 ### Requirement: Session Style Profile and Language
 
-The system SHALL maintain a style profile per M-Chat session that influences all LLM-generated suggestions, validation feedback, and generated question text. The style profile SHALL include: a `language` field (ISO 639-1, default `"en"`), a `free_text` field for admin-typed style preferences, and a `document_summary` field populated when the admin uploads an institutional style guide document. If no style preferences are provided, the system SHALL apply sensible defaults: English language, neutral formal tone, and rules from the platform's survey design guidelines. The style profile SHALL persist for the lifetime of the session and survive session resume. The admin SHALL be able to update the language or free-text preference at any point during the session.
+The system SHALL maintain a style profile per Shape session that influences all LLM-generated suggestions, validation feedback, and generated question text. The style profile SHALL include: a `language` field (ISO 639-1, default `"en"`), a `free_text` field for admin-typed style preferences, and a `document_summary` field populated when the admin uploads an institutional style guide document. If no style preferences are provided, the system SHALL apply sensible defaults: English language, neutral formal tone, and rules from the platform's survey design guidelines. The style profile SHALL persist for the lifetime of the session and survive session resume. The admin SHALL be able to update the language or free-text preference at any point during the session.
 
 #### Scenario: Default style profile applied
 
@@ -312,6 +312,6 @@ These checks complement the existing `double_barreled`, `leading_language`,
 - MVP scope: Support five core question types (multiple_choice, single_choice, open_ended, ranking, slider)
 - No conditional branching logic in MVP
 - LLM used for suggestions and validation; deterministic rule-based validation for compliance checks
-- Located in `m_chat/suggestion_engine.py`, `validation_engine.py`, `tagging_engine.py`
+- Located in `shape_api/suggestion_engine.py`, `validation_engine.py`, `tagging_engine.py`
 - Integrated with data-models capability for Survey/Question representation
 - Adapter `create` capability: platforms with a write API (LimeSurvey, Qualtrics) SHALL support `create_survey(survey: Survey) -> str` returning the platform-assigned survey ID; platforms without a write API (SurveyMonkey, QTI) SHALL respond to `create` by returning an exported file payload (i.e., a file download fallback)
