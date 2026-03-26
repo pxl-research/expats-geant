@@ -304,7 +304,8 @@ def create_app(
         api_secret: str
 
     @app.post("/auth/token", tags=["Auth"])
-    async def issue_api_token(body: TokenRequest):
+    @limiter.limit("5/minute")
+    async def issue_api_token(request: Request, body: TokenRequest):
         """Issue a JWT for server-to-server callers presenting a shared API secret."""
         expected = os.getenv("API_SECRET", "")
         if not expected or not hmac.compare_digest(body.api_secret, expected):
