@@ -418,6 +418,13 @@ def create_app(
             if not is_valid:
                 raise FileValidationError(error_msg)
 
+            # Reject image uploads when no LLM client is available to describe them
+            _image_extensions = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+            if Path(file_path).suffix.lower() in _image_extensions and llm_client is None:
+                raise FileValidationError(
+                    "Image uploads are not supported: no LLM client is configured"
+                )
+
             # Get vector store for session
             try:
                 store = manager.get_vector_store(session.session_id)
