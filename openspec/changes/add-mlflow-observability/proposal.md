@@ -11,6 +11,7 @@ The pilot phase (Jan–May 2026) generates valuable operational data — LLM cal
 - Thin tracing adapter in `m_shared/` wraps LLM calls and RAG pipeline steps; all calls are no-ops when MLFlow is not configured
 - Privacy-safe by default: operational metadata only (model, latency, token counts); prompt/response content excluded unless explicitly opted in
 - LLM evaluation support via LiteLLM, enabling OpenRouter models as judge LLMs
+- Session outcome metrics logged at session end (duration, suggestion count, edit/acceptance rates) derived from audit log — covers GIP D4.1 pilot KPIs
 - Software runs identically with or without the MLFlow service running
 
 ## Impact

@@ -302,7 +302,7 @@ This document outlines the phased approach to building Expats from January to Ju
 - [x] Configure Keycloak realm for each pilot institution — `keycloak/realm-export.json` present, auto-imported on first start; see `docs/KEYCLOAK_SETUP.md`
 - [x] Session persistence (file-based audit reports, user downloads) — implemented in Phase 3, file-based under `sessions/`
 - [ ] Pilot user testing with administrators and respondents
-- [ ] Collect metrics: authoring time, response time, citation accuracy, acceptance/edit rates
+- [ ] Collect metrics: authoring time, response time, citation accuracy, acceptance/edit rates — evaluation tooling = MLflow dashboards (`add-mlflow-observability` change); LLM/RAG quality metrics covered; behavioural metrics (time saved, edit rates) TBD — either extend MLflow spec or derive from audit logs post-pilot
 - [ ] Bug fixes from pilot feedback
 
 **Note:** OIDC authentication with Keycloak is already implemented (`update-auth-oidc`, archived 2026-03-03). Keycloak is bundled in `docker-compose.yml` with a pre-configured realm; `docker-compose up` is sufficient for a working deployment including auth. Institutional SSO federation (Shibboleth, Azure AD, LDAP) is optional and operator-configured via Keycloak — no application code changes required.
@@ -314,7 +314,7 @@ This document outlines the phased approach to building Expats from January to Ju
 - `docker-compose.yml` (Shape, Cue, Keycloak)
 - `keycloak/realm-export.json` (pre-configured realm, auto-imported on first startup)
 - Monitoring & logging setup (`logs/security.log` already in place)
-- Pilot testing protocol & evaluation scripts
+- Pilot testing protocol & evaluation dashboards (MLflow — `add-mlflow-observability`)
 
 **Dependencies:** Phase 3, Phase 4
 
@@ -339,7 +339,7 @@ This document outlines the phased approach to building Expats from January to Ju
 - [ ] Final evaluation report (metrics, insights, recommendations)
 - [x] Deployment documentation (Docker, environment, setup) — `docs/DEPLOYMENT.md` (582 lines), comprehensive
 - [x] Integration documentation (SDK examples, API reference) — `docs/AUTOFILL_API.md` (709 lines), `docs/MCHAT_API.md` (693 lines), `docs/ADAPTERS.md` (297 lines)
-- [ ] Admin templates & institutional reuse guides — `docs/KEYCLOAK_SETUP.md` covers Keycloak setup; broader admin/reuse templates still missing
+- [x] Admin templates & institutional reuse guides — `docs/OPERATOR_RUNBOOK.md` (operator decisions, GDPR checklist, onboarding) + `docs/STYLE_GUIDE_TEMPLATE.md` (institutional style profile template for Shape)
 - [ ] Live demo for GÉANT TNC (May 2026)
 - [ ] Open-source release (restricted license TBD) — `LICENSE` file present in repo root
 - [ ] Architecture & lessons-learned writeup

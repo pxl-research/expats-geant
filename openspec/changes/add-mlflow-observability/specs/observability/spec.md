@@ -130,3 +130,43 @@ using OpenRouter models as judge LLMs via LiteLLM.
 - **WHEN** an evaluation run is triggered
 - **THEN** it operates on previously logged trace metadata only
 - **AND** does not require access to original documents or active sessions
+
+---
+
+### Requirement: Session Outcome Metrics
+
+The system SHALL log session-level behavioural metrics to MLflow at session end, derived
+from the audit log, to support pilot evaluation (GIP D4.1).
+
+#### Scenario: Cue session outcome logged at session end
+
+- **WHEN** a Cue session ends (explicit DELETE or TTL expiry) and tracing is enabled
+- **THEN** a session outcome run is logged to MLflow containing:
+  - Session duration in seconds (SESSION_END timestamp − SESSION_START timestamp)
+  - Total suggestions generated (count of SUGGEST audit events)
+  - Total suggestions edited (count of EDIT_SUGGESTION audit events)
+  - Acceptance rate (suggestions neither edited nor rejected ÷ total suggestions)
+  - Edit rate (edited suggestions ÷ total suggestions)
+  - Session ID (pseudonymous — hashed, consistent with LLM trace entries)
+
+#### Scenario: Shape session outcome logged at session end
+
+- **WHEN** a Shape session ends and tracing is enabled
+- **THEN** a session outcome run is logged to MLflow containing:
+  - Session duration in seconds
+  - Total suggestion requests made (count of /suggest calls)
+  - Total validation runs (count of /validate calls)
+  - Survey exported (boolean — true if /export or /create was called)
+  - Session ID (pseudonymous — hashed)
+
+#### Scenario: Session outcome logged without content
+
+- **WHEN** `MLFLOW_TRACE_CONTENT` is false (default)
+- **THEN** session outcome metrics contain only counts, durations, and rates
+- **AND** no question text, suggestion text, or document content is included
+
+#### Scenario: Tracing disabled — no session outcome logged
+
+- **WHEN** `MLFLOW_TRACKING_URI` is not set
+- **THEN** no session outcome metrics are computed or logged
+- **AND** session end proceeds normally with no MLflow dependency

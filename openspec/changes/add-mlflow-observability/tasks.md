@@ -36,8 +36,15 @@
 - [ ] 6.4 Hook evaluation trigger into session cleanup/end path: call `run_evaluation.py` for the session if `MLFLOW_EVAL_ENABLED=true` and `MLFLOW_TRACE_CONTENT=true`
 - [ ] 6.5 Document the three env flags and their interaction (`MLFLOW_EVAL_ENABLED` requires `MLFLOW_TRACE_CONTENT` to produce meaningful results)
 
-## 7. Validation
+## 7. Session Outcome Metrics
 
-- [ ] 7.1 Run `openspec validate add-mlflow-observability --strict` and resolve any issues
-- [ ] 7.2 Smoke test: start docker-compose with MLFlow enabled, run a suggestion request, verify trace appears in MLFlow UI
-- [ ] 7.3 Smoke test: start docker-compose without `MLFLOW_TRACKING_URI`, verify application runs normally with no errors
+- [ ] 7.1 Add `trace_session_outcome()` helper to `m_shared/observability/tracer.py` — accepts a dict of outcome metrics and logs them as an MLflow run; no-op when MLflow is not configured
+- [ ] 7.2 Implement outcome aggregation for Cue: at session end, read the session's audit log and compute duration, suggestion count, edit count, acceptance rate, edit rate; call `trace_session_outcome()`
+- [ ] 7.3 Implement outcome aggregation for Shape: at session end, compute duration, suggestion request count, validation run count, export boolean; call `trace_session_outcome()`
+- [ ] 7.4 Write unit tests: verify correct metric computation from synthetic audit log fixtures; verify no-op when MLflow is not configured
+
+## 8. Validation
+
+- [ ] 8.1 Run `openspec validate add-mlflow-observability --strict` and resolve any issues
+- [ ] 8.2 Smoke test: start docker-compose with MLFlow enabled, run a suggestion request, verify trace appears in MLFlow UI
+- [ ] 8.3 Smoke test: start docker-compose without `MLFLOW_TRACKING_URI`, verify application runs normally with no errors
