@@ -297,10 +297,10 @@ This document outlines the phased approach to building Expats from January to Ju
 
 **Deliverables:**
 
-- [ ] Docker Compose setup with both services (Shape + Cue + Keycloak)
+- [x] Docker Compose setup with both services (Shape + Cue + Keycloak) — all 5 services in `docker-compose.yml`
 - [ ] Deployment to PXL + Belnet partner institutions
-- [ ] Configure Keycloak realm for each pilot institution (optional: federate with institutional IdP via Keycloak admin panel — no code changes required; see `docs/KEYCLOAK_SETUP.md`)
-- [ ] Session persistence (file-based audit reports, user downloads)
+- [x] Configure Keycloak realm for each pilot institution — `keycloak/realm-export.json` present, auto-imported on first start; see `docs/KEYCLOAK_SETUP.md`
+- [x] Session persistence (file-based audit reports, user downloads) — implemented in Phase 3, file-based under `sessions/`
 - [ ] Pilot user testing with administrators and respondents
 - [ ] Collect metrics: authoring time, response time, citation accuracy, acceptance/edit rates
 - [ ] Bug fixes from pilot feedback
