@@ -72,8 +72,10 @@ class LLMClient(OpenAI):
         self.extra_headers: dict = custom_headers
         self.max_retries: int = max_retries
         self.retry_backoff_factor: float = retry_backoff_factor
-        self.thinking_budget: int | None = thinking_budget or (
-            int(budget_env) if budget_env else None
+        self.thinking_budget: int | None = (
+            thinking_budget
+            if thinking_budget is not None
+            else (int(budget_env) if budget_env else None)
         )
         self._tokenizer = None  # Lazy load tokenizer
 
