@@ -526,4 +526,4 @@ async def delete_session(request: Request, session_id: str):
         if "/chat" in current_url:
             return Response(headers={"HX-Redirect": "/"})
         return Response(status_code=200)
-    return RedirectResponse(url="/", status_code=302)
+    return HTMLResponse("", status_code=200)
