@@ -10,10 +10,10 @@ CLINE.md
 .idea/
 
 # project specific
-demo_code
 .env
-test_data
 data/
+logs/
+test_data/
 docs/application_form.pdf
 docs/PROJECT_PLAN.md
 .coverage
