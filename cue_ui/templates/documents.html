@@ -27,9 +27,9 @@
   <h2>Select Documents</h2>
   <form method="post" action="/session/{{ session_id }}/documents" enctype="multipart/form-data">
     <div style="margin-bottom:1rem;">
-      <label for="files">Documents (PDF, DOCX, TXT, MD)</label>
+      <label for="files">Documents (PDF, DOCX, PPTX, TXT, MD, XLS/XLSX, images)</label>
       <input type="file" id="files" name="files" multiple
-             accept=".pdf,.docx,.doc,.txt,.md">
+             accept=".pdf,.docx,.txt,.md,.pptx,.xlsx,.xls,.jpg,.jpeg,.png,.gif,.webp">
     </div>
     <div style="margin-bottom:1rem;">
       <label for="text-snippet">Paste text (optional)</label>
@@ -55,8 +55,14 @@
 <script>
 document.querySelector('form').addEventListener('submit', function () {
   const btn = document.getElementById('upload-btn');
+  const fileInput = document.getElementById('files');
+  const count = fileInput.files.length;
   btn.disabled = true;
-  document.getElementById('upload-progress').style.display = 'inline';
+  const progress = document.getElementById('upload-progress');
+  progress.textContent = count > 0
+    ? `Uploading ${count} document${count > 1 ? 's' : ''}…`
+    : 'Uploading and indexing…';
+  progress.style.display = 'inline';
 });
 </script>
 

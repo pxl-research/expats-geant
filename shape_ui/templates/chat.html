@@ -330,6 +330,7 @@ body { overflow: hidden; }
           hx-target="#messages"
           hx-swap="beforeend"
           hx-encoding="multipart/form-data"
+          hx-indicator="#send-indicator"
           hx-on::after-request="this.reset(); document.querySelector('.chat-textarea').style.height='44px'"
         >
           <div class="chat-input-row">
@@ -353,22 +354,27 @@ body { overflow: hidden; }
                 <div class="spinner"></div>
                 <span>Thinking…</span>
               </span>
+              <span class="htmx-indicator" id="upload-indicator">
+                <div class="spinner"></div>
+                <span>Processing…</span>
+              </span>
               <label
                 class="btn btn-ghost btn-sm upload-inline"
-                title="Upload a reference document"
-                aria-label="Upload reference document"
+                title="Upload a reference document or image"
+                aria-label="Upload document or image"
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                Attach doc
+                Attach file
                 <input
                   type="file"
                   name="file"
-                  accept=".docx,.pdf,.txt,.md,.pptx"
+                  accept=".docx,.pdf,.txt,.md,.pptx,.jpg,.jpeg,.png,.gif,.webp"
                   hx-post="/session/{{ session_id }}/upload"
                   hx-target="#upload-result"
                   hx-swap="innerHTML"
                   hx-encoding="multipart/form-data"
                   hx-trigger="change"
+                  hx-indicator="#upload-indicator"
                 >
               </label>
             </div>

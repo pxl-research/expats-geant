@@ -174,7 +174,7 @@ class SessionMiddleware(BaseHTTPMiddleware):
             "/openapi.json",
             "/redoc",
             "/privacy",
-            "/dev/token",
+            "/auth/token",
             "/auth/login",
             "/auth/callback",
         ]

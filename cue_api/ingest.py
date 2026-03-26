@@ -8,9 +8,11 @@ then stores chunks in Chroma.
 
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import Iterable
 from datetime import datetime
+from pathlib import Path
 
 from tqdm import tqdm
 
@@ -21,6 +23,11 @@ from m_shared.vectordb import (
     iterative_chunking,
     sanitize_filename,
 )
+from m_shared.vectordb.utils import image_description
+
+logger = logging.getLogger(__name__)
+
+_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 
 
 def ingest_files_into_store(
@@ -31,6 +38,8 @@ def ingest_files_into_store(
     session_id: str | None = None,
     user_id: str | None = None,
     audit_logger: AuditLogger | None = None,
+    llm_client=None,
+    model_name: str | None = None,
 ) -> list[str]:
     """Ingest documents into a Chroma-backed store.
 
@@ -41,6 +50,8 @@ def ingest_files_into_store(
         session_id: Optional session ID for audit logging
         user_id: Optional user ID for audit logging
         audit_logger: Optional audit logger instance
+        llm_client: Optional LLM client for image description
+        model_name: Model name to use with llm_client for images
 
     Returns:
         List of document (collection) names added
@@ -55,7 +66,15 @@ def ingest_files_into_store(
         if collection_name in current_documents:
             continue
 
-        md_text = document_to_markdown(file_path)
+        suffix = Path(file_path).suffix.lower()
+        if suffix in _IMAGE_EXTENSIONS:
+            if llm_client and model_name:
+                md_text = image_description(file_path, llm_client, model_name)
+            else:
+                logger.warning("Skipping image %s: no LLM client available", file_path)
+                continue
+        else:
+            md_text = document_to_markdown(file_path)
         chunks = iterative_chunking(md_text, max_size=max_chunk_size)
         ingested_at = datetime.utcnow().timestamp()  # Unix timestamp for ChromaDB range filtering
         meta_info = [

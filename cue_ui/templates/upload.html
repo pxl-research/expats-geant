@@ -24,7 +24,7 @@
     <div style="margin-bottom:1rem;">
       <label for="file">Survey file</label>
       <input type="file" id="file" name="file"
-             accept=".qsf,.lss,.xml"
+             accept=".qsf,.lss,.xml,.qti"
              required>
     </div>
     <div style="margin-bottom:1.25rem;">
@@ -100,7 +100,7 @@
 // Auto-select format from file extension
 document.getElementById('file').addEventListener('change', function () {
   const ext = this.value.split('.').pop().toLowerCase();
-  const map = { qsf: 'qsf', lss: 'lss', xml: 'qti' };
+  const map = { qsf: 'qsf', lss: 'lss', xml: 'qti', qti: 'qti' };
   const fmt = map[ext];
   if (fmt) {
     const sel = document.getElementById('format');
