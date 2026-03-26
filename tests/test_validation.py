@@ -154,6 +154,11 @@ class TestValidateFileType:
         assert validate_file_type("test.pdf")
         assert validate_file_type("test.docx")
         assert validate_file_type("test.md")
+        assert validate_file_type("test.jpg")
+        assert validate_file_type("test.jpeg")
+        assert validate_file_type("test.png")
+        assert validate_file_type("test.gif")
+        assert validate_file_type("test.webp")
 
     def test_unsupported_extension(self):
         """Test unsupported extensions return False."""
