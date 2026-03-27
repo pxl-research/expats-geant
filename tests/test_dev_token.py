@@ -1,7 +1,5 @@
 """Tests for /auth/token endpoint."""
 
-import os
-
 import pytest
 from fastapi.testclient import TestClient
 
@@ -11,18 +9,16 @@ from m_shared.session.manager import SessionManager
 
 
 @pytest.fixture
-def client(tmp_path):
+def client(tmp_path, monkeypatch):
     """Create test client."""
-    os.environ["JWT_SECRET"] = "test_secret_key_for_auth_token"
-    os.environ["API_SECRET"] = "test-api-secret"
+    monkeypatch.setenv("JWT_SECRET", "test_secret_key_for_auth_token")
+    monkeypatch.setenv("API_SECRET", "test-api-secret")
 
     session_manager = SessionManager(base_path=str(tmp_path / "sessions"))
     app = create_app(session_manager=session_manager)
 
     with TestClient(app) as c:
         yield c
-
-    os.environ.pop("API_SECRET", None)
 
 
 def test_auth_token_generation_success(client):
@@ -50,18 +46,18 @@ def test_auth_token_wrong_secret(client):
     assert response.status_code == 401
 
 
-def test_auth_token_missing_secret(tmp_path):
+def test_auth_token_missing_secret(tmp_path, monkeypatch):
     """Test that missing API_SECRET env var returns 401."""
-    os.environ["JWT_SECRET"] = "test_secret_key_for_auth_token"
-    os.environ.pop("API_SECRET", None)
+    monkeypatch.setenv("JWT_SECRET", "test_secret_key_for_auth_token")
+    monkeypatch.delenv("API_SECRET", raising=False)
 
     session_manager = SessionManager(base_path=str(tmp_path / "sessions"))
     app = create_app(session_manager=session_manager)
-    no_secret_client = TestClient(app)
 
-    response = no_secret_client.post(
-        "/auth/token", json={"user_id": "test_user", "api_secret": "any-value"}
-    )
+    with TestClient(app) as no_secret_client:
+        response = no_secret_client.post(
+            "/auth/token", json={"user_id": "test_user", "api_secret": "any-value"}
+        )
 
     assert response.status_code == 401
 

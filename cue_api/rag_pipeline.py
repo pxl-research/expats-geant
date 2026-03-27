@@ -388,11 +388,8 @@ class RAGPipeline:
         """
         citations = []
 
-        for i, chunk in enumerate(retrieved_chunks, 1):
+        for i, chunk in enumerate(self._filter_chunks_by_distance(retrieved_chunks), 1):
             distance = chunk.get("distance") or 0.0
-            if distance > self.max_citation_distance:
-                continue
-
             metadata = chunk.get("metadata", {})
             chunk_text = chunk.get("document", "")
 
