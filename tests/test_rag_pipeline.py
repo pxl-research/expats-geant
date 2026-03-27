@@ -319,6 +319,56 @@ def test_format_citations_estimates_position(rag_pipeline):
 
 
 # ============================================================================
+# Tests for _filter_chunks_by_distance()
+# ============================================================================
+
+
+def test_filter_chunks_excludes_distant_chunks(rag_pipeline):
+    """Chunks above max_citation_distance are excluded before generation."""
+    chunks = [
+        {"id": "a", "document": "close", "metadata": {}, "distance": 0.5},
+        {"id": "b", "document": "far", "metadata": {}, "distance": 2.0},
+    ]
+    filtered = rag_pipeline._filter_chunks_by_distance(chunks)
+    assert len(filtered) == 1
+    assert filtered[0]["id"] == "a"
+
+
+def test_filter_chunks_numbering_alignment(rag_pipeline, mock_llm_client):
+    """Citation IDs are derived from the filtered list, not the original retrieved list.
+
+    After filtering, chunk indices passed to format_citations match what the LLM
+    saw in the prompt — so [1], [2] references stay consistent.
+    """
+    chunks = [
+        {"id": "c1", "document": "relevant", "metadata": {"source": "doc.pdf"}, "distance": 0.3},
+        {"id": "c2", "document": "too far", "metadata": {"source": "doc.pdf"}, "distance": 9.9},
+    ]
+    filtered = rag_pipeline._filter_chunks_by_distance(chunks)
+    citations = rag_pipeline.format_citations(filtered, "Q", "A")
+
+    assert len(citations) == 1
+    assert citations[0].id == "cite_1"  # numbering starts from 1 in the filtered list
+
+
+def test_filter_chunks_all_pass(rag_pipeline):
+    """All chunks pass when all distances are within threshold."""
+    chunks = [
+        {"id": "a", "document": "x", "metadata": {}, "distance": 0.0},
+        {"id": "b", "document": "y", "metadata": {}, "distance": 1.5},  # exactly at limit
+    ]
+    filtered = rag_pipeline._filter_chunks_by_distance(chunks)
+    assert len(filtered) == 2
+
+
+def test_filter_chunks_none_distance(rag_pipeline):
+    """Chunks with None distance are treated as 0.0 and included."""
+    chunks = [{"id": "a", "document": "x", "metadata": {}, "distance": None}]
+    filtered = rag_pipeline._filter_chunks_by_distance(chunks)
+    assert len(filtered) == 1
+
+
+# ============================================================================
 # Tests for suggest_answer() orchestration
 # ============================================================================
 

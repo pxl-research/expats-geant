@@ -77,14 +77,16 @@ def ingest_files_into_store(
             md_text = document_to_markdown(file_path)
         chunks = iterative_chunking(md_text, max_size=max_chunk_size)
         ingested_at = datetime.utcnow().timestamp()  # Unix timestamp for ChromaDB range filtering
+        total_chunks = len(chunks)
         meta_info = [
             {
                 "source": os.path.basename(file_path),
                 "id": f"chunk_{i}",
                 "chunk_index": i,
+                "total_chunks": total_chunks,
                 "ingested_at": ingested_at,
             }
-            for i in range(len(chunks))
+            for i in range(total_chunks)
         ]
 
         store.add_document(
