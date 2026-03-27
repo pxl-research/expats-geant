@@ -740,7 +740,7 @@ def create_app(
         )
 
     @app.post("/suggest/stream")
-    @limiter.limit("3/minute")
+    @limiter.limit("5/minute")
     async def suggest_answer_stream(request: Request, batch_request: BatchSuggestRequest):
         """Stream answer suggestions one-by-one via Server-Sent Events.
 

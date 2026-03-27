@@ -58,15 +58,13 @@ Multiple fields accept arbitrary-length strings with no `max_length`:
 
 ---
 
-### HIGH — H4: `/dev/token` Defaults to Open
+### ~~HIGH — H4: `/dev/token` Defaults to Open~~ — **RESOLVED (endpoint removed)**
 
-**Files:** `cue_api/api.py:211`, `shape_api/api.py:198`
-
-The `/dev/token` endpoint issues a valid JWT for **any user_id** with no authentication. It is only blocked when `ENVIRONMENT == "production"` (exact match). Default is `"development"`, meaning a misconfigured deployment (missing env var) leaves it wide open. Values like `"prod"`, `"staging"`, or `"Production"` also leave it open.
-
-**Additional risk:** Session IDs are predictable (`dev_session_{user_id}`), enabling session fixation.
-
-**Fix:** Change guard to a positive allowlist (`"development"` or `"testing"` only). Use UUID-based session IDs. Consider removing `/dev/token` from the public paths list and requiring a dev-only header.
+**Resolution:** `/dev/token` has been removed from all services. It is replaced by
+`POST /auth/token`, which requires a shared `API_SECRET` validated with constant-time
+comparison (`hmac.compare_digest`). The endpoint is available in all environments but
+issues tokens only to callers that present the correct secret. Session IDs are now
+UUID-based, eliminating the session-fixation risk.
 
 ---
 
@@ -191,7 +189,7 @@ Tokens carry a `roles` claim (e.g., `["administrator"]`, `["respondent"]`) but n
 | H1 | HIGH | Sanitize filename in cue_api upload | Small |
 | H2 | HIGH | Validate api_url scheme and block private IPs | Medium |
 | H3 | HIGH | Add max_length/bounds to shape_api models | Small |
-| H4 | HIGH | Positive allowlist for /dev/token environment guard | Small |
+| H4 | ~~HIGH~~ | ~~Positive allowlist for /dev/token environment guard~~ — **Resolved: endpoint removed** | — |
 | M1 | MEDIUM | Generic error messages, log details server-side | Small |
 | M2 | MEDIUM | Add CORSMiddleware | Small |
 | M3 | MEDIUM | Allowlist JWT algorithms | Small |
@@ -272,25 +270,13 @@ All string fields across `ImportRequest`, `ExportRequest`, `CreateRequest`, `Cha
 
 ---
 
-### H4 — `/dev/token` Environment Guard
+### H4 — `/dev/token` Removed; Replaced by `POST /auth/token`
 
-**Files:** `cue_api/api.py:212`, `shape_api/api.py:199`
-
-**Before:**
-```python
-if environment == "production":
-    raise HTTPException(...)
-session_id = f"dev_session_{request.user_id}"
-```
-
-**After:**
-```python
-if environment not in ("development", "testing"):
-    raise HTTPException(...)
-session_id = f"dev_session_{uuid4().hex[:12]}"
-```
-
-**Why:** The blocklist approach (`!= "production"`) left the endpoint open for any non-exact value (`"prod"`, `"staging"`, `"Production"`, or a missing env var defaulting to `"development"`). The allowlist approach only permits explicitly safe environments. Predictable session IDs (`dev_session_{user_id}`) enabled session fixation; UUID-based IDs eliminate this.
+**Resolution:** The `/dev/token` endpoint was removed entirely from all services. It is
+replaced by `POST /auth/token`, which requires callers to present a shared `API_SECRET`
+validated via `hmac.compare_digest` (constant-time). Session IDs are UUID-based. The
+endpoint is rate-limited to 5 requests per minute and is available in all environments,
+making a separate dev-only endpoint unnecessary.
 
 ---
 

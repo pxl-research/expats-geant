@@ -44,7 +44,7 @@ Shape is the administrator co-pilot for questionnaire design. It provides statel
 - **Service**: `shape-api` (Docker Compose)
 - **Port**: `8003`
 
-All endpoints except `/`, `/health`, `/dev/token`, `/auth/login`, and `/auth/callback` require a valid JWT in the `Authorization: Bearer <token>` header.
+All endpoints except `/`, `/health`, `/auth/token`, `/auth/login`, and `/auth/callback` require a valid JWT in the `Authorization: Bearer <token>` header.
 
 ---
 
@@ -52,11 +52,14 @@ All endpoints except `/`, `/health`, `/dev/token`, `/auth/login`, and `/auth/cal
 
 Shape uses the same JWT authentication model as Cue. See [AUTOFILL_API.md — Authentication Model](AUTOFILL_API.md#authentication-model) and [JWT Requirements](AUTOFILL_API.md#jwt-requirements) for full details.
 
-### Quick start (development)
+### Quick start
 
 ```bash
-# 1. Generate a dev token (disabled in production)
-TOKEN=$(curl -s -X POST "http://localhost:8003/dev/token?user_id=dev_user" | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+# 1. Generate a token via the API token endpoint (set API_SECRET in .env first)
+TOKEN=$(curl -s -X POST "http://localhost:8001/auth/token" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":"dev_user","api_secret":"your-shared-api-secret"}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
 
 # 2. Use the token
 curl http://localhost:8003/chat/sessions \
@@ -679,9 +682,9 @@ Supported format identifiers: `limesurvey`, `lss`, `qualtrics`, `qsf`, `surveymo
 
 Upload endpoints accept `.pdf`, `.docx`, `.txt`, `.md`, `.pptx` only.
 
-### `403 — Token generation endpoint disabled in production`
+### `401 — Invalid API secret`
 
-`/dev/token` is only available when `ENVIRONMENT` is not `production`. Use your institutional IdP or Keycloak for production tokens. See [AUTOFILL_API.md — OIDC Login](AUTOFILL_API.md#oidc-login).
+The `api_secret` value in your `POST /auth/token` request does not match the server's `API_SECRET` env var, or the env var is not set. Check your `.env` and restart the service.
 
 ### Auth errors (expired token, invalid signature)
 

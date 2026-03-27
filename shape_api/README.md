@@ -31,10 +31,12 @@ shape_api/
 
 ## Quick Start
 
-### 1. Generate a dev token
+### 1. Generate a token
 
 ```bash
-TOKEN=$(curl -s -X POST "http://localhost:8003/dev/token?user_id=dev_user" \
+TOKEN=$(curl -s -X POST "http://localhost:8001/auth/token" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":"dev_user","api_secret":"your-shared-api-secret"}' \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
 ```
 
@@ -132,7 +134,7 @@ pytest tests/ -v --tb=short
 | `LLM_MODEL` | `anthropic/claude-haiku-4.5` | LLM model identifier |
 | `SESSION_TTL_HOURS` | `24` | Chat session lifetime in hours |
 | `MAX_FILE_SIZE_MB` | `50` | Max file size for uploads |
-| `ENVIRONMENT` | `development` | Set to `production` to disable `/dev/token` |
+| `API_SECRET` | — | Shared secret for `POST /auth/token` (omit to disable) |
 | `CHAT_PORT` | `8003` | API server port |
 
 ## Links

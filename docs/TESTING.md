@@ -72,7 +72,7 @@ Coverage threshold: `--cov-fail-under=80` (configured in `pyproject.toml` / `set
 | `test_session_manager.py` | SessionManager: create, get, list, delete, TTL expiry |
 | `test_session_isolation.py` | Cross-session data isolation |
 | `test_auth.py` | JWT middleware: valid tokens, expired tokens, missing headers |
-| `test_dev_token.py` | `/dev/token` endpoint: generation, production disable |
+| `test_auth_token.py` | `POST /auth/token` endpoint: JWT issuance, secret validation, rate limiting |
 | `test_oauth.py` | OIDC login and callback flows |
 | `test_live_api_import_adapters.py` | `LimeSurveyAdapter.fetch_survey` and `QualtricsAdapter.fetch_survey` unit tests |
 
@@ -100,9 +100,9 @@ export CHAT_URL=http://localhost:8003   # Shape
 ### 2. Generate a token
 
 ```bash
-TOKEN=$(curl -s -X POST "$BASE_URL/dev/token" \
+TOKEN=$(curl -s -X POST "$BASE_URL/auth/token" \
   -H "Content-Type: application/json" \
-  -d '{"user_id": "smoke_test"}' \
+  -d '{"user_id": "smoke_test", "api_secret": "$API_SECRET"}' \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
 ```
 
