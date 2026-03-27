@@ -134,6 +134,10 @@ class RAGPipeline:
             return store.query_with_filter(query_text=question, filters=filters, n_results=top_k)
         return store.query(query_text=question, n_results=top_k)
 
+    def _filter_chunks_by_distance(self, chunks: list[dict]) -> list[dict]:
+        """Return only chunks within max_citation_distance."""
+        return [c for c in chunks if (c.get("distance") or 0.0) <= self.max_citation_distance]
+
     def generate_answer(
         self,
         question: str,
@@ -513,11 +517,13 @@ class RAGPipeline:
         if not session_id:
             raise ValueError("Session ID is required")
 
-        # Step 1: Retrieve relevant chunks
+        # Step 1: Retrieve relevant chunks and filter by distance
         try:
             chunks = self.retrieve(question, session_id, top_k=top_k)
         except Exception as e:
             raise ValueError(f"Retrieval failed: {str(e)}") from e
+
+        chunks = self._filter_chunks_by_distance(chunks)
 
         if not chunks:
             return {
@@ -596,7 +602,7 @@ class RAGPipeline:
         """
         context_prompts = [p for p in sibling_prompts if p != item.prompt]
 
-        chunks = self.retrieve(item.prompt, session_id)
+        chunks = self._filter_chunks_by_distance(self.retrieve(item.prompt, session_id))
 
         if not chunks:
             return {

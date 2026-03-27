@@ -277,7 +277,11 @@ def create_app(
     # Initialize RAG pipeline if LLM client provided
     rag_pipeline = None
     if llm_client:
-        max_citation_distance = float(os.getenv("CUE_MAX_CITATION_DISTANCE", "1.5"))
+        try:
+            max_citation_distance = max(0.0, float(os.getenv("CUE_MAX_CITATION_DISTANCE", "1.5")))
+        except ValueError:
+            logger.warning("Invalid CUE_MAX_CITATION_DISTANCE value; using default 1.5")
+            max_citation_distance = 1.5
         rag_pipeline = RAGPipeline(
             session_manager=session_manager,
             llm_client=llm_client,
