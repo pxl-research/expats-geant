@@ -72,6 +72,7 @@ Unified abstraction over multiple LLM providers.
 - OpenAI-compatible APIs: Fallback to OpenAI, Anthropic, or other endpoints if needed
 - Local LLM support: Ollama, LM Studio, or other self-hosted models for fully on-premise deployments
 - Automatic retry, rate-limiting, token counting
+- Extended thinking budget: optional `thinking_budget` parameter (or `THINKING_BUDGET_TOKENS` env var) for Claude 3.5+/4.x reasoning models
 
 **Usage:**
 
@@ -79,11 +80,13 @@ Unified abstraction over multiple LLM providers.
 from m_shared.llm import LLMClient
 
 client = LLMClient()  # Uses env config (OPENROUTER_API_KEY, DEFAULT_LLM_MODEL)
-response = client.generate(
-    prompt="Rewrite this question for clarity...",
-    model="openai/gpt-4",
-    temperature=0.7
+response = client.create_completion(
+    messages=[{"role": "user", "content": "Rewrite this question for clarity..."}],
 )
+
+# With extended thinking (Claude 3.5+/4.x only):
+client = LLMClient(thinking_budget=8000)  # or set THINKING_BUDGET_TOKENS=8000 in env
+response = client.create_completion(messages=[...])
 ```
 
 ### Vector DB Client (`vectordb/client.py`)
@@ -146,7 +149,7 @@ auth_url, state = await get_authorization_url()
 
 # 2. Handle callback (call from GET /auth/callback)
 platform_token = await exchange_code(code=code, state=state)
-# Returns a platform JWT signed by JWT_SECRET — same format as /dev/token
+# Returns a platform JWT signed by JWT_SECRET — same format as POST /auth/token
 ```
 
 Reads env vars: `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI`.
@@ -184,6 +187,10 @@ SESSION_TTL_HOURS=24
 # Auth
 JWT_SECRET=your-secret-key
 JWT_ALGORITHM=HS256
+API_SECRET=your-shared-api-secret   # Required for POST /auth/token
+
+# LLM extended thinking (optional, Claude 3.5+/4.x only)
+THINKING_BUDGET_TOKENS=8000
 
 # Logging
 LOG_LEVEL=INFO

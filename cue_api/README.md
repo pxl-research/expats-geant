@@ -4,7 +4,7 @@ An AI-powered respondent assistant that retrieves relevant passages from user do
 
 ## Overview
 
-Cue is a RAG (Retrieval-Augmented Generation) module that helps respondents complete surveys and forms more accurately and efficiently. When a respondent needs to answer a question, they can upload supporting documents (PDFs, Word docs, images, audio, video, or webpages). Cue:
+Cue is a RAG (Retrieval-Augmented Generation) module that helps respondents complete surveys and forms more accurately and efficiently. When a respondent needs to answer a question, they can upload supporting documents (PDFs, Word docs, spreadsheets, presentations, or images). Cue:
 
 1. **Retrieves**: Finds the most relevant passages from uploaded documents using semantic search
 2. **Generates**: Proposes a concise draft answer informed by those passages
@@ -17,7 +17,7 @@ Cue is a RAG (Retrieval-Augmented Generation) module that helps respondents comp
 
 - ChromaDB vector database for intelligent document retrieval
 - Chunk-based storage with metadata (source, position, timestamp) for precise citations
-- Multi-format support: PDF, DOCX, TXT, MD, PPTX, XLSX, XLS
+- Multi-format support: PDF, DOCX, TXT, MD, PPTX, XLSX, XLS, and images (JPG, JPEG, PNG, GIF, WEBP — converted to text via LLM description)
 
 📝 **Citation & Transparency**
 
@@ -319,7 +319,8 @@ See [M-Shared](../m_shared/README.md) for client SDKs and utilities.
 ## Roadmap
 
 - ✅ Basic RAG pipeline (semantic search + LLM generation + citations)
-- 🚧 Multi-format document support (audio/video transcription via MarkItDown)
+- ✅ Multi-format document support (PDF, DOCX, TXT, MD, PPTX, XLSX, XLS, images via LLM description)
+- 🚧 Audio/video transcription (not yet supported)
 - 🚧 Citation accuracy testing & refinement
 - 📅 PostgreSQL integration for persistent metadata (future)
 - 📅 Advanced re-ranking & filtering (future)

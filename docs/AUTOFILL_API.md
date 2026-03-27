@@ -9,7 +9,7 @@ This guide explains how to integrate Cue with institutional authentication syste
 - [Deployment](#deployment)
 - [Authentication Model](#authentication-model)
 - [JWT Requirements](#jwt-requirements)
-- [Development Testing](#development-testing)
+- [API Token Endpoint](#api-token-endpoint)
 - [Institutional Integration](#institutional-integration)
 - [Session Lifecycle](#session-lifecycle)
 - [API Endpoints](#api-endpoints)
@@ -103,13 +103,17 @@ docker-compose down -v
 |---|---|---|---|
 | `OPENROUTER_API_KEY` | Yes* | — | API key for LLM calls via OpenRouter |
 | `JWT_SECRET` | Yes | `change-me-in-production` | Secret for JWT signing/verification |
+| `API_SECRET` | Yes† | — | Shared secret for `POST /auth/token` (server-to-server auth) |
 | `JWT_ALGORITHM` | No | `HS256` | JWT signing algorithm |
 | `JWT_EXPIRATION_HOURS` | No | `24` | Token lifetime in hours |
 | `LLM_MODEL` | No | `openrouter/meta-llama/llama-3.1-8b-instruct` | LLM model identifier |
 | `SESSION_TTL_HOURS` | No | `24` | Session expiry in hours |
 | `MAX_FILE_SIZE_MB` | No | `50` | Maximum upload file size |
 | `AUDIT_RETENTION_DAYS` | No | `365` | Audit log retention period |
+| `THINKING_BUDGET_TOKENS` | No | — | Token budget for extended thinking (Claude 3.5+/4.x only) |
 | `LOG_LEVEL` | No | `INFO` | Logging verbosity |
+
+†`API_SECRET` is required if you use `POST /auth/token`. Leave unset to disable the endpoint.
 
 *The service starts without an LLM key but suggestion endpoints will return errors.
 
@@ -121,7 +125,7 @@ Cue uses a **federated authentication** approach with two options:
 
 - **OIDC login** (recommended): Built-in `/auth/login` and `/auth/callback` endpoints work with any OIDC provider — Keycloak, Azure AD, Google, institutional eduGAIN/SAML bridges, etc. See [OIDC Login](#oidc-login) below.
 - **Pre-issued JWT**: Your existing IdP can issue tokens directly (see [JWT Requirements](#jwt-requirements)).
-- **Development**: `/dev/token` endpoint for easy token generation during testing.
+- **API token** (`POST /auth/token`): Server-to-server and automated access using a shared `API_SECRET` — works in all environments and supports anonymous callers via a caller-supplied `user_id`.
 
 ### Key Principles
 
@@ -190,23 +194,26 @@ def create_institutional_token(user_id: str, org: str) -> str:
 
 ---
 
-## Development Testing
+## API Token Endpoint
 
-### Using the `/dev/token` Endpoint
+### Using the `/auth/token` Endpoint
 
-For local development and testing, use the built-in token generation endpoint:
+`POST /auth/token` issues a JWT to any caller that presents the shared `API_SECRET`. It
+is available in **all environments** (development and production) and is the recommended
+way to authenticate automated scripts, server-to-server integrations, and anonymous API
+consumers.
 
-**Note**: This endpoint is **automatically disabled** when `ENVIRONMENT=production`.
+> **Anonymous callers**: supply any stable unique string as `user_id` (e.g. a UUID or
+> HMAC-hash of an internal user identifier). The resulting session is fully isolated.
 
 #### Generate a Token
 
 ```bash
-curl -X POST http://localhost:8001/dev/token \
+curl -X POST http://localhost:8001/auth/token \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "test_user",
-    "org": "test_org",
-    "roles": ["respondent"]
+    "api_secret": "your-shared-api-secret"
   }'
 ```
 
@@ -215,11 +222,12 @@ curl -X POST http://localhost:8001/dev/token \
 ```json
 {
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "user_id": "test_user",
-  "expires_in_hours": 24,
-  "message": "Token generated successfully. Use in Authorization header: Bearer <token>"
+  "user_id": "test_user"
 }
 ```
+
+The endpoint is rate-limited to **5 requests per minute**. An incorrect or absent
+`api_secret` returns HTTP 401.
 
 #### Use the Token
 
@@ -242,9 +250,9 @@ curl -X GET http://localhost:8001/session/stats \
 Add to your `.env` file:
 
 ```bash
-ENVIRONMENT=development         # or "production"
 JWT_SECRET=your_secret_key_here
 JWT_EXPIRATION_HOURS=24
+API_SECRET=your-shared-api-secret   # Required for POST /auth/token
 ```
 
 ---
@@ -372,11 +380,11 @@ sessions/
 
 ### Authentication Required
 
-All endpoints except `/`, `/health`, `/privacy`, `/dev/token`, `/auth/login`, and `/auth/callback` require authentication.
+All endpoints except `/`, `/health`, `/privacy`, `/auth/token`, `/auth/login`, and `/auth/callback` require authentication.
 
 | Endpoint | Method | Description |
 |---|---|---|
-| `/upload` | POST | Upload evidence document (PDF, DOCX, TXT, MD, PPTX, XLSX, XLS) |
+| `/upload` | POST | Upload evidence document (PDF, DOCX, TXT, MD, PPTX, XLSX, XLS, JPG, JPEG, PNG, GIF, WEBP) |
 | `/suggest` | POST | Single-question answer suggestion with citations and reasoning |
 | `/suggest/batch` | POST | Multi-question batch suggestions from QTI-inspired JSON payload |
 | `/suggest/stream` | POST | Same as `/suggest/batch` but streams results via Server-Sent Events — one `event: suggestion` per item as it completes, then `event: done` |
@@ -621,11 +629,12 @@ curl -H "Authorization: Bearer <token>" ...
 **Solution**: Generate a new token
 
 ```bash
-# Development
-curl -X POST http://localhost:8001/dev/token
+# Via API token endpoint (all environments)
+curl -X POST http://localhost:8001/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "your_user", "api_secret": "your-shared-api-secret"}'
 
-# Production
-# Request new token from your IdP
+# Or via OIDC login for browser-based flows
 ```
 
 ### "Invalid token signature"
@@ -648,11 +657,15 @@ curl -X POST http://localhost:8001/dev/token
 - Upload a document to trigger session creation
 - Verify JWT contains valid `session_id`
 
-### "Token generation endpoint disabled in production"
+### "Invalid API secret"
 
-**Cause**: Attempting to use `/dev/token` in production environment
+**Cause**: `api_secret` in the `POST /auth/token` request does not match the server's `API_SECRET` env var
 
-**Solution**: Use your institutional IdP for token generation in production
+**Solution**:
+
+1. Verify `API_SECRET` is set in the server's `.env`
+2. Ensure the value in your request matches exactly (case-sensitive)
+3. Restart the service after changing `API_SECRET`
 
 ### Session Data Missing
 

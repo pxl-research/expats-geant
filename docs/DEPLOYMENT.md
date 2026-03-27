@@ -286,38 +286,38 @@ python3 run_api.py
 
 ### Optional
 
-| Variable               | Default                      | Description                |
-| ---------------------- | ---------------------------- | -------------------------- |
-| `LLM_MODEL`            | `anthropic/claude-haiku-4.5` | LLM model to use           |
-| `SESSION_TTL_HOURS`    | `24`                         | Session lifetime (hours)   |
-| `MAX_FILE_SIZE_MB`     | `50`                         | Upload limit (MB)          |
-| `AUDIT_RETENTION_DAYS` | `365`                        | Audit log retention (days) |
-| `PORT`                 | `8001`                       | API server port            |
-| `LOG_LEVEL`            | `INFO`                       | Logging level              |
+| Variable                 | Default                      | Description                                                    |
+| ------------------------ | ---------------------------- | -------------------------------------------------------------- |
+| `LLM_MODEL`              | `anthropic/claude-haiku-4.5` | LLM model to use                                               |
+| `API_SECRET`             | —                            | Shared secret for `POST /auth/token` (omit to disable)         |
+| `SESSION_TTL_HOURS`      | `24`                         | Session lifetime (hours)                                       |
+| `MAX_FILE_SIZE_MB`       | `50`                         | Upload limit (MB)                                              |
+| `AUDIT_RETENTION_DAYS`   | `365`                        | Audit log retention (days)                                     |
+| `THINKING_BUDGET_TOKENS` | —                            | Token budget for extended thinking (Claude 3.5+/4.x only)      |
+| `PORT`                   | `8001`                       | API server port                                                |
+| `LOG_LEVEL`              | `INFO`                       | Logging level                                                  |
 
 ## Testing Your Deployment
 
-### Quick Testing with Dev Token Endpoint
+### Quick Testing with the API Token Endpoint
 
-For development and testing, use the `/dev/token` endpoint to quickly generate valid JWT tokens:
+`POST /auth/token` issues a JWT to any caller presenting the correct `API_SECRET`. It
+works in **all environments** — no separate dev endpoint needed.
 
-**⚠️ Note**: This endpoint is automatically disabled in production (`ENVIRONMENT=production`).
-
-#### 1. Generate a Development Token
+#### 1. Set `API_SECRET` in `.env`
 
 ```bash
-# Generate token with defaults
-curl -X POST http://localhost:8001/dev/token \
-  -H "Content-Type: application/json" \
-  -d '{}'
+API_SECRET=your-shared-api-secret   # add this to .env
+```
 
-# Or with custom parameters
-curl -X POST http://localhost:8001/dev/token \
+#### 2. Generate a Token
+
+```bash
+curl -X POST http://localhost:8001/auth/token \
   -H "Content-Type: application/json" \
   -d '{
-    "user_id": "john_doe",
-    "org": "pxl_university",
-    "roles": ["respondent"]
+    "user_id": "test_user",
+    "api_secret": "your-shared-api-secret"
   }'
 ```
 
@@ -326,17 +326,18 @@ curl -X POST http://localhost:8001/dev/token \
 ```json
 {
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "user_id": "john_doe",
-  "expires_in_hours": 24,
-  "message": "Token generated successfully. Use in Authorization header: Bearer <token>"
+  "user_id": "test_user"
 }
 ```
 
-#### 2. Complete Workflow Example
+#### 3. Complete Workflow Example
 
 ```bash
 # Step 1: Generate token
-TOKEN=$(curl -s -X POST http://localhost:8001/dev/token -H "Content-Type: application/json" -d '{"user_id":"test_user"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4)
+TOKEN=$(curl -s -X POST http://localhost:8001/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":"test_user","api_secret":"your-shared-api-secret"}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
 
 # Step 2: Upload a document
 curl -X POST http://localhost:8001/upload \
@@ -365,15 +366,15 @@ curl -X DELETE http://localhost:8001/session \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-#### 3. Python Testing Example
+#### 4. Python Testing Example
 
 ```python
 import requests
 
 # Generate token
 response = requests.post(
-    "http://localhost:8001/dev/token",
-    json={"user_id": "python_tester"}
+    "http://localhost:8001/auth/token",
+    json={"user_id": "python_tester", "api_secret": "your-shared-api-secret"}
 )
 token = response.json()["token"]
 
@@ -452,7 +453,7 @@ python3 -m pytest tests/ -v
 
 # Specific test suites
 python3 -m pytest tests/test_session_api.py -v    # API tests
-python3 -m pytest tests/test_dev_token.py -v      # Dev token tests
+python3 -m pytest tests/test_auth_token.py -v     # API token endpoint tests
 python3 -m pytest tests/test_auth.py -v           # Auth tests
 ```
 
