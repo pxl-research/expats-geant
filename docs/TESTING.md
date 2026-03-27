@@ -28,7 +28,7 @@ Coverage threshold: `--cov-fail-under=80` (configured in `pyproject.toml` / `set
 
 | File | Description |
 |---|---|
-| `test_session_api.py` | Cue API endpoints (upload, suggest, batch suggest, session stats, delete) |
+| `test_session_api.py` | Cue API endpoints (upload, batch suggest, session stats, delete) |
 | `test_batch_suggest.py` | Batch suggestion endpoint with sections and flat item lists |
 | `test_rag_pipeline.py` | RAG pipeline: document ingestion, chunking, retrieval |
 | `test_rag_integration.py` | End-to-end RAG with ChromaDB (integration) |

@@ -1,4 +1,4 @@
-"""Integration tests for POST /suggest/batch and reasoning field on POST /suggest."""
+"""Integration tests for POST /suggest/batch."""
 
 from unittest.mock import MagicMock
 
@@ -43,7 +43,7 @@ def client(tmp_session_manager, mock_llm):
 
 
 # ---------------------------------------------------------------------------
-# POST /suggest — reasoning field
+# POST /suggest/batch — reasoning field
 # ---------------------------------------------------------------------------
 
 
@@ -51,7 +51,7 @@ class TestSuggestReasoning:
     def test_suggest_response_includes_reasoning_field(
         self, client, auth_token, tmp_path, tmp_session_manager, mock_llm
     ):
-        """reasoning field present on /suggest response (may be null)."""
+        """reasoning field present on /suggest/batch response (may be null)."""
         from cue_api.ingest import ingest_files_into_store
 
         doc = tmp_path / "policy.txt"
@@ -66,14 +66,24 @@ class TestSuggestReasoning:
         )
 
         resp = client.post(
-            "/suggest",
-            json={"question": "What is our data retention period?"},
+            "/suggest/batch",
+            json={
+                "assessment_id": "test",
+                "items": [
+                    {
+                        "id": "q1",
+                        "type": "open_ended",
+                        "prompt": "What is our data retention period?",
+                        "choices": [],
+                    }
+                ],
+            },
             headers={"Authorization": f"Bearer {auth_token}"},
         )
         assert resp.status_code == 200
-        data = resp.json()
-        assert "answer" in data
-        assert "reasoning" in data  # field must be present (may be null)
+        item = resp.json()["responses"][0]
+        assert "suggestion" in item
+        assert "reasoning" in item  # field must be present (may be null)
 
     def test_suggest_reasoning_populated_from_llm(
         self, client, auth_token, tmp_path, tmp_session_manager, mock_llm
@@ -93,12 +103,22 @@ class TestSuggestReasoning:
         )
 
         resp = client.post(
-            "/suggest",
-            json={"question": "Do we conduct annual audits?"},
+            "/suggest/batch",
+            json={
+                "assessment_id": "test",
+                "items": [
+                    {
+                        "id": "q1",
+                        "type": "open_ended",
+                        "prompt": "Do we conduct annual audits?",
+                        "choices": [],
+                    }
+                ],
+            },
             headers={"Authorization": f"Bearer {auth_token}"},
         )
         assert resp.status_code == 200
-        assert resp.json()["reasoning"] == "The report confirms Q3 audits annually."
+        assert resp.json()["responses"][0]["reasoning"] == "The report confirms Q3 audits annually."
 
 
 # ---------------------------------------------------------------------------

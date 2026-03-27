@@ -385,8 +385,7 @@ All endpoints except `/`, `/health`, `/privacy`, `/auth/token`, `/auth/login`, a
 | Endpoint | Method | Description |
 |---|---|---|
 | `/upload` | POST | Upload evidence document (PDF, DOCX, TXT, MD, PPTX, XLSX, XLS, JPG, JPEG, PNG, GIF, WEBP) |
-| `/suggest` | POST | Single-question answer suggestion with citations and reasoning |
-| `/suggest/batch` | POST | Multi-question batch suggestions from QTI-inspired JSON payload |
+| `/suggest/batch` | POST | Answer suggestions (single or multi-question) from QTI-inspired JSON payload |
 | `/suggest/stream` | POST | Same as `/suggest/batch` but streams results via Server-Sent Events — one `event: suggestion` per item as it completes, then `event: done` |
 | `/session/stats` | GET | Session TTL, document count, isolation info |
 | `/audit-report` | GET | Full session audit trail (JSON or plaintext) |
@@ -402,43 +401,11 @@ Content-Type: multipart/form-data
 file: <document.pdf>
 ```
 
-#### Get Answer Suggestion
+#### Get Answer Suggestions
 
-```bash
-POST /suggest
-Authorization: Bearer <token>
-Content-Type: application/json
+Submit one or more questions in a single request. Use a flat `items` list for a single question, or group related questions into `sections` to share context. Questions in the same section share LLM context, improving suggestion quality.
 
-{
-  "question": "What is my current employment status?",
-  "context": "As of 2024"
-}
-```
-
-**Response:**
-
-```json
-{
-  "answer": "Based on your contract, you are employed full-time as a Senior Researcher.",
-  "reasoning": "The employment contract clearly states the position and contract type. No ambiguity found.",
-  "citations": [
-    {
-      "source": "employment_contract.pdf",
-      "excerpt": "Employee is engaged on a full-time permanent basis as Senior Researcher.",
-      "position": "23.0%",
-      "position_range": { "start_percentage": 0.21, "end_percentage": 0.25 },
-      "timestamp": "2026-02-24T10:00:00Z"
-    }
-  ],
-  "metadata": { "num_chunks": 3, "temperature": 0.4 }
-}
-```
-
-> **`reasoning`**: Optional field — the LLM explains its confidence, how it interpreted the sources, or why it is uncertain. Present on all suggest responses; `null` when the answer is straightforward.
-
-#### Get Batch Answer Suggestions
-
-Submit multiple related questions in one request. Questions grouped in the same section share context, improving suggestion quality.
+> **Migrating from the old `POST /suggest` endpoint?** Pass a flat `items` list with one item — the response is in `responses[0]`.
 
 ```bash
 POST /suggest/batch

@@ -143,7 +143,15 @@ def test_audit_accuracy(client: httpx.Client, token: str) -> None:
 
     answered = []
     for question in QUESTIONS:
-        r = client.post("/suggest", json={"question": question}, headers=headers, timeout=60)
+        r = client.post(
+            "/suggest/batch",
+            json={
+                "assessment_id": "audit-check",
+                "items": [{"id": "q1", "type": "open_ended", "prompt": question, "choices": []}],
+            },
+            headers=headers,
+            timeout=60,
+        )
         if r.status_code == 200:
             answered.append(question)
 
@@ -429,7 +437,17 @@ def test_retention_and_deletion(client: httpx.Client, token: str) -> None:
     # By design: the tombstone permanently blocks API access even if new events
     # are written to the log file afterwards. This is intentional for the PoC —
     # once a user exercises GDPR erasure, the report endpoint stays closed.
-    client.post("/suggest", json={"question": "post-deletion test"}, headers=headers, timeout=30)
+    client.post(
+        "/suggest/batch",
+        json={
+            "assessment_id": "post-deletion-test",
+            "items": [
+                {"id": "q1", "type": "open_ended", "prompt": "post-deletion test", "choices": []}
+            ],
+        },
+        headers=headers,
+        timeout=30,
+    )
     r = client.get("/audit-report", headers=headers)
     check(
         "GET /audit-report after deletion stays 404 (tombstone honoured)",

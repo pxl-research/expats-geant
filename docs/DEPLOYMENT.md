@@ -345,12 +345,12 @@ curl -X POST http://localhost:8001/upload \
   -F "file=@sample_document.pdf"
 
 # Step 3: Get answer suggestion
-curl -X POST http://localhost:8001/suggest \
+curl -X POST http://localhost:8001/suggest/batch \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "question": "What is my employment status?",
-    "context": "Current situation"
+    "assessment_id": "quick-check",
+    "items": [{"id": "q1", "type": "open_ended", "prompt": "What is my employment status?", "choices": []}]
   }'
 
 # Step 4: Check session stats
@@ -392,9 +392,12 @@ print(upload_response.json())
 
 # Get suggestion
 suggest_response = requests.post(
-    "http://localhost:8001/suggest",
+    "http://localhost:8001/suggest/batch",
     headers=headers,
-    json={"question": "What is my current role?"}
+    json={
+        "assessment_id": "quick-check",
+        "items": [{"id": "q1", "type": "open_ended", "prompt": "What is my current role?", "choices": []}],
+    }
 )
 print(suggest_response.json())
 ```

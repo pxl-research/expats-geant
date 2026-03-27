@@ -146,17 +146,27 @@ def test_session_isolation(client: httpx.Client, token_a: str, token_b: str) -> 
 
     # User B's suggest call should return "no documents" response, not User A's answers
     r = client.post(
-        "/suggest",
-        json={"question": "Wanneer start en stopt mijn stage?"},
+        "/suggest/batch",
+        json={
+            "assessment_id": "isolation-check",
+            "items": [
+                {
+                    "id": "q1",
+                    "type": "open_ended",
+                    "prompt": "Wanneer start en stopt mijn stage?",
+                    "choices": [],
+                }
+            ],
+        },
         headers=auth_headers(token_b),
     )
-    if check("User B POST /suggest → 200", r.status_code == 200):
-        answer = r.json().get("answer", "")
-        no_docs = "couldn't find" in answer.lower() or "no relevant" in answer.lower()
+    if check("User B POST /suggest/batch → 200", r.status_code == 200):
+        suggestion = (r.json().get("responses") or [{}])[0].get("suggestion", "")
+        no_docs = "couldn't find" in suggestion.lower() or "no relevant" in suggestion.lower()
         check(
             "User B gets 'no documents' answer (not User A's data)",
             no_docs,
-            f'answer starts with: "{answer[:80]}"',
+            f'suggestion starts with: "{suggestion[:80]}"',
         )
 
 
@@ -218,16 +228,24 @@ def test_happy_path(client: httpx.Client, token: str) -> None:
     timings = []
     for question in QUESTIONS:
         t0 = time.perf_counter()
-        r = client.post("/suggest", json={"question": question}, headers=headers, timeout=60)
+        r = client.post(
+            "/suggest/batch",
+            json={
+                "assessment_id": "happy-path",
+                "items": [{"id": "q1", "type": "open_ended", "prompt": question, "choices": []}],
+            },
+            headers=headers,
+            timeout=60,
+        )
         elapsed = time.perf_counter() - t0
         timings.append(elapsed)
 
         if check(f'Suggest "{question[:55]}..." → 200', r.status_code == 200, f"{elapsed:.1f}s"):
-            body = r.json()
-            has_answer = bool(body.get("answer", "").strip())
-            has_citations = len(body.get("citations", [])) > 0
-            check("  Has non-empty answer", has_answer, body.get("answer", "")[:80])
-            check("  Has citations", has_citations, f"{len(body.get('citations', []))} citation(s)")
+            item = (r.json().get("responses") or [{}])[0]
+            has_answer = bool(item.get("suggestion", "").strip())
+            has_citations = len(item.get("citations", [])) > 0
+            check("  Has non-empty answer", has_answer, item.get("suggestion", "")[:80])
+            check("  Has citations", has_citations, f"{len(item.get('citations', []))} citation(s)")
 
     # --- Performance summary ---
     section("6.2  Performance summary")

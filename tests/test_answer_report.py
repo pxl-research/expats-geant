@@ -67,7 +67,7 @@ def _seed_doc(tmp_path, session_manager, auth_token):
 
 
 class TestSingleSuggestionCreatesReport:
-    """6.1 — POST /suggest creates answer_report.json with expected keys."""
+    """6.1 — POST /suggest/batch creates answer_report.json with expected keys."""
 
     def test_single_suggestion_creates_report(
         self, client, auth_token, tmp_path, session_manager, mock_llm
@@ -78,8 +78,18 @@ class TestSingleSuggestionCreatesReport:
         )
 
         resp = client.post(
-            "/suggest",
-            json={"question": "What is our data retention period?"},
+            "/suggest/batch",
+            json={
+                "assessment_id": "test",
+                "items": [
+                    {
+                        "id": "q1",
+                        "type": "open_ended",
+                        "prompt": "What is our data retention period?",
+                        "choices": [],
+                    }
+                ],
+            },
             headers={"Authorization": f"Bearer {auth_token}"},
         )
         assert resp.status_code == 200
@@ -158,8 +168,18 @@ class TestDownloadEndpoint:
         )
 
         client.post(
-            "/suggest",
-            json={"question": "When are audits conducted?"},
+            "/suggest/batch",
+            json={
+                "assessment_id": "test",
+                "items": [
+                    {
+                        "id": "q1",
+                        "type": "open_ended",
+                        "prompt": "When are audits conducted?",
+                        "choices": [],
+                    }
+                ],
+            },
             headers={"Authorization": f"Bearer {auth_token}"},
         )
 
@@ -203,8 +223,13 @@ class TestReportDeletedWithSession:
         )
 
         client.post(
-            "/suggest",
-            json={"question": "Retention period?"},
+            "/suggest/batch",
+            json={
+                "assessment_id": "test",
+                "items": [
+                    {"id": "q1", "type": "open_ended", "prompt": "Retention period?", "choices": []}
+                ],
+            },
             headers={"Authorization": f"Bearer {auth_token}"},
         )
 
