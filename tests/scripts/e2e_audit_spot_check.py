@@ -19,6 +19,7 @@ Usage:
 """
 
 import argparse
+import os
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -82,7 +83,9 @@ def auth_headers(token: str) -> dict:
 
 
 def get_token(client: httpx.Client, user_id: str) -> str | None:
-    r = client.post("/dev/token", json={"user_id": user_id, "org": "pxl", "roles": ["respondent"]})
+    r = client.post(
+        "/auth/token", json={"user_id": user_id, "api_secret": os.getenv("API_SECRET", "")}
+    )
     if r.status_code == 200:
         return r.json().get("token")
     return None
