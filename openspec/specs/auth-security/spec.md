@@ -99,41 +99,6 @@ The system SHALL validate and sanitize all user inputs.
 - **WHEN** user text is sent to LLM
 - **THEN** it is sanitized to prevent prompt injection
 
-### Requirement: Development Token Generation Endpoint
-
-The system SHALL provide a `/dev/token` endpoint for generating JWT tokens during development and testing. The endpoint SHALL be available only when the `ENVIRONMENT` variable is NOT set to "production". The endpoint SHALL accept optional parameters (`user_id`, `org`, `roles`) with sensible defaults and SHALL generate valid JWT tokens using the application's JWT_SECRET. When accessed in production mode, the endpoint SHALL return HTTP 403 Forbidden.
-
-#### Scenario: Generate token in development mode
-
-- **WHEN** a request is made to POST `/dev/token` with ENVIRONMENT="development"
-- **AND** optional parameters `user_id="test-user"`, `org="test-org"`, `roles=["researcher"]` are provided
-- **THEN** the system generates a valid JWT token with the provided claims
-- **AND** returns the token with expiration information (default 1 hour)
-- **AND** the token can be used to authenticate subsequent API requests
-
-#### Scenario: Generate token with default parameters
-
-- **WHEN** a request is made to POST `/dev/token` with no parameters
-- **THEN** the system generates a JWT token with default claims: `user_id="dev-user"`, `org="dev-org"`, `roles=["user"]`
-- **AND** returns the token successfully
-- **AND** the token authenticates successfully with the session middleware
-
-#### Scenario: Block token generation in production
-
-- **WHEN** a request is made to POST `/dev/token` with ENVIRONMENT="production"
-- **THEN** the system returns HTTP 403 Forbidden
-- **AND** includes an error message indicating the endpoint is disabled in production
-- **AND** logs a security warning about the attempted access
-
-#### Scenario: Use generated token for authenticated requests
-
-- **WHEN** a dev token is generated successfully
-- **AND** the token is included in the Authorization header as "Bearer {token}"
-- **AND** a request is made to an authenticated endpoint (e.g., POST `/upload`)
-- **THEN** the SessionMiddleware validates the token
-- **AND** creates an implicit session for the user
-- **AND** the request proceeds successfully
-
 ### Requirement: Federated Authentication Integration Documentation
 
 The system SHALL provide comprehensive documentation for institutional partners integrating with the Cue API using federated authentication. Documentation SHALL specify JWT token requirements including required claims (`sub`, `org`, `roles`, `exp`), token format (Bearer token in Authorization header), and recommended expiration (1-24 hours). Documentation SHALL include JWT generation examples in multiple programming languages, describe the session lifecycle and isolation model, provide troubleshooting guidance for common authentication issues, and reference planned OAuth 2.0/OIDC support in Phase 5.
@@ -168,22 +133,23 @@ The system SHALL provide comprehensive documentation for institutional partners 
 
 ### Requirement: Environment-Based Configuration
 
-The system SHALL support an `ENVIRONMENT` configuration variable with values "development", "staging", or "production" (default: "development"). This variable SHALL control the availability of development-only features such as the `/dev/token` endpoint. Production deployments SHALL explicitly set ENVIRONMENT="production" to disable development features and enforce production security policies.
+The system SHALL support an `ENVIRONMENT` configuration variable with values
+"development", "staging", or "production" (default: "development"). This variable SHALL
+control environment-specific behaviour such as log verbosity and security policy
+enforcement. Production deployments SHALL explicitly set `ENVIRONMENT="production"` to
+enforce production security policies.
 
 #### Scenario: Deploy in development mode
 
-- **WHEN** the system starts with ENVIRONMENT="development" (or unset)
-- **THEN** the `/dev/token` endpoint is available and responds to requests
-- **AND** startup logs indicate development mode is active
-- **AND** development features are enabled (e.g., verbose logging, token generation)
+- **WHEN** the system starts with `ENVIRONMENT="development"` (or unset)
+- **THEN** startup logs indicate development mode is active
+- **AND** verbose logging and development-oriented features are enabled
 
 #### Scenario: Deploy in production mode
 
-- **WHEN** the system starts with ENVIRONMENT="production"
-- **THEN** the `/dev/token` endpoint returns HTTP 403 for all requests
-- **AND** startup logs indicate production mode is active
-- **AND** development features are disabled for security
-- **AND** only federated authentication with external tokens is supported
+- **WHEN** the system starts with `ENVIRONMENT="production"`
+- **THEN** startup logs indicate production mode is active
+- **AND** only production-hardened authentication paths (`POST /auth/token`, OIDC) are active
 
 ### Requirement: Security Event Logging
 
@@ -222,6 +188,41 @@ The system SHALL log security-relevant authentication events to a persistent, ro
 
 - **WHEN** any security event is logged
 - **THEN** the log entry does not contain raw JWT strings, OIDC client secrets, or unmasked `sub` values
+
+### Requirement: API Token Endpoint
+
+The system SHALL provide a `POST /auth/token` endpoint for issuing JWTs to
+server-to-server callers and anonymous API consumers. The endpoint SHALL require two
+fields in the request body: a `user_id` string (caller-supplied; may be any stable unique
+identifier such as a UUID, an HMAC-hash of an internal user ID, or an institutional
+service-account name) and an `api_secret` string validated against the `API_SECRET`
+environment variable using constant-time comparison. On success the endpoint SHALL return
+a signed JWT with `org="api"` and `roles=["user"]`. The endpoint SHALL be rate-limited to
+5 requests per minute per client and SHALL be publicly accessible (no prior token
+required). The `API_SECRET` environment variable MUST be set to a strong random value in
+all deployments.
+
+#### Scenario: Server-to-server caller obtains JWT
+
+- **WHEN** a backend service posts `{"user_id": "svc-account-1", "api_secret": "<correct>"}` to `POST /auth/token`
+- **THEN** a signed JWT is returned containing `user_id="svc-account-1"`, `org="api"`, `roles=["user"]`
+- **AND** the token is accepted in subsequent `Authorization: Bearer <token>` requests
+
+#### Scenario: Anonymous caller uses a unique identifier
+
+- **WHEN** an anonymous caller posts `{"user_id": "<uuid-or-hash>", "api_secret": "<correct>"}` to `POST /auth/token`
+- **THEN** a JWT scoped to that `user_id` is returned
+- **AND** the resulting session is fully isolated from all other sessions
+
+#### Scenario: Reject invalid API secret
+
+- **WHEN** a request is made with an incorrect or absent `api_secret`
+- **THEN** the endpoint returns HTTP 401 Unauthorized
+
+#### Scenario: Rate limit enforced
+
+- **WHEN** more than 5 token requests per minute originate from the same client
+- **THEN** subsequent requests within that window are rejected with HTTP 429 Too Many Requests
 
 ## Notes
 
