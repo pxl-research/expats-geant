@@ -18,6 +18,7 @@ Defaults to http://localhost:8001.
 """
 
 import argparse
+import os
 import sys
 import time
 from pathlib import Path
@@ -100,8 +101,10 @@ def check_server(client: httpx.Client) -> bool:
 
 
 def get_dev_token(client: httpx.Client, user_id: str = "test_user") -> str | None:
-    r = client.post("/dev/token", json={"user_id": user_id, "org": "pxl", "roles": ["respondent"]})
-    if check(f"POST /dev/token ({user_id}) → 200", r.status_code == 200, ""):
+    r = client.post(
+        "/auth/token", json={"user_id": user_id, "api_secret": os.getenv("API_SECRET", "")}
+    )
+    if check(f"POST /auth/token ({user_id}) → 200", r.status_code == 200, ""):
         token = r.json().get("token", "")
         check("Token non-empty", bool(token))
         return token

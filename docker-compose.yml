@@ -22,6 +22,7 @@ services:
       - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
       - JWT_ALGORITHM=HS256
       - JWT_EXPIRATION_HOURS=24
+      - API_SECRET=${API_SECRET}
 
       # OIDC: 'keycloak' resolves in Docker (DNS) and on Mac host (/etc/hosts: 127.0.0.1 keycloak)
       - OIDC_ISSUER_URL=http://keycloak:8080/realms/expats
@@ -93,6 +94,7 @@ services:
       - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
       - JWT_ALGORITHM=HS256
       - JWT_EXPIRATION_HOURS=24
+      - API_SECRET=${API_SECRET}
       - OIDC_ISSUER_URL=http://keycloak:8080/realms/expats
       - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-shape-api}
       - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-change-me}

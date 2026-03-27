@@ -63,6 +63,7 @@ class RAGPipeline:
         default_temperature: float = 0.4,
         max_tokens: int = 500,
         audit_logger: AuditLogger | None = None,
+        max_citation_distance: float = 1.5,
     ):
         """Initialize RAG pipeline.
 
@@ -73,6 +74,8 @@ class RAGPipeline:
             default_temperature: Temperature for LLM generation (0.3-0.5 for determinism)
             max_tokens: Maximum tokens for generated answer
             audit_logger: Optional audit logger for tracking suggestions
+            max_citation_distance: Maximum semantic distance to include a chunk as a citation;
+                chunks with distance above this threshold are dropped (default 1.5)
         """
         self.session_manager = session_manager
         self.llm_client = llm_client
@@ -80,6 +83,7 @@ class RAGPipeline:
         self.default_temperature = default_temperature
         self.max_tokens = max_tokens
         self.audit_logger = audit_logger
+        self.max_citation_distance = max_citation_distance
 
     def retrieve(
         self,
@@ -129,6 +133,10 @@ class RAGPipeline:
         if filters:
             return store.query_with_filter(query_text=question, filters=filters, n_results=top_k)
         return store.query(query_text=question, n_results=top_k)
+
+    def _filter_chunks_by_distance(self, chunks: list[dict]) -> list[dict]:
+        """Return only chunks within max_citation_distance."""
+        return [c for c in chunks if (c.get("distance") or 0.0) <= self.max_citation_distance]
 
     def generate_answer(
         self,
@@ -380,7 +388,8 @@ class RAGPipeline:
         """
         citations = []
 
-        for i, chunk in enumerate(retrieved_chunks, 1):
+        for i, chunk in enumerate(self._filter_chunks_by_distance(retrieved_chunks), 1):
+            distance = chunk.get("distance") or 0.0
             metadata = chunk.get("metadata", {})
             chunk_text = chunk.get("document", "")
 
@@ -414,7 +423,8 @@ class RAGPipeline:
                 highlights=[excerpt],
                 metadata={
                     "chunk_index": chunk_index,
-                    "distance": chunk.get("distance"),
+                    "distance": distance,
+                    "full_text": chunk_text,
                     "question": question,
                 },
             )
@@ -504,11 +514,13 @@ class RAGPipeline:
         if not session_id:
             raise ValueError("Session ID is required")
 
-        # Step 1: Retrieve relevant chunks
+        # Step 1: Retrieve relevant chunks and filter by distance
         try:
             chunks = self.retrieve(question, session_id, top_k=top_k)
         except Exception as e:
             raise ValueError(f"Retrieval failed: {str(e)}") from e
+
+        chunks = self._filter_chunks_by_distance(chunks)
 
         if not chunks:
             return {
@@ -587,7 +599,7 @@ class RAGPipeline:
         """
         context_prompts = [p for p in sibling_prompts if p != item.prompt]
 
-        chunks = self.retrieve(item.prompt, session_id)
+        chunks = self._filter_chunks_by_distance(self.retrieve(item.prompt, session_id))
 
         if not chunks:
             return {

@@ -1,6 +1,7 @@
 """FastAPI application for Shape survey transform and tool endpoints."""
 
 import asyncio
+import hmac
 import ipaddress
 import os
 import re
@@ -10,6 +11,7 @@ from uuid import uuid4
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from cue_api.validation import validate_file_upload
 from m_shared.adapters.base import SurveyAdapter
@@ -26,7 +28,7 @@ from m_shared.models.question import Question
 from m_shared.models.survey import Survey
 from m_shared.rate_limit import apply_rate_limiting, limiter
 from m_shared.session.manager import SessionManager
-from m_shared.vectordb.utils import document_to_markdown
+from m_shared.vectordb.utils import document_to_markdown, image_description
 from shape_api.conversation import execute_chat_turn
 from shape_api.models import (
     ChatSessionListResponse,
@@ -268,23 +270,22 @@ def create_app(
     async def health():
         return {"status": "healthy"}
 
-    @app.post("/dev/token", tags=["Development"])
-    async def generate_dev_token(user_id: str = "dev_user", org: str = "dev_org"):
-        environment = os.getenv("ENVIRONMENT", "development").lower()
-        if environment not in ("development", "testing"):
+    class TokenRequest(BaseModel):
+        user_id: str
+        api_secret: str
+
+    @app.post("/auth/token", tags=["Auth"])
+    @limiter.limit("5/minute")
+    async def issue_api_token(request: Request, body: TokenRequest):
+        """Issue a JWT for server-to-server callers presenting a shared API secret."""
+        expected = os.getenv("API_SECRET", "")
+        if not expected or not hmac.compare_digest(body.api_secret, expected):
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Token generation endpoint is only available in development/testing",
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API secret"
             )
-        session_id = f"dev_session_{uuid4().hex[:12]}"
-        token = create_token(
-            user_id=user_id,
-            session_id=session_id,
-            org=org,
-            roles=["user"],
-            expiration_hours=int(os.getenv("JWT_EXPIRATION_HOURS", "24")),
-        )
-        return {"token": token, "user_id": user_id}
+        session_id = uuid4().hex[:12]
+        token = create_token(user_id=body.user_id, session_id=session_id, org="api", roles=["user"])
+        return {"token": token, "user_id": body.user_id}
 
     @app.get("/auth/login", tags=["Authentication"])
     async def auth_login():
@@ -837,11 +838,13 @@ def create_app(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Filename is required",
             )
+        _IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+        _DOC_EXTENSIONS = {".docx", ".pdf", ".txt", ".md", ".pptx"}
         suffix = Path(file.filename).suffix.lower()
-        if suffix not in (".docx", ".pdf", ".txt", ".md", ".pptx"):
+        if suffix not in (_DOC_EXTENSIONS | _IMAGE_EXTENSIONS):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Unsupported file type '{suffix}'. Allowed: .docx .pdf .txt .md .pptx",
+                detail=f"Unsupported file type '{suffix}'. Allowed: .docx .pdf .txt .md .pptx .jpg .jpeg .png .gif .webp",
             )
         safe_name = Path(file.filename).name
         docs_dir = session_manager.get_documents_path(session_id)
@@ -850,7 +853,17 @@ def create_app(
         await _save_and_validate_upload(file, saved_path, int(os.getenv("MAX_FILE_SIZE_MB", "10")))
 
         try:
-            extracted = await asyncio.to_thread(document_to_markdown, str(saved_path))
+            if suffix in _IMAGE_EXTENSIONS:
+                if not llm_client:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail="Image uploads require an LLM client.",
+                    )
+                extracted = await asyncio.to_thread(
+                    image_description, str(saved_path), llm_client, llm_client.model_name
+                )
+            else:
+                extracted = await asyncio.to_thread(document_to_markdown, str(saved_path))
             stem = Path(safe_name).stem
             md_path = docs_dir / f"{stem}.md"
             md_path.write_text(extracted)

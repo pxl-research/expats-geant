@@ -35,9 +35,18 @@
   <div style="margin-top:0.625rem; padding-top:0.625rem; border-top:1px solid #e2e8f0;">
     <span style="font-size:0.7rem; font-weight:600; color:#64748b; text-transform:uppercase;">Sources</span>
     {% for cit in sug.citations %}
-    <div style="font-size:0.8rem; margin-top:0.35rem;">
-      <strong style="color:#1d4ed8;">{{ cit.source }}</strong>
-      {% if cit.excerpt %}
+    {% set low_relevance = cit.distance is defined and cit.distance > 0.8 %}
+    <div style="font-size:0.8rem; margin-top:0.35rem; {% if low_relevance %}opacity:0.45;{% endif %}">
+      <strong style="color:{% if low_relevance %}#94a3b8{% else %}#1d4ed8{% endif %};">{{ cit.source }}</strong>
+      {% if cit.position is not none %}
+      <span style="color:#94a3b8; font-size:0.75rem;">(~{{ (cit.position * 100) | round | int }}%)</span>
+      {% endif %}
+      {% if cit.full_text %}
+      <details style="display:inline; margin-left:0.25rem;">
+        <summary style="display:inline; cursor:pointer; color:#94a3b8; font-size:0.75rem;">show source text</summary>
+        <p style="margin:0.35rem 0 0; color:#475569; white-space:pre-wrap; font-size:0.8rem;">{{ cit.full_text }}</p>
+      </details>
+      {% elif cit.excerpt %}
       — <em style="color:#475569;">"{{ cit.excerpt }}"</em>
       {% endif %}
     </div>

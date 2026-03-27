@@ -1,6 +1,7 @@
 """FastAPI endpoints for Cue answer suggestion service."""
 
 import asyncio
+import hmac
 import ipaddress
 import json
 import logging
@@ -20,6 +21,7 @@ from fastapi.responses import (
     Response,
     StreamingResponse,
 )
+from pydantic import BaseModel
 
 from cue_api.ingest import ingest_files_into_store, ingest_text_into_store
 from cue_api.models import (
@@ -28,8 +30,6 @@ from cue_api.models import (
     BatchSuggestResponse,
     CitationResponse,
     CitationResult,
-    DevTokenRequest,
-    DevTokenResponse,
     ItemSuggestion,
     LiveApiImportRequest,
     SessionDeleteResponse,
@@ -277,8 +277,16 @@ def create_app(
     # Initialize RAG pipeline if LLM client provided
     rag_pipeline = None
     if llm_client:
+        try:
+            max_citation_distance = max(0.0, float(os.getenv("CUE_MAX_CITATION_DISTANCE", "1.5")))
+        except ValueError:
+            logger.warning("Invalid CUE_MAX_CITATION_DISTANCE value; using default 1.5")
+            max_citation_distance = 1.5
         rag_pipeline = RAGPipeline(
-            session_manager=session_manager, llm_client=llm_client, audit_logger=audit_logger
+            session_manager=session_manager,
+            llm_client=llm_client,
+            audit_logger=audit_logger,
+            max_citation_distance=max_citation_distance,
         )
 
     # Add exception handler for HTTPException
@@ -299,56 +307,22 @@ def create_app(
         """Health check endpoint."""
         return {"status": "healthy"}
 
-    @app.post("/dev/token", response_model=DevTokenResponse, tags=["Development"])
-    async def generate_dev_token(request: DevTokenRequest):
-        """Generate JWT token for development/testing (disabled in production).
+    class TokenRequest(BaseModel):
+        user_id: str
+        api_secret: str
 
-        This endpoint allows developers to easily generate valid JWT tokens for testing
-        the API without needing to set up a full authentication infrastructure.
-
-        **IMPORTANT**: This endpoint is only available when ENVIRONMENT != "production"
-
-        Args:
-            request: Token generation parameters (user_id, org, roles)
-
-        Returns:
-            JWT token and metadata
-
-        Raises:
-            HTTPException: 403 if called in production environment
-        """
-        # Check environment - only allow in development/testing
-        environment = os.getenv("ENVIRONMENT", "development").lower()
-        if environment not in ("development", "testing"):
+    @app.post("/auth/token", tags=["Auth"])
+    @limiter.limit("5/minute")
+    async def issue_api_token(request: Request, body: TokenRequest):
+        """Issue a JWT for server-to-server callers presenting a shared API secret."""
+        expected = os.getenv("API_SECRET", "")
+        if not expected or not hmac.compare_digest(body.api_secret, expected):
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Token generation endpoint is only available in development/testing",
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API secret"
             )
-
-        # Generate unpredictable session ID
-        session_id = f"dev_session_{uuid.uuid4().hex[:12]}"
-
-        # Create token with requested parameters
-        try:
-            token = create_token(
-                user_id=request.user_id,
-                session_id=session_id,
-                org=request.org,
-                roles=request.roles,
-                expiration_hours=int(os.getenv("JWT_EXPIRATION_HOURS", "24")),
-            )
-
-            return DevTokenResponse(
-                token=token,
-                user_id=request.user_id,
-                expires_in_hours=int(os.getenv("JWT_EXPIRATION_HOURS", "24")),
-                message="Token generated successfully. Use in Authorization header: Bearer <token>",
-            )
-        except ValueError as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Token generation failed: {str(e)}",
-            )
+        session_id = uuid.uuid4().hex[:12]
+        token = create_token(user_id=body.user_id, session_id=session_id, org="api", roles=["user"])
+        return {"token": token, "user_id": body.user_id}
 
     @app.get("/session/stats", response_model=SessionStatsResponse)
     async def get_session_stats(request: Request):
@@ -452,6 +426,13 @@ def create_app(
             if not is_valid:
                 raise FileValidationError(error_msg)
 
+            # Reject image uploads when no LLM client is available to describe them
+            _image_extensions = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+            if Path(file_path).suffix.lower() in _image_extensions and llm_client is None:
+                raise FileValidationError(
+                    "Image uploads are not supported: no LLM client is configured"
+                )
+
             # Get vector store for session
             try:
                 store = manager.get_vector_store(session.session_id)
@@ -468,6 +449,8 @@ def create_app(
                 session_id=session.session_id,
                 user_id=claims.get("user_id"),
                 audit_logger=audit_logger,
+                llm_client=llm_client,
+                model_name=getattr(llm_client, "model_name", None),
             )
 
             file_size = os.path.getsize(file_path)
@@ -705,6 +688,8 @@ def create_app(
                     source=c.source_id,
                     excerpt=c.highlights[0] if c.highlights else "",
                     position=c.position_percentage or 0.0,
+                    distance=c.metadata.get("distance") or 0.0,
+                    full_text=c.metadata.get("full_text") or "",
                 )
                 for c in r["citations"]
             ]
@@ -786,6 +771,8 @@ def create_app(
                             source=c.source_id,
                             excerpt=c.highlights[0] if c.highlights else "",
                             position=c.position_percentage or 0.0,
+                            distance=c.metadata.get("distance") or 0.0,
+                            full_text=c.metadata.get("full_text") or "",
                         )
                         for c in r["citations"]
                     ]

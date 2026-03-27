@@ -96,6 +96,10 @@ class CitationResult(BaseModel):
     position: float = Field(
         ..., ge=0.0, le=1.0, description="Normalized position in document (0.0–1.0)"
     )
+    distance: float = Field(
+        default=0.0, description="Semantic similarity distance (lower = more relevant)"
+    )
+    full_text: str = Field(default="", description="Full text of the source chunk")
 
 
 class ItemSuggestion(BaseModel):
@@ -217,23 +221,6 @@ class LiveApiImportRequest(BaseModel):
     username: str | None = Field(default=None, max_length=200)
     password: str | None = Field(default=None, max_length=200)
     datacenter_id: str | None = Field(default=None, max_length=50)
-
-
-class DevTokenRequest(BaseModel):
-    """Request for development token generation."""
-
-    user_id: str = Field(default="dev_user", description="User ID for token")
-    org: str = Field(default="dev_org", description="Organization ID")
-    roles: list[str] = Field(default=["respondent"], description="User roles")
-
-
-class DevTokenResponse(BaseModel):
-    """Development token response."""
-
-    token: str
-    user_id: str
-    expires_in_hours: int
-    message: str
 
 
 # ---------------------------------------------------------------------------

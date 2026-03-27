@@ -578,13 +578,45 @@ def test_reset_session_redirects(client):
 
 
 @respx.mock
-def test_delete_session_redirects_to_home(client):
+def test_delete_session_non_htmx(client):
     respx.delete(f"{BASE}/chat/{SESSION_ID}").mock(
         return_value=httpx.Response(200, json={"deleted": True, "session_id": SESSION_ID})
     )
     resp = client.delete(f"/session/{SESSION_ID}", cookies=COOKIE, follow_redirects=False)
-    assert resp.status_code == 302
-    assert resp.headers["location"] == "/"
+    assert resp.status_code == 200
+
+
+@respx.mock
+def test_delete_session_htmx_from_chat_sends_hx_redirect(client):
+    respx.delete(f"{BASE}/chat/{SESSION_ID}").mock(
+        return_value=httpx.Response(200, json={"deleted": True, "session_id": SESSION_ID})
+    )
+    resp = client.delete(
+        f"/session/{SESSION_ID}",
+        cookies=COOKIE,
+        follow_redirects=False,
+        headers={
+            "HX-Request": "true",
+            "HX-Current-URL": f"http://localhost/session/{SESSION_ID}/chat",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.headers.get("HX-Redirect") == "/"
+
+
+@respx.mock
+def test_delete_session_htmx_from_index_no_redirect(client):
+    respx.delete(f"{BASE}/chat/{SESSION_ID}").mock(
+        return_value=httpx.Response(200, json={"deleted": True, "session_id": SESSION_ID})
+    )
+    resp = client.delete(
+        f"/session/{SESSION_ID}",
+        cookies=COOKIE,
+        follow_redirects=False,
+        headers={"HX-Request": "true", "HX-Current-URL": "http://localhost/"},
+    )
+    assert resp.status_code == 200
+    assert "HX-Redirect" not in resp.headers
 
 
 def test_auth_login_redirects(client):
