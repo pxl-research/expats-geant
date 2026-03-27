@@ -132,18 +132,6 @@ class BatchSuggestResponse(BaseModel):
     responses: list[ItemSuggestion]
 
 
-# ---------------------------------------------------------------------------
-# Single-item suggest endpoint models
-# ---------------------------------------------------------------------------
-
-
-class SuggestRequest(BaseModel):
-    """Request for answer suggestion."""
-
-    question: str = Field(..., min_length=1, max_length=2000, description="Question to answer")
-    context: str | None = Field(None, max_length=1000, description="Optional context")
-
-
 class UploadResponse(BaseModel):
     """Document upload response."""
 
@@ -159,27 +147,6 @@ class UploadTextRequest(BaseModel):
 
     text: str
     label: str | None = None
-
-
-class CitationResponse(BaseModel):
-    """Citation information."""
-
-    source: str
-    position: str
-    position_range: dict
-    timestamp: str
-    excerpt: str
-
-
-class SuggestResponse(BaseModel):
-    """Answer suggestion response."""
-
-    answer: str
-    reasoning: str | None = Field(
-        None, description="LLM explanation of confidence, source interpretation, or uncertainty"
-    )
-    citations: list[CitationResponse]
-    metadata: dict
 
 
 class SessionStatsResponse(BaseModel):

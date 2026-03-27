@@ -140,43 +140,12 @@ Session identity is carried in the JWT token (Authorization header). All endpoin
 | Method | Path | Description |
 |--------|------|-------------|
 | `POST` | `/upload` | Upload a document into the session |
-| `POST` | `/suggest` | Single-question answer suggestion |
-| `POST` | `/suggest/batch` | Multi-question batch suggestion (QTI-inspired input) |
+| `POST` | `/suggest/batch` | Answer suggestions (single or multi-question, QTI-inspired input) |
 | `POST` | `/suggest/stream` | Same as batch, streamed via Server-Sent Events |
 | `GET` | `/session/stats` | Session status, TTL, document count |
 | `DELETE` | `/session` | End session and delete all data |
 | `GET` | `/audit-report` | Download session audit report (JSON or plaintext) |
 | `GET` | `/privacy` | Data handling transparency statement |
-
-### POST /suggest
-
-Generate a suggestion for a single question.
-
-**Request:**
-```json
-{
-  "question": "What is our organisation's current data retention policy for employee records?",
-  "context": "Completing a GDPR compliance questionnaire"
-}
-```
-
-**Response:**
-```json
-{
-  "answer": "Employee records are retained for 7 years after contract termination, in line with Belgian labour law requirements.",
-  "reasoning": null,
-  "citations": [
-    {
-      "source": "hr_policy_2024.pdf",
-      "position": "62%",
-      "position_range": {"start_percentage": 0.61, "end_percentage": 0.64},
-      "timestamp": "2026-02-20T09:14:00Z",
-      "excerpt": "employee personal data shall be retained for a period of seven years following termination"
-    }
-  ],
-  "metadata": {}
-}
-```
 
 ### POST /suggest/batch
 

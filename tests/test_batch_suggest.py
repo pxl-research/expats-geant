@@ -328,12 +328,12 @@ class TestParseSelectedId:
 
 
 # ---------------------------------------------------------------------------
-# API error-branch coverage for /suggest and /suggest/batch
+# API error-branch coverage for /suggest/batch
 # ---------------------------------------------------------------------------
 
 
 class TestSuggestAPIErrorBranches:
-    """Cover rag_pipeline=None and exception paths in /suggest and /suggest/batch."""
+    """Cover rag_pipeline=None and exception paths in /suggest/batch."""
 
     @pytest.fixture
     def jwt_secret(self, monkeypatch):
@@ -391,50 +391,6 @@ class TestSuggestAPIErrorBranches:
         app = create_app(session_manager=session_manager, llm_client=mock_llm)
         app.add_middleware(SessionMiddleware, session_manager=session_manager, ttl_hours=24)
         return TestClient(app, raise_server_exceptions=False)
-
-    # -- /suggest --
-
-    def test_suggest_no_rag_pipeline(self, client_no_rag, auth_token):
-        """POST /suggest with rag_pipeline=None → 500."""
-        response = client_no_rag.post(
-            "/suggest",
-            json={"question": "What is the answer?"},
-            headers={"Authorization": f"Bearer {auth_token}"},
-        )
-        assert response.status_code == 500
-        assert "RAG pipeline not initialized" in response.json()["detail"]
-
-    def test_suggest_value_error(self, client_with_rag, auth_token):
-        """POST /suggest when suggest_answer raises ValueError → 404."""
-        from unittest.mock import patch
-
-        with patch(
-            "cue_api.rag_pipeline.RAGPipeline.suggest_answer",
-            side_effect=ValueError("no documents found"),
-        ):
-            response = client_with_rag.post(
-                "/suggest",
-                json={"question": "What is the answer?"},
-                headers={"Authorization": f"Bearer {auth_token}"},
-            )
-        assert response.status_code == 404
-        assert "no documents found" in response.json()["detail"]
-
-    def test_suggest_exception(self, client_with_rag, auth_token):
-        """POST /suggest when suggest_answer raises unexpected Exception → 500."""
-        from unittest.mock import patch
-
-        with patch(
-            "cue_api.rag_pipeline.RAGPipeline.suggest_answer",
-            side_effect=RuntimeError("LLM error"),
-        ):
-            response = client_with_rag.post(
-                "/suggest",
-                json={"question": "What is the answer?"},
-                headers={"Authorization": f"Bearer {auth_token}"},
-            )
-        assert response.status_code == 500
-        assert "Suggestion failed" in response.json()["detail"]
 
     # -- /suggest/batch --
 

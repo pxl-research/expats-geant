@@ -1,4 +1,4 @@
-"""Integration tests for POST /suggest/batch and reasoning field on POST /suggest."""
+"""Integration tests for POST /suggest/batch."""
 
 from unittest.mock import MagicMock
 

@@ -322,67 +322,6 @@ class TestUploadEndpoint:
         assert "validation" in response.json()["detail"].lower()
 
 
-class TestSuggestEndpoint:
-    """Tests for POST /suggest endpoint."""
-
-    @pytest.fixture
-    def app_with_llm(self, session_manager, monkeypatch):
-        """Create app with mocked LLM client."""
-        from unittest.mock import Mock
-
-        from cue_api.api import create_app
-        from m_shared.auth.middleware import SessionMiddleware
-        from m_shared.llm.client import LLMClient
-        from m_shared.utils.audit import AuditLogger
-
-        # Mock LLM client
-        llm_client = Mock(spec=LLMClient)
-        llm_client.create_completion.return_value = {
-            "content": "Based on your documents, the answer is...",
-            "model": "test-model",
-            "usage": {"total_tokens": 100},
-        }
-
-        # Create audit logger
-        audit_logger = AuditLogger(base_path=str(session_manager.base_path))
-
-        # Create app with LLM
-        app = create_app(
-            session_manager=session_manager, llm_client=llm_client, audit_logger=audit_logger
-        )
-        app.add_middleware(SessionMiddleware, session_manager=session_manager, ttl_hours=24)
-        return app
-
-    @pytest.fixture
-    def client_with_llm(self, app_with_llm):
-        """Create test client with LLM support."""
-        return TestClient(app_with_llm, raise_server_exceptions=False)
-
-    def test_suggest_requires_authentication(self, client_with_llm):
-        """Suggest without auth should fail."""
-        response = client_with_llm.post("/suggest", json={"question": "What is the answer?"})
-        assert response.status_code == 401
-
-    def test_suggest_without_documents_returns_graceful_response(
-        self, client_with_llm, valid_token
-    ):
-        """Suggest without uploaded documents should return a graceful 200 with a fallback message."""
-        response = client_with_llm.post(
-            "/suggest",
-            headers={"Authorization": f"Bearer {valid_token}"},
-            json={"question": "What is the answer?"},
-        )
-        assert response.status_code == 200
-        assert "couldn't find" in response.json()["answer"].lower()
-
-    def test_suggest_invalid_question(self, client_with_llm, valid_token):
-        """Suggest with empty question should fail."""
-        response = client_with_llm.post(
-            "/suggest", headers={"Authorization": f"Bearer {valid_token}"}, json={"question": ""}
-        )
-        assert response.status_code == 422  # Pydantic validation error
-
-
 class TestAuditReportEndpoint:
     """Tests for GET /audit-report endpoint."""
 

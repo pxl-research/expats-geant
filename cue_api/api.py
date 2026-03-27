@@ -28,14 +28,11 @@ from cue_api.models import (
     AuditDeleteResponse,
     BatchSuggestRequest,
     BatchSuggestResponse,
-    CitationResponse,
     CitationResult,
     ItemSuggestion,
     LiveApiImportRequest,
     SessionDeleteResponse,
     SessionStatsResponse,
-    SuggestRequest,
-    SuggestResponse,
     UploadResponse,
     UploadTextRequest,
     normalize_to_sections,
@@ -535,100 +532,6 @@ def create_app(
             upload_timestamp=datetime.now(UTC).isoformat(),
             session_id=session.session_id,
         )
-
-    @app.post("/suggest", response_model=SuggestResponse)
-    @limiter.limit("10/minute")
-    async def suggest_answer(
-        request: Request,
-        suggest_request: SuggestRequest,
-    ):
-        """Generate answer suggestion based on uploaded documents.
-
-        Session is automatically identified from JWT token via middleware.
-
-        Args:
-            suggest_request: Question and optional context
-
-        Returns:
-            Answer with citations
-
-        Raises:
-            HTTPException: 400 if invalid, 404 if no documents, 500 if LLM error
-        """
-        if not rag_pipeline:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="RAG pipeline not initialized (LLM client missing)",
-            )
-
-        session = request.state.session
-        claims = request.state.claims
-
-        try:
-            # Generate suggestion (offloaded to thread pool — blocks on vector search + LLM)
-            result = await asyncio.to_thread(
-                rag_pipeline.suggest_answer,
-                question=suggest_request.question,
-                session_id=session.session_id,
-                user_id=claims.get("user_id"),
-            )
-
-            # Format citations
-            citations = [
-                CitationResponse(
-                    source=cit.source_id,
-                    position=f"{cit.position_percentage:.1%}"
-                    if cit.position_percentage
-                    else "unknown",
-                    position_range={
-                        "start_percentage": cit.position_start or 0,
-                        "end_percentage": cit.position_end or 0,
-                    },
-                    timestamp=cit.timestamp.isoformat() if cit.timestamp else "",
-                    excerpt=cit.highlights[0] if cit.highlights else "",
-                )
-                for cit in result["citations"]
-            ]
-
-            report_citations = [
-                {
-                    "source": cit.source_id,
-                    "position": cit.position_percentage,
-                    "excerpt": cit.highlights[0] if cit.highlights else "",
-                }
-                for cit in result["citations"]
-            ]
-            try:
-                _append_to_answer_report(
-                    session_manager._get_session_path(session.session_id),
-                    [
-                        {
-                            "question_id": None,
-                            "question": suggest_request.question,
-                            "answer": result["answer"],
-                            "reasoning": result.get("reasoning"),
-                            "citations": report_citations,
-                            "generated_at": datetime.now(UTC).isoformat(),
-                        }
-                    ],
-                )
-            except Exception as exc:
-                logger.warning("Failed to persist answer report entry: %s", exc)
-
-            return SuggestResponse(
-                answer=result["answer"],
-                reasoning=result.get("reasoning"),
-                citations=citations,
-                metadata=result.get("metadata", {}),
-            )
-
-        except ValueError as e:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-        except Exception as e:
-            logger.error("Suggestion failed for session %s: %s", session.session_id, e)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Suggestion failed"
-            )
 
     @app.post("/suggest/batch", response_model=BatchSuggestResponse)
     @limiter.limit("3/minute")
