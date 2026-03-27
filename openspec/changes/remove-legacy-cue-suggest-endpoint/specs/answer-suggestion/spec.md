@@ -14,4 +14,4 @@ prompts.
 #### Scenario: Choice selection omitted for open-ended questions
 
 - **WHEN** a question is of type `open_ended`
-- **THEN** the `selected` field is omitted from the prompt and returned as `null`
+- **THEN** the `selected` field is omitted from the LLM prompt; because the LLM does not include it in its response, the parser treats the missing field as `null`
