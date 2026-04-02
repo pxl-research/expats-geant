@@ -44,13 +44,17 @@ async def upload_document(
         )
 
     try:
-        content = await file.read()
+        # Stream to disk with size enforcement
+        max_bytes = max_file_size_mb * 1024 * 1024
+        bytes_written = 0
         with open(file_path, "wb") as f:
-            f.write(content)
+            while chunk := await file.read(1024 * 1024):
+                bytes_written += len(chunk)
+                if bytes_written > max_bytes:
+                    raise FileValidationError(f"File too large (max {max_file_size_mb} MB)")
+                f.write(chunk)
 
-        is_valid, error_msg = validate_file_upload(
-            str(file_path), max_size_bytes=max_file_size_mb * 1024 * 1024
-        )
+        is_valid, error_msg = validate_file_upload(str(file_path), max_size_bytes=max_bytes)
         if not is_valid:
             raise FileValidationError(error_msg)
 
@@ -98,6 +102,8 @@ async def upload_document(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Upload failed"
         )
+    finally:
+        file_path.unlink(missing_ok=True)
 
 
 @router.post("/upload-text", response_model=UploadResponse)

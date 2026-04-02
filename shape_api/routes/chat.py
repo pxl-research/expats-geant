@@ -60,9 +60,26 @@ def _llm_topic_summary(text: str, llm_client) -> str:
 
 
 async def _save_and_validate_upload(file: UploadFile, dest_path: Path, max_mb: int) -> None:
-    """Write uploaded file to dest_path and validate size. Raises HTTPException on failure."""
-    dest_path.write_bytes(await file.read())
-    is_valid, error_msg = validate_file_upload(str(dest_path), max_size_bytes=max_mb * 1024 * 1024)
+    """Stream uploaded file to dest_path with size enforcement. Raises HTTPException on failure."""
+    max_bytes = max_mb * 1024 * 1024
+    bytes_written = 0
+    try:
+        with dest_path.open("wb") as out:
+            while chunk := await file.read(1024 * 1024):
+                bytes_written += len(chunk)
+                if bytes_written > max_bytes:
+                    dest_path.unlink(missing_ok=True)
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"File too large (max {max_mb} MB)",
+                    )
+                out.write(chunk)
+    except HTTPException:
+        raise
+    except Exception:
+        dest_path.unlink(missing_ok=True)
+        raise
+    is_valid, error_msg = validate_file_upload(str(dest_path), max_size_bytes=max_bytes)
     if not is_valid:
         dest_path.unlink(missing_ok=True)
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=error_msg)

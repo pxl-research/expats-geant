@@ -38,8 +38,14 @@ def _get_report_lock(session_path: Path) -> threading.Lock:
             return _report_locks[key]
         lock = threading.Lock()
         _report_locks[key] = lock
-        while len(_report_locks) > _MAX_REPORT_LOCKS:
-            _report_locks.popitem(last=False)
+        # Evict oldest locks that aren't currently held
+        if len(_report_locks) > _MAX_REPORT_LOCKS:
+            for old_key in list(_report_locks):
+                if old_key == key:
+                    continue
+                if not _report_locks[old_key].locked():
+                    del _report_locks[old_key]
+                    break
         return lock
 
 

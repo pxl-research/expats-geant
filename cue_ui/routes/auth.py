@@ -1,5 +1,7 @@
 """Cue UI: authentication routes."""
 
+import os
+
 import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
@@ -31,7 +33,8 @@ async def auth_callback(
     token: str | None = None,
 ):
     """Handle OIDC callback: proxy code+state to Cue server-side, set cookie."""
-    if token:
+    # Direct token handoff — only allowed in development (set ALLOW_DEV_TOKEN_LOGIN=1)
+    if token and os.getenv("ALLOW_DEV_TOKEN_LOGIN", "").strip() in ("1", "true"):
         response = RedirectResponse(url="/", status_code=302)
         set_token_cookie(response, token)
         return response

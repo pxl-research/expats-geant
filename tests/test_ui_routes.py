@@ -65,8 +65,9 @@ class TestLandingPage:
 
 
 class TestAuthCallback:
-    def test_callback_sets_cookie_and_redirects(self):
+    def test_callback_sets_cookie_and_redirects(self, monkeypatch):
         """Direct ?token= handoff (dev/manual flow) still works."""
+        monkeypatch.setenv("ALLOW_DEV_TOKEN_LOGIN", "1")
         client = TestClient(app, follow_redirects=False)
         resp = client.get("/auth/callback?token=my-jwt")
         assert resp.status_code == 302

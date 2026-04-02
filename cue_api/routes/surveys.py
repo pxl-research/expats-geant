@@ -86,7 +86,13 @@ async def import_survey(
             detail=f"Unsupported format '{format}'. Supported: qsf, lss, qti, sm.",
         )
 
-    content = await file.read()
+    max_survey_bytes = 10 * 1024 * 1024  # 10 MB — generous for any survey file
+    content = await file.read(max_survey_bytes + 1)
+    if len(content) > max_survey_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Survey file too large (max 10 MB)",
+        )
     try:
         content_str = content.decode("utf-8")
     except UnicodeDecodeError:

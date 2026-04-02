@@ -1,22 +1,25 @@
 """File validation utilities for document ingestion."""
 
 import os
+from collections.abc import Set
 from pathlib import Path
 
-SUPPORTED_EXTENSIONS = {
-    ".txt",
-    ".pdf",
-    ".docx",
-    ".md",
-    ".pptx",
-    ".xlsx",
-    ".xls",
-    ".jpg",
-    ".jpeg",
-    ".png",
-    ".gif",
-    ".webp",
-}
+SUPPORTED_EXTENSIONS = frozenset(
+    {
+        ".txt",
+        ".pdf",
+        ".docx",
+        ".md",
+        ".pptx",
+        ".xlsx",
+        ".xls",
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".webp",
+    }
+)
 
 # Maximum file size in bytes (default 50MB)
 MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
@@ -25,7 +28,7 @@ MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
 def validate_file_upload(
     file_path: str,
     max_size_bytes: int = MAX_FILE_SIZE_BYTES,
-    allowed_extensions: set = SUPPORTED_EXTENSIONS,
+    allowed_extensions: Set[str] = SUPPORTED_EXTENSIONS,
 ) -> tuple[bool, str]:
     """Validate file for upload.
 
@@ -66,7 +69,7 @@ def validate_file_upload(
     return True, ""
 
 
-def validate_file_type(file_path: str, allowed_extensions: set = SUPPORTED_EXTENSIONS) -> bool:
+def validate_file_type(file_path: str, allowed_extensions: Set[str] = SUPPORTED_EXTENSIONS) -> bool:
     """Check if file extension is supported."""
     extension = Path(file_path).suffix.lower()
     return extension in allowed_extensions
@@ -90,7 +93,7 @@ class FileValidationError(Exception):
 def validate_file_or_raise(
     file_path: str,
     max_size_bytes: int = MAX_FILE_SIZE_BYTES,
-    allowed_extensions: set = SUPPORTED_EXTENSIONS,
+    allowed_extensions: Set[str] = SUPPORTED_EXTENSIONS,
 ) -> None:
     """Validate file and raise FileValidationError if invalid."""
     is_valid, error_message = validate_file_upload(

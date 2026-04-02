@@ -646,7 +646,8 @@ def test_auth_callback_no_params_returns_error(client):
     assert "failed" in resp.text.lower()
 
 
-def test_auth_callback_direct_token(client):
+def test_auth_callback_direct_token(client, monkeypatch):
+    monkeypatch.setenv("ALLOW_DEV_TOKEN_LOGIN", "1")
     resp = client.get("/auth/callback?token=mytoken", follow_redirects=False)
     assert resp.status_code == 302
     assert resp.headers["location"] == "/"
