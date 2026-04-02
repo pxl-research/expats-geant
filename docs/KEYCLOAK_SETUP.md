@@ -75,7 +75,8 @@ docker compose exec keycloak /opt/keycloak/bin/kcadm.sh get clients -r expats \
 docker compose exec keycloak /opt/keycloak/bin/kcadm.sh update clients/<CLIENT_ID> \
   -r expats \
   -s 'redirectUris=[...]' \
-  -s 'webOrigins=[...]'
+  -s 'webOrigins=[...]' \
+  -s 'attributes."post.logout.redirect.uris"="[...]"'
 ```
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for the full non-localhost deployment walkthrough.
@@ -86,7 +87,7 @@ Configure TLS termination at your reverse proxy (nginx, Caddy, etc.) and update 
 
 ```
 OIDC_ISSUER_URL=https://keycloak.yourdomain.com/realms/expats
-OIDC_REDIRECT_URI=https://cue-api.yourdomain.com/auth/callback
+OIDC_REDIRECT_URI=https://yourdomain.com:8002/auth/callback
 ```
 
 Update the client redirect URI using `kcadm.sh` as shown above, or via Keycloak admin → **Clients** → `cue-api` → **Valid redirect URIs**.

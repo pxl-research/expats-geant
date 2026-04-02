@@ -140,6 +140,22 @@ class TestGetAuthorizationUrl:
         assert state in oauth_module._pending_states
         assert oauth_module._pending_states[state] > time.time()
 
+    @pytest.mark.asyncio
+    async def test_keycloak_public_url_rewrites_authorization_endpoint(self):
+        """KEYCLOAK_PUBLIC_URL replaces the internal base in the authorization URL."""
+        env = {**OIDC_ENV, "KEYCLOAK_PUBLIC_URL": "http://10.0.0.1:8080"}
+        with patch.dict(os.environ, env):
+            with respx.mock:
+                respx.get(f"{ISSUER}/.well-known/openid-configuration").mock(
+                    return_value=httpx.Response(200, json=DISCOVERY_DOC)
+                )
+                url, _ = await get_authorization_url()
+
+        assert url.startswith("http://10.0.0.1:8080/realms/")
+        assert (
+            "localhost:8080" not in url.split("?")[0]
+        )  # base path rewritten; query params may differ
+
 
 # ---------------------------------------------------------------------------
 # exchange_code — state validation

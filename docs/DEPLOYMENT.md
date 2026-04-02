@@ -213,8 +213,10 @@ When users access the platform from an external machine (not `localhost`), sever
 # Browser-accessible URLs for each service
 AUTOFILL_PUBLIC_URL=http://<HOST>:8001
 OIDC_REDIRECT_URI=http://<HOST>:8002/auth/callback
+CUE_UI_PUBLIC_URL=http://<HOST>:8002
 MCHAT_PUBLIC_URL=http://<HOST>:8003
 SHAPE_OIDC_REDIRECT_URI=http://<HOST>:8004/auth/callback
+SHAPE_UI_PUBLIC_URL=http://<HOST>:8004
 
 # Public URL of Keycloak as seen by the browser
 # Without this, the OIDC login redirect sends users to http://keycloak:8080/... (Docker-internal, unreachable)
@@ -244,7 +246,8 @@ docker compose exec keycloak /opt/keycloak/bin/kcadm.sh get clients -r expats \
 docker compose exec keycloak /opt/keycloak/bin/kcadm.sh update clients/<CLIENT_ID> \
   -r expats \
   -s 'redirectUris=["http://localhost:8002/auth/callback","http://localhost:8004/auth/callback","http://<HOST>:8002/auth/callback","http://<HOST>:8004/auth/callback"]' \
-  -s 'webOrigins=["http://localhost:8001","http://localhost:8002","http://localhost:8003","http://localhost:8004","http://<HOST>:8001","http://<HOST>:8002","http://<HOST>:8003","http://<HOST>:8004"]'
+  -s 'webOrigins=["http://localhost:8001","http://localhost:8002","http://localhost:8003","http://localhost:8004","http://<HOST>:8001","http://<HOST>:8002","http://<HOST>:8003","http://<HOST>:8004"]' \
+  -s 'attributes."post.logout.redirect.uris"="http://localhost:8002##http://localhost:8004##http://<HOST>:8002##http://<HOST>:8004"'
 ```
 
 No restart needed — Keycloak applies client config changes immediately.
