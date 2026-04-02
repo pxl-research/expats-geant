@@ -79,6 +79,7 @@ _POSITIVE_WORDS = frozenset(
     }
 )
 
+# 30 items is a common threshold in survey methodology for respondent fatigue
 _SURVEY_FATIGUE_THRESHOLD = 30
 
 
@@ -109,128 +110,142 @@ def _is_double_barreled(text: str) -> bool:
     return False
 
 
-def _check_question_tier1(question: Question) -> list[ValidationIssue]:
-    issues: list[ValidationIssue] = []
-    qid = question.id
-    text_lower = question.text.lower()
-
-    # Double-barreled
-    if _is_double_barreled(question.text):
-        issues.append(
-            ValidationIssue(
-                question_id=qid,
-                severity="warning",
-                code="double_barreled",
-                message="Question may be double-barreled: it appears to ask about two things at once.",
-            )
+def _check_scale_length(question: Question) -> ValidationIssue | None:
+    """Flag choice questions with too few (<4) or too many (>7) options."""
+    if question.type not in (QuestionType.SINGLE_CHOICE, QuestionType.MULTIPLE_CHOICE):
+        return None
+    n_opts = len(question.answer_options)
+    if n_opts < 4:
+        return ValidationIssue(
+            question_id=question.id,
+            severity="warning",
+            code="scale_too_short",
+            message=f"Only {n_opts} option(s) provided; consider at least 4 for a meaningful scale.",
         )
+    if n_opts > 7:
+        return ValidationIssue(
+            question_id=question.id,
+            severity="warning",
+            code="scale_too_long",
+            message=f"{n_opts} options may overwhelm respondents; consider 7 or fewer.",
+        )
+    return None
 
-    # Scale length (single_choice and multiple_choice)
-    if question.type in (QuestionType.SINGLE_CHOICE, QuestionType.MULTIPLE_CHOICE):
-        n_opts = len(question.answer_options)
-        if n_opts < 4:
-            issues.append(
-                ValidationIssue(
-                    question_id=qid,
-                    severity="warning",
-                    code="scale_too_short",
-                    message=f"Only {n_opts} option(s) provided; consider at least 4 for a meaningful scale.",
-                )
-            )
-        elif n_opts > 7:
-            issues.append(
-                ValidationIssue(
-                    question_id=qid,
-                    severity="warning",
-                    code="scale_too_long",
-                    message=f"{n_opts} options may overwhelm respondents; consider 7 or fewer.",
-                )
-            )
 
-    # Slider — no labels
-    if question.type == QuestionType.SLIDER:
-        labels = question.metadata.get("labels") or question.metadata.get("label")
-        if not labels:
-            issues.append(
-                ValidationIssue(
-                    question_id=qid,
-                    severity="info",
-                    code="slider_no_labels",
-                    message="Slider has no label metadata; consider adding min/max labels for clarity.",
-                )
-            )
+def _check_slider_labels(question: Question) -> ValidationIssue | None:
+    if question.type != QuestionType.SLIDER:
+        return None
+    labels = question.metadata.get("labels") or question.metadata.get("label")
+    if not labels:
+        return ValidationIssue(
+            question_id=question.id,
+            severity="info",
+            code="slider_no_labels",
+            message="Slider has no label metadata; consider adding min/max labels for clarity.",
+        )
+    return None
 
-    # Leading language
+
+def _check_leading_language(question: Question) -> ValidationIssue | None:
+    text_lower = question.text.lower()
     for phrase in _LEADING_PHRASES:
         if phrase in text_lower:
-            issues.append(
-                ValidationIssue(
-                    question_id=qid,
-                    severity="warning",
-                    code="leading_language",
-                    message=f"Question contains leading language: '{phrase}'.",
-                )
+            return ValidationIssue(
+                question_id=question.id,
+                severity="warning",
+                code="leading_language",
+                message=f"Question contains leading language: '{phrase}'.",
             )
-            break
+    return None
 
-    # Likert unlabelled (single_choice, 4–7 options, any option text is empty)
-    if question.type == QuestionType.SINGLE_CHOICE:
-        n_opts = len(question.answer_options)
-        if 4 <= n_opts <= 7:
-            if any(not (opt.text or "").strip() for opt in question.answer_options):
-                issues.append(
-                    ValidationIssue(
-                        question_id=qid,
-                        severity="warning",
-                        code="likert_unlabelled",
-                        message="One or more Likert scale options have empty text labels.",
-                    )
-                )
 
-    # Social desirability
+def _check_likert_labels(question: Question) -> ValidationIssue | None:
+    """Flag single-choice Likert scales (4-7 options) with empty option labels."""
+    if question.type != QuestionType.SINGLE_CHOICE:
+        return None
+    n_opts = len(question.answer_options)
+    if 4 <= n_opts <= 7:
+        if any(not (opt.text or "").strip() for opt in question.answer_options):
+            return ValidationIssue(
+                question_id=question.id,
+                severity="warning",
+                code="likert_unlabelled",
+                message="One or more Likert scale options have empty text labels.",
+            )
+    return None
+
+
+def _check_social_desirability(question: Question) -> ValidationIssue | None:
+    text_lower = question.text.lower()
     for phrase in _SOCIAL_DESIRABILITY_PHRASES:
         if phrase in text_lower:
-            issues.append(
-                ValidationIssue(
-                    question_id=qid,
-                    severity="warning",
-                    code="social_desirability",
-                    message=f"Question may imply a socially expected answer: '{phrase}'.",
-                )
+            return ValidationIssue(
+                question_id=question.id,
+                severity="warning",
+                code="social_desirability",
+                message=f"Question may imply a socially expected answer: '{phrase}'.",
             )
-            break
+    return None
 
-    # Missing neutral option (single_choice, even number of options ≥ 4, no neutral label)
-    if question.type == QuestionType.SINGLE_CHOICE:
-        n_opts = len(question.answer_options)
-        if n_opts >= 4 and n_opts % 2 == 0:
-            opt_texts_lower = [opt.text.lower() for opt in question.answer_options]
-            if not any(label in t for t in opt_texts_lower for label in _NEUTRAL_LABELS):
-                issues.append(
-                    ValidationIssue(
-                        question_id=qid,
-                        severity="info",
-                        code="missing_neutral_option",
-                        message="Even-numbered scale with no neutral option forces a directional response.",
-                    )
-                )
 
-    # Unbalanced anchors (all options ≥ 3 lean the same sentiment direction)
-    if question.type in (QuestionType.SINGLE_CHOICE, QuestionType.MULTIPLE_CHOICE):
-        n_opts = len(question.answer_options)
-        if n_opts >= 3:
-            sentiments = [_classify_sentiment(opt.text) for opt in question.answer_options]
-            if None not in sentiments and len(set(sentiments)) == 1:
-                issues.append(
-                    ValidationIssue(
-                        question_id=qid,
-                        severity="warning",
-                        code="unbalanced_anchors",
-                        message="All answer options lean the same sentiment direction; consider adding a balanced counterpart.",
-                    )
-                )
+def _check_neutral_option(question: Question) -> ValidationIssue | None:
+    """Flag even-numbered single-choice scales (≥4) missing a neutral midpoint."""
+    if question.type != QuestionType.SINGLE_CHOICE:
+        return None
+    n_opts = len(question.answer_options)
+    if n_opts >= 4 and n_opts % 2 == 0:
+        opt_texts_lower = [opt.text.lower() for opt in question.answer_options]
+        if not any(label in t for t in opt_texts_lower for label in _NEUTRAL_LABELS):
+            return ValidationIssue(
+                question_id=question.id,
+                severity="info",
+                code="missing_neutral_option",
+                message="Even-numbered scale with no neutral option forces a directional response.",
+            )
+    return None
 
-    return issues
+
+def _check_unbalanced_anchors(question: Question) -> ValidationIssue | None:
+    """Flag choice questions where all options (≥3) lean the same sentiment direction."""
+    if question.type not in (QuestionType.SINGLE_CHOICE, QuestionType.MULTIPLE_CHOICE):
+        return None
+    if len(question.answer_options) < 3:
+        return None
+    sentiments = [_classify_sentiment(opt.text) for opt in question.answer_options]
+    if None not in sentiments and len(set(sentiments)) == 1:
+        return ValidationIssue(
+            question_id=question.id,
+            severity="warning",
+            code="unbalanced_anchors",
+            message="All answer options lean the same sentiment direction; consider adding a balanced counterpart.",
+        )
+    return None
+
+
+_TIER1_CHECKS = [
+    lambda q: (
+        ValidationIssue(
+            question_id=q.id,
+            severity="warning",
+            code="double_barreled",
+            message="Question may be double-barreled: it appears to ask about two things at once.",
+        )
+        if _is_double_barreled(q.text)
+        else None
+    ),
+    _check_scale_length,
+    _check_slider_labels,
+    _check_leading_language,
+    _check_likert_labels,
+    _check_social_desirability,
+    _check_neutral_option,
+    _check_unbalanced_anchors,
+]
+
+
+def _check_question_tier1(question: Question) -> list[ValidationIssue]:
+    """Run all deterministic quality checks on a single question."""
+    return [issue for check in _TIER1_CHECKS if (issue := check(question)) is not None]
 
 
 def _check_survey_tier1(survey: Survey) -> list[ValidationIssue]:
