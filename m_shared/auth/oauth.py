@@ -150,6 +150,16 @@ async def get_authorization_url(redirect_uri: str | None = None) -> tuple[str, s
     discovery = await _fetch_discovery(issuer_url)
     authorization_endpoint = discovery["authorization_endpoint"]
 
+    # Rewrite the authorization endpoint hostname for browser-facing redirects.
+    # Keycloak's discovery document uses its internal hostname (e.g. http://keycloak:8080),
+    # which is unreachable from external browsers. KEYCLOAK_PUBLIC_URL replaces the base.
+    keycloak_public_url = os.getenv("KEYCLOAK_PUBLIC_URL", "").rstrip("/")
+    if keycloak_public_url:
+        internal_base = issuer_url.split("/realms/")[0].rstrip("/")
+        authorization_endpoint = authorization_endpoint.replace(
+            internal_base, keycloak_public_url, 1
+        )
+
     state = str(uuid4())
     _purge_expired_states()
     _pending_states[state] = time.time() + _STATE_TTL_SECONDS
