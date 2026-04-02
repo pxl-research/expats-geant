@@ -196,6 +196,7 @@ services:
       - KC_HOSTNAME_PORT=8080
       - KC_HOSTNAME_STRICT=false
       - KC_HTTP_ENABLED=true
+      - KC_HOSTNAME_ADMIN=${KC_HOSTNAME_ADMIN:-keycloak}
     ports:
       - "8080:8080"
     volumes:
