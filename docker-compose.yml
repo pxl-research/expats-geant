@@ -192,11 +192,10 @@ services:
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-admin}
       # 'keycloak' hostname: resolves in Docker (internal DNS) and on Mac host
       # via /etc/hosts (127.0.0.1 keycloak). This keeps the OIDC issuer consistent.
-      - KC_HOSTNAME=keycloak
-      - KC_HOSTNAME_PORT=8080
+      - KC_HOSTNAME=http://keycloak:8080
       - KC_HOSTNAME_STRICT=false
       - KC_HTTP_ENABLED=true
-      - KC_HOSTNAME_ADMIN=${KC_HOSTNAME_ADMIN:-keycloak}
+      - KC_HOSTNAME_ADMIN=${KC_HOSTNAME_ADMIN:-http://keycloak:8080}
     ports:
       - "8080:8080"
     volumes:
