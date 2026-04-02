@@ -30,6 +30,8 @@ services:
       - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-change-me}
       # Redirect Keycloak's authorization code to cue_ui (cue_ui proxies it server-side)
       - OIDC_REDIRECT_URI=${OIDC_REDIRECT_URI:-http://localhost:8002/auth/callback}
+      # Public URL of Keycloak as seen by the user's browser (rewrites internal hostname in auth redirects)
+      - KEYCLOAK_PUBLIC_URL=${KEYCLOAK_PUBLIC_URL:-}
 
       # LLM Configuration
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
@@ -99,6 +101,8 @@ services:
       - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-shape-api}
       - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-change-me}
       - OIDC_REDIRECT_URI=${SHAPE_OIDC_REDIRECT_URI:-http://localhost:8004/auth/callback}
+      # Public URL of Keycloak as seen by the user's browser (rewrites internal hostname in auth redirects)
+      - KEYCLOAK_PUBLIC_URL=${KEYCLOAK_PUBLIC_URL:-}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - LLM_MODEL=${LLM_MODEL:-anthropic/claude-haiku-4.5}
       - LLM_BASE_URL=${LLM_BASE_URL:-https://openrouter.ai/api/v1}
@@ -192,10 +196,10 @@ services:
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-admin}
       # 'keycloak' hostname: resolves in Docker (internal DNS) and on Mac host
       # via /etc/hosts (127.0.0.1 keycloak). This keeps the OIDC issuer consistent.
-      - KC_HOSTNAME=keycloak
-      - KC_HOSTNAME_PORT=8080
+      - KC_HOSTNAME=http://keycloak:8080
       - KC_HOSTNAME_STRICT=false
       - KC_HTTP_ENABLED=true
+      - KC_HOSTNAME_ADMIN=${KC_HOSTNAME_ADMIN:-http://keycloak:8080}
     ports:
       - "8080:8080"
     volumes:

@@ -203,6 +203,65 @@ docker-compose logs -f keycloak
 
 ---
 
+## Non-Localhost Deployment
+
+When users access the platform from an external machine (not `localhost`), several additional environment variables must be set. Replace `<HOST>` with your server's IP or domain.
+
+### Required additional variables
+
+```bash
+# Browser-accessible URLs for each service
+AUTOFILL_PUBLIC_URL=http://<HOST>:8001
+OIDC_REDIRECT_URI=http://<HOST>:8002/auth/callback
+CUE_UI_PUBLIC_URL=http://<HOST>:8002
+MCHAT_PUBLIC_URL=http://<HOST>:8003
+SHAPE_OIDC_REDIRECT_URI=http://<HOST>:8004/auth/callback
+SHAPE_UI_PUBLIC_URL=http://<HOST>:8004
+
+# Public URL of Keycloak as seen by the browser
+# Without this, the OIDC login redirect sends users to http://keycloak:8080/... (Docker-internal, unreachable)
+KEYCLOAK_PUBLIC_URL=http://<HOST>:8080
+
+# Makes the Keycloak admin console redirect to your host instead of http://keycloak:8080/admin/
+KC_HOSTNAME_ADMIN=http://<HOST>:8080
+```
+
+### Register deployed redirect URIs in Keycloak
+
+The `realm-export.json` only contains localhost redirect URIs. After first startup you must add your deployed URIs. The Keycloak admin console itself redirects to `http://keycloak:8080` in the browser (Docker-internal), so use the admin CLI inside the container:
+
+```bash
+# Authenticate
+docker compose exec keycloak /opt/keycloak/bin/kcadm.sh config credentials \
+  --server http://localhost:8080 \
+  --realm master \
+  --user admin \
+  --password <KEYCLOAK_ADMIN_PASSWORD>
+
+# Find the cue-api client ID
+docker compose exec keycloak /opt/keycloak/bin/kcadm.sh get clients -r expats \
+  --fields id,clientId
+
+# Update redirect URIs and web origins (replace <CLIENT_ID> and <HOST>)
+docker compose exec keycloak /opt/keycloak/bin/kcadm.sh update clients/<CLIENT_ID> \
+  -r expats \
+  -s 'redirectUris=["http://localhost:8002/auth/callback","http://localhost:8004/auth/callback","http://<HOST>:8002/auth/callback","http://<HOST>:8004/auth/callback"]' \
+  -s 'webOrigins=["http://localhost:8001","http://localhost:8002","http://localhost:8003","http://localhost:8004","http://<HOST>:8001","http://<HOST>:8002","http://<HOST>:8003","http://<HOST>:8004"]' \
+  -s 'attributes."post.logout.redirect.uris"="http://localhost:8002##http://localhost:8004##http://<HOST>:8002##http://<HOST>:8004"'
+```
+
+No restart needed — Keycloak applies client config changes immediately.
+
+### Rebuild API services after changing oauth config
+
+If you updated `m_shared/auth/oauth.py` (e.g. after a `git pull`), rebuild the API services:
+
+```bash
+docker compose up -d --build cue-api shape-api
+```
+
+---
+
 ## Manual Docker Deployment
 
 If you prefer not to use Docker Compose:

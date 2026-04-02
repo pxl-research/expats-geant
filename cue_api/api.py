@@ -309,7 +309,7 @@ def create_app(
         api_secret: str
 
     @app.post("/auth/token", tags=["Auth"])
-    @limiter.limit("5/minute")
+    @limiter.limit("10/minute")
     async def issue_api_token(request: Request, body: TokenRequest):
         """Issue a JWT for server-to-server callers presenting a shared API secret."""
         expected = os.getenv("API_SECRET", "")
@@ -376,7 +376,7 @@ def create_app(
             )
 
     @app.post("/upload", response_model=UploadResponse)
-    @limiter.limit("5/minute")
+    @limiter.limit("10/minute")
     async def upload_document(
         request: Request,
         file: UploadFile = File(...),
@@ -472,7 +472,7 @@ def create_app(
             )
 
     @app.post("/upload-text", response_model=UploadResponse)
-    @limiter.limit("5/minute")
+    @limiter.limit("10/minute")
     async def upload_text(request: Request, body: UploadTextRequest):
         """Ingest a plain-text snippet into the session RAG store.
 
@@ -534,7 +534,7 @@ def create_app(
         )
 
     @app.post("/suggest/batch", response_model=BatchSuggestResponse)
-    @limiter.limit("5/minute")
+    @limiter.limit("30/minute")
     async def suggest_answer_batch(
         request: Request,
         batch_request: BatchSuggestRequest,
@@ -643,7 +643,7 @@ def create_app(
         )
 
     @app.post("/suggest/stream")
-    @limiter.limit("5/minute")
+    @limiter.limit("30/minute")
     async def suggest_answer_stream(request: Request, batch_request: BatchSuggestRequest):
         """Stream answer suggestions one-by-one via Server-Sent Events.
 

@@ -61,16 +61,36 @@ The default client secret in `keycloak/realm-export.json` is `change-me`. Update
 1. Keycloak admin → **Clients** → `cue-api` → **Credentials** → **Regenerate**
 2. Update `OIDC_CLIENT_SECRET` in your `.env`
 
+### Updating Redirect URIs Without Browser Access
+
+The Keycloak admin console redirects to `http://keycloak:8080/admin/` (Docker-internal), which is not reachable from an external browser. Use the admin CLI from inside the container instead:
+
+```bash
+docker compose exec keycloak /opt/keycloak/bin/kcadm.sh config credentials \
+  --server http://localhost:8080 --realm master --user admin --password <password>
+
+docker compose exec keycloak /opt/keycloak/bin/kcadm.sh get clients -r expats \
+  --fields id,clientId   # note the id of cue-api
+
+docker compose exec keycloak /opt/keycloak/bin/kcadm.sh update clients/<CLIENT_ID> \
+  -r expats \
+  -s 'redirectUris=[...]' \
+  -s 'webOrigins=[...]' \
+  -s 'attributes."post.logout.redirect.uris"="[...]"'
+```
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the full non-localhost deployment walkthrough.
+
 ### Use HTTPS
 
 Configure TLS termination at your reverse proxy (nginx, Caddy, etc.) and update the realm redirect URIs:
 
 ```
 OIDC_ISSUER_URL=https://keycloak.yourdomain.com/realms/expats
-OIDC_REDIRECT_URI=https://cue-api.yourdomain.com/auth/callback
+OIDC_REDIRECT_URI=https://yourdomain.com:8002/auth/callback
 ```
 
-Update the client redirect URI in Keycloak admin → **Clients** → `cue-api` → **Valid redirect URIs**.
+Update the client redirect URI using `kcadm.sh` as shown above, or via Keycloak admin → **Clients** → `cue-api` → **Valid redirect URIs**.
 
 ### Persistent Keycloak Data
 
@@ -99,4 +119,7 @@ For production use a dedicated PostgreSQL database instead of the embedded H2.
 | `OIDC_ISSUER_URL` | — | Keycloak realm URL, e.g. `http://localhost:8080/realms/expats` |
 | `OIDC_CLIENT_ID` | — | `cue-api` |
 | `OIDC_CLIENT_SECRET` | — | Client secret (regenerate from Keycloak admin) |
-| `OIDC_REDIRECT_URI` | — | `http://localhost:8001/auth/callback` |
+| `OIDC_REDIRECT_URI` | `http://localhost:8002/auth/callback` | Where Keycloak sends the browser after cue login |
+| `SHAPE_OIDC_REDIRECT_URI` | `http://localhost:8004/auth/callback` | Where Keycloak sends the browser after shape login |
+| `KEYCLOAK_PUBLIC_URL` | — | Public browser-accessible base URL of Keycloak (e.g. `http://10.0.0.1:8080`); rewrites the internal hostname in OIDC redirects |
+| `KC_HOSTNAME_ADMIN` | `http://keycloak:8080` | Hostname used for admin console redirects; set to your server URL for external access |
