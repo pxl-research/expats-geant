@@ -7,8 +7,8 @@ from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
 from cue_ui.auth import (
-    AUTOFILL_API_URL,
-    AUTOFILL_PUBLIC_URL,
+    CUE_API_URL,
+    CUE_PUBLIC_URL,
     CUE_UI_PUBLIC_URL,
     clear_token_cookie,
     get_logout_url,
@@ -22,7 +22,7 @@ router = APIRouter()
 @router.get("/auth/login")
 async def auth_login():
     """Redirect browser to Cue OIDC login (public URL, browser-accessible)."""
-    return RedirectResponse(url=f"{AUTOFILL_PUBLIC_URL}/auth/login")
+    return RedirectResponse(url=f"{CUE_PUBLIC_URL}/auth/login")
 
 
 @router.get("/auth/callback")
@@ -43,7 +43,7 @@ async def auth_callback(
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
-                    f"{AUTOFILL_API_URL}/auth/callback",
+                    f"{CUE_API_URL}/auth/callback",
                     params={"code": code, "state": state},
                     follow_redirects=False,
                 )

@@ -7,8 +7,8 @@ from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
 from shape_ui.auth import (
-    MCHAT_API_URL,
-    MCHAT_PUBLIC_URL,
+    SHAPE_API_URL,
+    SHAPE_PUBLIC_URL,
     SHAPE_UI_PUBLIC_URL,
     clear_token_cookie,
     get_logout_url,
@@ -22,7 +22,7 @@ router = APIRouter()
 @router.get("/auth/login")
 async def auth_login():
     """Redirect browser to Shape OIDC login (public URL, browser-accessible)."""
-    return RedirectResponse(url=f"{MCHAT_PUBLIC_URL}/auth/login")
+    return RedirectResponse(url=f"{SHAPE_PUBLIC_URL}/auth/login")
 
 
 @router.get("/auth/callback")
@@ -43,7 +43,7 @@ async def auth_callback(
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
-                    f"{MCHAT_API_URL}/auth/callback",
+                    f"{SHAPE_API_URL}/auth/callback",
                     params={"code": code, "state": state},
                     follow_redirects=False,
                 )

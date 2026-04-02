@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Stre
 
 from cue_ui import api_client
 from cue_ui.api_client import APIError, auth_headers
-from cue_ui.auth import AUTOFILL_API_URL, get_token
+from cue_ui.auth import CUE_API_URL, get_token
 from cue_ui.router import _render_error, templates
 
 logger = logging.getLogger(__name__)
@@ -189,7 +189,7 @@ async def suggest_stream(session_id: str, request: Request):
             async with httpx.AsyncClient() as client:
                 async with client.stream(
                     "POST",
-                    f"{AUTOFILL_API_URL}/suggest/stream",
+                    f"{CUE_API_URL}/suggest/stream",
                     json=body,
                     headers=auth_headers(token),
                     timeout=None,

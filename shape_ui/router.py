@@ -50,13 +50,3 @@ def _render_error(request: Request, message: str, status_code: int = 500) -> HTM
 @router.get("/health")
 async def health():
     return {"status": "healthy"}
-
-
-# Import and include sub-routers (after shared objects are defined)
-from shape_ui.routes.auth import router as auth_router  # noqa: E402
-from shape_ui.routes.setup import router as setup_router  # noqa: E402
-from shape_ui.routes.workspace import router as workspace_router  # noqa: E402
-
-router.include_router(auth_router)
-router.include_router(setup_router)
-router.include_router(workspace_router)
