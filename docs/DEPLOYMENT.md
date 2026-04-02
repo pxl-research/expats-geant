@@ -155,6 +155,7 @@ Cue UI is the browser-based survey review frontend for respondents.
 |---|---|---|
 | `AUTOFILL_API_URL` | `http://cue-api:8001` | Internal (Docker) URL for Cue |
 | `AUTOFILL_PUBLIC_URL` | `http://localhost:8001` | Browser-accessible URL for Cue |
+| `ALLOW_DEV_TOKEN_LOGIN` | _(unset)_ | Set to `1` or `true` to allow direct JWT login via `?token=` query parameter. **Do not enable in production.** |
 
 ### Verify Cue UI is running
 
@@ -178,6 +179,7 @@ Shape UI is the browser-based frontend for the questionnaire design co-pilot.
 |---|---|---|
 | `MCHAT_API_URL` | `http://shape-api:8003` | Internal (Docker) URL for Shape |
 | `MCHAT_PUBLIC_URL` | `http://localhost:8003` | Browser-accessible URL for Shape |
+| `ALLOW_DEV_TOKEN_LOGIN` | _(unset)_ | Set to `1` or `true` to allow direct JWT login via `?token=` query parameter. **Do not enable in production.** |
 
 ### Verify Shape UI is running
 

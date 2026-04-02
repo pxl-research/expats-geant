@@ -65,7 +65,10 @@ Browser ──► cue_ui (FastAPI, port 8002)
 | File | Purpose |
 |------|---------|
 | `main.py` | App factory, static file mount |
-| `router.py` | All routes (auth, upload, review, submit) |
+| `router.py` | Router hub: shared templates, helpers, sub-router registration |
+| `routes/auth.py` | Auth routes (login, callback, logout) |
+| `routes/upload.py` | Landing page, survey file upload, API import |
+| `routes/review.py` | Document upload, review page, SSE suggestion stream, submit |
 | `api_client.py` | httpx wrapper — one function per Cue endpoint |
 | `auth.py` | HttpOnly cookie read/write, OAuth redirect helpers |
 | `templates/survey.html` | Main review page with question controls |

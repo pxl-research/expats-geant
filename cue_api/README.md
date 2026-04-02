@@ -37,13 +37,25 @@ Cue is a RAG (Retrieval-Augmented Generation) module that helps respondents comp
 ```
 cue_api/
 ├── __init__.py
-├── api.py                   # FastAPI endpoints
+├── api.py                   # FastAPI app factory (create_app) — thin orchestrator
 ├── ingest.py                # Document upload and ingestion pipeline
 ├── models.py                # Pydantic request/response models
 ├── rag_pipeline.py          # RAG orchestration: retrieval, generation, citations
 ├── rag_tools.py             # RAG tool wrappers for LLM tool calling
-└── validation.py            # Input validation and sanitization
+├── validation.py            # Re-exports from m_shared.utils.file_validation
+└── routes/
+    ├── __init__.py
+    ├── auth.py              # /auth/token, /auth/login, /auth/callback
+    ├── session.py           # /session/stats, DELETE /session, /privacy
+    ├── documents.py         # /upload, /upload-text
+    ├── suggestions.py       # /suggest/batch, /suggest/stream
+    ├── audit.py             # /audit-report (GET/DELETE), /answer-report/download
+    └── surveys.py           # /surveys/import, /surveys/import-from-api, /surveys/{id},
+                             #   /adapters/{format}/capabilities, /sessions/{id}/submit
 ```
+
+Routes access shared dependencies (session manager, LLM client, audit logger, RAG pipeline)
+via `request.app.state`, set by `create_app()` in `api.py`.
 
 Tests live in the repo root `tests/` folder.
 

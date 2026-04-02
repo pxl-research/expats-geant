@@ -64,6 +64,7 @@ expires. Audit reports are retained for the configured period and then permanent
 
 - [ ] Is the platform accessible only on your internal network (intranet)?
 - [ ] Will it be exposed to the internet?
+- [ ] Verify `ALLOW_DEV_TOKEN_LOGIN` is **not** set in production (it allows bypassing OIDC login via `?token=` query parameter)
 
 If internet-facing: set up TLS termination (nginx, Caddy, Traefik) and update OIDC redirect URIs.
 See [DEPLOYMENT.md — Security Considerations](DEPLOYMENT.md#security-considerations).

@@ -50,14 +50,17 @@ m_shared/
 │   └── manager.py            # Session lifecycle, TTL, cleanup
 ├── utils/
 │   ├── __init__.py
-│   └── audit.py             # Audit trail logging
+│   ├── audit.py             # Audit trail logging
+│   ├── file_validation.py   # File upload validation (type, size, extension)
+│   ├── llm_parsing.py       # LLM output parsing (strip code fences)
+│   └── url_validation.py    # URL and datacenter ID validation (SSRF prevention)
 └── vectordb/
     ├── __init__.py
     ├── client.py             # ChromaDB wrapper with session isolation
     └── utils.py             # Chunking & embedding utilities
 ```
 
-> Files listed in an earlier version of this README (`vectordb/session_store.py`, `utils/logging.py`, `utils/error_handling.py`, `utils/encryption.py`, `utils/validators.py`, `models/qti.py`, `auth/permissions.py`, `llm/models.py`, `llm/utils.py`) are **planned for future phases** and do not yet exist.
+> Files listed in an earlier version of this README (`vectordb/session_store.py`, `utils/logging.py`, `utils/error_handling.py`, `utils/encryption.py`, `models/qti.py`, `auth/permissions.py`, `llm/models.py`, `llm/utils.py`) were planned but have not been needed. They may be added in future phases.
 
 ## Key Components
 
@@ -167,8 +170,13 @@ payload = validate_token(token)
 ### Utilities (`utils/`)
 
 **`audit.py`** — Session-level audit trail for transparency and GDPR compliance.
-
 Records document uploads, suggestion generation (with sources), user edits, and session lifecycle events. Audit reports let users verify which documents informed their answers.
+
+**`file_validation.py`** — Shared file upload validation (extension allowlist, size limits, readability checks). Used by both Cue and Shape upload endpoints. `cue_api/validation.py` re-exports from here for backwards compatibility.
+
+**`url_validation.py`** — SSRF prevention: validates external API URLs (HTTPS-only, blocks loopback/private IPs) and Qualtrics datacenter IDs. Used by both APIs for live platform imports.
+
+**`llm_parsing.py`** — Strips markdown code fences from LLM output before JSON parsing. Used across suggestion, validation, and RAG pipeline modules.
 
 ## Configuration
 

@@ -16,7 +16,7 @@ The codebase demonstrates good security practices in several areas: `defusedxml`
 
 ### HIGH — H1: Path Traversal in cue_api File Upload
 
-**File:** `cue_api/api.py:322`
+**File:** `cue_api/routes/documents.py:38` (originally `cue_api/api.py`)
 
 ```python
 file_path = temp_dir / file.filename  # file.filename is unsanitized
@@ -24,7 +24,7 @@ file_path = temp_dir / file.filename  # file.filename is unsanitized
 
 `file.filename` is user-controlled and used directly as a path component. A malicious filename like `../../metadata.json` escapes the uploads directory. The file is written to the traversed path *before* validation runs, creating a write-before-validate vulnerability.
 
-**Compare:** `shape_api/api.py:760` correctly uses `Path(file.filename).name` to strip directory components.
+**Compare:** `shape_api/routes/chat.py` correctly uses `Path(file.filename).name` to strip directory components.
 
 **Fix:** Use `Path(file.filename).name` and verify the resolved path is within the target directory.
 
@@ -32,7 +32,7 @@ file_path = temp_dir / file.filename  # file.filename is unsanitized
 
 ### HIGH — H2: SSRF via User-Controlled `api_url` in /create
 
-**File:** `shape_api/api.py:282`, `shape_api/models.py:33`
+**File:** `shape_api/routes/transforms.py` (originally `shape_api/api.py`), `shape_api/models.py:33`
 
 The `/create` endpoint accepts an arbitrary `api_url` from the request body and passes it directly to `LimeSurveyAdapter`, which issues a `requests.post()` to that URL. An authenticated user can point this at internal services (e.g., `http://169.254.169.254/`, `http://localhost:6379/`).
 
@@ -74,9 +74,9 @@ UUID-based, eliminating the session-fixation risk.
 - `m_shared/auth/middleware.py:89` — `f"Invalid token: {e}"`
 - `m_shared/auth/middleware.py:95` — `f"Token validation error: {e}"`
 - `m_shared/auth/middleware.py:125` — `f"Session management error: {e}"`
-- `cue_api/api.py:371` — `f"Upload failed: {e}"`
-- `cue_api/api.py:497` — `f"Suggestion failed: {e}"`
-- `cue_api/api.py:544` — `f"Batch suggestion failed: {e}"`
+- `cue_api/routes/documents.py:101` — `f"Upload failed: {e}"`
+- `cue_api/routes/suggestions.py` — `f"Suggestion failed: {e}"`
+- `cue_api/routes/suggestions.py` — `f"Batch suggestion failed: {e}"`
 
 Raw Python exception messages can expose internal details (file paths, library internals, algorithm info). These should be logged server-side and replaced with generic messages in the HTTP response.
 
@@ -205,7 +205,7 @@ The following remediations were implemented on 2026-03-13. All 875 tests pass af
 
 ### H1 — Path Traversal in cue_api File Upload
 
-**File:** `cue_api/api.py:322`
+**File:** `cue_api/routes/documents.py:38` (originally `cue_api/api.py`)
 
 **Before:**
 ```python
@@ -220,21 +220,21 @@ if not file_path.resolve().is_relative_to(temp_dir.resolve()):
     raise HTTPException(status_code=400, detail="Invalid filename")
 ```
 
-**Why:** `file.filename` is client-controlled. A value like `../../metadata.json` would escape the uploads directory. `Path.name` strips directory components, and `is_relative_to()` provides a defense-in-depth check. This matches the pattern already used in `shape_api/api.py:760`.
+**Why:** `file.filename` is client-controlled. A value like `../../metadata.json` would escape the uploads directory. `Path.name` strips directory components, and `is_relative_to()` provides a defense-in-depth check. This matches the pattern used in `shape_api/routes/chat.py`.
 
 ---
 
 ### H2 — SSRF via User-Controlled `api_url`
 
-**File:** `shape_api/api.py:69-142`
+**File:** `m_shared/utils/url_validation.py` (originally `shape_api/api.py`)
 
 **Before:** `api_url` from the request body was passed directly to `LimeSurveyAdapter` (which calls `requests.post(api_url, ...)`) and as Qualtrics `datacenter_id` (interpolated into a hostname) with no validation.
 
-**After:** Two validation functions added:
-- `_validate_api_url(url)` — enforces HTTPS scheme, rejects private/loopback IPs and `localhost`.
-- `_validate_datacenter_id(id)` — enforces `^[a-zA-Z0-9]+$` regex, preventing URL fragment injection in `https://{datacenter}.qualtrics.com/API/v3`.
+**After:** Two validation functions extracted to `m_shared/utils/url_validation.py` and shared by both APIs:
+- `validate_api_url(url)` — enforces HTTPS scheme, rejects private/loopback IPs and `localhost`.
+- `validate_datacenter_id(id)` — enforces `^[a-zA-Z0-9]+$` regex, preventing URL fragment injection in `https://{datacenter}.qualtrics.com/API/v3`.
 
-Both are called in `_get_adapter()` before adapter instantiation. `HTTPException` is re-raised cleanly.
+Both are called before adapter instantiation. `HTTPException` is re-raised cleanly.
 
 **Why:** An authenticated user could point `api_url` at internal services (`http://169.254.169.254/`, `http://localhost:6379/`) for blind SSRF. For Qualtrics, a crafted `datacenter_id` like `evil.com#` could redirect API calls (including the `X-API-TOKEN` header) to attacker infrastructure.
 
@@ -282,7 +282,7 @@ making a separate dev-only endpoint unnecessary.
 
 ### M1 — Internal Exception Details Leaked to Clients
 
-**Files:** `m_shared/auth/middleware.py:83-96,122-126`, `cue_api/api.py:371,497,544`
+**Files:** `m_shared/auth/middleware.py:83-96,122-126`, `cue_api/routes/documents.py`, `cue_api/routes/suggestions.py`
 
 **Before:**
 ```python

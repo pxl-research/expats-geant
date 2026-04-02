@@ -19,15 +19,24 @@ Shape is fully implemented. The module provides:
 ```
 shape_api/
 ├── __init__.py
-├── api.py                # FastAPI app factory (create_app)
+├── api.py                # FastAPI app factory (create_app) — thin orchestrator
 ├── models.py             # Pydantic request/response models
 ├── session.py            # Session I/O helpers (load/save draft, vocabulary, style, conversation)
 ├── conversation.py       # Chat turn execution (LLM + draft update logic)
 ├── suggestion_engine.py  # Question phrasing suggestions
 ├── validation_engine.py  # Question and survey validation rules
 ├── tagging_engine.py     # Tag suggestion and vocabulary management
-└── style.py              # Style document extraction and summarisation
+├── style.py              # Style document extraction and summarisation
+└── routes/
+    ├── __init__.py
+    ├── auth.py           # /auth/token, /auth/login, /auth/callback
+    ├── transforms.py     # /import, /export, /create
+    ├── tools.py          # /suggest, /validate, /tag
+    └── chat.py           # All /chat/... endpoints (sessions, messages, style, upload)
 ```
+
+Routes access shared dependencies (session manager, LLM client) via `request.app.state`,
+set by `create_app()` in `api.py`.
 
 ## Quick Start
 
