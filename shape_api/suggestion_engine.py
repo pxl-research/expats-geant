@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from m_shared.llm.client import LLMClient
 from m_shared.models.question import Question
 from m_shared.models.survey import Survey
+from m_shared.utils.llm_parsing import strip_code_fences
 
 
 @dataclass
@@ -29,12 +30,7 @@ def compact_survey_summary(survey: Survey) -> str:
 
 def _parse_suggestions(raw: str) -> list[SuggestionResult]:
     """Parse LLM response into SuggestionResult list, with fallback."""
-    text = raw.strip()
-
-    if text.startswith("```"):
-        lines = text.splitlines()
-        end = len(lines) - 1 if lines[-1].strip() == "```" else len(lines)
-        text = "\n".join(lines[1:end]).strip()
+    text = strip_code_fences(raw)
 
     try:
         data = json.loads(text)
