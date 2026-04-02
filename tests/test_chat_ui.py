@@ -627,7 +627,9 @@ def test_auth_login_redirects(client):
 
 
 @patch(
-    "shape_ui.router.get_logout_url", new_callable=AsyncMock, return_value="http://keycloak/logout"
+    "shape_ui.routes.auth.get_logout_url",
+    new_callable=AsyncMock,
+    return_value="http://keycloak/logout",
 )
 def test_auth_logout_clears_cookie(mock_logout_url, client):
     resp = client.get("/auth/logout", cookies=COOKIE, follow_redirects=False)
