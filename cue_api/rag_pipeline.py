@@ -19,6 +19,7 @@ from m_shared.models.citation import Citation
 from m_shared.models.question import QuestionType
 from m_shared.session import SessionManager
 from m_shared.utils import AuditLogger
+from m_shared.utils.llm_parsing import strip_code_fences
 
 logger = logging.getLogger(__name__)
 
@@ -314,13 +315,7 @@ class RAGPipeline:
             are None if absent or blank. selected_raw is the bare value before
             any choice validation.
         """
-        text = raw.strip()
-
-        # Strip markdown code fences (```json ... ``` or ``` ... ```)
-        if text.startswith("```"):
-            lines = text.splitlines()
-            end = len(lines) - 1 if lines[-1].strip() == "```" else len(lines)
-            text = "\n".join(lines[1:end]).strip()
+        text = strip_code_fences(raw)
 
         try:
             data = json.loads(text)

@@ -2,18 +2,14 @@
 
 import asyncio
 import hmac
-import ipaddress
 import os
-import re
 from pathlib import Path
-from urllib.parse import urlparse
 from uuid import uuid4
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from cue_api.validation import validate_file_upload
 from m_shared.adapters.base import SurveyAdapter
 from m_shared.adapters.registry import get_adapter
 from m_shared.auth.jwt_handler import create_token
@@ -28,6 +24,8 @@ from m_shared.models.question import Question
 from m_shared.models.survey import Survey
 from m_shared.rate_limit import apply_rate_limiting, limiter
 from m_shared.session.manager import SessionManager
+from m_shared.utils.file_validation import validate_file_upload
+from m_shared.utils.url_validation import validate_api_url, validate_datacenter_id
 from m_shared.vectordb.utils import document_to_markdown, image_description
 from shape_api.conversation import execute_chat_turn
 from shape_api.models import (
@@ -73,62 +71,6 @@ from shape_api.tagging_engine import suggest_tags
 from shape_api.validation_engine import validate_question, validate_survey
 
 
-def _validate_api_url(url: str) -> None:
-    """Validate that api_url is a safe HTTPS URL (not internal/loopback).
-
-    Raises:
-        HTTPException: 400 if the URL is unsafe.
-    """
-    parsed = urlparse(url)
-    if parsed.scheme != "https":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="api_url must use HTTPS",
-        )
-    if parsed.username or parsed.password:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="api_url must not include credentials",
-        )
-    hostname = parsed.hostname
-    if not hostname:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="api_url must include a valid hostname",
-        )
-    # Block loopback and private IP ranges
-    try:
-        addr = ipaddress.ip_address(hostname)
-        if (
-            addr.is_private
-            or addr.is_loopback
-            or addr.is_link_local
-            or addr.is_unspecified
-            or addr.is_multicast
-            or addr.is_reserved
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="api_url must not point to internal addresses",
-            )
-    except ValueError:
-        # hostname is a domain name, not an IP — check for localhost
-        if hostname in ("localhost", "127.0.0.1", "::1"):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="api_url must not point to internal addresses",
-            )
-
-
-def _validate_datacenter_id(datacenter_id: str) -> None:
-    """Validate Qualtrics datacenter ID is a simple alphanumeric string."""
-    if not re.match(r"^[a-zA-Z0-9]+$", datacenter_id):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid datacenter_id: must be alphanumeric",
-        )
-
-
 def _get_adapter(
     fmt: str,
     api_url: str | None,
@@ -151,12 +93,12 @@ def _get_adapter(
     try:
         if fmt in ("limesurvey", "lss"):
             if api_url:
-                _validate_api_url(api_url)
+                validate_api_url(api_url)
             return get_adapter(fmt, api_url=api_url, username=username, password=password)
         elif fmt in ("qualtrics", "qsf"):
             # api_url is used as datacenter_id for Qualtrics
             if api_url:
-                _validate_datacenter_id(api_url)
+                validate_datacenter_id(api_url)
             return get_adapter(fmt, api_token=token, datacenter_id=api_url)
         else:
             return get_adapter(fmt)

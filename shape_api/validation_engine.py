@@ -8,6 +8,7 @@ from typing import Literal
 from m_shared.llm.client import LLMClient
 from m_shared.models.question import Question, QuestionType
 from m_shared.models.survey import Survey
+from m_shared.utils.llm_parsing import strip_code_fences
 
 # ---------------------------------------------------------------------------
 # Data model
@@ -254,11 +255,7 @@ def _check_survey_tier1(survey: Survey) -> list[ValidationIssue]:
 
 def _parse_llm_issues(raw: str, question_id: str) -> list[ValidationIssue]:
     """Parse LLM JSON array of issues, with fallback to empty list on failure."""
-    text = raw.strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        end = len(lines) - 1 if lines[-1].strip() == "```" else len(lines)
-        text = "\n".join(lines[1:end]).strip()
+    text = strip_code_fences(raw)
 
     try:
         data = json.loads(text)
@@ -342,12 +339,7 @@ def _llm_validate_survey_batch(
     ]
     raw = llm_client.create_completion(messages=messages)
 
-    # Parse — note items may include question_id field
-    text = raw.strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        end = len(lines) - 1 if lines[-1].strip() == "```" else len(lines)
-        text = "\n".join(lines[1:end]).strip()
+    text = strip_code_fences(raw)
 
     try:
         data = json.loads(text)
