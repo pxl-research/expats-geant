@@ -275,7 +275,7 @@ def create_app(
         api_secret: str
 
     @app.post("/auth/token", tags=["Auth"])
-    @limiter.limit("5/minute")
+    @limiter.limit("10/minute")
     async def issue_api_token(request: Request, body: TokenRequest):
         """Issue a JWT for server-to-server callers presenting a shared API secret."""
         expected = os.getenv("API_SECRET", "")
@@ -689,7 +689,7 @@ def create_app(
     # ------------------------------------------------------------------
 
     @app.post("/chat/{session_id}", response_model=ChatTurnResponse)
-    @limiter.limit("6/minute")
+    @limiter.limit("10/minute")
     async def chat_turn(request: Request, session_id: str, body: ChatTurnRequest):
         """Send a message to the AI and get a response; optionally updates draft survey."""
         if llm_client is None:
@@ -770,7 +770,7 @@ def create_app(
         return StyleProfileResponse(session_id=session_id, style_profile=profile)
 
     @app.post("/chat/{session_id}/style/upload", response_model=DocumentUploadResponse)
-    @limiter.limit("5/minute")
+    @limiter.limit("10/minute")
     async def upload_style_document(
         request: Request, session_id: str, file: UploadFile = File(...)
     ):
@@ -821,7 +821,7 @@ def create_app(
     # ------------------------------------------------------------------
 
     @app.post("/chat/{session_id}/upload", response_model=DocumentUploadResponse)
-    @limiter.limit("5/minute")
+    @limiter.limit("10/minute")
     async def upload_content_document(
         request: Request, session_id: str, file: UploadFile = File(...)
     ):
