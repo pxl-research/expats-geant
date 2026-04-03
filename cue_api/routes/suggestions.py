@@ -189,7 +189,8 @@ async def suggest_answer_stream(request: Request, batch_request: BatchSuggestReq
                 item_sug = _to_item_suggestion(r)
                 yield f"event: suggestion\ndata: {item_sug.model_dump_json()}\n\n"
                 try:
-                    _append_to_answer_report(
+                    await asyncio.to_thread(
+                        _append_to_answer_report,
                         session_manager._get_session_path(session.session_id),
                         _build_report_entries([r], item_prompts),
                     )

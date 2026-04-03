@@ -583,7 +583,8 @@ def test_delete_session_non_htmx(client):
         return_value=httpx.Response(200, json={"deleted": True, "session_id": SESSION_ID})
     )
     resp = client.delete(f"/session/{SESSION_ID}", cookies=COOKIE, follow_redirects=False)
-    assert resp.status_code == 200
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/"
 
 
 @respx.mock

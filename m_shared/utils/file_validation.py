@@ -40,13 +40,13 @@ def validate_file_upload(
     path = Path(file_path)
 
     if not path.exists():
-        return False, f"File not found: {file_path}"
+        return False, "File not found"
 
     if not path.is_file():
-        return False, f"Path is not a file: {file_path}"
+        return False, "Not a file"
 
     if not os.access(file_path, os.R_OK):
-        return False, f"File is not readable: {file_path}"
+        return False, "File is not readable"
 
     extension = path.suffix.lower()
     if extension not in allowed_extensions:
@@ -63,8 +63,8 @@ def validate_file_upload(
         if file_size == 0:
             return False, "File is empty"
 
-    except OSError as e:
-        return False, f"Error reading file size: {str(e)}"
+    except OSError:
+        return False, "Error reading file size"
 
     return True, ""
 
