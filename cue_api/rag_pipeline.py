@@ -19,6 +19,7 @@ from m_shared.models.citation import Citation
 from m_shared.models.question import QuestionType
 from m_shared.session import SessionManager
 from m_shared.utils import AuditLogger
+from m_shared.utils.llm_parsing import strip_code_fences
 
 logger = logging.getLogger(__name__)
 
@@ -172,7 +173,6 @@ class RAGPipeline:
         if not retrieved_chunks:
             raise ValueError("No chunks provided for answer generation")
 
-        # Build context from retrieved chunks
         context_parts = []
         for i, chunk in enumerate(retrieved_chunks, 1):
             source = chunk.get("metadata", {}).get("source", "Unknown")
@@ -181,7 +181,6 @@ class RAGPipeline:
 
         context = "\n".join(context_parts)
 
-        # Generate answer with temperature control
         temperature = temperature or self.default_temperature
 
         try:
@@ -193,7 +192,6 @@ class RAGPipeline:
                 },
             ]
 
-            # Temporarily override client temperature if different
             original_temp = self.llm_client.temperature
             self.llm_client.temperature = temperature
 
@@ -203,7 +201,6 @@ class RAGPipeline:
                     max_tokens=self.max_tokens,
                 )
             finally:
-                # Restore original temperature
                 self.llm_client.temperature = original_temp
 
             if not answer or not answer.strip():
@@ -241,7 +238,6 @@ class RAGPipeline:
         Returns:
             Tuple of (answer, reasoning) — reasoning is None if not needed
         """
-        # Build context from chunks
         context_parts = []
         for i, chunk in enumerate(retrieved_chunks, 1):
             source = chunk.get("metadata", {}).get("source", "Unknown")
@@ -249,7 +245,6 @@ class RAGPipeline:
             context_parts.append(f"[{i}] From {source}:\n{text}\n")
         context = "\n".join(context_parts)
 
-        # Build section/sibling context block
         extra_context = ""
         if section_context:
             extra_context += f"SECTION: {section_context}\n"
@@ -257,7 +252,6 @@ class RAGPipeline:
             related = "\n".join(f"- {p}" for p in sibling_prompts)
             extra_context += f"RELATED QUESTIONS IN THIS SECTION:\n{related}\n"
 
-        # Build choice block for choice-type questions
         choice_block = ""
         if choices:
             choice_lines = "\n".join(f"- {c.id}: {c.label}" for c in choices)
@@ -314,13 +308,7 @@ class RAGPipeline:
             are None if absent or blank. selected_raw is the bare value before
             any choice validation.
         """
-        text = raw.strip()
-
-        # Strip markdown code fences (```json ... ``` or ``` ... ```)
-        if text.startswith("```"):
-            lines = text.splitlines()
-            end = len(lines) - 1 if lines[-1].strip() == "```" else len(lines)
-            text = "\n".join(lines[1:end]).strip()
+        text = strip_code_fences(raw)
 
         try:
             data = json.loads(text)

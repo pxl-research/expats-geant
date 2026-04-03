@@ -153,8 +153,9 @@ Cue UI is the browser-based survey review frontend for respondents.
 
 | Variable | Default | Description |
 |---|---|---|
-| `AUTOFILL_API_URL` | `http://cue-api:8001` | Internal (Docker) URL for Cue |
-| `AUTOFILL_PUBLIC_URL` | `http://localhost:8001` | Browser-accessible URL for Cue |
+| `CUE_API_URL` | `http://cue-api:8001` | Internal (Docker) URL for Cue |
+| `CUE_PUBLIC_URL` | `http://localhost:8001` | Browser-accessible URL for Cue |
+| `ALLOW_DEV_TOKEN_LOGIN` | _(unset)_ | Set to `1` or `true` to allow direct JWT login via `?token=` query parameter. **Do not enable in production.** |
 
 ### Verify Cue UI is running
 
@@ -176,8 +177,9 @@ Shape UI is the browser-based frontend for the questionnaire design co-pilot.
 
 | Variable | Default | Description |
 |---|---|---|
-| `MCHAT_API_URL` | `http://shape-api:8003` | Internal (Docker) URL for Shape |
-| `MCHAT_PUBLIC_URL` | `http://localhost:8003` | Browser-accessible URL for Shape |
+| `SHAPE_API_URL` | `http://shape-api:8003` | Internal (Docker) URL for Shape |
+| `SHAPE_PUBLIC_URL` | `http://localhost:8003` | Browser-accessible URL for Shape |
+| `ALLOW_DEV_TOKEN_LOGIN` | _(unset)_ | Set to `1` or `true` to allow direct JWT login via `?token=` query parameter. **Do not enable in production.** |
 
 ### Verify Shape UI is running
 
@@ -211,10 +213,10 @@ When users access the platform from an external machine (not `localhost`), sever
 
 ```bash
 # Browser-accessible URLs for each service
-AUTOFILL_PUBLIC_URL=http://<HOST>:8001
+CUE_PUBLIC_URL=http://<HOST>:8001
 OIDC_REDIRECT_URI=http://<HOST>:8002/auth/callback
 CUE_UI_PUBLIC_URL=http://<HOST>:8002
-MCHAT_PUBLIC_URL=http://<HOST>:8003
+SHAPE_PUBLIC_URL=http://<HOST>:8003
 SHAPE_OIDC_REDIRECT_URI=http://<HOST>:8004/auth/callback
 SHAPE_UI_PUBLIC_URL=http://<HOST>:8004
 

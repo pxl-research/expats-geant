@@ -7,6 +7,10 @@ from m_shared.utils.audit import (
     AuditReport,
     Consent,
 )
+from m_shared.utils.file_validation import (
+    FileValidationError,
+    validate_file_upload,
+)
 
 __all__ = [
     "AuditEventType",
@@ -14,4 +18,6 @@ __all__ = [
     "AuditLogger",
     "AuditReport",
     "Consent",
+    "FileValidationError",
+    "validate_file_upload",
 ]

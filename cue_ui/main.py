@@ -7,6 +7,9 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from cue_ui.router import router
+from cue_ui.routes.auth import router as auth_router
+from cue_ui.routes.review import router as review_router
+from cue_ui.routes.upload import router as upload_router
 
 _STATIC_DIR = Path(__file__).parent / "static"
 
@@ -24,6 +27,9 @@ def create_app() -> FastAPI:
         app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
     app.include_router(router)
+    app.include_router(auth_router)
+    app.include_router(upload_router)
+    app.include_router(review_router)
 
     return app
 

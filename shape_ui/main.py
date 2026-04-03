@@ -7,6 +7,9 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from shape_ui.router import router
+from shape_ui.routes.auth import router as auth_router
+from shape_ui.routes.setup import router as setup_router
+from shape_ui.routes.workspace import router as workspace_router
 
 _STATIC_DIR = Path(__file__).parent / "static"
 
@@ -24,6 +27,9 @@ def create_app() -> FastAPI:
         app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
     app.include_router(router)
+    app.include_router(auth_router)
+    app.include_router(setup_router)
+    app.include_router(workspace_router)
 
     return app
 

@@ -8,7 +8,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-AUTOFILL_API_URL = os.getenv("AUTOFILL_API_URL", "http://localhost:8001")
+CUE_API_URL = os.getenv("CUE_API_URL", "http://localhost:8001")
 
 
 class APIError(Exception):
@@ -31,7 +31,7 @@ async def get_survey(token: str, survey_id: str) -> dict[str, Any]:
     """
     async with httpx.AsyncClient() as client:
         resp = await client.get(
-            f"{AUTOFILL_API_URL}/surveys/{survey_id}",
+            f"{CUE_API_URL}/surveys/{survey_id}",
             headers=auth_headers(token),
         )
     _raise_for_status(resp)
@@ -45,7 +45,7 @@ async def get_capabilities(token: str, format: str) -> set[str]:
     """
     async with httpx.AsyncClient() as client:
         resp = await client.get(
-            f"{AUTOFILL_API_URL}/adapters/{format}/capabilities",
+            f"{CUE_API_URL}/adapters/{format}/capabilities",
             headers=auth_headers(token),
         )
     _raise_for_status(resp)
@@ -63,7 +63,7 @@ async def submit_responses(token: str, session_id: str, responses: dict[str, Any
     """
     async with httpx.AsyncClient() as client:
         resp = await client.post(
-            f"{AUTOFILL_API_URL}/sessions/{session_id}/submit",
+            f"{CUE_API_URL}/sessions/{session_id}/submit",
             headers=auth_headers(token),
             json=responses,
         )
@@ -77,7 +77,7 @@ async def delete_session(token: str) -> None:
     """
     async with httpx.AsyncClient() as client:
         resp = await client.delete(
-            f"{AUTOFILL_API_URL}/session",
+            f"{CUE_API_URL}/session",
             headers=auth_headers(token),
         )
     _raise_for_status(resp)
@@ -92,7 +92,7 @@ async def import_survey_file(
     """
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
-            f"{AUTOFILL_API_URL}/surveys/import",
+            f"{CUE_API_URL}/surveys/import",
             headers=auth_headers(token),
             data={"format": format},
             files={"file": (filename, file_bytes)},
@@ -124,7 +124,7 @@ async def import_survey_from_api(
     }
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
-            f"{AUTOFILL_API_URL}/surveys/import-from-api",
+            f"{CUE_API_URL}/surveys/import-from-api",
             headers=auth_headers(token),
             json=payload,
         )
@@ -133,14 +133,14 @@ async def import_survey_from_api(
     return data["survey_id"], data.get("warning")
 
 
-async def ingest_document(token: str, session_id: str, file_bytes: bytes, filename: str) -> None:
+async def ingest_document(token: str, session_id: str, file_bytes: bytes, filename: str) -> None:  # noqa: ARG001
     """Forward a document to the Cue ingestion API.
 
     POST /upload — UI holds no document content.
     """
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(
-            f"{AUTOFILL_API_URL}/upload",
+            f"{CUE_API_URL}/upload",
             headers=auth_headers(token),
             files={"file": (filename, file_bytes)},
         )
@@ -154,7 +154,7 @@ async def ingest_text_snippet(token: str, session_id: str, text: str, label: str
     """
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(
-            f"{AUTOFILL_API_URL}/upload-text",
+            f"{CUE_API_URL}/upload-text",
             headers=auth_headers(token),
             json={"text": text, "label": label},
         )
@@ -168,7 +168,7 @@ async def fetch_answer_report(token: str) -> list[dict] | None:
     """
     async with httpx.AsyncClient() as client:
         resp = await client.get(
-            f"{AUTOFILL_API_URL}/answer-report/download",
+            f"{CUE_API_URL}/answer-report/download",
             headers=auth_headers(token),
         )
     if resp.status_code == 404:

@@ -9,10 +9,10 @@ from fastapi import Request
 COOKIE_NAME = "chat_token"
 
 # Server-to-server URL (Docker-internal or localhost)
-MCHAT_API_URL = os.getenv("MCHAT_API_URL", "http://localhost:8003")
+SHAPE_API_URL = os.getenv("SHAPE_API_URL", "http://localhost:8003")
 
 # Browser-accessible URL for OAuth redirects (must be reachable by the end user's browser)
-MCHAT_PUBLIC_URL = os.getenv("MCHAT_PUBLIC_URL", "http://localhost:8003")
+SHAPE_PUBLIC_URL = os.getenv("SHAPE_PUBLIC_URL", "http://localhost:8003")
 
 # Public base URL of this UI (used as post-logout redirect target)
 SHAPE_UI_PUBLIC_URL = os.getenv("SHAPE_UI_PUBLIC_URL", "http://localhost:8004")

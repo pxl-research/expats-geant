@@ -9,10 +9,10 @@ from fastapi import Request
 COOKIE_NAME = "autofill_token"
 
 # Server-to-server URL (Docker-internal or localhost)
-AUTOFILL_API_URL = os.getenv("AUTOFILL_API_URL", "http://localhost:8001")
+CUE_API_URL = os.getenv("CUE_API_URL", "http://localhost:8001")
 
 # Browser-accessible URL for OAuth redirects (must be reachable by the end user's browser)
-AUTOFILL_PUBLIC_URL = os.getenv("AUTOFILL_PUBLIC_URL", "http://localhost:8001")
+CUE_PUBLIC_URL = os.getenv("CUE_PUBLIC_URL", "http://localhost:8001")
 
 # Public base URL of this UI (used as post-logout redirect target)
 CUE_UI_PUBLIC_URL = os.getenv("CUE_UI_PUBLIC_URL", "http://localhost:8002")

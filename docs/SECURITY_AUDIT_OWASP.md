@@ -36,7 +36,7 @@ Instructions:
 Answer:"""
 ```
 
-A similar pattern exists in `shape_api/suggestion_engine.py` and `shape_api/api.py`.
+A similar pattern exists in `shape_api/suggestion_engine.py` and `shape_api/routes/tools.py`.
 
 ### Attack Scenario
 ```
@@ -259,12 +259,14 @@ No `SlowAPI`, `fastapi-limiter`, or equivalent middleware is present in any `cre
 | JWT authentication with validation | `m_shared/auth/middleware.py` | ✅ |
 | OIDC with issuer/audience/state validation | `m_shared/auth/oauth.py` | ✅ |
 | Per-user session isolation | `m_shared/session/manager.py` | ✅ |
-| Path traversal guard on file uploads | `cue_api/api.py` | ✅ |
+| Path traversal guard on file uploads | `cue_api/routes/documents.py` | ✅ |
 | Defused XML parsing (XXE/bomb prevention) | `m_shared/adapters/limesurvey.py` | ✅ |
-| File type allowlist on upload | `cue_api/validation.py` | ✅ |
-| File size limits (50 MB default) | `cue_api/api.py` | ✅ |
-| HTTPS enforcement on adapter URLs | `shape_api/api.py` | ✅ |
-| SSRF partial mitigation (loopback/private IP block) | `shape_api/api.py` | ✅ |
+| File type allowlist on upload | `m_shared/utils/file_validation.py` | ✅ |
+| File size limits (50 MB default) | `cue_api/routes/documents.py`, `shape_api/routes/chat.py` | ✅ |
+| Streaming upload with size enforcement | `cue_api/routes/documents.py`, `shape_api/routes/chat.py` | ✅ |
+| HTTPS enforcement on adapter URLs | `m_shared/utils/url_validation.py` | ✅ |
+| SSRF partial mitigation (loopback/private IP block) | `m_shared/utils/url_validation.py` | ✅ |
+| Dev token login gated behind env var | `cue_ui/routes/auth.py`, `shape_ui/routes/auth.py` | ✅ |
 
 ---
 

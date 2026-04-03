@@ -142,9 +142,9 @@ services:
       - "8002:8002"
     environment:
       # Server-to-server URL (Docker-internal network)
-      - AUTOFILL_API_URL=http://cue-api:8001
+      - CUE_API_URL=http://cue-api:8001
       # Browser-accessible URL (must be reachable by the end user's browser)
-      - AUTOFILL_PUBLIC_URL=${AUTOFILL_PUBLIC_URL:-http://localhost:8001}
+      - CUE_PUBLIC_URL=${CUE_PUBLIC_URL:-http://localhost:8001}
       # OIDC issuer URL (Docker-internal; 'keycloak' resolves via Docker DNS and /etc/hosts on Mac host)
       - OIDC_ISSUER_URL=http://keycloak:8080/realms/expats
       - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-cue-api}
@@ -169,8 +169,8 @@ services:
     ports:
       - "8004:8004"
     environment:
-      - MCHAT_API_URL=http://shape-api:8003
-      - MCHAT_PUBLIC_URL=${MCHAT_PUBLIC_URL:-http://localhost:8003}
+      - SHAPE_API_URL=http://shape-api:8003
+      - SHAPE_PUBLIC_URL=${SHAPE_PUBLIC_URL:-http://localhost:8003}
       # OIDC issuer URL (Docker-internal; 'keycloak' resolves via Docker DNS and /etc/hosts on Mac host)
       - OIDC_ISSUER_URL=http://keycloak:8080/realms/expats
       - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-cue-api}

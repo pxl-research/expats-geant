@@ -64,7 +64,8 @@ class TestSessionCreation:
         session_path = tmp_path / session.session_id
         assert session_path.exists()
         assert (session_path / "metadata.json").exists()
-        assert (session_path / "chroma_store").exists()
+        chroma_dir = session.metadata.get("chroma_dir", "chroma_store")
+        assert (session_path / chroma_dir).exists()
         assert (session_path / "uploads").exists()
 
     def test_create_session_saves_metadata(self, tmp_path):
@@ -351,15 +352,15 @@ class TestSessionStats:
         assert stats is None
 
     def test_get_session_stats_with_documents(self, tmp_path):
-        """Test session stats include document count."""
+        """Test session stats reflect ingested document count from the vector store."""
         manager = SessionManager(base_path=str(tmp_path))
 
         session = manager.create_session(user_id="user_123", jwt_token="token_docs")
-        docs_path = manager.get_documents_path(session.session_id)
+        store = manager.get_vector_store(session.session_id)
 
-        # Add some files
-        (docs_path / "doc1.txt").write_text("content1")
-        (docs_path / "doc2.txt").write_text("content2")
+        # Simulate ingested documents (raw files are deleted after ingestion)
+        store.add_document("doc1", ["chunk1"], [{"source": "doc1"}])
+        store.add_document("doc2", ["chunk2"], [{"source": "doc2"}])
 
         stats = manager.get_session_stats(session.session_id)
 

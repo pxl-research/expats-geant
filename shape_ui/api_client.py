@@ -8,7 +8,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-MCHAT_API_URL = os.getenv("MCHAT_API_URL", "http://localhost:8003")
+SHAPE_API_URL = os.getenv("SHAPE_API_URL", "http://localhost:8003")
 
 
 class APIError(Exception):
@@ -41,7 +41,7 @@ async def create_session(token: str) -> dict[str, Any]:
     """
     async with httpx.AsyncClient() as client:
         resp = await client.post(
-            f"{MCHAT_API_URL}/chat/sessions",
+            f"{SHAPE_API_URL}/chat/sessions",
             headers=_auth_headers(token),
             json={},
         )
@@ -56,7 +56,7 @@ async def list_sessions(token: str) -> list[dict[str, Any]]:
     """
     async with httpx.AsyncClient() as client:
         resp = await client.get(
-            f"{MCHAT_API_URL}/chat/sessions",
+            f"{SHAPE_API_URL}/chat/sessions",
             headers=_auth_headers(token),
         )
     _raise_for_status(resp)
@@ -71,7 +71,7 @@ async def get_session(token: str, session_id: str) -> dict[str, Any]:
     """
     async with httpx.AsyncClient() as client:
         resp = await client.get(
-            f"{MCHAT_API_URL}/chat/{session_id}",
+            f"{SHAPE_API_URL}/chat/{session_id}",
             headers=_auth_headers(token),
         )
     _raise_for_status(resp)
@@ -85,7 +85,7 @@ async def send_message(token: str, session_id: str, message: str) -> dict[str, A
     """
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(
-            f"{MCHAT_API_URL}/chat/{session_id}",
+            f"{SHAPE_API_URL}/chat/{session_id}",
             headers=_auth_headers(token),
             json={"message": message},
         )
@@ -100,7 +100,7 @@ async def get_survey(token: str, session_id: str) -> dict[str, Any] | None:
     """
     async with httpx.AsyncClient() as client:
         resp = await client.get(
-            f"{MCHAT_API_URL}/chat/{session_id}/survey",
+            f"{SHAPE_API_URL}/chat/{session_id}/survey",
             headers=_auth_headers(token),
         )
     _raise_for_status(resp)
@@ -115,7 +115,7 @@ async def get_style(token: str, session_id: str) -> dict[str, Any]:
     """
     async with httpx.AsyncClient() as client:
         resp = await client.get(
-            f"{MCHAT_API_URL}/chat/{session_id}/style",
+            f"{SHAPE_API_URL}/chat/{session_id}/style",
             headers=_auth_headers(token),
         )
     _raise_for_status(resp)
@@ -137,7 +137,7 @@ async def update_style(
         payload["free_text"] = free_text
     async with httpx.AsyncClient() as client:
         resp = await client.put(
-            f"{MCHAT_API_URL}/chat/{session_id}/style",
+            f"{SHAPE_API_URL}/chat/{session_id}/style",
             headers=_auth_headers(token),
             json=payload,
         )
@@ -155,7 +155,7 @@ async def upload_style_doc(
     """
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
-            f"{MCHAT_API_URL}/chat/{session_id}/style/upload",
+            f"{SHAPE_API_URL}/chat/{session_id}/style/upload",
             headers=_auth_headers(token),
             files={"file": (filename, file_bytes)},
         )
@@ -172,7 +172,7 @@ async def upload_content_doc(
     """
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
-            f"{MCHAT_API_URL}/chat/{session_id}/upload",
+            f"{SHAPE_API_URL}/chat/{session_id}/upload",
             headers=_auth_headers(token),
             files={"file": (filename, file_bytes)},
         )
@@ -190,7 +190,7 @@ async def export_survey(token: str, session_id: str, fmt: str) -> dict[str, Any]
         raise APIError(status_code=404, detail="No draft survey found for this session")
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
-            f"{MCHAT_API_URL}/export",
+            f"{SHAPE_API_URL}/export",
             headers=_auth_headers(token),
             json={"format": fmt, "survey": survey},
         )
@@ -225,7 +225,7 @@ async def create_survey_on_platform(
         payload["password"] = password
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
-            f"{MCHAT_API_URL}/create",
+            f"{SHAPE_API_URL}/create",
             headers=_auth_headers(token),
             json=payload,
         )
@@ -240,7 +240,7 @@ async def get_messages(token: str, session_id: str) -> list[dict[str, Any]]:
     """
     async with httpx.AsyncClient() as client:
         resp = await client.get(
-            f"{MCHAT_API_URL}/chat/{session_id}/messages",
+            f"{SHAPE_API_URL}/chat/{session_id}/messages",
             headers=_auth_headers(token),
         )
     _raise_for_status(resp)
@@ -254,7 +254,7 @@ async def reset_session(token: str, session_id: str) -> dict[str, Any]:
     """
     async with httpx.AsyncClient() as client:
         resp = await client.post(
-            f"{MCHAT_API_URL}/chat/{session_id}/reset",
+            f"{SHAPE_API_URL}/chat/{session_id}/reset",
             headers=_auth_headers(token),
         )
     _raise_for_status(resp)
@@ -268,7 +268,7 @@ async def delete_session(token: str, session_id: str) -> dict[str, Any]:
     """
     async with httpx.AsyncClient() as client:
         resp = await client.delete(
-            f"{MCHAT_API_URL}/chat/{session_id}",
+            f"{SHAPE_API_URL}/chat/{session_id}",
             headers=_auth_headers(token),
         )
     _raise_for_status(resp)

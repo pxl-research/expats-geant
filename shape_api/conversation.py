@@ -15,6 +15,7 @@ from shape_api.style import build_style_context
 from shape_api.suggestion_engine import compact_survey_summary
 from shape_api.validation_engine import validate_survey
 
+# Conversation history window sent to the LLM (balances context vs token cost)
 _LAST_N_MESSAGES = 20
 
 _SURVEY_TAG_RE = re.compile(r"<survey_update>(.*?)</survey_update>", re.DOTALL)
