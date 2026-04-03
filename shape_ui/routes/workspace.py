@@ -180,7 +180,7 @@ async def export_submit(
     request: Request,
     session_id: str,
     fmt: Annotated[str, Form(...)],
-    action: Annotated[str, Form("download")] = "download",
+    action: Annotated[str, Form()] = "download",
     api_url: Annotated[str | None, Form()] = None,
     platform_token: Annotated[str | None, Form()] = None,
     username: Annotated[str | None, Form()] = None,
