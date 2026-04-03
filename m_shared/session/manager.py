@@ -3,6 +3,7 @@
 import hashlib
 import json
 import shutil
+import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -150,15 +151,16 @@ class SessionManager:
             self.delete_session(session_id)
 
         # Create session folder structure
+        chroma_dir = f"chroma_{uuid.uuid4().hex[:8]}"
         session_path.mkdir(parents=True, exist_ok=True)
-        (session_path / "chroma_store").mkdir(exist_ok=True)
+        (session_path / chroma_dir).mkdir(exist_ok=True)
         (session_path / "uploads").mkdir(exist_ok=True)
 
         # Create session object
         created_at = datetime.utcnow()
         expires_at = created_at + timedelta(hours=ttl_hours)
 
-        meta: dict = {"ttl_hours": ttl_hours}
+        meta: dict = {"ttl_hours": ttl_hours, "chroma_dir": chroma_dir}
         if session_type is not None:
             meta["session_type"] = session_type
 
@@ -222,7 +224,13 @@ class SessionManager:
             raise FileNotFoundError(f"Session {session_id} does not exist")
 
         if session_id not in self._vector_store_cache:
-            chroma_path = session_path / "chroma_store"
+            session_meta = self._load_session_metadata(session_id)
+            chroma_dir = (
+                session_meta.metadata.get("chroma_dir", "chroma_store")
+                if session_meta
+                else "chroma_store"
+            )
+            chroma_path = session_path / chroma_dir
             self._vector_store_cache[session_id] = ChromaDocumentStore(path=str(chroma_path))
         return self._vector_store_cache[session_id]
 

@@ -64,7 +64,8 @@ class TestSessionCreation:
         session_path = tmp_path / session.session_id
         assert session_path.exists()
         assert (session_path / "metadata.json").exists()
-        assert (session_path / "chroma_store").exists()
+        chroma_dir = session.metadata.get("chroma_dir", "chroma_store")
+        assert (session_path / chroma_dir).exists()
         assert (session_path / "uploads").exists()
 
     def test_create_session_saves_metadata(self, tmp_path):
