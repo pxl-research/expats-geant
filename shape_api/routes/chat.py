@@ -395,6 +395,8 @@ async def upload_content_document(request: Request, session_id: str, file: Uploa
     docs_dir = session_manager.get_documents_path(session_id)
     docs_dir.mkdir(exist_ok=True)
     saved_path = docs_dir / safe_name
+    if not saved_path.resolve().is_relative_to(docs_dir.resolve()):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid filename")
     await _save_and_validate_upload(file, saved_path, int(os.getenv("MAX_FILE_SIZE_MB", "10")))
 
     try:

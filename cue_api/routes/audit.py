@@ -82,10 +82,11 @@ async def get_audit_report(
         else:
             return report
 
-    except Exception as e:
+    except Exception:
+        logger.exception("Failed to generate audit report for session %s", session.session_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Report generation failed: {e}",
+            detail="Report generation failed",
         )
 
 

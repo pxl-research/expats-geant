@@ -133,7 +133,7 @@ async def import_survey_from_api(
     return data["survey_id"], data.get("warning")
 
 
-async def ingest_document(token: str, session_id: str, file_bytes: bytes, filename: str) -> None:
+async def ingest_document(token: str, _session_id: str, file_bytes: bytes, filename: str) -> None:
     """Forward a document to the Cue ingestion API.
 
     POST /upload — UI holds no document content.

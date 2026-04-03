@@ -282,9 +282,10 @@ async def submit_session_responses(request: Request, session_id: str):
             detail=f"Adapter for '{survey_format}' does not support response submission.",
         )
     except (ValueError, RuntimeError) as exc:
+        logger.error("Submission to platform failed: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Submission to platform failed: {exc}",
+            detail="Submission to platform failed",
         )
 
     return {"status": "submitted", "session_id": session_id}
