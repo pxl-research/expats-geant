@@ -144,7 +144,8 @@ class TestSessionCleanupIntegration:
         # Verify data exists
         session_path = tmp_path / session.session_id
         assert session_path.exists()
-        assert (session_path / "chroma_store").exists()
+        chroma_dir = session.metadata.get("chroma_dir", "chroma_store")
+        assert (session_path / chroma_dir).exists()
 
         # Wait for expiration
         time.sleep(1)
