@@ -370,16 +370,17 @@ class SessionManager:
         if not session:
             return None
 
-        session_path = self._get_session_path(session_id)
-        docs_path = session_path / "uploads"
-
         # Calculate remaining TTL
         now = datetime.utcnow()
         remaining = session.expires_at - now
         remaining_hours = max(0, remaining.total_seconds() / 3600)
 
-        # Count documents
-        doc_count = len(list(docs_path.iterdir())) if docs_path.exists() else 0
+        # Count documents from vector store (raw files are deleted after ingestion)
+        try:
+            store = self.get_vector_store(session_id)
+            doc_count = len(store.list_documents())
+        except FileNotFoundError:
+            doc_count = 0
 
         return {
             "session_id": session.session_id,
