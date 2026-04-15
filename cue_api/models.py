@@ -8,18 +8,21 @@ from m_shared.models.question import QuestionType
 class BatchChoice(BaseModel):
     """A selectable choice within a question."""
 
-    id: str = Field(..., description="Choice identifier, echoed back in selected_id")
-    label: str = Field(..., description="Human-readable choice text")
+    id: str = Field(
+        ..., max_length=200, description="Choice identifier, echoed back in selected_id"
+    )
+    label: str = Field(..., max_length=1000, description="Human-readable choice text")
 
 
 class BatchSuggestItem(BaseModel):
     """A single questionnaire item in a batch suggest request."""
 
-    id: str = Field(..., description="Item identifier, echoed back in response")
+    id: str = Field(..., max_length=200, description="Item identifier, echoed back in response")
     type: QuestionType = Field(..., description="Question type")
     prompt: str = Field(..., min_length=1, max_length=2000, description="Question text")
     choices: list[BatchChoice] = Field(
         default_factory=list,
+        max_length=100,
         description="Predefined choices (required for single_choice and multiple_choice types)",
     )
 
@@ -37,9 +40,13 @@ class BatchSuggestItem(BaseModel):
 class BatchSuggestSection(BaseModel):
     """A group of related questionnaire items sharing context."""
 
-    id: str = Field(..., description="Section identifier")
-    title: str | None = Field(None, description="Section title, used as LLM context")
-    items: list[BatchSuggestItem] = Field(..., min_length=1, description="Items in this section")
+    id: str = Field(..., max_length=200, description="Section identifier")
+    title: str | None = Field(
+        None, max_length=500, description="Section title, used as LLM context"
+    )
+    items: list[BatchSuggestItem] = Field(
+        ..., min_length=1, max_length=200, description="Items in this section"
+    )
 
 
 class BatchSuggestRequest(BaseModel):
@@ -62,16 +69,16 @@ class BatchSuggestRequest(BaseModel):
     """
 
     assessment_id: str = Field(
-        ..., description="Caller-supplied assessment identifier, echoed in response"
+        ..., max_length=200, description="Caller-supplied assessment identifier, echoed in response"
     )
     context: str | None = Field(
         None, max_length=1000, description="Optional assessment-level context for the LLM"
     )
     sections: list[BatchSuggestSection] | None = Field(
-        None, description="Grouped items (use this or items, not both)"
+        None, max_length=50, description="Grouped items (use this or items, not both)"
     )
     items: list[BatchSuggestItem] | None = Field(
-        None, description="Flat item list (normalized to single implicit section)"
+        None, max_length=200, description="Flat item list (normalized to single implicit section)"
     )
 
     @model_validator(mode="after")
@@ -145,8 +152,8 @@ class UploadResponse(BaseModel):
 class UploadTextRequest(BaseModel):
     """Request body for plain-text snippet ingestion."""
 
-    text: str
-    label: str | None = None
+    text: str = Field(..., min_length=1, max_length=10_000_000)
+    label: str | None = Field(default=None, max_length=200)
 
 
 class SessionStatsResponse(BaseModel):

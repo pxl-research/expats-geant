@@ -6,7 +6,7 @@ import uuid
 
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from m_shared.auth.jwt_handler import create_token
 from m_shared.auth.oauth import (
@@ -22,8 +22,8 @@ router = APIRouter()
 
 
 class TokenRequest(BaseModel):
-    user_id: str
-    api_secret: str
+    user_id: str = Field(max_length=200)
+    api_secret: str = Field(max_length=500)
 
 
 @router.post("/auth/token", tags=["Auth"])

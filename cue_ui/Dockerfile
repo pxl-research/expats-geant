@@ -14,6 +14,11 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY cue_ui/ ./cue_ui/
 
+# Run as non-root user
+RUN groupadd -r appuser && useradd -r -g appuser -d /app appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8002
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

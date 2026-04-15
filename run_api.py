@@ -15,6 +15,7 @@ from m_shared.auth.middleware import SessionMiddleware
 from m_shared.llm.client import LLMClient
 from m_shared.session.manager import SessionManager
 from m_shared.utils.audit import AuditLogger
+from m_shared.utils.startup_checks import check_secrets
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,8 @@ class ScheduledCleanupRunner:
 
 def main():
     """Initialize and run the Cue API."""
+
+    check_secrets()
 
     # Configuration from environment
     sessions_base_path = os.getenv("SESSIONS_BASE_PATH", "./data/sessions")

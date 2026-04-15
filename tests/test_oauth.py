@@ -48,6 +48,19 @@ DISCOVERY_DOC = {
 # in tests — we patch the JWT decode step instead.
 
 
+_TEST_NONCE = "test-nonce-fixed"
+_TEST_CODE_VERIFIER = "test-code-verifier-fixed"
+
+
+def _make_state_entry(expiry_offset: float = 600) -> dict:
+    """Create a pending state entry in the new dict format."""
+    return {
+        "expiry": time.time() + expiry_offset,
+        "code_verifier": _TEST_CODE_VERIFIER,
+        "nonce": _TEST_NONCE,
+    }
+
+
 def _clear_oauth_caches():
     """Reset module-level caches between tests."""
     oauth_module._oidc_config = None
@@ -138,7 +151,10 @@ class TestGetAuthorizationUrl:
                 _url, state = await get_authorization_url()
 
         assert state in oauth_module._pending_states
-        assert oauth_module._pending_states[state] > time.time()
+        state_data = oauth_module._pending_states[state]
+        assert state_data["expiry"] > time.time()
+        assert "code_verifier" in state_data
+        assert "nonce" in state_data
 
     @pytest.mark.asyncio
     async def test_keycloak_public_url_rewrites_authorization_endpoint(self):
@@ -173,7 +189,7 @@ class TestExchangeCodeStateValidation:
     async def test_expired_state_raises(self):
         with patch.dict(os.environ, OIDC_ENV):
             # Insert an already-expired state
-            oauth_module._pending_states["expired-state"] = time.time() - 1
+            oauth_module._pending_states["expired-state"] = _make_state_entry(expiry_offset=-1)
 
             with pytest.raises(OIDCStateError):
                 await exchange_code(code="any", state="expired-state")
@@ -191,6 +207,7 @@ def _make_id_token_claims(
     aud: str | list = CLIENT_ID,
     exp_offset: int = 3600,
     iat_offset: int = 0,
+    nonce: str = _TEST_NONCE,
 ) -> dict:
     now = int(time.time())
     return {
@@ -199,6 +216,7 @@ def _make_id_token_claims(
         "aud": aud,
         "exp": now + exp_offset,
         "iat": now + iat_offset,
+        "nonce": nonce,
     }
 
 
@@ -214,7 +232,7 @@ class TestExchangeCodeTokenValidation:
 
         with patch.dict(os.environ, OIDC_ENV):
             valid_state = "valid-state-abc"
-            oauth_module._pending_states[valid_state] = time.time() + 600
+            oauth_module._pending_states[valid_state] = _make_state_entry()
 
             with respx.mock:
                 respx.get(f"{ISSUER}/.well-known/openid-configuration").mock(
@@ -242,7 +260,7 @@ class TestExchangeCodeTokenValidation:
     async def test_id_token_expired(self):
         """Expired ID token raises OIDCTokenError."""
         valid_state = "valid-state-expired-token"
-        oauth_module._pending_states[valid_state] = time.time() + 600
+        oauth_module._pending_states[valid_state] = _make_state_entry()
 
         with patch.dict(os.environ, OIDC_ENV):
             with respx.mock:
@@ -271,7 +289,7 @@ class TestExchangeCodeTokenValidation:
     async def test_id_token_wrong_issuer(self):
         """ID token with wrong issuer raises OIDCTokenError."""
         valid_state = "valid-state-wrong-iss"
-        oauth_module._pending_states[valid_state] = time.time() + 600
+        oauth_module._pending_states[valid_state] = _make_state_entry()
 
         wrong_iss_claims = _make_id_token_claims(iss="http://evil.example.com/realms/other")
 
@@ -304,7 +322,7 @@ class TestExchangeCodeTokenValidation:
     async def test_id_token_wrong_audience(self):
         """ID token with wrong audience raises OIDCTokenError."""
         valid_state = "valid-state-wrong-aud"
-        oauth_module._pending_states[valid_state] = time.time() + 600
+        oauth_module._pending_states[valid_state] = _make_state_entry()
 
         wrong_aud_claims = _make_id_token_claims(aud="wrong-client")
 
@@ -345,8 +363,6 @@ class TestFullOIDCFlow:
         """Integration: login → state generated → callback → valid platform JWT."""
         from m_shared.auth.jwt_handler import validate_token
 
-        claims = _make_id_token_claims(sub="test-user-001")
-
         class FakeClaims(dict):
             def validate(self):
                 pass
@@ -365,9 +381,13 @@ class TestFullOIDCFlow:
                     )
                 )
 
-                # Step 1: get authorization URL (generates state)
+                # Step 1: get authorization URL (generates state + nonce + PKCE)
                 auth_url, state = await get_authorization_url()
                 assert state in oauth_module._pending_states
+
+                # Build ID token claims with the real nonce from the state store
+                real_nonce = oauth_module._pending_states[state]["nonce"]
+                claims = _make_id_token_claims(sub="test-user-001", nonce=real_nonce)
 
                 # Step 2: simulate callback with same state
                 with patch(
@@ -413,7 +433,7 @@ class TestSecurityEventLogging:
 
         _clear_oauth_caches()
         valid_state = "log-test-state-token-fail"
-        oauth_module._pending_states[valid_state] = time.time() + 600
+        oauth_module._pending_states[valid_state] = _make_state_entry()
 
         with patch.dict(os.environ, OIDC_ENV):
             with respx.mock:
@@ -446,7 +466,7 @@ class TestSecurityEventLogging:
         """Unreachable OIDC token endpoint must emit an ERROR."""
         _clear_oauth_caches()
         valid_state = "log-test-state-unreachable"
-        oauth_module._pending_states[valid_state] = time.time() + 600
+        oauth_module._pending_states[valid_state] = _make_state_entry()
 
         with patch.dict(os.environ, OIDC_ENV):
             with respx.mock:
@@ -477,7 +497,7 @@ class TestSecurityEventLogging:
         claims = _make_id_token_claims(sub="test-sub-logging")
         _clear_oauth_caches()
         valid_state = "log-test-state-success"
-        oauth_module._pending_states[valid_state] = time.time() + 600
+        oauth_module._pending_states[valid_state] = _make_state_entry()
 
         with patch.dict(os.environ, OIDC_ENV):
             with respx.mock:

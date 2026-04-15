@@ -40,14 +40,25 @@ def create_app(
     Returns:
         Configured FastAPI app
     """
+    _is_production = os.getenv("ENVIRONMENT") == "production"
     app = FastAPI(
         title="Cue API",
         description="Evidence-based answer suggestion service",
         version="0.1.0",
         lifespan=lifespan,
+        docs_url=None if _is_production else "/docs",
+        redoc_url=None if _is_production else "/redoc",
+        openapi_url=None if _is_production else "/openapi.json",
     )
 
     apply_rate_limiting(app)
+
+    @app.middleware("http")
+    async def add_cache_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+        return response
 
     # Initialize RAG pipeline if LLM client provided
     rag_pipeline = None

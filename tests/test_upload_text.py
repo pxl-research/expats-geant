@@ -156,14 +156,14 @@ class TestUploadTextEndpoint:
         assert resp.status_code == 200
         assert resp.json()["filename"] == "pasted text"
 
-    def test_empty_text_returns_400(self, autofill_client, valid_token):
-        """Empty string → 400 Bad Request."""
+    def test_empty_text_returns_422(self, autofill_client, valid_token):
+        """Empty string → 422 Unprocessable Entity (Pydantic min_length=1)."""
         resp = autofill_client.post(
             "/upload-text",
             headers={"Authorization": f"Bearer {valid_token}"},
             json={"text": ""},
         )
-        assert resp.status_code == 400
+        assert resp.status_code == 422
 
     def test_whitespace_only_returns_400(self, autofill_client, valid_token):
         """Whitespace-only text → 400 Bad Request."""

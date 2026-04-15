@@ -1,5 +1,7 @@
 """OIDC authentication: discovery, code exchange, token validation, sub normalization."""
 
+import base64
+import hashlib
 import logging
 import os
 import time
@@ -28,8 +30,11 @@ class OIDCTokenError(Exception):
     """Raised when the OIDC ID token fails validation."""
 
 
-# Module-level state store: state_value -> expiry timestamp (UTC epoch seconds)
-_pending_states: dict[str, float] = {}
+# Module-level state store: state_value -> {expiry, code_verifier, nonce}
+# LIMITATION: In-memory dict — not shared across workers or processes.
+# For multi-worker deployment, replace with Redis or a shared cache.
+# Acceptable for PoC (single-worker uvicorn per container).
+_pending_states: dict[str, dict] = {}
 _STATE_TTL_SECONDS = 600  # 10 minutes
 
 # Cached OIDC discovery document
@@ -88,7 +93,7 @@ async def _fetch_jwks(jwks_uri: str) -> dict:
 def _purge_expired_states() -> None:
     """Remove expired state entries from the in-memory store."""
     now = time.time()
-    expired = [s for s, exp in _pending_states.items() if exp < now]
+    expired = [s for s, data in _pending_states.items() if data["expiry"] < now]
     for s in expired:
         del _pending_states[s]
 
@@ -161,8 +166,22 @@ async def get_authorization_url(redirect_uri: str | None = None) -> tuple[str, s
         )
 
     state = str(uuid4())
+    nonce = str(uuid4())
+
+    # PKCE: generate code_verifier and S256 code_challenge
+    code_verifier = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b"=").decode()
+    code_challenge = (
+        base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode()).digest())
+        .rstrip(b"=")
+        .decode()
+    )
+
     _purge_expired_states()
-    _pending_states[state] = time.time() + _STATE_TTL_SECONDS
+    _pending_states[state] = {
+        "expiry": time.time() + _STATE_TTL_SECONDS,
+        "code_verifier": code_verifier,
+        "nonce": nonce,
+    }
 
     import urllib.parse
 
@@ -173,6 +192,9 @@ async def get_authorization_url(redirect_uri: str | None = None) -> tuple[str, s
             "redirect_uri": used_redirect_uri,
             "scope": "openid email profile",
             "state": state,
+            "nonce": nonce,
+            "code_challenge": code_challenge,
+            "code_challenge_method": "S256",
         }
     )
     authorization_url = f"{authorization_endpoint}?{params}"
@@ -202,12 +224,14 @@ async def exchange_code(code: str, state: str, redirect_uri: str | None = None) 
     issuer_url, client_id, client_secret, env_redirect_uri = _get_oidc_settings()
     used_redirect_uri = redirect_uri or env_redirect_uri
 
-    # Validate state
+    # Validate state and retrieve PKCE/nonce data
     _purge_expired_states()
     if state not in _pending_states:
         logger.warning("OIDC callback rejected: invalid or expired state parameter")
         raise OIDCStateError("Invalid or expired OAuth state parameter.")
-    del _pending_states[state]
+    state_data = _pending_states.pop(state)
+    code_verifier = state_data["code_verifier"]
+    expected_nonce = state_data["nonce"]
 
     # Fetch discovery document
     discovery = await _fetch_discovery(issuer_url)
@@ -225,6 +249,7 @@ async def exchange_code(code: str, state: str, redirect_uri: str | None = None) 
                     "redirect_uri": used_redirect_uri,
                     "client_id": client_id,
                     "client_secret": client_secret,
+                    "code_verifier": code_verifier,
                 },
                 timeout=15,
             )
@@ -270,6 +295,12 @@ async def exchange_code(code: str, state: str, redirect_uri: str | None = None) 
     if client_id not in (aud or []):
         logger.warning("ID token audience mismatch: got %r, expected client_id %r", aud, client_id)
         raise OIDCTokenError(f"ID token audience {aud!r} does not contain client_id '{client_id}'.")
+
+    # Verify nonce (prevents ID token replay)
+    token_nonce = claims.get("nonce")
+    if token_nonce != expected_nonce:
+        logger.warning("ID token nonce mismatch: got %r, expected %r", token_nonce, expected_nonce)
+        raise OIDCTokenError("ID token nonce does not match the expected value.")
 
     # Extract and normalize subject
     iss = claims.get("iss", issuer_url)
