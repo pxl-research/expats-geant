@@ -178,6 +178,7 @@
 
   document.getElementById("suggestions-container").addEventListener("htmx:sseMessage", function(e) {
     if (e.detail.type === "error") {
+      document.getElementById("suggestions-container").removeAttribute("sse-connect");
       let detail = "Suggestion stream failed.";
       try { detail = JSON.parse(e.detail.data).detail || detail; } catch { /* use default */ }
       const banner = document.getElementById("stream-error-banner");
@@ -185,6 +186,7 @@
       banner.style.display = "";
       clearRemainingSpinners("Suggestion unavailable.");
     } else if (e.detail.type === "done") {
+      document.getElementById("suggestions-container").removeAttribute("sse-connect");
       clearRemainingSpinners("No suggestion available.");
     }
   });

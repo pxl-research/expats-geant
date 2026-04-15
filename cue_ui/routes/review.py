@@ -1,5 +1,6 @@
 """Cue UI: document upload, review, suggestion stream, submit, and session routes."""
 
+import asyncio
 import json
 import logging
 
@@ -56,19 +57,26 @@ async def documents_upload(
     file_errors: list[dict] = []
 
     if files:
+        uploads: list[tuple[str, bytes]] = []
         for upload in files:
             if not upload.filename:
                 continue
-            file_bytes = await upload.read()
+            uploads.append((upload.filename, await upload.read()))
+
+        async def _ingest_one(filename: str, data: bytes) -> dict | None:
             try:
                 await api_client.ingest_document(
                     token=token,
                     session_id=session_id,
-                    file_bytes=file_bytes,
-                    filename=upload.filename,
+                    file_bytes=data,
+                    filename=filename,
                 )
+                return None
             except APIError as exc:
-                file_errors.append({"filename": upload.filename, "error": exc.detail})
+                return {"filename": filename, "error": exc.detail}
+
+        results = await asyncio.gather(*(_ingest_one(fn, d) for fn, d in uploads))
+        file_errors.extend(r for r in results if r is not None)
 
     if has_text:
         label = text_label.strip() or None

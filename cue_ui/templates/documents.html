@@ -53,7 +53,8 @@
 </div>
 
 <script>
-document.querySelector('form').addEventListener('submit', function () {
+document.querySelector('form').addEventListener('submit', function (e) {
+  e.preventDefault();
   const btn = document.getElementById('upload-btn');
   const fileInput = document.getElementById('files');
   const count = fileInput.files.length;
@@ -63,6 +64,7 @@ document.querySelector('form').addEventListener('submit', function () {
     ? `Uploading ${count} document${count > 1 ? 's' : ''}…`
     : 'Uploading and indexing…';
   progress.style.display = 'inline';
+  requestAnimationFrame(() => this.submit());
 });
 </script>
 
