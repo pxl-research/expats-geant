@@ -77,7 +77,7 @@ curl http://localhost:8001/health
 # Privacy statement (public endpoint)
 curl http://localhost:8001/privacy
 
-# API documentation
+# API documentation (disabled when ENVIRONMENT=production)
 open http://localhost:8001/docs
 ```
 
@@ -108,7 +108,7 @@ Shape is the questionnaire design co-pilot API.
 - **Service name**: `shape-api` (docker-compose)
 - **Port**: `8003`
 - **Health check**: `http://localhost:8003/health`
-- **API docs**: `http://localhost:8003/docs`
+- **API docs**: `http://localhost:8003/docs` (disabled when `ENVIRONMENT=production`)
 - **Chat UI**: `http://localhost:8004` (service `shape_ui`)
 
 ### Additional Environment Variables
@@ -127,7 +127,7 @@ Shape shares `JWT_SECRET`, `OPENROUTER_API_KEY`, `LLM_MODEL`, and OIDC variables
 curl http://localhost:8003/health
 # Expected: {"status":"healthy"}
 
-# API documentation
+# API documentation (disabled when ENVIRONMENT=production)
 open http://localhost:8003/docs
 ```
 
@@ -332,7 +332,7 @@ cp .env.example .env
 python3 run_api.py
 
 # API available at http://localhost:8001
-# Docs at http://localhost:8001/docs
+# Docs at http://localhost:8001/docs (disabled when ENVIRONMENT=production)
 ```
 
 ## Environment Variables Reference
@@ -481,7 +481,7 @@ curl http://localhost:8001/
 # Privacy statement
 curl http://localhost:8001/privacy
 
-# API documentation (interactive)
+# API documentation (interactive; disabled when ENVIRONMENT=production)
 open http://localhost:8001/docs
 ```
 
@@ -611,13 +611,24 @@ docker run --rm \
 
 ### Production Deployment
 
-1. **Change JWT secret** - Use strong random string (32+ chars)
-2. **Enable HTTPS** - Use reverse proxy (nginx, Caddy, Traefik)
-3. **Firewall rules** - Restrict access to API port
-4. **Update regularly** - Keep dependencies and base images updated
-5. **Monitor logs** - Set up log aggregation and alerting
-6. **Backup data** - Regular backups of Docker volumes
-7. **Network isolation** - Use Docker networks for multi-service deployments
+Set `ENVIRONMENT=production` in your `.env` file. This enables several hardening features:
+
+1. **Startup secret guard** — services refuse to start if `JWT_SECRET` or `OIDC_CLIENT_SECRET` are still set to placeholder values (e.g. `change-me`, `change-me-in-production`)
+2. **API docs disabled** — `/docs`, `/redoc`, and `/openapi.json` are disabled (they expose the full API schema)
+3. **Non-root containers** — all Docker containers run as a non-root `appuser`
+4. **Security headers** — all UI responses include CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Cache-Control: no-store, and Permissions-Policy headers
+5. **Security logging** — both Cue API and Shape API write auth events to `logs/security.log` (rotating, 5MB, 3 backups)
+
+Additional production steps:
+
+6. **Change all secrets** — `JWT_SECRET` (32+ chars), `OIDC_CLIENT_SECRET` (regenerate in Keycloak), `KEYCLOAK_ADMIN_PASSWORD`
+7. **Enable HTTPS** — use a reverse proxy (nginx, Caddy, Traefik) for TLS termination
+8. **Enable HSTS** — set `ENABLE_HSTS=true` in `.env` when behind a TLS-terminating proxy
+9. **Configure Keycloak** — set password policy and enable MFA (see [KEYCLOAK_SETUP.md](KEYCLOAK_SETUP.md))
+10. **Firewall rules** — restrict access to API ports
+11. **Monitor logs** — set up log aggregation and alerting
+12. **Backup data** — regular backups of Docker volumes
+13. **Network isolation** — use Docker networks for multi-service deployments
 
 ### Example Nginx Reverse Proxy
 

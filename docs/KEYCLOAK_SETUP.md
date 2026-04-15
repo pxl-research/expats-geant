@@ -54,6 +54,26 @@ Keycloak can federate with external providers, allowing users to log in with the
 
 ## Production Hardening
 
+### Password Policy
+
+The bundled realm configures a NIST-aligned password policy: minimum 12 characters, cannot match username or email. This is applied on first Keycloak import via `realm-export.json`.
+
+For existing deployments (realm already imported), apply the policy manually:
+
+1. Keycloak admin → **Realm Settings** → **Authentication** → **Password Policy**
+2. Add policies: `length(12)`, `notUsername`, `notEmail`
+3. Save
+
+### Multi-Factor Authentication (MFA)
+
+TOTP-based MFA is pre-configured as opt-in: users can enable it from their Keycloak account settings. This is applied on first import via `realm-export.json`.
+
+To make MFA mandatory for all users:
+
+1. Keycloak admin → **Authentication** → **Required Actions**
+2. Set **Configure OTP** to **Default Action** (checked)
+3. All users will be prompted to set up TOTP on next login
+
 ### Change the Client Secret
 
 The default client secret in `keycloak/realm-export.json` is `change-me`. Update it before production:

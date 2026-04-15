@@ -116,7 +116,17 @@ SESSION_TTL_HOURS=24
 AUDIT_RETENTION_DAYS=365
 ```
 
-### Step 3 — Change Keycloak client secret
+### Step 3 — Set production environment
+
+```bash
+# In .env — enables startup secret guard and disables API docs
+ENVIRONMENT=production
+
+# Enable HSTS if behind a TLS-terminating reverse proxy
+ENABLE_HSTS=true
+```
+
+### Step 4 — Change Keycloak client secret
 
 The default client secret in `keycloak/realm-export.json` is `change-me`.
 Update it before production:
@@ -124,13 +134,21 @@ Update it before production:
 2. Go to `http://localhost:8080/admin` → Clients → `cue-api` → Credentials → Regenerate
 3. Set `OIDC_CLIENT_SECRET=<new-secret>` in `.env`
 
-### Step 4 — Start all services
+### Step 5 — Configure Keycloak security
+
+The bundled realm includes a password policy (min 12 chars) and opt-in TOTP. Review and adjust:
+
+- **Password policy**: Keycloak admin → Realm Settings → Authentication → Password Policy
+- **MFA**: To make TOTP mandatory, set "Configure OTP" as a Default Action under Authentication → Required Actions
+- See [KEYCLOAK_SETUP.md](KEYCLOAK_SETUP.md) for details
+
+### Step 6 — Start all services
 
 ```bash
 docker-compose up -d --build
 ```
 
-### Step 5 — Verify
+### Step 7 — Verify
 
 ```bash
 curl http://localhost:8001/health   # Cue API
@@ -228,6 +246,7 @@ curl -X POST http://localhost:8003/chat/{session_id}/style \
 
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
+| Service exits immediately in production | Placeholder secrets detected (`JWT_SECRET` or `OIDC_CLIENT_SECRET` still set to defaults) | Set real secrets in `.env` — the startup guard blocks placeholder values when `ENVIRONMENT=production` |
 | Cue/Shape API won't start | Missing `OPENROUTER_API_KEY` or `JWT_SECRET` | Check `.env` and restart |
 | Keycloak login fails | Wrong `OIDC_CLIENT_SECRET` | Regenerate in Keycloak admin → update `.env` |
 | LLM suggestions not working | Invalid or missing API key | Check `docker-compose logs cue-api` for LLM errors |
