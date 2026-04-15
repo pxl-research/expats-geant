@@ -224,12 +224,12 @@ async def exchange_code(code: str, state: str, redirect_uri: str | None = None) 
     issuer_url, client_id, client_secret, env_redirect_uri = _get_oidc_settings()
     used_redirect_uri = redirect_uri or env_redirect_uri
 
-    # Validate state and retrieve PKCE/nonce data
+    # Validate state and retrieve PKCE/nonce data (atomic pop to avoid race)
     _purge_expired_states()
-    if state not in _pending_states:
+    state_data = _pending_states.pop(state, None)
+    if state_data is None:
         logger.warning("OIDC callback rejected: invalid or expired state parameter")
         raise OIDCStateError("Invalid or expired OAuth state parameter.")
-    state_data = _pending_states.pop(state)
     code_verifier = state_data["code_verifier"]
     expected_nonce = state_data["nonce"]
 

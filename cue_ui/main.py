@@ -31,7 +31,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         )
         response.headers["Cache-Control"] = "no-store"
         response.headers["Pragma"] = "no-cache"
-        if os.getenv("ENABLE_HSTS") == "true":
+        if os.getenv("ENABLE_HSTS", "false").lower() == "true":
             response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
         return response
 
