@@ -33,8 +33,13 @@ COPY cue_api/ ./cue_api/
 COPY m_shared/ ./m_shared/
 COPY run_api.py ./run_api.py
 
-# Create directories for session data
-RUN mkdir -p /app/data/sessions /app/data/chroma
+# Create directories for session data and logs
+RUN mkdir -p /app/data/sessions /app/data/chroma /app/logs
+
+# Run as non-root user
+RUN groupadd -r appuser && useradd -r -g appuser -d /app appuser \
+    && chown -R appuser:appuser /app
+USER appuser
 
 # Expose port
 EXPOSE 8001

@@ -1,5 +1,7 @@
 """FastAPI application factory for Shape survey transform and tool endpoints."""
 
+import os
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
@@ -26,13 +28,24 @@ def create_app(
     Returns:
         Configured FastAPI application.
     """
+    _is_production = os.getenv("ENVIRONMENT") == "production"
     app = FastAPI(
         title="Shape API",
         description="Survey transform and AI tool endpoints",
         version="0.1.0",
+        docs_url=None if _is_production else "/docs",
+        redoc_url=None if _is_production else "/redoc",
+        openapi_url=None if _is_production else "/openapi.json",
     )
 
     apply_rate_limiting(app)
+
+    @app.middleware("http")
+    async def add_cache_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+        return response
 
     # Store dependencies on app.state for route modules
     app.state.session_manager = session_manager

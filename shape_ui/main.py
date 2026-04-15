@@ -30,6 +30,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "img-src 'self' data:; "
             "frame-ancestors 'none'"
         )
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+        if os.getenv("ENABLE_HSTS") == "true":
+            response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
         return response
 
 
@@ -38,10 +42,14 @@ _STATIC_DIR = Path(__file__).parent / "static"
 
 def create_app() -> FastAPI:
     """Create and configure the Shape UI FastAPI application."""
+    _is_production = os.getenv("ENVIRONMENT") == "production"
     app = FastAPI(
         title="Shape UI",
         description="Survey authoring frontend for Shape",
         version="0.1.0",
+        docs_url=None if _is_production else "/docs",
+        redoc_url=None if _is_production else "/redoc",
+        openapi_url=None if _is_production else "/openapi.json",
     )
 
     app.add_middleware(SecurityHeadersMiddleware)

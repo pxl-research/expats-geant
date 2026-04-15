@@ -31,6 +31,9 @@ class OIDCTokenError(Exception):
 
 
 # Module-level state store: state_value -> {expiry, code_verifier, nonce}
+# LIMITATION: In-memory dict — not shared across workers or processes.
+# For multi-worker deployment, replace with Redis or a shared cache.
+# Acceptable for PoC (single-worker uvicorn per container).
 _pending_states: dict[str, dict] = {}
 _STATE_TTL_SECONDS = 600  # 10 minutes
 

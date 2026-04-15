@@ -12,6 +12,11 @@ RUN pip install -r requirements.txt
 
 COPY shape_ui/ ./shape_ui/
 
+# Run as non-root user
+RUN groupadd -r appuser && useradd -r -g appuser -d /app appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8004
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=5s \

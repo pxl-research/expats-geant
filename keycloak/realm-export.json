@@ -9,6 +9,13 @@
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "sslRequired": "external",
+  "passwordPolicy": "length(12) and notUsername and notEmail",
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyPeriod": 30,
+  "otpPolicyLookAheadWindow": 1,
+  "otpPolicyInitialCounter": 0,
   "loginTheme": "keycloak",
   "defaultSignatureAlgorithm": "RS256",
   "clients": [
@@ -61,6 +68,16 @@
   },
   "defaultRoles": [
     "respondent"
+  ],
+  "requiredActions": [
+    {
+      "alias": "CONFIGURE_TOTP",
+      "name": "Configure OTP",
+      "providerId": "CONFIGURE_TOTP",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 10
+    }
   ],
   "users": []
 }

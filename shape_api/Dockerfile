@@ -18,7 +18,12 @@ COPY m_shared/ ./m_shared/
 COPY cue_api/ ./cue_api/
 COPY run_chat_api.py ./run_chat_api.py
 
-RUN mkdir -p /app/data/sessions
+RUN mkdir -p /app/data/sessions /app/logs
+
+# Run as non-root user
+RUN groupadd -r appuser && useradd -r -g appuser -d /app appuser \
+    && chown -R appuser:appuser /app
+USER appuser
 
 EXPOSE 8003
 
