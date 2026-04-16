@@ -83,7 +83,7 @@ async def send_message(token: str, session_id: str, message: str) -> dict[str, A
 
     POST /chat/{session_id} → ChatTurnResponse
     """
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=180.0) as client:
         resp = await client.post(
             f"{SHAPE_API_URL}/chat/{session_id}",
             headers=_auth_headers(token),

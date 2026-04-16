@@ -39,7 +39,7 @@ OPENROUTER_API_KEY=sk-or-v1-your-key-here
 JWT_SECRET=change-me-to-a-strong-random-secret
 
 # Optional overrides (defaults shown)
-LLM_MODEL=openrouter/meta-llama/llama-3.1-8b-instruct
+CUE_LLM_MODEL=anthropic/claude-sonnet-4.6
 SESSION_TTL_HOURS=24
 MAX_FILE_SIZE_MB=50
 AUDIT_RETENTION_DAYS=365
@@ -106,7 +106,7 @@ docker-compose down -v
 | `API_SECRET` | Yes† | — | Shared secret for `POST /auth/token` (server-to-server auth) |
 | `JWT_ALGORITHM` | No | `HS256` | JWT signing algorithm |
 | `JWT_EXPIRATION_HOURS` | No | `24` | Token lifetime in hours |
-| `LLM_MODEL` | No | `openrouter/meta-llama/llama-3.1-8b-instruct` | LLM model identifier |
+| `CUE_LLM_MODEL` | No | `anthropic/claude-sonnet-4.6` | LLM model for Cue (falls back to `DEFAULT_LLM_MODEL`) |
 | `SESSION_TTL_HOURS` | No | `24` | Session expiry in hours |
 | `MAX_FILE_SIZE_MB` | No | `50` | Maximum upload file size |
 | `AUDIT_RETENTION_DAYS` | No | `365` | Audit log retention period |

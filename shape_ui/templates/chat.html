@@ -301,15 +301,7 @@ body { overflow: hidden; }
           </div>
           {% endif %}
         {% endfor %}
-        {% if messages %}
-        <script>
-          // Scroll to bottom on initial load with history
-          document.addEventListener('DOMContentLoaded', function() {
-            var msgs = document.getElementById('messages');
-            if (msgs) msgs.scrollTop = msgs.scrollHeight;
-          });
-        </script>
-        {% else %}
+        {% if not messages %}
         <div style="flex:1; display:flex; align-items:center; justify-content:center; padding:2rem">
           <div style="text-align:center; max-width:320px">
             <div style="width:44px; height:44px; background:var(--brand-light); border-radius:10px; display:inline-flex; align-items:center; justify-content:center; margin-bottom:1rem; color:var(--brand)">
@@ -331,7 +323,6 @@ body { overflow: hidden; }
           hx-swap="beforeend"
           hx-encoding="multipart/form-data"
           hx-indicator="#send-indicator"
-          hx-on::after-request="this.reset(); document.querySelector('.chat-textarea').style.height='44px'"
         >
           <div class="chat-input-row">
             <textarea
@@ -404,8 +395,7 @@ body { overflow: hidden; }
 
   <!-- Footer controls -->
   <div class="chat-footer">
-    <form method="post" action="/session/{{ session_id }}/reset" style="display:inline"
-          onsubmit="return confirm('Reset the draft survey and vocabulary? Your conversation history will be kept.')">
+    <form id="reset-form" method="post" action="/session/{{ session_id }}/reset" style="display:inline">
       <button type="submit" class="btn btn-ghost btn-sm">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.77"/></svg>
         Reset draft
@@ -435,34 +425,5 @@ body { overflow: hidden; }
 {% endblock %}
 
 {% block scripts %}
-<script>
-(function() {
-  // Ctrl+Enter submits form
-  document.addEventListener('keydown', function(e) {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      const form = document.getElementById('chat-form');
-      if (form && document.activeElement && form.contains(document.activeElement)) {
-        htmx.trigger(form, 'submit');
-      }
-    }
-  });
-
-  // Auto-resize textarea
-  const ta = document.getElementById('chat-input');
-  if (ta) {
-    ta.addEventListener('input', function() {
-      this.style.height = '44px';
-      this.style.height = Math.min(this.scrollHeight, 160) + 'px';
-    });
-  }
-
-  // Scroll messages to bottom after HTMX swaps
-  document.body.addEventListener('htmx:afterSwap', function(evt) {
-    const msgs = document.getElementById('messages');
-    if (msgs && evt.detail.target === msgs) {
-      msgs.scrollTop = msgs.scrollHeight;
-    }
-  });
-})();
-</script>
+<script src="/static/chat.js"></script>
 {% endblock %}

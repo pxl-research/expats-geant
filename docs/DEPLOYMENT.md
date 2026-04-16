@@ -47,8 +47,10 @@ OPENAI_API_KEY=sk-xxxxx            # Get from https://platform.openai.com
 # Required: Change JWT secret (use a secure random string)
 JWT_SECRET=your-secure-random-secret-here-min-32-chars
 
-# Optional: Choose LLM model
-LLM_MODEL=anthropic/claude-haiku-4.5
+# Optional: LLM models (per-service overrides, falls back to DEFAULT_LLM_MODEL)
+DEFAULT_LLM_MODEL=anthropic/claude-haiku-4.5
+CUE_LLM_MODEL=anthropic/claude-sonnet-4.6
+SHAPE_LLM_MODEL=google/gemini-3-flash-preview
 ```
 
 **💡 Tip:** Generate a secure JWT secret:
@@ -119,7 +121,7 @@ Shape is the questionnaire design co-pilot API.
 | `MAX_FILE_SIZE_MB` | `50` | Max upload size for style/content documents |
 | `CHAT_PORT` | `8003` | Port for the Shape API |
 
-Shape shares `JWT_SECRET`, `OPENROUTER_API_KEY`, `LLM_MODEL`, and OIDC variables with Cue. Set them once in `.env`.
+Shape shares `JWT_SECRET`, `OPENROUTER_API_KEY`, `DEFAULT_LLM_MODEL`, and OIDC variables with Cue. Set them once in `.env`. Each service can use a different LLM via `CUE_LLM_MODEL` and `SHAPE_LLM_MODEL`.
 
 ### Verify Shape is running
 
@@ -349,7 +351,9 @@ python3 run_api.py
 
 | Variable                 | Default                      | Description                                                    |
 | ------------------------ | ---------------------------- | -------------------------------------------------------------- |
-| `LLM_MODEL`              | `anthropic/claude-haiku-4.5` | LLM model to use                                               |
+| `DEFAULT_LLM_MODEL`      | `anthropic/claude-haiku-4.5` | Shared fallback LLM model                                      |
+| `CUE_LLM_MODEL`          | `anthropic/claude-sonnet-4.6` | LLM model for Cue (answer suggestions)                        |
+| `SHAPE_LLM_MODEL`        | `google/gemini-3-flash-preview` | LLM model for Shape (survey authoring)                      |
 | `API_SECRET`             | —                            | Shared secret for `POST /auth/token` (omit to disable)         |
 | `SESSION_TTL_HOURS`      | `24`                         | Session lifetime (hours)                                       |
 | `MAX_FILE_SIZE_MB`       | `50`                         | Upload limit (MB)                                              |

@@ -250,7 +250,7 @@ Environment variables:
 - `OPENROUTER_API_KEY` — OpenRouter API key for LLM access
 - `CHROMA_BASE_PATH` — Path to ChromaDB storage (default: `/app/data/chroma`)
 - `SESSION_TTL_HOURS` — Session expiration time (default: 24)
-- `LLM_MODEL` — Default model on OpenRouter (e.g., `anthropic/claude-haiku-4.5`)
+- `CUE_LLM_MODEL` — LLM model for Cue (default: `anthropic/claude-sonnet-4.6`). Docker-compose maps this to `LLM_MODEL` inside the container.
 
 ## Development
 

@@ -140,7 +140,7 @@ pytest tests/ -v --tb=short
 |---|---|---|
 | `JWT_SECRET` | `change-me-in-production` | JWT signing secret (shared with Cue) |
 | `OPENROUTER_API_KEY` | — | LLM API key (required for suggest/tag/chat) |
-| `LLM_MODEL` | `anthropic/claude-haiku-4.5` | LLM model identifier |
+| `SHAPE_LLM_MODEL` | `google/gemini-3-flash-preview` | LLM model for Shape (docker-compose maps to `LLM_MODEL` in container) |
 | `SESSION_TTL_HOURS` | `24` | Chat session lifetime in hours |
 | `MAX_FILE_SIZE_MB` | `50` | Max file size for uploads |
 | `API_SECRET` | — | Shared secret for `POST /auth/token` (omit to disable) |

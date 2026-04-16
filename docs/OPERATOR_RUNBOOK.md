@@ -36,7 +36,7 @@ For self-hosted (Ollama example):
 ```bash
 LLM_BASE_URL=http://your-ollama-host:11434/v1
 OPENROUTER_API_KEY=ollama   # placeholder, not validated
-LLM_MODEL=llama3.2          # or whichever model you've pulled
+DEFAULT_LLM_MODEL=llama3.2  # or whichever model you've pulled
 ```
 
 ### 1.2 Authentication
@@ -103,7 +103,9 @@ Required values:
 # LLM provider (see section 1.1)
 OPENROUTER_API_KEY=sk-or-v1-your-key
 LLM_BASE_URL=https://eu.openrouter.ai/api/v1   # EU endpoint
-LLM_MODEL=anthropic/claude-haiku-4-5            # or your preferred model
+DEFAULT_LLM_MODEL=anthropic/claude-haiku-4.5     # shared fallback
+CUE_LLM_MODEL=anthropic/claude-sonnet-4.6       # Cue answer suggestions
+SHAPE_LLM_MODEL=google/gemini-3-flash-preview   # Shape survey authoring
 
 # Security — generate a strong secret
 JWT_SECRET=<run: python3 -c "import secrets; print(secrets.token_urlsafe(32))">

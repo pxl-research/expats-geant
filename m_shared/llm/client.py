@@ -33,8 +33,8 @@ class LLMClient(OpenAI):
 
         Args:
             api_key: API key for the LLM service (defaults to OPENROUTER_API_KEY env var)
-            base_url: Base URL for the API endpoint (defaults to OpenRouter)
-            model_name: Model identifier (defaults to DEFAULT_LLM_MODEL env var)
+            base_url: Base URL for the API endpoint (precedence: explicit param > LLM_BASE_URL env > OPENROUTER_BASE_URL env)
+            model_name: Model identifier (precedence: explicit param > LLM_MODEL env > DEFAULT_LLM_MODEL env)
             tools_list: Optional list of tool definitions for function calling
             temperature: Sampling temperature (0.0-2.0); lower = deterministic, higher = creative
             custom_headers: Custom headers to include in API requests
@@ -50,11 +50,16 @@ class LLMClient(OpenAI):
                 "API key must be provided or set in OPENROUTER_API_KEY environment variable"
             )
 
-        base_url = base_url or os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+        base_url = (
+            base_url
+            or os.getenv("LLM_BASE_URL")
+            or os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+        )
         model_name = (
             model_name
-            or os.getenv("DEFAULT_LLM_MODEL", "anthropic/claude-sonnet-4.6")
-            or "anthropic/claude-sonnet-4.6"
+            or os.getenv("LLM_MODEL")
+            or os.getenv("DEFAULT_LLM_MODEL", "anthropic/claude-haiku-4.5")
+            or "anthropic/claude-haiku-4.5"
         )
 
         super().__init__(base_url=base_url, api_key=api_key)
