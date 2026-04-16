@@ -38,18 +38,32 @@
     <span style="font-size:0.7rem; font-weight:600; color:#64748b; text-transform:uppercase;">Sources</span>
     {% for cit in sug.citations %}
     {% set low_relevance = cit.distance is defined and cit.distance > 0.8 %}
-    <div style="font-size:0.8rem; margin-top:0.35rem; {% if low_relevance %}opacity:0.45;{% endif %}">
+    {% if cit.distance is defined %}
+      {% if cit.distance <= 0.4 %}{% set relevance_label = "Highly relevant" %}
+      {% elif cit.distance <= 0.8 %}{% set relevance_label = "Somewhat relevant" %}
+      {% else %}{% set relevance_label = "Low relevance" %}{% endif %}
+    {% endif %}
+    <div style="font-size:0.8rem; margin-top:0.35rem; {% if low_relevance %}opacity:0.45;{% endif %}"
+         {% if relevance_label is defined %}title="{{ relevance_label }}"{% endif %}>
+      {% if cit.full_text %}
+      <details style="margin:0;">
+        <summary style="cursor:pointer;">
+          <strong style="color:{% if low_relevance %}#94a3b8{% else %}#1d4ed8{% endif %};">{{ cit.source }}</strong>
+          {% if cit.position is not none %}
+          <span style="color:#94a3b8; font-size:0.75rem;">(~{{ (cit.position * 100) | round | int }}%)</span>
+          {% endif %}
+          <span style="color:#94a3b8; font-size:0.75rem;">show source text</span>
+        </summary>
+        <p style="margin:0.35rem 0 0; color:#475569; white-space:pre-wrap; font-size:0.8rem;">{{ cit.full_text }}</p>
+      </details>
+      {% else %}
       <strong style="color:{% if low_relevance %}#94a3b8{% else %}#1d4ed8{% endif %};">{{ cit.source }}</strong>
       {% if cit.position is not none %}
       <span style="color:#94a3b8; font-size:0.75rem;">(~{{ (cit.position * 100) | round | int }}%)</span>
       {% endif %}
-      {% if cit.full_text %}
-      <details style="display:inline; margin-left:0.25rem;">
-        <summary style="display:inline; cursor:pointer; color:#94a3b8; font-size:0.75rem;">show source text</summary>
-        <p style="margin:0.35rem 0 0; color:#475569; white-space:pre-wrap; font-size:0.8rem;">{{ cit.full_text }}</p>
-      </details>
-      {% elif cit.excerpt %}
+      {% if cit.excerpt %}
       — <em style="color:#475569;">"{{ cit.excerpt }}"</em>
+      {% endif %}
       {% endif %}
     </div>
     {% endfor %}
@@ -57,33 +71,3 @@
   {% endif %}
 
 </div>
-
-<script>
-function acceptSuggestion(questionId, btn) {
-  const block = btn.closest(".suggestion-block");
-  const value = block.dataset.suggestion;
-  const selectedId = block.dataset.selectedId;
-
-  const textarea = document.getElementById("input-" + questionId);
-  if (textarea) {
-    textarea.value = value;
-  } else if (selectedId) {
-    const radio = document.getElementById("opt-" + selectedId);
-    if (radio) radio.checked = true;
-  }
-
-  block.style.border = "1px solid #16a34a";
-  block.style.background = "#f0fdf4";
-
-  const rs = new ReviewState(block.closest("[data-session-id]")?.dataset.sessionId || "");
-  rs.save(questionId, { state: "accepted", value: value, selected_id: selectedId });
-}
-
-function dismissSuggestion(questionId, btn) {
-  const block = btn.closest(".suggestion-block");
-  block.style.display = "none";
-
-  const rs = new ReviewState(block.closest("[data-session-id]")?.dataset.sessionId || "");
-  rs.save(questionId, { state: "dismissed" });
-}
-</script>

@@ -165,6 +165,34 @@
   const reviewState = new ReviewState("{{ session_id }}");
   document.addEventListener("DOMContentLoaded", () => reviewState.restoreAll());
 
+  function acceptSuggestion(questionId, btn) {
+    const block = btn.closest(".suggestion-block");
+    const value = block.dataset.suggestion;
+    const selectedId = block.dataset.selectedId;
+
+    const textarea = document.getElementById("input-" + questionId);
+    if (textarea) {
+      textarea.value = value;
+    } else if (selectedId) {
+      const radio = document.getElementById("opt-" + selectedId);
+      if (radio) radio.checked = true;
+    }
+
+    block.style.border = "1px solid #16a34a";
+    block.style.background = "#f0fdf4";
+
+    const rs = new ReviewState(block.closest("[data-session-id]")?.dataset.sessionId || "");
+    rs.save(questionId, { state: "accepted", value: value, selected_id: selectedId });
+  }
+
+  function dismissSuggestion(questionId, btn) {
+    const block = btn.closest(".suggestion-block");
+    block.style.display = "none";
+
+    const rs = new ReviewState(block.closest("[data-session-id]")?.dataset.sessionId || "");
+    rs.save(questionId, { state: "dismissed" });
+  }
+
   // Restore accept/dismiss state whenever a suggestion block arrives via SSE OOB swap
   document.body.addEventListener("htmx:oobAfterSwap", () => reviewState.restoreAll());
 

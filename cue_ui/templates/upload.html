@@ -103,10 +103,7 @@ document.getElementById('file').addEventListener('change', function () {
   const map = { qsf: 'qsf', lss: 'lss', xml: 'qti', qti: 'qti' };
   const fmt = map[ext];
   if (fmt) {
-    const sel = document.getElementById('format');
-    for (const opt of sel.options) {
-      if (opt.value === fmt) { opt.selected = true; break; }
-    }
+    document.getElementById('format').value = fmt;
   }
 });
 
