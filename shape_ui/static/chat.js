@@ -1,0 +1,56 @@
+/* Shape UI – chat page behaviour (CSP-safe, no inline scripts). */
+(function () {
+  "use strict";
+
+  // ── Ctrl+Enter submits the chat form ──────────────────────
+  document.addEventListener("keydown", function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      var form = document.getElementById("chat-form");
+      if (form && document.activeElement && form.contains(document.activeElement)) {
+        htmx.trigger(form, "submit");
+      }
+    }
+  });
+
+  // ── Auto-resize textarea ──────────────────────────────────
+  var ta = document.getElementById("chat-input");
+  if (ta) {
+    ta.addEventListener("input", function () {
+      this.style.height = "44px";
+      this.style.height = Math.min(this.scrollHeight, 160) + "px";
+    });
+  }
+
+  // ── Reset form + scroll after HTMX response ──────────────
+  document.body.addEventListener("htmx:afterRequest", function (evt) {
+    var form = document.getElementById("chat-form");
+    if (form && evt.detail.elt === form) {
+      form.reset();
+      var textarea = form.querySelector(".chat-textarea");
+      if (textarea) textarea.style.height = "44px";
+    }
+  });
+
+  document.body.addEventListener("htmx:afterSwap", function (evt) {
+    var msgs = document.getElementById("messages");
+    if (msgs && evt.detail.target === msgs) {
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+  });
+
+  // ── Scroll to bottom on initial load (when history exists) ─
+  var msgs = document.getElementById("messages");
+  if (msgs && msgs.querySelector(".msg-wrap")) {
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  // ── Reset-draft confirmation (replaces inline onsubmit) ───
+  var resetForm = document.getElementById("reset-form");
+  if (resetForm) {
+    resetForm.addEventListener("submit", function (e) {
+      if (!confirm("Reset the draft survey and vocabulary? Your conversation history will be kept.")) {
+        e.preventDefault();
+      }
+    });
+  }
+})();
