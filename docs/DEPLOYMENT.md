@@ -139,7 +139,7 @@ open http://localhost:8003/docs
 docker-compose logs -f shape-api
 ```
 
-See [MCHAT_API.md](MCHAT_API.md) for the full API reference.
+See [SHAPE_API.md](SHAPE_API.md) for the full API reference.
 
 ---
 
@@ -529,7 +529,7 @@ python3 -m pytest tests/test_auth.py -v           # Auth tests
 
 For production deployments with institutional authentication, see:
 
-📖 **[docs/AUTOFILL_API.md](AUTOFILL_API.md)** — Complete integration guide with:
+📖 **[docs/CUE_API.md](CUE_API.md)** — Complete integration guide with:
 
 - JWT requirements and claim structure
 - Shibboleth / Azure AD / OIDC examples
@@ -657,6 +657,6 @@ server {
 ## Support
 
 - Documentation: [README.md](../README.md)
-- Integration guide: [docs/AUTOFILL_API.md](AUTOFILL_API.md)
+- Integration guide: [docs/CUE_API.md](CUE_API.md)
 - Project specs: [openspec/project.md](../openspec/project.md)
 - Issues: [GitHub Issues](https://github.com/pxl-be/expats/issues)

@@ -74,6 +74,10 @@ Coverage threshold: `--cov-fail-under=80` (configured in `pyproject.toml` / `set
 | `test_auth.py` | JWT middleware: valid tokens, expired tokens, missing headers |
 | `test_auth_token.py` | `POST /auth/token` endpoint: JWT issuance, secret validation, rate limiting |
 | `test_oauth.py` | OIDC login and callback flows |
+| `test_dev_token.py` | Development token issuance and validation |
+| `test_rate_limit.py` | Rate limiting middleware |
+| `test_startup_checks.py` | Startup configuration validation |
+| `test_tool_calling.py` | LLM tool/function calling |
 | `test_live_api_import_adapters.py` | `LimeSurveyAdapter.fetch_survey` and `QualtricsAdapter.fetch_survey` unit tests |
 
 ### Cue UI (`cue_ui/`)

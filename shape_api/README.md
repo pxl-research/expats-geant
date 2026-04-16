@@ -102,7 +102,7 @@ curl "http://localhost:8003/chat/$SESSION/survey" \
 | `/chat/{id}/style/upload` | POST | Yes | Upload style guide document |
 | `/chat/{id}/upload` | POST | Yes | Upload content document |
 
-Full API reference: [docs/MCHAT_API.md](../docs/MCHAT_API.md)
+Full API reference: [docs/SHAPE_API.md](../docs/SHAPE_API.md)
 
 ## Testing
 
@@ -148,7 +148,7 @@ pytest tests/ -v --tb=short
 
 ## Links
 
-- [Shape API Reference](../docs/MCHAT_API.md)
+- [Shape API Reference](../docs/SHAPE_API.md)
 - [Data Model](../docs/DATA_MODEL.md)
 - [Adapter Guide](../docs/ADAPTERS.md)
 - [Testing Guide](../docs/TESTING.md)

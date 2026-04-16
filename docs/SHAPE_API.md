@@ -2,7 +2,7 @@
 
 Shape is the administrator co-pilot for questionnaire design. It provides stateless survey transform endpoints (import/export/create) and AI tool endpoints (suggest/validate/tag), plus a full conversational session API for iterative survey authoring.
 
-> For Cue API, see [AUTOFILL_API.md](AUTOFILL_API.md).
+> For Cue API, see [CUE_API.md](CUE_API.md).
 
 ## Table of Contents
 
@@ -50,7 +50,7 @@ All endpoints except `/`, `/health`, `/auth/token`, `/auth/login`, and `/auth/ca
 
 ## Authentication
 
-Shape uses the same JWT authentication model as Cue. See [AUTOFILL_API.md — Authentication Model](AUTOFILL_API.md#authentication-model) and [JWT Requirements](AUTOFILL_API.md#jwt-requirements) for full details.
+Shape uses the same JWT authentication model as Cue. See [CUE_API.md — Authentication Model](CUE_API.md#authentication-model) and [JWT Requirements](CUE_API.md#jwt-requirements) for full details.
 
 ### Quick start
 
@@ -688,7 +688,7 @@ The `api_secret` value in your `POST /auth/token` request does not match the ser
 
 ### Auth errors (expired token, invalid signature)
 
-See [AUTOFILL_API.md — Troubleshooting](AUTOFILL_API.md#troubleshooting) — the JWT model is identical.
+See [CUE_API.md — Troubleshooting](CUE_API.md#troubleshooting) — the JWT model is identical.
 
 ---
 
