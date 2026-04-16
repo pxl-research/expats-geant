@@ -158,6 +158,13 @@ class UploadTextRequest(BaseModel):
     label: str | None = Field(default=None, max_length=200)
 
 
+class DocumentInfo(BaseModel):
+    """Info about a single ingested document."""
+
+    name: str
+    chunk_count: int
+
+
 class SessionStatsResponse(BaseModel):
     """Session statistics response."""
 
@@ -168,6 +175,7 @@ class SessionStatsResponse(BaseModel):
     remaining_hours: float
     is_expired: bool
     document_count: int
+    documents: list[DocumentInfo] = Field(default_factory=list)
     isolation_scope: str
 
 

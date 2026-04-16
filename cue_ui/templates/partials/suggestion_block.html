@@ -49,6 +49,7 @@
       {% if cit.full_text %}
       <details style="margin:0;">
         <summary style="cursor:pointer;">
+          <span style="color:{% if low_relevance %}#94a3b8{% else %}#1d4ed8{% endif %}; font-weight:600;">[{{ loop.index }}]</span>
           <strong style="color:{% if low_relevance %}#94a3b8{% else %}#1d4ed8{% endif %};">{{ cit.source }}</strong>
           {% if cit.position is not none %}
           <span style="color:#94a3b8; font-size:0.75rem;">(~{{ (cit.position * 100) | round | int }}%)</span>
@@ -58,6 +59,7 @@
         <p style="margin:0.35rem 0 0; color:#475569; white-space:pre-wrap; font-size:0.8rem;">{{ cit.full_text }}</p>
       </details>
       {% else %}
+      <span style="color:{% if low_relevance %}#94a3b8{% else %}#1d4ed8{% endif %}; font-weight:600;">[{{ loop.index }}]</span>
       <strong style="color:{% if low_relevance %}#94a3b8{% else %}#1d4ed8{% endif %};">{{ cit.source }}</strong>
       {% if cit.position is not none %}
       <span style="color:#94a3b8; font-size:0.75rem;">(~{{ (cit.position * 100) | round | int }}%)</span>

@@ -86,6 +86,69 @@ def sanitize_filename(full_file_path: str, max_length: int = 60) -> str:
     return sanitized[:max_length]
 
 
+def strip_pptx_noise(md_text: str) -> str:
+    """Strip MarkItDown PPTX conversion noise from markdown.
+
+    Removes image references, HTML comments (slide numbers), and empty headers
+    that add no semantic value for RAG retrieval.
+
+    Args:
+        md_text: Markdown text from MarkItDown PPTX conversion
+
+    Returns:
+        Cleaned markdown text
+    """
+    text = re.sub(r"!\[.*?\]\(.*?\)\n*", "", md_text)
+    text = re.sub(r"<!--.*?-->\n*", "", text, flags=re.DOTALL)
+    text = re.sub(r"^#{1,6}\s*$", "", text, flags=re.MULTILINE)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def split_on_slides(md_text: str) -> list[str]:
+    """Split MarkItDown PPTX markdown into per-slide chunks.
+
+    Splits on ``<!-- Slide number: N -->`` markers. Should be called
+    BEFORE strip_pptx_noise so the markers are still present.
+
+    Args:
+        md_text: Raw markdown from MarkItDown PPTX conversion
+
+    Returns:
+        List of per-slide text blocks (markers stripped from output)
+    """
+    slides = re.split(r"<!--\s*Slide\s+number:\s*\d+\s*-->", md_text)
+    return [s.strip() for s in slides if s.strip()]
+
+
+def chunk_pptx(md_text: str, max_size: int = 1024) -> list[str]:
+    """Chunk PPTX markdown with slide-aware splitting and noise removal.
+
+    1. Split on slide markers (preserving slide boundaries)
+    2. Strip noise (images, HTML comments, empty headers) from each slide
+    3. Fall back to iterative_chunking for oversized slides
+    4. Merge small consecutive slides to reduce fragmentation
+
+    Args:
+        md_text: Raw markdown from MarkItDown PPTX conversion
+        max_size: Maximum chunk size in characters
+
+    Returns:
+        List of cleaned, right-sized chunks
+    """
+    slides = split_on_slides(md_text)
+    chunks = []
+    for slide in slides:
+        cleaned = strip_pptx_noise(slide)
+        if not cleaned:
+            continue
+        if len(cleaned) <= max_size:
+            chunks.append(cleaned)
+        else:
+            chunks.extend(iterative_chunking(cleaned, max_size))
+    return merge_small_chunks(chunks, max_size)
+
+
 def split_by_header(md_text: str, header_level: int = 1) -> list[str]:
     """
     Split Markdown text into sections based on header level.

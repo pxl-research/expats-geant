@@ -8,6 +8,17 @@ from cue_ui.main import app
 
 TOKEN_COOKIE = {"autofill_token": "test-jwt-token"}
 BASE = "http://localhost:8001"
+EMPTY_STATS = {
+    "session_id": "",
+    "user_id": "",
+    "created_at": "",
+    "expires_at": "",
+    "remaining_hours": 0,
+    "is_expired": False,
+    "document_count": 0,
+    "documents": [],
+    "isolation_scope": "session",
+}
 
 SURVEY_NO_FORMAT = {
     "id": "survey-lss",
@@ -43,6 +54,7 @@ class TestDisplayOnlyMode:
         respx.get(f"{BASE}/surveys/survey-lss").mock(
             return_value=httpx.Response(200, json=SURVEY_NO_FORMAT)
         )
+        respx.get(f"{BASE}/session/stats").mock(return_value=httpx.Response(200, json=EMPTY_STATS))
         client = TestClient(app, follow_redirects=False)
         resp = client.get("/session/survey-lss/review", cookies=TOKEN_COOKIE)
         assert resp.status_code == 200
@@ -58,6 +70,7 @@ class TestDisplayOnlyMode:
         respx.get(f"{BASE}/adapters/lss/capabilities").mock(
             return_value=httpx.Response(200, json=["read"])  # no "submit"
         )
+        respx.get(f"{BASE}/session/stats").mock(return_value=httpx.Response(200, json=EMPTY_STATS))
         client = TestClient(app, follow_redirects=False)
         resp = client.get("/session/survey-ls2/review", cookies=TOKEN_COOKIE)
         assert resp.status_code == 200
@@ -73,6 +86,7 @@ class TestDisplayOnlyMode:
         respx.get(f"{BASE}/adapters/lss/capabilities").mock(
             return_value=httpx.Response(200, json=["read", "submit"])
         )
+        respx.get(f"{BASE}/session/stats").mock(return_value=httpx.Response(200, json=EMPTY_STATS))
         client = TestClient(app, follow_redirects=False)
         resp = client.get("/session/survey-ls2/review", cookies=TOKEN_COOKIE)
         assert resp.status_code == 200
@@ -87,6 +101,7 @@ class TestDisplayOnlyMode:
         respx.get(f"{BASE}/adapters/lss/capabilities").mock(
             return_value=httpx.Response(503, json={"detail": "Service down"})
         )
+        respx.get(f"{BASE}/session/stats").mock(return_value=httpx.Response(200, json=EMPTY_STATS))
         client = TestClient(app, follow_redirects=False)
         resp = client.get("/session/survey-ls2/review", cookies=TOKEN_COOKIE)
         assert resp.status_code == 200
@@ -124,6 +139,7 @@ class TestFileUploadSession:
                 },
             )
         )
+        respx.get(f"{BASE}/session/stats").mock(return_value=httpx.Response(200, json=EMPTY_STATS))
         client = TestClient(app, follow_redirects=False)
         resp = client.get("/session/imported-xyz/review", cookies=TOKEN_COOKIE)
         assert resp.status_code == 200

@@ -141,6 +141,14 @@ async def review_page(request: Request, session_id: str):
 
     can_submit = "submit" in capabilities
 
+    # Fetch document info for the session panel
+    documents = []
+    try:
+        stats = await api_client.get_session_stats(token)
+        documents = stats.get("documents", [])
+    except APIError:
+        pass
+
     return templates.TemplateResponse(
         request,
         "survey.html",
@@ -149,6 +157,7 @@ async def review_page(request: Request, session_id: str):
             "survey": survey,
             "can_submit": can_submit,
             "form_values": {},
+            "documents": documents,
         },
     )
 
