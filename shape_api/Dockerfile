@@ -7,7 +7,7 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc g++ \
+    gcc g++ gosu \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -20,14 +20,17 @@ COPY run_chat_api.py ./run_chat_api.py
 
 RUN mkdir -p /app/data/sessions /app/logs
 
-# Run as non-root user
+# Create non-root user (entrypoint drops to this user via gosu)
 RUN groupadd -r appuser && useradd -r -g appuser -d /app appuser \
     && chown -R appuser:appuser /app
-USER appuser
+
+COPY shape_api/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 8003
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')"
 
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["python3", "run_chat_api.py"]

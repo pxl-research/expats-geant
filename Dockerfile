@@ -16,6 +16,7 @@ ENV PYTHONUNBUFFERED=1 \
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
@@ -36,10 +37,12 @@ COPY run_api.py ./run_api.py
 # Create directories for session data and logs
 RUN mkdir -p /app/data/sessions /app/data/chroma /app/logs
 
-# Run as non-root user
+# Create non-root user (entrypoint drops to this user via gosu)
 RUN groupadd -r appuser && useradd -r -g appuser -d /app appuser \
     && chown -R appuser:appuser /app
-USER appuser
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Expose port
 EXPOSE 8001
@@ -49,4 +52,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"
 
 # Run application
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["python3", "run_api.py"]
