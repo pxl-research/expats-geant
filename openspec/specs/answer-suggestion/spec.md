@@ -84,18 +84,19 @@ The system SHALL accept and preserve user-edited answers during a session.
 
 ### Requirement: Consistent LLM Prompt Format
 
-The system SHALL use the same JSON response format for single-question, batch, and
-streaming suggestion prompts.
+The system SHALL use the same JSON response format for batch and streaming suggestion
+prompts.
 
-#### Scenario: Single, batch, and streaming prompts use identical format
+#### Scenario: Batch and streaming prompts use identical format
 
-- **WHEN** any of `POST /suggest`, `POST /suggest/batch`, or `POST /suggest/stream` generates an LLM prompt
-- **THEN** all instruct the LLM to respond with the same JSON schema: `{"answer": "...", "selected": "...", "reasoning": "..."}`
+- **WHEN** either `POST /suggest/batch` or `POST /suggest/stream` generates an LLM prompt
+- **THEN** both instruct the LLM to respond with the same JSON schema:
+  `{"answer": "...", "selected": "...", "reasoning": "..."}`
 
 #### Scenario: Choice selection omitted for open-ended questions
 
 - **WHEN** a question is of type `open_ended`
-- **THEN** the `selected` field is omitted from the prompt and returned as `null`
+- **THEN** the `selected` field is omitted from the LLM prompt; because the LLM does not include it in its response, the parser treats the missing field as `null`
 
 ### Requirement: Streaming Suggestion Delivery
 
