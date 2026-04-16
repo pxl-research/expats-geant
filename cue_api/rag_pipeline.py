@@ -257,7 +257,7 @@ class RAGPipeline:
         if choices:
             choice_lines = "\n".join(f"- {c.id}: {c.label}" for c in choices)
             choice_block = f"\nAVAILABLE CHOICES:\n{choice_lines}\n"
-            selected_field = '  "selected": "<choice id from the list above, or null if you cannot determine>",\n'
+            selected_field = '  "selected": "<choice id from the list above, or null if you cannot determine. If the excerpts lack sufficient information, prefer a choice that expresses uncertainty (e.g. I don\'t know, N/A) over returning null>",\n'
         else:
             selected_field = ""
 

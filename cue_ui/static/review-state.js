@@ -103,4 +103,21 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   });
+
+  // Track manual changes to radio buttons and checkboxes
+  document.querySelectorAll("input[type='radio'][name^='q_'], input[type='checkbox'][name^='q_']").forEach(el => {
+    el.addEventListener("change", () => {
+      const qid = el.name.replace(/^q_/, "");
+      const current = rs.get(qid);
+      if (current && current.state === "accepted") {
+        rs.save(qid, { state: "edited", value: el.value });
+        // Reset the suggestion block styling
+        const block = document.getElementById("sug-" + qid);
+        if (block) {
+          block.style.border = "1px solid #2563eb";
+          block.style.background = "#eff6ff";
+        }
+      }
+    });
+  });
 });
