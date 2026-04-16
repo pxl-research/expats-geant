@@ -21,19 +21,37 @@
     });
   }
 
-  // ── Clear input immediately when request starts ───────────
+  // ── Clear input + show thinking bubble when request starts ─
   document.body.addEventListener("htmx:beforeRequest", function (evt) {
     var form = document.getElementById("chat-form");
     if (form && evt.detail.elt === form) {
       form.reset();
       var textarea = form.querySelector(".chat-textarea");
       if (textarea) textarea.style.height = "44px";
+
+      // Append a "thinking" bubble in the messages area
+      var msgs = document.getElementById("messages");
+      if (msgs) {
+        var bubble = document.createElement("div");
+        bubble.className = "msg-wrap msg-assistant";
+        bubble.id = "thinking-bubble";
+        bubble.innerHTML =
+          '<div class="msg-bubble msg-bubble-assistant" style="display:flex;align-items:center;gap:0.5rem">' +
+            '<div class="spinner"></div>' +
+            '<span style="color:var(--text-muted);font-size:0.85rem">Thinking\u2026</span>' +
+          '</div>';
+        msgs.appendChild(bubble);
+        msgs.scrollTop = msgs.scrollHeight;
+      }
     }
   });
 
+  // ── Remove thinking bubble + scroll when response arrives ─
   document.body.addEventListener("htmx:afterSwap", function (evt) {
     var msgs = document.getElementById("messages");
     if (msgs && evt.detail.target === msgs) {
+      var thinking = document.getElementById("thinking-bubble");
+      if (thinking) thinking.remove();
       msgs.scrollTop = msgs.scrollHeight;
     }
   });
