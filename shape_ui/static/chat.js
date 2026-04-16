@@ -46,12 +46,28 @@
     }
   });
 
-  // ── Remove thinking bubble + scroll when response arrives ─
+  // ── Force-swap error responses so the error partial is shown ─
+  document.body.addEventListener("htmx:beforeOnLoad", function (evt) {
+    var form = document.getElementById("chat-form");
+    if (form && evt.detail.elt === form && evt.detail.xhr.status >= 400) {
+      evt.detail.shouldSwap = true;
+      evt.detail.isError = false;
+    }
+  });
+
+  // ── Remove thinking bubble when any response arrives ───────
+  document.body.addEventListener("htmx:afterRequest", function (evt) {
+    var form = document.getElementById("chat-form");
+    if (form && evt.detail.elt === form) {
+      var thinking = document.getElementById("thinking-bubble");
+      if (thinking) thinking.remove();
+    }
+  });
+
+  // ── Scroll messages after swap (success or error) ─────────
   document.body.addEventListener("htmx:afterSwap", function (evt) {
     var msgs = document.getElementById("messages");
     if (msgs && evt.detail.target === msgs) {
-      var thinking = document.getElementById("thinking-bubble");
-      if (thinking) thinking.remove();
       msgs.scrollTop = msgs.scrollHeight;
     }
   });

@@ -1,7 +1,9 @@
 """Shape UI: chat, survey preview, content upload, export, and session management routes."""
 
+import logging
 from typing import Annotated
 
+import httpx
 from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
@@ -9,6 +11,8 @@ from shape_ui import api_client
 from shape_ui.api_client import APIError
 from shape_ui.auth import get_token
 from shape_ui.router import EXPORT_FORMATS, _render_error, templates
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -67,6 +71,28 @@ async def chat_send(
             "partials/message.html",
             {"user_message": message, "error": exc.detail},
             status_code=exc.status_code,
+        )
+    except httpx.TimeoutException:
+        logger.warning("chat_send timed out for session %s", session_id)
+        return templates.TemplateResponse(
+            request,
+            "partials/message.html",
+            {
+                "user_message": message,
+                "error": "The assistant took too long to respond. Please try again with a simpler request.",
+            },
+            status_code=504,
+        )
+    except Exception:
+        logger.exception("chat_send failed for session %s", session_id)
+        return templates.TemplateResponse(
+            request,
+            "partials/message.html",
+            {
+                "user_message": message,
+                "error": "The assistant is not responding. Please try again.",
+            },
+            status_code=500,
         )
 
     survey = None
