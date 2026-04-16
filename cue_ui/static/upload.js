@@ -11,7 +11,7 @@ document.addEventListener("DOMContentLoaded", function () {
   if (fileInput) {
     fileInput.addEventListener("change", function () {
       var ext = this.value.split(".").pop().toLowerCase();
-      var map = { qsf: "qsf", lss: "lss", xml: "qti", qti: "qti" };
+      var map = { qsf: "qsf", lss: "lss", xml: "qti", qti: "qti", json: "sm" };
       var fmt = map[ext];
       if (fmt) {
         document.getElementById("format").value = fmt;

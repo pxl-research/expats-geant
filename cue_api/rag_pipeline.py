@@ -34,7 +34,7 @@ _ANSWER_SYSTEM_PROMPT = (
 
 _REASONING_SYSTEM_PROMPT = (
     "You are helping a respondent answer a survey question based on their uploaded documents.\n"
-    "- Answer directly and concisely (max 3-4 sentences)\n"
+    "- Answer directly and concisely (max 3-4 sentences) in plain text, no markdown\n"
     "- Only use information from the provided excerpts\n"
     "- Answer in the same language as the question\n"
     '- If the excerpts do not contain enough information to answer, set "answer" to null\n'

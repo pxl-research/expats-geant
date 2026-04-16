@@ -81,12 +81,52 @@ document.addEventListener("DOMContentLoaded", function () {
       } else if (e.detail.type === "done") {
         container.removeAttribute("sse-connect");
         clearRemainingSpinners("No suggestion available.");
+        enableAcceptAllIfReady();
       }
     });
 
     // Stop reconnection on EventSource connection errors (e.g., session deleted)
     container.addEventListener("htmx:sseError", function () {
       container.removeAttribute("sse-connect");
+    });
+  }
+
+  // ---------------------------------------------------------------
+  // Accept all suggestions
+  // ---------------------------------------------------------------
+
+  function enableAcceptAllIfReady() {
+    var btn = document.getElementById("accept-all-btn");
+    if (!btn) return;
+    var hasAcceptable = document.querySelectorAll("[data-action='accept']").length > 0;
+    btn.disabled = !hasAcceptable;
+  }
+
+  // Also enable after each OOB swap (suggestion arrived)
+  document.body.addEventListener("htmx:oobAfterSwap", enableAcceptAllIfReady);
+
+  var acceptAllBtn = document.getElementById("accept-all-btn");
+  if (acceptAllBtn) {
+    acceptAllBtn.addEventListener("click", function () {
+      document.querySelectorAll("[data-action='accept']").forEach(function (btn) {
+        var block = btn.closest(".suggestion-block");
+        if (!block || block.style.display === "none") return;
+        var questionId = block.dataset.questionId;
+        var value = block.dataset.suggestion;
+        var selectedId = block.dataset.selectedId;
+
+        var textarea = document.getElementById("input-" + questionId);
+        if (textarea) {
+          textarea.value = value;
+        } else if (selectedId) {
+          var radio = document.getElementById("opt-" + questionId + "-" + selectedId);
+          if (radio) radio.checked = true;
+        }
+
+        block.style.border = "1px solid #16a34a";
+        block.style.background = "#f0fdf4";
+        reviewState.save(questionId, { state: "accepted", value: value, selected_id: selectedId });
+      });
     });
   }
 });

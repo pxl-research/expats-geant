@@ -31,6 +31,8 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     btn.disabled = true;
+    var skipBtn = document.getElementById("skip-btn");
+    if (skipBtn) skipBtn.classList.add("disabled");
     progress.style.display = "inline";
 
     var totalSteps = files.length + (text ? 1 : 0);
@@ -97,6 +99,7 @@ document.addEventListener("DOMContentLoaded", function () {
         updateProgress("");
         progress.style.display = "none";
         btn.disabled = false;
+        if (skipBtn) skipBtn.classList.remove("disabled");
 
         var existing = document.getElementById("upload-errors");
         if (existing) existing.remove();
