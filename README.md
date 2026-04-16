@@ -57,7 +57,7 @@ All code is open-source for non-commercial use only.
 - **LLM**: OpenRouter (primary) + OpenAI-compatible fallback + local LLM support
 - **Deployment**: Docker & Docker Compose
 - **Database**: PostgreSQL (future phase)
-- **Auth**: OAuth 2.0 & JWT
+- **Auth**: OIDC & JWT
 
 ## Quick Start
 
@@ -92,8 +92,8 @@ See [Deployment Guide](docs/DEPLOYMENT.md) for full configuration options, manua
 
 - [Project Context](openspec/project.md) — Detailed specifications, tech stack, conventions, and constraints
 - [Deployment Guide](docs/DEPLOYMENT.md) — Docker & local setup, environment variables, testing
-- [Cue API](docs/AUTOFILL_API.md) — JWT/auth setup, institutional SSO, Cue endpoint reference
-- [Shape API](docs/MCHAT_API.md) — Shape endpoint reference, conversational session API
+- [Cue API](docs/CUE_API.md) — JWT/auth setup, institutional SSO, Cue endpoint reference
+- [Shape API](docs/SHAPE_API.md) — Shape endpoint reference, conversational session API
 - [Testing Guide](docs/TESTING.md) — Conformance test suite, coverage, smoke tests
 - [Data Model](docs/DATA_MODEL.md) — Internal data structures, Mermaid diagrams, platform mapping
 - [Adapter Guide](docs/ADAPTERS.md) — Writing custom survey platform adapters

@@ -338,7 +338,7 @@ This document outlines the phased approach to building Expats from January to Ju
 - [ ] Bug fixes from pilot feedback
 - [ ] Final evaluation report (metrics, insights, recommendations)
 - [x] Deployment documentation (Docker, environment, setup) — `docs/DEPLOYMENT.md` (582 lines), comprehensive
-- [x] Integration documentation (SDK examples, API reference) — `docs/AUTOFILL_API.md` (709 lines), `docs/MCHAT_API.md` (693 lines), `docs/ADAPTERS.md` (297 lines)
+- [x] Integration documentation (SDK examples, API reference) — `docs/CUE_API.md` (709 lines), `docs/SHAPE_API.md` (693 lines), `docs/ADAPTERS.md` (297 lines)
 - [x] Admin templates & institutional reuse guides — `docs/OPERATOR_RUNBOOK.md` (operator decisions, GDPR checklist, onboarding) + `docs/STYLE_GUIDE_TEMPLATE.md` (institutional style profile template for Shape)
 - [ ] Live demo for GÉANT TNC (May 2026)
 - [ ] Open-source release (restricted license TBD) — `LICENSE` file present in repo root

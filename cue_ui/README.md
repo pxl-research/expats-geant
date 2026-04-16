@@ -23,7 +23,7 @@ docker compose up --build
 pip install -r cue_ui/requirements.txt
 
 # Point at a running Cue instance
-export AUTOFILL_API_URL=http://localhost:8001
+export CUE_API_URL=http://localhost:8001
 
 python -m uvicorn cue_ui.main:app --host 127.0.0.1 --port 8002 --reload
 ```

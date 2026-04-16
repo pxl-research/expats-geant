@@ -263,8 +263,8 @@ For more troubleshooting, see [DEPLOYMENT.md — Troubleshooting](DEPLOYMENT.md#
 ## 8. Contact and Support
 
 - Technical issues: [GitHub Issues](https://github.com/pxl-research/expats-geant/issues)
-- API reference (Cue): [AUTOFILL_API.md](AUTOFILL_API.md)
-- API reference (Shape): [MCHAT_API.md](MCHAT_API.md)
+- API reference (Cue): [CUE_API.md](CUE_API.md)
+- API reference (Shape): [SHAPE_API.md](SHAPE_API.md)
 - Deployment reference: [DEPLOYMENT.md](DEPLOYMENT.md)
 - Keycloak / SSO setup: [KEYCLOAK_SETUP.md](KEYCLOAK_SETUP.md)
 - Project lead: servaas.tilkin@pxl.be

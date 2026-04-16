@@ -2,7 +2,7 @@
 
 This guide explains how to integrate Cue with institutional authentication systems and test the API during development.
 
-> For Shape API, see [MCHAT_API.md](MCHAT_API.md).
+> For Shape API, see [SHAPE_API.md](SHAPE_API.md).
 
 ## Table of Contents
 
@@ -10,7 +10,7 @@ This guide explains how to integrate Cue with institutional authentication syste
 - [Authentication Model](#authentication-model)
 - [JWT Requirements](#jwt-requirements)
 - [API Token Endpoint](#api-token-endpoint)
-- [Institutional Integration](#institutional-integration)
+- [OIDC Login](#oidc-login)
 - [Session Lifecycle](#session-lifecycle)
 - [API Endpoints](#api-endpoints)
 - [Troubleshooting](#troubleshooting)
@@ -18,104 +18,16 @@ This guide explains how to integrate Cue with institutional authentication syste
 
 ## Deployment
 
-The recommended way to run Cue is via Docker Compose.
+Cue API runs on port `8001`. Interactive docs at `http://localhost:8001/docs`.
 
-### Prerequisites
+For setup, Docker Compose instructions, environment variables, and production hardening, see [DEPLOYMENT.md](DEPLOYMENT.md).
 
-- [Docker](https://docs.docker.com/get-docker/) installed and running
-- An [OpenRouter](https://openrouter.ai) API key (required for suggestion endpoints)
-
-### 1. Create a `.env` file
-
-Create a `.env` file in the project root. This file is read automatically by Docker Compose and is **never committed to version control**.
-
-```bash
-# .env
-
-# Required: LLM API key for suggestion endpoints
-OPENROUTER_API_KEY=sk-or-v1-your-key-here
-
-# Required: Secret used to sign and verify JWT tokens
-JWT_SECRET=change-me-to-a-strong-random-secret
-
-# Optional overrides (defaults shown)
-CUE_LLM_MODEL=anthropic/claude-sonnet-4.6
-SESSION_TTL_HOURS=24
-MAX_FILE_SIZE_MB=50
-AUDIT_RETENTION_DAYS=365
-LOG_LEVEL=INFO
-```
-
-> **Security**: Use a strong random value for `JWT_SECRET` in production (256+ bits of entropy). It must match the secret used by your identity provider to sign tokens.
-
-### 2. Build the image
-
-```bash
-docker build -t cue-api:latest .
-```
-
-### 3. Start the service
-
-```bash
-docker-compose up
-```
-
-The service starts on port `8001`. You should see:
-
-```
-✓ SessionManager initialized (base: /app/data/sessions)
-✓ LLM client initialized
-✓ AuditLogger initialized
-✓ FastAPI app configured
-
-Starting server on 0.0.0.0:8001...
-API docs available at: http://0.0.0.0:8001/docs
-```
-
-> **Note**: You may see a harmless `onnxruntime cpuid_info warning: Unknown CPU vendor` message on startup. This is a CPU detection quirk inside the container and does not affect functionality.
-
-### 4. Verify the service is running
+**Quick verify:**
 
 ```bash
 curl http://localhost:8001/health
 # {"status":"healthy"}
 ```
-
-Interactive API documentation is available at: `http://localhost:8001/docs`
-
-### 5. Stop the service
-
-```bash
-docker-compose down
-```
-
-### Data Persistence
-
-Session data and vector embeddings are stored in named Docker volumes (`sessions_data`, `chroma_data`) and persist across container restarts. To wipe all data:
-
-```bash
-docker-compose down -v
-```
-
-### Environment Variables Reference
-
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `OPENROUTER_API_KEY` | Yes* | — | API key for LLM calls via OpenRouter |
-| `JWT_SECRET` | Yes | `change-me-in-production` | Secret for JWT signing/verification |
-| `API_SECRET` | Yes† | — | Shared secret for `POST /auth/token` (server-to-server auth) |
-| `JWT_ALGORITHM` | No | `HS256` | JWT signing algorithm |
-| `JWT_EXPIRATION_HOURS` | No | `24` | Token lifetime in hours |
-| `CUE_LLM_MODEL` | No | `anthropic/claude-sonnet-4.6` | LLM model for Cue (falls back to `DEFAULT_LLM_MODEL`) |
-| `SESSION_TTL_HOURS` | No | `24` | Session expiry in hours |
-| `MAX_FILE_SIZE_MB` | No | `50` | Maximum upload file size |
-| `AUDIT_RETENTION_DAYS` | No | `365` | Audit log retention period |
-| `THINKING_BUDGET_TOKENS` | No | — | Token budget for extended thinking (Claude 3.5+/4.x only) |
-| `LOG_LEVEL` | No | `INFO` | Logging verbosity |
-
-†`API_SECRET` is required if you use `POST /auth/token`. Leave unset to disable the endpoint.
-
-*The service starts without an LLM key but suggestion endpoints will return errors.
 
 ---
 
@@ -226,7 +138,7 @@ curl -X POST http://localhost:8001/auth/token \
 }
 ```
 
-The endpoint is rate-limited to **5 requests per minute**. An incorrect or absent
+The endpoint is rate-limited to **10 requests per minute**. An incorrect or absent
 `api_secret` returns HTTP 401.
 
 #### Use the Token
@@ -648,32 +560,7 @@ curl -X POST http://localhost:8001/auth/token \
 
 ## Security Best Practices
 
-### JWT Secret Management
-
-- **Never commit** `JWT_SECRET` to version control
-- Use **strong secrets**: 256+ bits of entropy
-- **Rotate secrets** periodically (requires coordination with IdP)
-- Use environment-specific secrets (dev ≠ production)
-
-### Token Expiration
-
-- Keep token lifetime **short** (≤24 hours)
-- Implement token refresh flow in production
-- Validate `exp` claim on every request
-
-### HTTPS in Production
-
-- **Always use HTTPS** for production deployments
-- Tokens transmitted over HTTP are vulnerable to interception
-- Configure TLS termination at reverse proxy (nginx, Apache)
-
-### Rate Limiting
-
-Consider adding rate limiting for production:
-
-```nginx
-limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
-```
+See [DEPLOYMENT.md — Production Hardening](DEPLOYMENT.md#production-hardening) for full guidance on secret management, HTTPS, and rate limiting.
 
 ---
 
