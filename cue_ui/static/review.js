@@ -83,5 +83,10 @@ document.addEventListener("DOMContentLoaded", function () {
         clearRemainingSpinners("No suggestion available.");
       }
     });
+
+    // Stop reconnection on EventSource connection errors (e.g., session deleted)
+    container.addEventListener("htmx:sseError", function () {
+      container.removeAttribute("sse-connect");
+    });
   }
 });

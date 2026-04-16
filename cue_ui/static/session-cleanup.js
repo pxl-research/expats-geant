@@ -27,6 +27,12 @@ document.addEventListener("DOMContentLoaded", function () {
       fetch("/session", { method: "DELETE", credentials: "same-origin" })
         .then(function (resp) {
           if (resp.ok) {
+            // Clear all review state from localStorage
+            try {
+              Object.keys(localStorage)
+                .filter(function (k) { return k.startsWith("review-"); })
+                .forEach(function (k) { localStorage.removeItem(k); });
+            } catch (_) {}
             window.location.href = "/";
           } else {
             document.getElementById("cleanup-error").hidden = false;
