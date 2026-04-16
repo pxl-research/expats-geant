@@ -21,8 +21,8 @@
     });
   }
 
-  // ── Reset form + scroll after HTMX response ──────────────
-  document.body.addEventListener("htmx:afterRequest", function (evt) {
+  // ── Clear input immediately when request starts ───────────
+  document.body.addEventListener("htmx:beforeRequest", function (evt) {
     var form = document.getElementById("chat-form");
     if (form && evt.detail.elt === form) {
       form.reset();
