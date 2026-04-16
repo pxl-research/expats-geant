@@ -107,9 +107,19 @@ document.addEventListener("DOMContentLoaded", function () {
         var errorDiv = document.createElement("div");
         errorDiv.id = "upload-errors";
         errorDiv.className = "alert alert-error";
-        errorDiv.innerHTML = "<strong>Some files could not be uploaded:</strong><ul style='margin-top:0.5rem;padding-left:1.25rem;'>" +
-          errors.map(function (err) { return "<li>" + err + "</li>"; }).join("") +
-          "</ul>";
+        var errorTitle = document.createElement("strong");
+        errorTitle.textContent = "Some files could not be uploaded:";
+        errorDiv.appendChild(errorTitle);
+
+        var errorList = document.createElement("ul");
+        errorList.style.marginTop = "0.5rem";
+        errorList.style.paddingLeft = "1.25rem";
+        errors.forEach(function (err) {
+          var item = document.createElement("li");
+          item.textContent = err;
+          errorList.appendChild(item);
+        });
+        errorDiv.appendChild(errorList);
         form.parentElement.insertBefore(errorDiv, form);
       }
 

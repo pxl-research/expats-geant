@@ -50,7 +50,7 @@ async def upload_single_doc(request: Request, session_id: str, file: UploadFile 
             filename=file.filename or "upload",
         )
     except APIError as exc:
-        return JSONResponse({"error": exc.detail}, status_code=422)
+        return JSONResponse({"error": exc.detail}, status_code=exc.status_code)
     return JSONResponse({"status": "ok"})
 
 
@@ -60,7 +60,10 @@ async def upload_text_snippet(request: Request, session_id: str):
     token = get_token(request)
     if not token:
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
     text = body.get("text", "").strip()
     label = body.get("label") or None
     if not text:
@@ -73,7 +76,7 @@ async def upload_text_snippet(request: Request, session_id: str):
             label=label,
         )
     except APIError as exc:
-        return JSONResponse({"error": exc.detail}, status_code=422)
+        return JSONResponse({"error": exc.detail}, status_code=exc.status_code)
     return JSONResponse({"status": "ok"})
 
 

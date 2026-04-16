@@ -21,7 +21,7 @@
       {% endif %}
     </div>
     <div style="display:flex; gap:0.375rem; flex-shrink:0;">
-      {% if sug.suggestion %}
+      {% if sug.suggestion or sug.selected_id or sug.selected_ids %}
       <button type="button"
               class="btn btn-success"
               style="font-size:0.75rem; padding:0.3rem 0.7rem;"
@@ -43,6 +43,8 @@
       {% if cit.distance <= 0.4 %}{% set relevance_label = "Highly relevant" %}
       {% elif cit.distance <= 0.8 %}{% set relevance_label = "Somewhat relevant" %}
       {% else %}{% set relevance_label = "Low relevance" %}{% endif %}
+    {% else %}
+      {% set relevance_label = None %}
     {% endif %}
     <div style="font-size:0.8rem; margin-top:0.35rem; {% if low_relevance %}opacity:0.45;{% endif %}"
          {% if relevance_label is defined %}title="{{ relevance_label }}"{% endif %}>
