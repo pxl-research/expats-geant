@@ -121,7 +121,6 @@
       <button
         type="button"
         class="platform-card {% if loop.first %}selected{% endif %}"
-        onclick="selectPlatform(this, '{{ fmt.id }}', {{ 'true' if fmt.push else 'false' }})"
         data-fmt="{{ fmt.id }}"
         data-push="{{ 'true' if fmt.push else 'false' }}"
         aria-pressed="{{ 'true' if loop.first else 'false' }}"
@@ -155,8 +154,8 @@
       <div id="action-toggle" style="display:none; margin-top:1.25rem">
         <div class="divider" style="margin-top:0; margin-bottom:1rem"></div>
         <span style="font-size:0.875rem; font-weight:500; color:var(--text); margin-right:0.75rem">Delivery</span>
-        <button type="button" class="btn btn-sm btn-primary" id="toggle-download" onclick="setAction('download')">Download</button>
-        <button type="button" class="btn btn-sm btn-ghost" id="toggle-push" onclick="setAction('push')">Push to API</button>
+        <button type="button" class="btn btn-sm btn-primary" id="toggle-download">Download</button>
+        <button type="button" class="btn btn-sm btn-ghost" id="toggle-push">Push to API</button>
       </div>
 
       <!-- Credential panel (push platforms only) -->
@@ -201,42 +200,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-function selectPlatform(btn, fmtId, isPush) {
-  document.querySelectorAll('.platform-card').forEach(function(c) {
-    c.classList.remove('selected');
-    c.setAttribute('aria-pressed', 'false');
-  });
-  btn.classList.add('selected');
-  btn.setAttribute('aria-pressed', 'true');
-  document.getElementById('fmt-input').value = fmtId;
-  document.getElementById('action-toggle').style.display = isPush ? '' : 'none';
-  setAction('download');
-}
-
-(function() {
-  var selected = document.querySelector('.platform-card.selected');
-  if (selected && selected.dataset.push === 'true') {
-    document.getElementById('action-toggle').style.display = '';
-  }
-})();
-
-function setAction(action) {
-  document.getElementById('action-input').value = action;
-  var panel   = document.getElementById('credential-panel');
-  var btnDl   = document.getElementById('toggle-download');
-  var btnPush = document.getElementById('toggle-push');
-  if (action === 'push') {
-    panel.classList.add('visible');
-    btnDl.className   = 'btn btn-sm btn-ghost';
-    btnPush.className = 'btn btn-sm btn-primary';
-    document.getElementById('export-btn-label').textContent = 'Push to platform';
-  } else {
-    panel.classList.remove('visible');
-    btnDl.className   = 'btn btn-sm btn-primary';
-    btnPush.className = 'btn btn-sm btn-ghost';
-    document.getElementById('export-btn-label').textContent = 'Download';
-  }
-}
-</script>
+<script src="/static/export.js"></script>
 {% endblock %}
