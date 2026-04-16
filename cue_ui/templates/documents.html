@@ -52,20 +52,6 @@
   </form>
 </div>
 
-<script>
-document.querySelector('form').addEventListener('submit', function (e) {
-  e.preventDefault();
-  const btn = document.getElementById('upload-btn');
-  const fileInput = document.getElementById('files');
-  const count = fileInput.files.length;
-  btn.disabled = true;
-  const progress = document.getElementById('upload-progress');
-  progress.textContent = count > 0
-    ? `Uploading ${count} document${count > 1 ? 's' : ''}…`
-    : 'Uploading and indexing…';
-  progress.style.display = 'inline';
-  requestAnimationFrame(() => this.submit());
-});
-</script>
+<script src="/static/documents.js"></script>
 
 {% endblock %}

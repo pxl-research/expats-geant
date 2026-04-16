@@ -1,6 +1,7 @@
 <div class="suggestion-block"
      id="sug-{{ sug.item_id }}"
      hx-swap-oob="true"
+     data-question-id="{{ sug.item_id }}"
      data-suggestion="{{ sug.suggestion | default('') | e }}"
      data-selected-id="{{ sug.selected_id | default('') }}"
      style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:0.875rem; margin-top:1rem; padding-top:1rem; border-top:1px solid var(--border, #e2e8f0);">
@@ -24,12 +25,12 @@
       <button type="button"
               class="btn btn-success"
               style="font-size:0.75rem; padding:0.3rem 0.7rem;"
-              onclick="acceptSuggestion('{{ sug.item_id }}', this)">Accept</button>
+              data-action="accept">Accept</button>
       {% endif %}
       <button type="button"
               class="btn btn-ghost"
               style="font-size:0.75rem; padding:0.3rem 0.7rem;"
-              onclick="dismissSuggestion('{{ sug.item_id }}', this)">Dismiss</button>
+              data-action="dismiss">Dismiss</button>
     </div>
   </div>
 

@@ -114,7 +114,9 @@ class ItemSuggestion(BaseModel):
 
     item_id: str = Field(..., description="Matches the input item id")
     type: str = Field(..., description="Question type, echoed from input")
-    suggestion: str = Field(..., description="Human-readable answer, safe to display directly")
+    suggestion: str | None = Field(
+        None, description="Human-readable answer, or null when no relevant information found"
+    )
     selected_id: str | None = Field(
         None, description="Matched choice id for single_choice (null if uncertain)"
     )

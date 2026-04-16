@@ -6,22 +6,8 @@
   </p>
   <p id="cleanup-error" hidden style="color:var(--danger, #c0392b); font-size:0.85rem; margin-bottom:1rem;">Could not delete session. Please try again.</p>
   <div style="display:flex; gap:0.75rem; justify-content:flex-end">
-    <button type="button" class="btn btn-ghost" onclick="document.getElementById('cleanup-modal').close()">Keep session</button>
-    <button type="button" class="btn btn-danger" onclick="deleteAndRedirect()">Delete session data</button>
+    <button type="button" class="btn btn-ghost" id="cleanup-keep-btn">Keep session</button>
+    <button type="button" class="btn btn-danger" id="cleanup-delete-btn">Delete session data</button>
   </div>
 </dialog>
-<script>
-function deleteAndRedirect() {
-  fetch('/session', {method: 'DELETE', credentials: 'same-origin'})
-    .then(function(resp) {
-      if (resp.ok) {
-        window.location.href = '/';
-      } else {
-        document.getElementById('cleanup-error').hidden = false;
-      }
-    })
-    .catch(function() {
-      document.getElementById('cleanup-error').hidden = false;
-    });
-}
-</script>
+<script src="/static/session-cleanup.js"></script>

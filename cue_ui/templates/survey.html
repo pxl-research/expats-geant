@@ -45,7 +45,7 @@
 
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
   <button type="button" class="btn btn-ghost" style="font-size:0.8rem; color:var(--danger, #c0392b);"
-          onclick="document.getElementById('cleanup-modal').showModal()">Start over</button>
+          id="cleanup-open-btn">Start over</button>
   <a href="/session/{{ session_id }}/answer-report" class="btn btn-ghost" style="font-size:0.8rem;">View answer report</a>
 </div>
 {% include "partials/session_cleanup_modal.html" %}
@@ -160,63 +160,5 @@
 </form>
 
 <script src="/static/review-state.js"></script>
-<script>
-  // Initialize state manager and restore saved state on load
-  const reviewState = new ReviewState("{{ session_id }}");
-  document.addEventListener("DOMContentLoaded", () => reviewState.restoreAll());
-
-  function acceptSuggestion(questionId, btn) {
-    const block = btn.closest(".suggestion-block");
-    const value = block.dataset.suggestion;
-    const selectedId = block.dataset.selectedId;
-
-    const textarea = document.getElementById("input-" + questionId);
-    if (textarea) {
-      textarea.value = value;
-    } else if (selectedId) {
-      const radio = document.getElementById("opt-" + selectedId);
-      if (radio) radio.checked = true;
-    }
-
-    block.style.border = "1px solid #16a34a";
-    block.style.background = "#f0fdf4";
-
-    const rs = new ReviewState(block.closest("[data-session-id]")?.dataset.sessionId || "");
-    rs.save(questionId, { state: "accepted", value: value, selected_id: selectedId });
-  }
-
-  function dismissSuggestion(questionId, btn) {
-    const block = btn.closest(".suggestion-block");
-    block.style.display = "none";
-
-    const rs = new ReviewState(block.closest("[data-session-id]")?.dataset.sessionId || "");
-    rs.save(questionId, { state: "dismissed" });
-  }
-
-  // Restore accept/dismiss state whenever a suggestion block arrives via SSE OOB swap
-  document.body.addEventListener("htmx:oobAfterSwap", () => reviewState.restoreAll());
-
-  // Handle SSE error and done events to clear pending spinners
-  function clearRemainingSpinners(message) {
-    document.querySelectorAll(".suggestion-loading").forEach(el => {
-      el.closest(".suggestion-zone").innerHTML =
-        `<p style="color:var(--text-muted);font-size:0.875rem;">${message}</p>`;
-    });
-  }
-
-  document.getElementById("suggestions-container").addEventListener("htmx:sseMessage", function(e) {
-    if (e.detail.type === "error") {
-      document.getElementById("suggestions-container").removeAttribute("sse-connect");
-      let detail = "Suggestion stream failed.";
-      try { detail = JSON.parse(e.detail.data).detail || detail; } catch { /* use default */ }
-      const banner = document.getElementById("stream-error-banner");
-      banner.textContent = "Could not load suggestions: " + detail;
-      banner.style.display = "";
-      clearRemainingSpinners("Suggestion unavailable.");
-    } else if (e.detail.type === "done") {
-      document.getElementById("suggestions-container").removeAttribute("sse-connect");
-      clearRemainingSpinners("No suggestion available.");
-    }
-  });
-</script>
+<script src="/static/review.js"></script>
 {% endblock %}

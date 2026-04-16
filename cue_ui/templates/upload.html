@@ -96,37 +96,5 @@
   </form>
 </section>
 
-<script>
-// Auto-select format from file extension
-document.getElementById('file').addEventListener('change', function () {
-  const ext = this.value.split('.').pop().toLowerCase();
-  const map = { qsf: 'qsf', lss: 'lss', xml: 'qti', qti: 'qti' };
-  const fmt = map[ext];
-  if (fmt) {
-    document.getElementById('format').value = fmt;
-  }
-});
-
-// Show progress on submit
-document.getElementById('file-upload-form').addEventListener('submit', function () {
-  const btn = document.getElementById('submit-btn');
-  btn.disabled = true;
-  btn.textContent = 'Importing…';
-});
-
-const fmt = document.getElementById('api-format');
-const lsF = document.getElementById('ls-fields');
-const qsfF = document.getElementById('qsf-fields');
-function updateFields() {
-  lsF.style.display = fmt.value === 'lss' ? '' : 'none';
-  qsfF.style.display = fmt.value === 'qsf' ? '' : 'none';
-}
-fmt.addEventListener('change', updateFields);
-updateFields();  // restore on error re-render
-
-document.getElementById('api-import-form').addEventListener('submit', function() {
-  document.getElementById('api-import-btn').disabled = true;
-  document.getElementById('api-import-btn').textContent = 'Importing\u2026';
-});
-</script>
+<script src="/static/upload.js"></script>
 {% endblock %}
