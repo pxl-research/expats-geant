@@ -25,7 +25,8 @@
 
 <div class="card">
   <h2>Select Documents</h2>
-  <form method="post" action="/session/{{ session_id }}/documents" enctype="multipart/form-data">
+  <form method="post" action="/session/{{ session_id }}/documents" enctype="multipart/form-data"
+        data-session-id="{{ session_id }}">
     <div style="margin-bottom:1rem;">
       <label for="files">Documents (PDF, DOCX, PPTX, TXT, MD, XLS/XLSX, images)</label>
       <input type="file" id="files" name="files" multiple

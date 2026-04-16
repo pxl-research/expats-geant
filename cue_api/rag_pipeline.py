@@ -19,7 +19,7 @@ from m_shared.models.citation import Citation
 from m_shared.models.question import QuestionType
 from m_shared.session import SessionManager
 from m_shared.utils import AuditLogger
-from m_shared.utils.llm_parsing import strip_code_fences
+from m_shared.utils.llm_parsing import extract_json_object
 
 logger = logging.getLogger(__name__)
 
@@ -311,7 +311,7 @@ class RAGPipeline:
             are None if absent or blank. selected_raw is the bare value before
             any choice validation.
         """
-        text = strip_code_fences(raw)
+        text = extract_json_object(raw)
 
         try:
             data = json.loads(text)
