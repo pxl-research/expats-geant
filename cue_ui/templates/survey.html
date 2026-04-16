@@ -45,7 +45,7 @@
 
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
   <button type="button" class="btn btn-ghost" style="font-size:0.8rem; color:var(--danger, #c0392b);"
-          onclick="document.getElementById('cleanup-modal').showModal()">Start over</button>
+          id="cleanup-open-btn">Start over</button>
   <a href="/session/{{ session_id }}/answer-report" class="btn btn-ghost" style="font-size:0.8rem;">View answer report</a>
 </div>
 {% include "partials/session_cleanup_modal.html" %}
@@ -62,6 +62,24 @@
 
 {% if submit_error %}
 <div class="alert alert-error">Submission failed: {{ submit_error }}</div>
+{% endif %}
+
+{% if documents %}
+<details style="margin-bottom:1.25rem;">
+  <summary style="cursor:pointer; font-size:0.85rem; font-weight:600; color:var(--text-muted);">
+    Uploaded documents ({{ documents | length }})
+  </summary>
+  <div style="margin-top:0.5rem; padding:0.5rem 0.75rem; background:var(--surface-card); border:1px solid var(--border); border-radius:var(--radius); font-size:0.8rem;">
+    <table style="width:100%; border-collapse:collapse;">
+      {% for doc in documents %}
+      <tr>
+        <td style="padding:0.375rem 0.5rem 0.375rem 0;">{{ doc.name }}</td>
+        <td style="padding:0.375rem 0; text-align:right; color:var(--text-muted); white-space:nowrap;">{{ doc.chunk_count }} chunk{{ 's' if doc.chunk_count != 1 }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</details>
 {% endif %}
 
 <!-- SSE connection: one suggestion streams in per question as it completes -->
@@ -97,9 +115,9 @@
         {% for option in question.answer_options | default([]) %}
         <div class="option-row">
           <input type="radio" name="q_{{ question.id }}"
-                 id="opt-{{ option.id }}" value="{{ option.id }}"
+                 id="opt-{{ question.id }}-{{ option.id }}" value="{{ option.id }}"
                  {% if form_values.get("q_" ~ question.id) == option.id %}checked{% endif %}>
-          <label for="opt-{{ option.id }}">{{ option.text }}</label>
+          <label for="opt-{{ question.id }}-{{ option.id }}">{{ option.text }}</label>
         </div>
         {% endfor %}
 
@@ -107,9 +125,9 @@
         {% for option in question.answer_options | default([]) %}
         <div class="option-row">
           <input type="checkbox" name="q_{{ question.id }}"
-                 id="opt-{{ option.id }}" value="{{ option.id }}"
+                 id="opt-{{ question.id }}-{{ option.id }}" value="{{ option.id }}"
                  {% if option.id in (form_values.get("q_" ~ question.id) or []) %}checked{% endif %}>
-          <label for="opt-{{ option.id }}">{{ option.text }}</label>
+          <label for="opt-{{ question.id }}-{{ option.id }}">{{ option.text }}</label>
         </div>
         {% endfor %}
 
@@ -159,34 +177,11 @@
 {% endif %}
 </form>
 
+<div style="margin-top:1rem; text-align:right;">
+  <button type="button" class="btn btn-ghost" id="accept-all-btn" disabled
+          style="font-size:0.8rem;">Accept all suggestions</button>
+</div>
+
 <script src="/static/review-state.js"></script>
-<script>
-  // Initialize state manager and restore saved state on load
-  const reviewState = new ReviewState("{{ session_id }}");
-  document.addEventListener("DOMContentLoaded", () => reviewState.restoreAll());
-
-  // Restore accept/dismiss state whenever a suggestion block arrives via SSE OOB swap
-  document.body.addEventListener("htmx:oobAfterSwap", () => reviewState.restoreAll());
-
-  // Handle SSE error and done events to clear pending spinners
-  function clearRemainingSpinners(message) {
-    document.querySelectorAll(".suggestion-loading").forEach(el => {
-      el.closest(".suggestion-zone").innerHTML =
-        `<p style="color:var(--text-muted);font-size:0.875rem;">${message}</p>`;
-    });
-  }
-
-  document.getElementById("suggestions-container").addEventListener("htmx:sseMessage", function(e) {
-    if (e.detail.type === "error") {
-      let detail = "Suggestion stream failed.";
-      try { detail = JSON.parse(e.detail.data).detail || detail; } catch { /* use default */ }
-      const banner = document.getElementById("stream-error-banner");
-      banner.textContent = "Could not load suggestions: " + detail;
-      banner.style.display = "";
-      clearRemainingSpinners("Suggestion unavailable.");
-    } else if (e.detail.type === "done") {
-      clearRemainingSpinners("No suggestion available.");
-    }
-  });
-</script>
+<script src="/static/review.js"></script>
 {% endblock %}

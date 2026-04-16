@@ -114,7 +114,9 @@ class ItemSuggestion(BaseModel):
 
     item_id: str = Field(..., description="Matches the input item id")
     type: str = Field(..., description="Question type, echoed from input")
-    suggestion: str = Field(..., description="Human-readable answer, safe to display directly")
+    suggestion: str | None = Field(
+        None, description="Human-readable answer, or null when no relevant information found"
+    )
     selected_id: str | None = Field(
         None, description="Matched choice id for single_choice (null if uncertain)"
     )
@@ -156,6 +158,13 @@ class UploadTextRequest(BaseModel):
     label: str | None = Field(default=None, max_length=200)
 
 
+class DocumentInfo(BaseModel):
+    """Info about a single ingested document."""
+
+    name: str
+    chunk_count: int
+
+
 class SessionStatsResponse(BaseModel):
     """Session statistics response."""
 
@@ -166,6 +175,7 @@ class SessionStatsResponse(BaseModel):
     remaining_hours: float
     is_expired: bool
     document_count: int
+    documents: list[DocumentInfo] = Field(default_factory=list)
     isolation_scope: str
 
 

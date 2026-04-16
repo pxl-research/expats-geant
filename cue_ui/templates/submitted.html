@@ -11,19 +11,8 @@
   <a href="/" class="btn btn-primary" style="margin-top:1.5rem;">Start a New Review</a>
 </div>
 
-<script>
-// Clear localStorage review state for this session
-try {
-  const key = "review-{{ session_id }}";
-  localStorage.removeItem(key);
-} catch (e) {}
-</script>
-
+<div data-session-id="{{ session_id }}"></div>
 {% include "partials/session_cleanup_modal.html" %}
-<script>
-  window.addEventListener('load', function() {
-    document.getElementById('cleanup-modal').showModal();
-  });
-</script>
+<script src="/static/submitted.js"></script>
 
 {% endblock %}

@@ -207,6 +207,22 @@ class TestReviewPage:
         respx.get(f"{BASE}/adapters/qsf/capabilities").mock(
             return_value=httpx.Response(200, json=["read", "submit"])
         )
+        respx.get(f"{BASE}/session/stats").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "session_id": "",
+                    "user_id": "",
+                    "created_at": "",
+                    "expires_at": "",
+                    "remaining_hours": 0,
+                    "is_expired": False,
+                    "document_count": 0,
+                    "documents": [],
+                    "isolation_scope": "session",
+                },
+            )
+        )
         client = TestClient(app, follow_redirects=False)
         resp = client.get("/session/survey-abc/review", cookies=TOKEN_COOKIE)
         assert resp.status_code == 200

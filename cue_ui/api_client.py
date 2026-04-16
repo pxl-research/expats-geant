@@ -70,6 +70,20 @@ async def submit_responses(token: str, session_id: str, responses: dict[str, Any
     _raise_for_status(resp)
 
 
+async def get_session_stats(token: str) -> dict[str, Any]:
+    """Fetch session statistics from Cue API.
+
+    GET /session/stats → session stats dict
+    """
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{CUE_API_URL}/session/stats",
+            headers=auth_headers(token),
+        )
+    _raise_for_status(resp)
+    return resp.json()
+
+
 async def delete_session(token: str) -> None:
     """Delete the current session and all associated data.
 

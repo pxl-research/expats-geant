@@ -19,6 +19,7 @@ from tqdm import tqdm
 from m_shared.utils import AuditLogger
 from m_shared.vectordb import (
     ChromaDocumentStore,
+    chunk_pptx,
     document_to_markdown,
     iterative_chunking,
     sanitize_filename,
@@ -75,7 +76,11 @@ def ingest_files_into_store(
                 continue
         else:
             md_text = document_to_markdown(file_path)
-        chunks = iterative_chunking(md_text, max_size=max_chunk_size)
+
+        if suffix == ".pptx":
+            chunks = chunk_pptx(md_text, max_size=max_chunk_size)
+        else:
+            chunks = iterative_chunking(md_text, max_size=max_chunk_size)
         ingested_at = datetime.utcnow().timestamp()  # Unix timestamp for ChromaDB range filtering
         total_chunks = len(chunks)
         meta_info = [

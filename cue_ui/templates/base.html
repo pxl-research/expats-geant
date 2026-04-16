@@ -8,6 +8,7 @@
   <script src="/static/htmx-ext-sse.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    dialog { margin: auto; }
 
     :root {
       --brand: #2563eb;
@@ -67,6 +68,7 @@
       border: none; text-decoration: none; transition: opacity 0.15s;
     }
     .btn:hover { opacity: 0.88; }
+    .btn:disabled, .btn.disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
     .btn-primary  { background: var(--brand); color: #fff; }
     .btn-ghost    { background: transparent; color: var(--brand); border: 1px solid var(--brand); }
     .btn-danger   { background: var(--danger); color: #fff; }

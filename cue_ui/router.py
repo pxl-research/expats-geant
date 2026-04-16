@@ -11,7 +11,7 @@ router: APIRouter = APIRouter()
 _TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 templates = Jinja2Templates(directory=_TEMPLATES_DIR)
 
-SURVEY_FORMATS = ["qsf", "lss", "qti"]
+SURVEY_FORMATS = ["qsf", "lss", "qti", "sm"]
 
 
 def _render_error(request: Request, message: str, status_code: int = 500) -> HTMLResponse:

@@ -35,6 +35,51 @@ async def documents_page(request: Request, session_id: str, warning: str | None 
     )
 
 
+@router.post("/session/{session_id}/upload-doc")
+async def upload_single_doc(request: Request, session_id: str, file: UploadFile = File(...)):
+    """Upload a single document (called via fetch from documents.js)."""
+    token = get_token(request)
+    if not token:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    file_bytes = await file.read()
+    try:
+        await api_client.ingest_document(
+            token=token,
+            session_id=session_id,
+            file_bytes=file_bytes,
+            filename=file.filename or "upload",
+        )
+    except APIError as exc:
+        return JSONResponse({"error": exc.detail}, status_code=exc.status_code)
+    return JSONResponse({"status": "ok"})
+
+
+@router.post("/session/{session_id}/upload-text-snippet")
+async def upload_text_snippet(request: Request, session_id: str):
+    """Upload a text snippet (called via fetch from documents.js)."""
+    token = get_token(request)
+    if not token:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    text = body.get("text", "").strip()
+    label = body.get("label") or None
+    if not text:
+        return JSONResponse({"error": "Empty text"}, status_code=400)
+    try:
+        await api_client.ingest_text_snippet(
+            token=token,
+            session_id=session_id,
+            text=text,
+            label=label,
+        )
+    except APIError as exc:
+        return JSONResponse({"error": exc.detail}, status_code=exc.status_code)
+    return JSONResponse({"status": "ok"})
+
+
 @router.post("/session/{session_id}/documents")
 async def documents_upload(
     request: Request,
@@ -133,6 +178,14 @@ async def review_page(request: Request, session_id: str):
 
     can_submit = "submit" in capabilities
 
+    # Fetch document info for the session panel
+    documents = []
+    try:
+        stats = await api_client.get_session_stats(token)
+        documents = stats.get("documents", [])
+    except APIError:
+        pass
+
     return templates.TemplateResponse(
         request,
         "survey.html",
@@ -141,6 +194,7 @@ async def review_page(request: Request, session_id: str):
             "survey": survey,
             "can_submit": can_submit,
             "form_values": {},
+            "documents": documents,
         },
     )
 
@@ -340,12 +394,12 @@ async def submit_responses(request: Request, session_id: str):
 
 @router.delete("/session")
 async def delete_session(request: Request):
-    """Delete the current session and redirect to home."""
+    """Delete the current session (called via fetch from cleanup modal)."""
     token = get_token(request)
     if not token:
-        return RedirectResponse(url="/auth/login", status_code=302)
+        return JSONResponse({"detail": "Unauthorized"}, status_code=401)
     try:
         await api_client.delete_session(token)
     except APIError as exc:
-        return _render_error(request, f"Could not delete session: {exc.detail}", exc.status_code)
-    return RedirectResponse(url="/", status_code=302)
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    return JSONResponse({"status": "deleted"}, status_code=200)

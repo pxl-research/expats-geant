@@ -384,11 +384,13 @@ class SessionManager:
         remaining_hours = max(0, remaining.total_seconds() / 3600)
 
         # Count documents from vector store (raw files are deleted after ingestion)
+        documents: list[dict] = []
         try:
             store = self.get_vector_store(session_id)
-            doc_count = len(store.list_documents())
+            for col in store.cdb_client.list_collections():
+                documents.append({"name": col.name, "chunk_count": col.count()})
         except FileNotFoundError:
-            doc_count = 0
+            pass
 
         return {
             "session_id": session.session_id,
@@ -397,6 +399,7 @@ class SessionManager:
             "expires_at": session.expires_at.isoformat(),
             "remaining_hours": round(remaining_hours, 2),
             "is_expired": session.is_expired(),
-            "document_count": doc_count,
+            "document_count": len(documents),
+            "documents": documents,
             "isolation_scope": session.isolation_scope,
         }

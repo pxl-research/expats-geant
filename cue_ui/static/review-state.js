@@ -71,7 +71,7 @@ class ReviewState {
         if (textarea && saved.value !== undefined) {
           textarea.value = saved.value;
         } else if (saved.selected_id) {
-          const radio = document.getElementById("opt-" + saved.selected_id);
+          const radio = document.getElementById("opt-" + questionId + "-" + saved.selected_id);
           if (radio) radio.checked = true;
         }
       } else if (saved.state === "edited") {
@@ -81,6 +81,14 @@ class ReviewState {
         }
         if (textarea && saved.value !== undefined) {
           textarea.value = saved.value;
+        } else if (saved.selected_id) {
+          var radio = document.getElementById("opt-" + questionId + "-" + saved.selected_id);
+          if (radio) radio.checked = true;
+        } else if (saved.selected_ids) {
+          saved.selected_ids.forEach(function (id) {
+            var cb = document.getElementById("opt-" + questionId + "-" + id);
+            if (cb) cb.checked = true;
+          });
         }
       }
     }
@@ -100,6 +108,28 @@ document.addEventListener("DOMContentLoaded", () => {
       // Only mark as "edited" if it was previously accepted
       if (current && current.state === "accepted") {
         rs.save(qid, { state: "edited", value: el.value });
+      }
+    });
+  });
+
+  // Track manual changes to radio buttons and checkboxes
+  document.querySelectorAll("input[type='radio'][name^='q_'], input[type='checkbox'][name^='q_']").forEach(el => {
+    el.addEventListener("change", () => {
+      const qid = el.name.replace(/^q_/, "");
+      const current = rs.get(qid);
+      if (current && current.state === "accepted") {
+        if (el.type === "radio") {
+          rs.save(qid, { state: "edited", selected_id: el.value });
+        } else {
+          const checked = Array.from(document.querySelectorAll("input[type='checkbox'][name='q_" + qid + "']:checked"))
+            .map(cb => cb.value);
+          rs.save(qid, { state: "edited", selected_ids: checked });
+        }
+        const block = document.getElementById("sug-" + qid);
+        if (block) {
+          block.style.border = "1px solid #2563eb";
+          block.style.background = "#eff6ff";
+        }
       }
     });
   });
