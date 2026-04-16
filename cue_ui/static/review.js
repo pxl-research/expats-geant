@@ -28,7 +28,7 @@ document.addEventListener("DOMContentLoaded", function () {
       if (textarea) {
         textarea.value = value;
       } else if (selectedId) {
-        var radio = document.getElementById("opt-" + selectedId);
+        var radio = document.getElementById("opt-" + questionId + "-" + selectedId);
         if (radio) radio.checked = true;
       }
 

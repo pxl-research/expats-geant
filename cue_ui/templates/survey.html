@@ -97,9 +97,9 @@
         {% for option in question.answer_options | default([]) %}
         <div class="option-row">
           <input type="radio" name="q_{{ question.id }}"
-                 id="opt-{{ option.id }}" value="{{ option.id }}"
+                 id="opt-{{ question.id }}-{{ option.id }}" value="{{ option.id }}"
                  {% if form_values.get("q_" ~ question.id) == option.id %}checked{% endif %}>
-          <label for="opt-{{ option.id }}">{{ option.text }}</label>
+          <label for="opt-{{ question.id }}-{{ option.id }}">{{ option.text }}</label>
         </div>
         {% endfor %}
 
@@ -107,9 +107,9 @@
         {% for option in question.answer_options | default([]) %}
         <div class="option-row">
           <input type="checkbox" name="q_{{ question.id }}"
-                 id="opt-{{ option.id }}" value="{{ option.id }}"
+                 id="opt-{{ question.id }}-{{ option.id }}" value="{{ option.id }}"
                  {% if option.id in (form_values.get("q_" ~ question.id) or []) %}checked{% endif %}>
-          <label for="opt-{{ option.id }}">{{ option.text }}</label>
+          <label for="opt-{{ question.id }}-{{ option.id }}">{{ option.text }}</label>
         </div>
         {% endfor %}
 

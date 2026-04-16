@@ -348,12 +348,12 @@ async def submit_responses(request: Request, session_id: str):
 
 @router.delete("/session")
 async def delete_session(request: Request):
-    """Delete the current session and redirect to home."""
+    """Delete the current session (called via fetch from cleanup modal)."""
     token = get_token(request)
     if not token:
-        return RedirectResponse(url="/auth/login", status_code=302)
+        return JSONResponse({"detail": "Unauthorized"}, status_code=401)
     try:
         await api_client.delete_session(token)
     except APIError as exc:
-        return _render_error(request, f"Could not delete session: {exc.detail}", exc.status_code)
-    return RedirectResponse(url="/", status_code=302)
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    return JSONResponse({"status": "deleted"}, status_code=200)

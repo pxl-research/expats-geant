@@ -71,7 +71,7 @@ class ReviewState {
         if (textarea && saved.value !== undefined) {
           textarea.value = saved.value;
         } else if (saved.selected_id) {
-          const radio = document.getElementById("opt-" + saved.selected_id);
+          const radio = document.getElementById("opt-" + questionId + "-" + saved.selected_id);
           if (radio) radio.checked = true;
         }
       } else if (saved.state === "edited") {
