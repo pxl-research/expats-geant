@@ -186,7 +186,7 @@ Environment variables (see `.env.example`):
 # LLM Configuration
 OPENROUTER_API_KEY=sk_...
 LLM_BASE_URL=https://openrouter.ai/api/v1
-DEFAULT_LLM_MODEL=anthropic/claude-haiku-4.5  # shared fallback; override per-service with CUE_LLM_MODEL / SHAPE_LLM_MODEL
+DEFAULT_LLM_MODEL=anthropic/claude-haiku-4.5  # shared fallback; docker-compose maps CUE_LLM_MODEL / SHAPE_LLM_MODEL to LLM_MODEL per container
 
 # Vector DB
 CHROMA_BASE_PATH=/app/data/chroma

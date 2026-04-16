@@ -63,8 +63,11 @@
     var ta = container.querySelector("#export-content");
     var link = container.querySelector("#download-link");
     if (ta && link) {
+      // Revoke previous blob URL if re-exporting
+      if (link._blobUrl) URL.revokeObjectURL(link._blobUrl);
       var blob = new Blob([ta.value], { type: "text/plain" });
-      link.href = URL.createObjectURL(blob);
+      link._blobUrl = URL.createObjectURL(blob);
+      link.href = link._blobUrl;
     }
 
     // Copy button

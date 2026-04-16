@@ -29,8 +29,10 @@
       var textarea = form.querySelector(".chat-textarea");
       if (textarea) textarea.style.height = "44px";
 
-      // Append a "thinking" bubble in the messages area
+      // Append a "thinking" bubble in the messages area (remove stale one first)
       var msgs = document.getElementById("messages");
+      var existing = document.getElementById("thinking-bubble");
+      if (existing) existing.remove();
       if (msgs) {
         var bubble = document.createElement("div");
         bubble.className = "msg-wrap msg-assistant";
