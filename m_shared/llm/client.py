@@ -130,13 +130,14 @@ class LLMClient(OpenAI):
             Generated response text
         """
         kwargs = self._inject_thinking(kwargs)
+        temperature = kwargs.pop("temperature", self.temperature)
         response = self._retry_with_backoff(
             self.chat.completions.create,
             model=self.model_name,
             messages=messages,
             tools=self.tools_list,
             stream=False,
-            temperature=self.temperature,
+            temperature=temperature,
             extra_headers=self.extra_headers,
             **kwargs,
         )

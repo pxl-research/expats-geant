@@ -109,7 +109,7 @@ class RAGPipeline:
         self.audit_logger = audit_logger
         self.max_citation_distance = max_citation_distance
         self.query_rewrite = query_rewrite
-        self.rewrite_batch_size = rewrite_batch_size
+        self.rewrite_batch_size = max(1, rewrite_batch_size)
         self.rewrite_llm_client = rewrite_llm_client or llm_client
 
     def retrieve(
@@ -212,15 +212,11 @@ class RAGPipeline:
                 {"role": "user", "content": user_content},
             ]
 
-            original_temp = self.rewrite_llm_client.temperature
-            self.rewrite_llm_client.temperature = 0.0
-            try:
-                raw = self.rewrite_llm_client.create_completion(
-                    messages=messages,
-                    max_tokens=min(30 * len(items), 1000),
-                )
-            finally:
-                self.rewrite_llm_client.temperature = original_temp
+            raw = self.rewrite_llm_client.create_completion(
+                messages=messages,
+                max_tokens=min(30 * len(items), 1000),
+                temperature=0.0,
+            )
 
             if not raw or not raw.strip():
                 logger.warning("Query rewrite returned empty response")
