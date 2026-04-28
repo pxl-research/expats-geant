@@ -284,6 +284,7 @@ class AuditLogger:
         model: str,
         user_id: str | None = None,
         question_id: str | None = None,
+        distilled_query: str | None = None,
     ) -> None:
         """Log an answer suggestion generation event.
 
@@ -295,19 +296,23 @@ class AuditLogger:
             model: LLM model used for generation
             user_id: Optional user identifier
             question_id: Optional question identifier
+            distilled_query: Optional distilled search query used for retrieval
         """
+        details = {
+            "question": question,
+            "question_id": question_id,
+            "suggested_answer": suggested_answer,
+            "sources_used": sources_used,
+            "model": model,
+            "source_count": len(sources_used),
+        }
+        if distilled_query is not None:
+            details["distilled_query"] = distilled_query
         entry = AuditLogEntry(
             event_type=AuditEventType.SUGGEST,
             session_id=session_id,
             user_id=user_id,
-            details={
-                "question": question,
-                "question_id": question_id,
-                "suggested_answer": suggested_answer,
-                "sources_used": sources_used,
-                "model": model,
-                "source_count": len(sources_used),
-            },
+            details=details,
         )
         self._add_entry(entry)
 

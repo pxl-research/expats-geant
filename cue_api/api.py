@@ -68,11 +68,19 @@ def create_app(
         except ValueError:
             logger.warning("Invalid CUE_MAX_CITATION_DISTANCE value; using default 1.5")
             max_citation_distance = 1.5
+        query_distillation = os.getenv("CUE_QUERY_DISTILLATION", "true").lower() != "false"
+        try:
+            distillation_batch_size = max(1, int(os.getenv("CUE_DISTILLATION_BATCH_SIZE", "20")))
+        except ValueError:
+            logger.warning("Invalid CUE_DISTILLATION_BATCH_SIZE; using default 20")
+            distillation_batch_size = 20
         rag_pipeline = RAGPipeline(
             session_manager=session_manager,
             llm_client=llm_client,
             audit_logger=audit_logger,
             max_citation_distance=max_citation_distance,
+            query_distillation=query_distillation,
+            distillation_batch_size=distillation_batch_size,
         )
 
     # Store dependencies on app.state for route modules

@@ -48,6 +48,10 @@ services:
       - SESSIONS_BASE_PATH=/app/data/sessions
       - CHROMA_BASE_PATH=/app/data/chroma
 
+      # Query distillation
+      - CUE_QUERY_DISTILLATION=${CUE_QUERY_DISTILLATION:-true}
+      - CUE_DISTILLATION_BATCH_SIZE=${CUE_DISTILLATION_BATCH_SIZE:-20}
+
       # Logging
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - ENVIRONMENT=${ENVIRONMENT:-development}

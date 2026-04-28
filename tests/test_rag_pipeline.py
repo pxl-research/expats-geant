@@ -1,5 +1,6 @@
 """Unit tests for RAG pipeline components."""
 
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -26,13 +27,14 @@ def mock_llm_client():
 
 @pytest.fixture
 def rag_pipeline(mock_session_manager, mock_llm_client):
-    """RAG pipeline with mocked dependencies."""
+    """RAG pipeline with mocked dependencies (distillation off for existing tests)."""
     return RAGPipeline(
         session_manager=mock_session_manager,
         llm_client=mock_llm_client,
         default_top_k=5,
         default_temperature=0.4,
         max_tokens=500,
+        query_distillation=False,
     )
 
 
@@ -483,3 +485,440 @@ def test_extract_excerpt_no_breaks(rag_pipeline):
 
     assert len(excerpt) == 203  # 200 + "..."
     assert excerpt.endswith("...")
+
+
+# ============================================================================
+# Tests for query distillation
+# ============================================================================
+
+
+def _make_item(item_id, prompt, item_type="open_ended", choices=None):
+    """Helper to create item-like objects for distillation tests."""
+    return SimpleNamespace(
+        id=item_id,
+        prompt=prompt,
+        type=SimpleNamespace(value=item_type),
+        choices=choices or [],
+    )
+
+
+def _make_choice(choice_id, label):
+    return SimpleNamespace(id=choice_id, label=label)
+
+
+@pytest.fixture
+def distill_pipeline(mock_session_manager, mock_llm_client):
+    """RAG pipeline with distillation enabled."""
+    mock_store = mock_session_manager.get_vector_store.return_value
+    mock_store.list_documents.return_value = ["contract.pdf", "cv.docx"]
+    mock_llm_client.temperature = 0.4
+    return RAGPipeline(
+        session_manager=mock_session_manager,
+        llm_client=mock_llm_client,
+        default_top_k=5,
+        default_temperature=0.4,
+        max_tokens=500,
+        query_distillation=True,
+        distillation_batch_size=20,
+    )
+
+
+class TestDistillQueries:
+    """Tests for _distill_queries() core method."""
+
+    def test_success(self, distill_pipeline, mock_llm_client):
+        items = [
+            _make_item("q1", "What is your current employment status?"),
+            _make_item("q2", "How long is your contract?"),
+        ]
+        mock_llm_client.create_completion.return_value = (
+            '{"q1": "employment status", "q2": "contract duration"}'
+        )
+
+        result = distill_pipeline._distill_queries(items, "Employment", ["contract.pdf"])
+
+        assert result["q1"] == "employment status"
+        assert result["q2"] == "contract duration"
+
+    def test_partial_response(self, distill_pipeline, mock_llm_client):
+        items = [
+            _make_item("q1", "What is your employment status?"),
+            _make_item("q2", "How long is your contract?"),
+        ]
+        mock_llm_client.create_completion.return_value = '{"q1": "employment status"}'
+
+        result = distill_pipeline._distill_queries(items, None, [])
+
+        assert result["q1"] == "employment status"
+        assert result["q2"] == "How long is your contract?"
+
+    def test_malformed_json(self, distill_pipeline, mock_llm_client):
+        items = [_make_item("q1", "Original question?")]
+        mock_llm_client.create_completion.return_value = "not json at all"
+
+        result = distill_pipeline._distill_queries(items, None, [])
+
+        assert result["q1"] == "Original question?"
+
+    def test_llm_exception(self, distill_pipeline, mock_llm_client):
+        items = [_make_item("q1", "Original question?")]
+        mock_llm_client.create_completion.side_effect = Exception("API timeout")
+
+        result = distill_pipeline._distill_queries(items, None, [])
+
+        assert result["q1"] == "Original question?"
+
+    def test_empty_string_in_response(self, distill_pipeline, mock_llm_client):
+        items = [
+            _make_item("q1", "Original question A?"),
+            _make_item("q2", "Original question B?"),
+        ]
+        mock_llm_client.create_completion.return_value = '{"q1": "", "q2": "nationality"}'
+
+        result = distill_pipeline._distill_queries(items, None, [])
+
+        assert result["q1"] == "Original question A?"
+        assert result["q2"] == "nationality"
+
+    def test_includes_choices_in_prompt(self, distill_pipeline, mock_llm_client):
+        choices = [_make_choice("a", "Full-time"), _make_choice("b", "Part-time")]
+        items = [_make_item("q1", "What is your status?", "single_choice", choices)]
+        mock_llm_client.create_completion.return_value = '{"q1": "employment status"}'
+
+        distill_pipeline._distill_queries(items, None, [])
+
+        call_args = mock_llm_client.create_completion.call_args
+        user_msg = call_args[1]["messages"][1]["content"]
+        assert "Full-time" in user_msg
+        assert "Part-time" in user_msg
+
+    def test_includes_document_names_in_prompt(self, distill_pipeline, mock_llm_client):
+        items = [_make_item("q1", "Question?")]
+        mock_llm_client.create_completion.return_value = '{"q1": "query"}'
+
+        distill_pipeline._distill_queries(items, "Section A", ["contract.pdf", "cv.docx"])
+
+        call_args = mock_llm_client.create_completion.call_args
+        user_msg = call_args[1]["messages"][1]["content"]
+        assert "contract.pdf" in user_msg
+        assert "cv.docx" in user_msg
+        assert "Section A" in user_msg
+
+
+class TestDistillBatchSplitting:
+    """Tests for section batch splitting."""
+
+    def test_within_batch_size(self, mock_session_manager, mock_llm_client):
+        mock_store = mock_session_manager.get_vector_store.return_value
+        mock_store.list_documents.return_value = []
+        mock_llm_client.temperature = 0.4
+        pipeline = RAGPipeline(
+            session_manager=mock_session_manager,
+            llm_client=mock_llm_client,
+            query_distillation=True,
+            distillation_batch_size=5,
+        )
+        items = [_make_item(f"q{i}", f"Question {i}?") for i in range(3)]
+        mock_llm_client.create_completion.return_value = '{"q0": "a", "q1": "b", "q2": "c"}'
+
+        pipeline._distill_queries_for_section(items, None, "sess")
+
+        assert mock_llm_client.create_completion.call_count == 1
+
+    def test_exceeding_batch_size(self, mock_session_manager, mock_llm_client):
+        mock_store = mock_session_manager.get_vector_store.return_value
+        mock_store.list_documents.return_value = []
+        mock_llm_client.temperature = 0.4
+        pipeline = RAGPipeline(
+            session_manager=mock_session_manager,
+            llm_client=mock_llm_client,
+            query_distillation=True,
+            distillation_batch_size=2,
+        )
+        items = [_make_item(f"q{i}", f"Question {i}?") for i in range(5)]
+        mock_llm_client.create_completion.return_value = "{}"
+
+        pipeline._distill_queries_for_section(items, None, "sess")
+
+        assert mock_llm_client.create_completion.call_count == 3
+
+
+class TestDistillFeatureToggle:
+    """Tests for feature toggle."""
+
+    def test_disabled_skips_llm(self, mock_session_manager, mock_llm_client):
+        pipeline = RAGPipeline(
+            session_manager=mock_session_manager,
+            llm_client=mock_llm_client,
+            query_distillation=False,
+        )
+        items = [_make_item("q1", "Question?")]
+
+        result = pipeline._distill_queries_for_section(items, None, "sess")
+
+        assert result == {}
+        mock_llm_client.create_completion.assert_not_called()
+
+    def test_enabled_calls_llm(self, mock_session_manager, mock_llm_client):
+        mock_store = mock_session_manager.get_vector_store.return_value
+        mock_store.list_documents.return_value = []
+        mock_llm_client.temperature = 0.4
+        pipeline = RAGPipeline(
+            session_manager=mock_session_manager,
+            llm_client=mock_llm_client,
+            query_distillation=True,
+        )
+        items = [_make_item("q1", "Question?")]
+        mock_llm_client.create_completion.return_value = '{"q1": "distilled"}'
+
+        pipeline._distill_queries_for_section(items, None, "sess")
+
+        assert mock_llm_client.create_completion.called
+
+
+class TestDistillInProcessItem:
+    """Tests for distilled query usage in _process_item."""
+
+    def test_uses_distilled_query_for_retrieval(self, mock_session_manager, mock_llm_client):
+        mock_store = mock_session_manager.get_vector_store.return_value
+        mock_store.query.return_value = [
+            {
+                "id": "c1",
+                "document": "You work as a researcher.",
+                "metadata": {"source": "contract.pdf", "chunk_index": 0},
+                "distance": 0.1,
+            }
+        ]
+        mock_llm_client.create_completion.return_value = (
+            '{"answer": "Researcher", "reasoning": null}'
+        )
+        mock_llm_client.temperature = 0.4
+        mock_llm_client.model_name = "test-model"
+
+        pipeline = RAGPipeline(
+            session_manager=mock_session_manager,
+            llm_client=mock_llm_client,
+            query_distillation=False,
+        )
+
+        from m_shared.models.question import QuestionType
+
+        item = SimpleNamespace(
+            id="q1",
+            prompt="Could you please describe your current employment status?",
+            type=QuestionType.OPEN_ENDED,
+            choices=[],
+        )
+        pipeline._process_item(
+            item,
+            "",
+            [],
+            "sess",
+            "assess",
+            None,
+            distilled_query="employment status",
+        )
+
+        mock_store.query.assert_called_once_with(query_text="employment status", n_results=5)
+
+    def test_uses_original_prompt_for_generation(self, mock_session_manager, mock_llm_client):
+        mock_store = mock_session_manager.get_vector_store.return_value
+        mock_store.query.return_value = [
+            {
+                "id": "c1",
+                "document": "Researcher role.",
+                "metadata": {"source": "contract.pdf", "chunk_index": 0},
+                "distance": 0.1,
+            }
+        ]
+        mock_llm_client.create_completion.return_value = (
+            '{"answer": "Researcher", "reasoning": null}'
+        )
+        mock_llm_client.temperature = 0.4
+        mock_llm_client.model_name = "test-model"
+
+        pipeline = RAGPipeline(
+            session_manager=mock_session_manager,
+            llm_client=mock_llm_client,
+            query_distillation=False,
+        )
+
+        from m_shared.models.question import QuestionType
+
+        original_prompt = "Could you please describe your current employment status?"
+        item = SimpleNamespace(
+            id="q1",
+            prompt=original_prompt,
+            type=QuestionType.OPEN_ENDED,
+            choices=[],
+        )
+        pipeline._process_item(
+            item,
+            "",
+            [],
+            "sess",
+            "assess",
+            None,
+            distilled_query="employment status",
+        )
+
+        generation_call = mock_llm_client.create_completion.call_args
+        user_msg = generation_call[1]["messages"][1]["content"]
+        assert original_prompt in user_msg
+
+
+class TestDistillAuditLogging:
+    """Tests for distilled query in audit log."""
+
+    def test_audit_includes_distilled_query(self, mock_session_manager, mock_llm_client):
+        mock_store = mock_session_manager.get_vector_store.return_value
+        mock_store.query.return_value = [
+            {
+                "id": "c1",
+                "document": "Text.",
+                "metadata": {"source": "doc.pdf", "chunk_index": 0},
+                "distance": 0.1,
+            }
+        ]
+        mock_llm_client.create_completion.return_value = '{"answer": "Answer", "reasoning": null}'
+        mock_llm_client.temperature = 0.4
+        mock_llm_client.model_name = "test-model"
+        mock_audit = Mock()
+
+        pipeline = RAGPipeline(
+            session_manager=mock_session_manager,
+            llm_client=mock_llm_client,
+            audit_logger=mock_audit,
+            query_distillation=False,
+        )
+
+        from m_shared.models.question import QuestionType
+
+        item = SimpleNamespace(
+            id="q1",
+            prompt="Verbose question?",
+            type=QuestionType.OPEN_ENDED,
+            choices=[],
+        )
+        pipeline._process_item(
+            item,
+            "",
+            [],
+            "sess",
+            "assess",
+            None,
+            distilled_query="concise query",
+        )
+
+        mock_audit.log_suggestion.assert_called_once()
+        call_kwargs = mock_audit.log_suggestion.call_args[1]
+        assert call_kwargs["distilled_query"] == "concise query"
+
+    def test_audit_no_distilled_when_disabled(self, mock_session_manager, mock_llm_client):
+        mock_store = mock_session_manager.get_vector_store.return_value
+        mock_store.query.return_value = [
+            {
+                "id": "c1",
+                "document": "Text.",
+                "metadata": {"source": "doc.pdf", "chunk_index": 0},
+                "distance": 0.1,
+            }
+        ]
+        mock_llm_client.create_completion.return_value = '{"answer": "Answer", "reasoning": null}'
+        mock_llm_client.temperature = 0.4
+        mock_llm_client.model_name = "test-model"
+        mock_audit = Mock()
+
+        pipeline = RAGPipeline(
+            session_manager=mock_session_manager,
+            llm_client=mock_llm_client,
+            audit_logger=mock_audit,
+            query_distillation=False,
+        )
+
+        from m_shared.models.question import QuestionType
+
+        item = SimpleNamespace(
+            id="q1",
+            prompt="Question?",
+            type=QuestionType.OPEN_ENDED,
+            choices=[],
+        )
+        pipeline._process_item(item, "", [], "sess", "assess", None)
+
+        call_kwargs = mock_audit.log_suggestion.call_args[1]
+        assert call_kwargs["distilled_query"] is None
+
+
+class TestDistillEdgeCases:
+    """Tests for edge-case branches in distillation."""
+
+    def test_empty_llm_response(self, distill_pipeline, mock_llm_client):
+        items = [_make_item("q1", "Original?")]
+        mock_llm_client.create_completion.return_value = ""
+
+        result = distill_pipeline._distill_queries(items, None, [])
+
+        assert result["q1"] == "Original?"
+
+    def test_non_dict_json(self, distill_pipeline, mock_llm_client):
+        items = [_make_item("q1", "Original?")]
+        mock_llm_client.create_completion.return_value = '["not", "a", "dict"]'
+
+        result = distill_pipeline._distill_queries(items, None, [])
+
+        assert result["q1"] == "Original?"
+
+    def test_distill_single_query_enabled(self, distill_pipeline, mock_llm_client):
+        mock_llm_client.create_completion.return_value = '{"_single": "concise query"}'
+
+        result = distill_pipeline._distill_single_query("Verbose question?", "sess")
+
+        assert result == "concise query"
+
+    def test_distill_single_query_returns_none_when_unchanged(
+        self, distill_pipeline, mock_llm_client
+    ):
+        mock_llm_client.create_completion.return_value = '{"_single": "Verbose question?"}'
+
+        result = distill_pipeline._distill_single_query("Verbose question?", "sess")
+
+        assert result is None
+
+    def test_suggest_batch_with_distillation(self, mock_session_manager, mock_llm_client):
+        mock_store = mock_session_manager.get_vector_store.return_value
+        mock_store.list_documents.return_value = ["doc.pdf"]
+        mock_store.query.return_value = [
+            {
+                "id": "c1",
+                "document": "Some text.",
+                "metadata": {"source": "doc.pdf", "chunk_index": 0},
+                "distance": 0.1,
+            }
+        ]
+        mock_llm_client.temperature = 0.4
+        mock_llm_client.model_name = "test-model"
+        mock_llm_client.create_completion.side_effect = [
+            '{"q1": "distilled"}',
+            '{"answer": "Answer", "reasoning": null}',
+        ]
+
+        from cue_api.models import BatchSuggestItem, BatchSuggestSection
+        from m_shared.models.question import QuestionType
+
+        pipeline = RAGPipeline(
+            session_manager=mock_session_manager,
+            llm_client=mock_llm_client,
+            query_distillation=True,
+        )
+        section = BatchSuggestSection(
+            id="s1",
+            title="Section",
+            items=[BatchSuggestItem(id="q1", type=QuestionType.OPEN_ENDED, prompt="Verbose?")],
+        )
+
+        results = pipeline.suggest_batch([section], "sess", "assess")
+
+        assert len(results) == 1
+        assert results[0]["suggestion"] == "Answer"
+        mock_store.query.assert_called_once_with(query_text="distilled", n_results=5)
