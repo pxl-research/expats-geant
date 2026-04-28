@@ -149,23 +149,23 @@ class TestAuditLogger:
         assert entries[0].details["question"] == "What is my job title?"
         assert len(entries[0].details["sources_used"]) == 2
 
-    def test_log_suggestion_with_distilled_query(self, logger):
-        """Test logging a suggestion with distilled query."""
+    def test_log_suggestion_with_rewritten_query(self, logger):
+        """Test logging a suggestion with rewritten query."""
         logger.log_suggestion(
             session_id="sess_123",
             question="Could you please describe your current employment status?",
             suggested_answer="Full-time researcher",
             sources_used=["contract.pdf"],
             model="anthropic/claude-3-sonnet",
-            distilled_query="employment status",
+            rewritten_query="employment status",
         )
 
         entries = logger.get_entries("sess_123")
         assert len(entries) == 1
-        assert entries[0].details["distilled_query"] == "employment status"
+        assert entries[0].details["rewritten_query"] == "employment status"
 
-    def test_log_suggestion_without_distilled_query(self, logger):
-        """Test that distilled_query is absent when not provided."""
+    def test_log_suggestion_without_rewritten_query(self, logger):
+        """Test that rewritten_query is absent when not provided."""
         logger.log_suggestion(
             session_id="sess_123",
             question="Question?",
@@ -175,7 +175,7 @@ class TestAuditLogger:
         )
 
         entries = logger.get_entries("sess_123")
-        assert "distilled_query" not in entries[0].details
+        assert "rewritten_query" not in entries[0].details
 
     def test_log_edit(self, logger):
         """Test logging a user edit."""

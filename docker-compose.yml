@@ -48,9 +48,10 @@ services:
       - SESSIONS_BASE_PATH=/app/data/sessions
       - CHROMA_BASE_PATH=/app/data/chroma
 
-      # Query distillation
-      - CUE_QUERY_DISTILLATION=${CUE_QUERY_DISTILLATION:-true}
-      - CUE_DISTILLATION_BATCH_SIZE=${CUE_DISTILLATION_BATCH_SIZE:-20}
+      # Query rewriting
+      - CUE_QUERY_REWRITE=${CUE_QUERY_REWRITE:-true}
+      - CUE_REWRITE_BATCH_SIZE=${CUE_REWRITE_BATCH_SIZE:-20}
+      - CUE_REWRITE_MODEL=${CUE_REWRITE_MODEL:-}
 
       # Logging
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
