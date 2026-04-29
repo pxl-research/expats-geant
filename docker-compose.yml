@@ -35,7 +35,7 @@ services:
 
       # LLM Configuration
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - LLM_MODEL=${CUE_LLM_MODEL:-anthropic/claude-sonnet-4.6}
+      - LLM_MODEL=${CUE_LLM_MODEL:-}
       - DEFAULT_LLM_MODEL=${DEFAULT_LLM_MODEL:-anthropic/claude-haiku-4.5}
       - LLM_BASE_URL=${LLM_BASE_URL:-https://openrouter.ai/api/v1}
 
@@ -111,7 +111,7 @@ services:
       # Public URL of Keycloak as seen by the user's browser (rewrites internal hostname in auth redirects)
       - KEYCLOAK_PUBLIC_URL=${KEYCLOAK_PUBLIC_URL:-}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - LLM_MODEL=${SHAPE_LLM_MODEL:-google/gemini-3-flash-preview}
+      - LLM_MODEL=${SHAPE_LLM_MODEL:-}
       - DEFAULT_LLM_MODEL=${DEFAULT_LLM_MODEL:-anthropic/claude-haiku-4.5}
       - LLM_BASE_URL=${LLM_BASE_URL:-https://openrouter.ai/api/v1}
       - SESSIONS_BASE_PATH=/app/data/sessions
