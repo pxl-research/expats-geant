@@ -38,7 +38,7 @@
 
 - [x] 7.1 Add `CUE_QUERY_REWRITE` and `CUE_REWRITE_BATCH_SIZE` to `.env.example` with defaults and comments
 - [x] 7.2 Wire environment variables through `docker-compose.yml` for Cue service
-- [ ] 7.3 Document the feature in `docs/CUE_API.md` (brief description under a "Query Rewriting" subsection)
+- [x] 7.3 Document the feature in `docs/CUE_API.md` (brief description under a "Query Rewriting" subsection)
 
 ## 8. Dedicated Rewrite Model
 
