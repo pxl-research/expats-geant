@@ -63,6 +63,33 @@ class TestLLMClientConfiguration:
         client.set_temperature(0.3)
         assert client.temperature == 0.3
 
+    def test_per_call_temperature_override(self):
+        """Test that create_completion accepts a per-call temperature without mutating the client."""
+        client = LLMClient(api_key="test-key", temperature=0.7)
+
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock(message=MagicMock(content="response"))]
+        client._retry_with_backoff = MagicMock(return_value=mock_response)
+
+        client.create_completion(messages=[{"role": "user", "content": "hi"}], temperature=0.0)
+
+        call_kwargs = client._retry_with_backoff.call_args
+        assert call_kwargs.kwargs["temperature"] == 0.0
+        assert client.temperature == 0.7
+
+    def test_default_temperature_used_when_no_override(self):
+        """Test that create_completion uses client temperature when no override is passed."""
+        client = LLMClient(api_key="test-key", temperature=0.5)
+
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock(message=MagicMock(content="response"))]
+        client._retry_with_backoff = MagicMock(return_value=mock_response)
+
+        client.create_completion(messages=[{"role": "user", "content": "hi"}])
+
+        call_kwargs = client._retry_with_backoff.call_args
+        assert call_kwargs.kwargs["temperature"] == 0.5
+
 
 class TestTokenCounting:
     """Test token counting functionality."""

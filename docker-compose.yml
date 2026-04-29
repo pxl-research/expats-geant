@@ -30,8 +30,8 @@ services:
       - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-change-me}
       # Redirect Keycloak's authorization code to cue_ui (cue_ui proxies it server-side)
       - OIDC_REDIRECT_URI=${OIDC_REDIRECT_URI:-http://localhost:8002/auth/callback}
-      # Public URL of Keycloak as seen by the user's browser (rewrites internal hostname in auth redirects)
-      - KEYCLOAK_PUBLIC_URL=${KEYCLOAK_PUBLIC_URL:-}
+      # Non-localhost deployment: set PUBLIC_HOST in .env to auto-derive all public URLs
+      - PUBLIC_HOST=${PUBLIC_HOST:-}
 
       # LLM Configuration
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
@@ -108,8 +108,7 @@ services:
       - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-shape-api}
       - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-change-me}
       - OIDC_REDIRECT_URI=${SHAPE_OIDC_REDIRECT_URI:-http://localhost:8004/auth/callback}
-      # Public URL of Keycloak as seen by the user's browser (rewrites internal hostname in auth redirects)
-      - KEYCLOAK_PUBLIC_URL=${KEYCLOAK_PUBLIC_URL:-}
+      - PUBLIC_HOST=${PUBLIC_HOST:-}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - LLM_MODEL=${SHAPE_LLM_MODEL:-}
       - DEFAULT_LLM_MODEL=${DEFAULT_LLM_MODEL:-anthropic/claude-haiku-4.5}
@@ -149,11 +148,8 @@ services:
     ports:
       - "8002:8002"
     environment:
-      # Server-to-server URL (Docker-internal network)
       - CUE_API_URL=http://cue-api:8001
-      # Browser-accessible URL (must be reachable by the end user's browser)
-      - CUE_PUBLIC_URL=${CUE_PUBLIC_URL:-http://localhost:8001}
-      # OIDC issuer URL (Docker-internal; 'keycloak' resolves via Docker DNS and /etc/hosts on Mac host)
+      - PUBLIC_HOST=${PUBLIC_HOST:-}
       - OIDC_ISSUER_URL=http://keycloak:8080/realms/expats
       - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-cue-api}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
@@ -179,8 +175,7 @@ services:
       - "8004:8004"
     environment:
       - SHAPE_API_URL=http://shape-api:8003
-      - SHAPE_PUBLIC_URL=${SHAPE_PUBLIC_URL:-http://localhost:8003}
-      # OIDC issuer URL (Docker-internal; 'keycloak' resolves via Docker DNS and /etc/hosts on Mac host)
+      - PUBLIC_HOST=${PUBLIC_HOST:-}
       - OIDC_ISSUER_URL=http://keycloak:8080/realms/expats
       - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-cue-api}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
@@ -204,12 +199,11 @@ services:
     environment:
       - KEYCLOAK_ADMIN=admin
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-admin}
-      # 'keycloak' hostname: resolves in Docker (internal DNS) and on Mac host
-      # via /etc/hosts (127.0.0.1 keycloak). This keeps the OIDC issuer consistent.
-      - KC_HOSTNAME=http://keycloak:8080
+      # Keycloak public hostname: derived from PUBLIC_HOST for non-localhost deployments
+      - KC_HOSTNAME=http://${PUBLIC_HOST:-keycloak}:8080
       - KC_HOSTNAME_STRICT=false
       - KC_HTTP_ENABLED=true
-      - KC_HOSTNAME_ADMIN=${KC_HOSTNAME_ADMIN:-http://keycloak:8080}
+      - KC_HOSTNAME_ADMIN=http://${PUBLIC_HOST:-keycloak}:8080
     ports:
       - "8080:8080"
     volumes:

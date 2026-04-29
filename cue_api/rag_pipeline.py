@@ -95,7 +95,7 @@ class RAGPipeline:
             max_tokens: Maximum tokens for generated answer
             audit_logger: Optional audit logger for tracking suggestions
             max_citation_distance: Maximum semantic distance to include a chunk as a citation;
-                chunks with distance above this threshold are dropped (default 1.5)
+                chunks with distance above this threshold are dropped (default 1.8)
             query_rewrite: Enable LLM-based query rewriting before retrieval
             rewrite_batch_size: Max questions per rewrite LLM call
             rewrite_llm_client: Optional dedicated LLM client for query rewriting;
@@ -640,7 +640,7 @@ class RAGPipeline:
         if not session_id:
             raise ValueError("Session ID is required")
 
-        # Step 0: Distill query for retrieval
+        # Step 0: Rewrite query for retrieval
         rewritten_query = self._rewrite_single_query(question, session_id)
 
         # Step 1: Retrieve relevant chunks and filter by distance
@@ -891,7 +891,9 @@ class RAGPipeline:
         """
         for section in sections:
             siblings = [i.prompt for i in section.items]
-            rewritten = self._rewrite_queries_for_section(section.items, section.title, session_id)
+            rewritten = await asyncio.to_thread(
+                self._rewrite_queries_for_section, section.items, section.title, session_id
+            )
             for item in section.items:
                 try:
                     result = await asyncio.to_thread(
