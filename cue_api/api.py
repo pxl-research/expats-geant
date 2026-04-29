@@ -64,10 +64,10 @@ def create_app(
     rag_pipeline = None
     if llm_client:
         try:
-            max_citation_distance = max(0.0, float(os.getenv("CUE_MAX_CITATION_DISTANCE", "1.5")))
+            max_citation_distance = max(0.0, float(os.getenv("CUE_MAX_CITATION_DISTANCE", "1.8")))
         except ValueError:
-            logger.warning("Invalid CUE_MAX_CITATION_DISTANCE value; using default 1.5")
-            max_citation_distance = 1.5
+            logger.warning("Invalid CUE_MAX_CITATION_DISTANCE value; using default 1.8")
+            max_citation_distance = 1.8
         query_rewrite = os.getenv("CUE_QUERY_REWRITE", "true").lower() != "false"
         try:
             rewrite_batch_size = max(1, int(os.getenv("CUE_REWRITE_BATCH_SIZE", "20")))

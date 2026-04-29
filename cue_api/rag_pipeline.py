@@ -80,7 +80,7 @@ class RAGPipeline:
         default_temperature: float = 0.4,
         max_tokens: int = 500,
         audit_logger: AuditLogger | None = None,
-        max_citation_distance: float = 1.5,
+        max_citation_distance: float = 1.8,
         query_rewrite: bool = True,
         rewrite_batch_size: int = 20,
         rewrite_llm_client: LLMClient | None = None,

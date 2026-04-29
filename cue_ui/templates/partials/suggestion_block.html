@@ -37,22 +37,30 @@
   {% if sug.citations %}
   <div style="margin-top:0.625rem; padding-top:0.625rem; border-top:1px solid #e2e8f0;">
     <span style="font-size:0.7rem; font-weight:600; color:#64748b; text-transform:uppercase;">Sources</span>
+    {% set ns = namespace(min_d=none, max_d=none) %}
     {% for cit in sug.citations %}
-    {% set low_relevance = cit.distance is defined and cit.distance > 0.8 %}
-    {% if cit.distance is defined %}
-      {% if cit.distance <= 0.4 %}{% set relevance_label = "Highly relevant" %}
-      {% elif cit.distance <= 0.8 %}{% set relevance_label = "Somewhat relevant" %}
-      {% else %}{% set relevance_label = "Low relevance" %}{% endif %}
+      {% if cit.distance is defined %}
+        {% if ns.min_d is none or cit.distance < ns.min_d %}{% set ns.min_d = cit.distance %}{% endif %}
+        {% if ns.max_d is none or cit.distance > ns.max_d %}{% set ns.max_d = cit.distance %}{% endif %}
+      {% endif %}
+    {% endfor %}
+    {% set dist_range = (ns.max_d - ns.min_d) if (ns.min_d is not none and ns.max_d is not none and ns.max_d > ns.min_d) else 0 %}
+    {% for cit in sug.citations %}
+    {% if cit.distance is defined and dist_range > 0 %}
+      {% set t = (cit.distance - ns.min_d) / dist_range %}
     {% else %}
-      {% set relevance_label = None %}
+      {% set t = 0.0 %}
     {% endif %}
-    <div style="font-size:0.8rem; margin-top:0.35rem; {% if low_relevance %}opacity:0.45;{% endif %}"
-         {% if relevance_label is defined %}title="{{ relevance_label }}"{% endif %}>
+    {% set opacity = 1.0 - t * 0.6 %}
+    {% set relevance_label = "Most relevant" if t <= 0.33 else ("Least relevant" if t > 0.66 else "Relevant") %}
+    {% set cit_color = "#1d4ed8" if t <= 0.5 else "#64748b" %}
+    <div style="font-size:0.8rem; margin-top:0.35rem; opacity:{{ '%.2f' % opacity }};"
+         title="{{ relevance_label }}">
       {% if cit.full_text %}
       <details style="margin:0;">
         <summary style="cursor:pointer;">
-          <span style="color:{% if low_relevance %}#94a3b8{% else %}#1d4ed8{% endif %}; font-weight:600;">[{{ loop.index }}]</span>
-          <strong style="color:{% if low_relevance %}#94a3b8{% else %}#1d4ed8{% endif %};">{{ cit.source }}</strong>
+          <span style="color:{{ cit_color }}; font-weight:600;">[{{ loop.index }}]</span>
+          <strong style="color:{{ cit_color }};">{{ cit.source }}</strong>
           {% if cit.position is not none %}
           <span style="color:#94a3b8; font-size:0.75rem;">(~{{ (cit.position * 100) | round | int }}%)</span>
           {% endif %}
@@ -61,8 +69,8 @@
         <p style="margin:0.35rem 0 0; color:#475569; white-space:pre-wrap; font-size:0.8rem;">{{ cit.full_text }}</p>
       </details>
       {% else %}
-      <span style="color:{% if low_relevance %}#94a3b8{% else %}#1d4ed8{% endif %}; font-weight:600;">[{{ loop.index }}]</span>
-      <strong style="color:{% if low_relevance %}#94a3b8{% else %}#1d4ed8{% endif %};">{{ cit.source }}</strong>
+      <span style="color:{{ cit_color }}; font-weight:600;">[{{ loop.index }}]</span>
+      <strong style="color:{{ cit_color }};">{{ cit.source }}</strong>
       {% if cit.position is not none %}
       <span style="color:#94a3b8; font-size:0.75rem;">(~{{ (cit.position * 100) | round | int }}%)</span>
       {% endif %}
