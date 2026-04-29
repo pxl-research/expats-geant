@@ -56,9 +56,10 @@ def _get_env(name: str) -> str:
 
 def _get_oidc_settings() -> tuple[str, str, str, str]:
     """Return (issuer_url, client_id, client_secret, redirect_uri)."""
-    redirect_uri = get_public_url("OIDC_REDIRECT_URI", 8002, path="/auth/callback") or _get_env(
-        "OIDC_REDIRECT_URI"
-    )
+    redirect_port = int(os.getenv("OIDC_REDIRECT_PORT", "8002"))
+    redirect_uri = get_public_url(
+        "OIDC_REDIRECT_URI", redirect_port, path="/auth/callback"
+    ) or _get_env("OIDC_REDIRECT_URI")
     return (
         _get_env("OIDC_ISSUER_URL"),
         _get_env("OIDC_CLIENT_ID"),

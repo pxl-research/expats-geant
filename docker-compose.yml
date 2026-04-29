@@ -28,9 +28,8 @@ services:
       - OIDC_ISSUER_URL=http://keycloak:8080/realms/expats
       - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-cue-api}
       - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-change-me}
-      # Redirect Keycloak's authorization code to cue_ui (cue_ui proxies it server-side)
-      - OIDC_REDIRECT_URI=${OIDC_REDIRECT_URI:-http://localhost:8002/auth/callback}
-      # Non-localhost deployment: set PUBLIC_HOST in .env to auto-derive all public URLs
+      - OIDC_REDIRECT_URI=${OIDC_REDIRECT_URI:-}
+      - OIDC_REDIRECT_PORT=8002
       - PUBLIC_HOST=${PUBLIC_HOST:-}
 
       # LLM Configuration
@@ -107,7 +106,8 @@ services:
       - OIDC_ISSUER_URL=http://keycloak:8080/realms/expats
       - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-shape-api}
       - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-change-me}
-      - OIDC_REDIRECT_URI=${SHAPE_OIDC_REDIRECT_URI:-http://localhost:8004/auth/callback}
+      - OIDC_REDIRECT_URI=${SHAPE_OIDC_REDIRECT_URI:-}
+      - OIDC_REDIRECT_PORT=8004
       - PUBLIC_HOST=${PUBLIC_HOST:-}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - LLM_MODEL=${SHAPE_LLM_MODEL:-}
