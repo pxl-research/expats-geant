@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Core domain models shared across Shape and Cue.
+Core Pydantic domain models (Survey, Question, Response, Citation, Session) shared across Shape and Cue services.
 ## Requirements
 ### Requirement: Survey Model
 

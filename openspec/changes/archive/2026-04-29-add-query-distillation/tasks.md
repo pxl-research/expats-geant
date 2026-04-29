@@ -49,5 +49,5 @@
 
 ## 9. Validation
 
-- [ ] 9.1 Run `openspec validate add-query-distillation --strict` and resolve any issues
-- [ ] 9.2 Smoke test with a real survey: compare retrieval quality with and without rewriting on a representative questionnaire
+- [x] 9.1 Run `openspec validate add-query-distillation --strict` and resolve any issues
+- [x] 9.2 Smoke test with a real survey: compare retrieval quality with and without rewriting on a representative questionnaire

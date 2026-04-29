@@ -1,6 +1,8 @@
 # Capability: Audit & Compliance
 
-Session audit logging and report generation for transparency and user traceability.
+## Purpose
+
+Session audit logging and report generation for transparency and user traceability. Covers the audit trail, audit reports, data retention, consent, and log integrity.
 
 ## Requirements
 
