@@ -15,7 +15,7 @@ data/
 logs/
 test_data/
 docs/application_form.pdf
-docs/PROJECT_PLAN.md
+# docs/PROJECT_PLAN.md
 .coverage
 
 # Python
