@@ -6,7 +6,16 @@ import urllib.parse
 import httpx
 from fastapi import Request
 
-from m_shared.utils.public_url import get_public_url
+
+def _public_url(env_var: str, port: int, path: str = "", default: str | None = None) -> str | None:
+    value = os.getenv(env_var, "").strip()
+    if value:
+        return value
+    host = os.getenv("PUBLIC_HOST", "").strip()
+    if host:
+        return f"http://{host}:{port}{path}"
+    return default
+
 
 COOKIE_NAME = "chat_token"
 
@@ -14,8 +23,8 @@ COOKIE_NAME = "chat_token"
 SHAPE_API_URL = os.getenv("SHAPE_API_URL", "http://localhost:8003")
 
 # Browser-accessible URLs (derived from PUBLIC_HOST when not set explicitly)
-SHAPE_PUBLIC_URL = get_public_url("SHAPE_PUBLIC_URL", 8003, default="http://localhost:8003")
-SHAPE_UI_PUBLIC_URL = get_public_url("SHAPE_UI_PUBLIC_URL", 8004, default="http://localhost:8004")
+SHAPE_PUBLIC_URL = _public_url("SHAPE_PUBLIC_URL", 8003, default="http://localhost:8003")
+SHAPE_UI_PUBLIC_URL = _public_url("SHAPE_UI_PUBLIC_URL", 8004, default="http://localhost:8004")
 
 # Set COOKIE_SECURE=true in production (HTTPS deployments)
 _COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
@@ -57,7 +66,7 @@ async def get_logout_url(post_logout_redirect_uri: str | None = None) -> str:
         return post_logout_redirect_uri or "/"
     if not end_session_endpoint:
         return post_logout_redirect_uri or "/"
-    keycloak_public_url = (get_public_url("KEYCLOAK_PUBLIC_URL", 8080) or "").rstrip("/")
+    keycloak_public_url = (_public_url("KEYCLOAK_PUBLIC_URL", 8080) or "").rstrip("/")
     if keycloak_public_url:
         internal_base = issuer_url.split("/realms/")[0].rstrip("/")
         end_session_endpoint = end_session_endpoint.replace(internal_base, keycloak_public_url, 1)
