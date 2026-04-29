@@ -652,8 +652,20 @@ class RAGPipeline:
         chunks = self._filter_chunks_by_distance(chunks)
 
         if not chunks:
+            no_match_answer = "I couldn't find any relevant information in your documents to answer this question."
+            if self.audit_logger:
+                self.audit_logger.log_suggestion(
+                    session_id=session_id,
+                    question=question,
+                    suggested_answer=no_match_answer,
+                    sources_used=[],
+                    model=self.llm_client.model_name,
+                    user_id=user_id,
+                    question_id=question_id,
+                    rewritten_query=rewritten_query,
+                )
             return {
-                "answer": "I couldn't find any relevant information in your documents to answer this question.",
+                "answer": no_match_answer,
                 "citations": [],
                 "metadata": {
                     "session_id": session_id,
@@ -735,10 +747,22 @@ class RAGPipeline:
         chunks = self._filter_chunks_by_distance(self.retrieve(search_query, session_id))
 
         if not chunks:
+            no_match_answer = "No relevant information found in your documents for this question."
+            if self.audit_logger:
+                self.audit_logger.log_suggestion(
+                    session_id=session_id,
+                    question=item.prompt,
+                    suggested_answer=no_match_answer,
+                    sources_used=[],
+                    model=self.llm_client.model_name,
+                    user_id=user_id,
+                    question_id=item.id,
+                    rewritten_query=rewritten_query,
+                )
             return {
                 "item_id": item.id,
                 "type": item.type.value,
-                "suggestion": "No relevant information found in your documents for this question.",
+                "suggestion": no_match_answer,
                 "selected_id": None,
                 "selected_ids": None,
                 "reasoning": "No document chunks matched this question. Please answer manually.",
