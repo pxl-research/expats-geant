@@ -13,7 +13,7 @@ into the observability layer.
 ## Goals / Non-Goals
 
 - Goals:
-  - Trace LLM calls (model, latency, token counts, errors) in `m_autofill/` and `m_chat/`
+  - Trace LLM calls (model, latency, token counts, errors) in `cue_api/` and `shape_api/`
   - Trace RAG pipeline steps (retrieval latency, chunk count, embedding model)
   - Enable post-session LLM evaluation runs (faithfulness, relevance) via MLFlow Evaluate
   - Keep integration optional: system runs unmodified when MLFlow is not deployed

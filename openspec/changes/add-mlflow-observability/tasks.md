@@ -11,16 +11,16 @@
 - [ ] 2.3 Implement content-filtering logic: exclude prompt/response/chunk text unless `MLFLOW_TRACE_CONTENT=true`
 - [ ] 2.4 Write unit tests: verify no-op behaviour when `MLFLOW_TRACKING_URI` is unset; verify metadata logged and content excluded with defaults
 
-## 3. Instrument m_autofill RAG Pipeline
+## 3. Instrument Cue RAG Pipeline
 
-- [ ] 3.1 Wrap embedding calls in `m_autofill/` with `tracer.trace_rag_pipeline()` (embedding model, latency)
+- [ ] 3.1 Wrap embedding calls in `cue_api/` with `tracer.trace_rag_pipeline()` (embedding model, latency)
 - [ ] 3.2 Wrap retrieval calls (chunk count, retrieval latency)
 - [ ] 3.3 Wrap LLM generation call with `tracer.trace_llm_call()`
 - [ ] 3.4 Write integration test: verify trace entries are created with expected metadata fields
 
-## 4. Instrument m_chat Engines
+## 4. Instrument Shape Engines
 
-- [ ] 4.1 Wrap LLM calls in `m_chat/` engines with `tracer.trace_llm_call()`
+- [ ] 4.1 Wrap LLM calls in `shape_api/` engines with `tracer.trace_llm_call()`
 - [ ] 4.2 Write integration test: verify trace entries created; verify no content logged by default
 
 ## 5. Trace Data Retention
