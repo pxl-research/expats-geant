@@ -30,13 +30,19 @@
 - [ ] 5.3 Verify route handlers require no changes (they access LLM client from request context as before)
 - [ ] 5.4 Write unit test: correct client returned per tenant, default client for unknown tenant, lazy creation caching
 
-## 6. Documentation and Deployment
+## 6. Reload Endpoint
 
-- [ ] 6.1 Add "Multi-Tenant Setup" section to `docs/DEPLOYMENT.md`: tenant registry format, encryption key setup, management script usage, Keycloak group assignment
-- [ ] 6.2 Document the backwards-compatible default (no registry = single-tenant mode)
+- [ ] 6.1 Add `POST /admin/reload-tenants` to both `cue_api` and `shape_api`; protected by global `API_SECRET`; re-reads registry from disk and clears LLM client cache
+- [ ] 6.2 Write unit test: reload with valid secret returns tenant count, reload with invalid secret returns 401, reload with no registry file returns zero tenants
 
-## 7. Testing
+## 7. Documentation and Deployment
 
-- [ ] 7.1 Integration test: start with no tenant registry, verify system works as before
-- [ ] 7.2 Integration test: start with tenant registry, obtain JWT with tenant secret, verify LLM calls use tenant credentials
-- [ ] 7.3 Smoke test: OIDC login with Keycloak group, verify tenant resolved in JWT
+- [ ] 7.1 Add "Multi-Tenant Setup" section to `docs/DEPLOYMENT.md`: tenant registry format, encryption key setup, management script usage, reload endpoint, Keycloak group assignment
+- [ ] 7.2 Document the backwards-compatible default (no registry = single-tenant mode)
+
+## 8. Testing
+
+- [ ] 8.1 Integration test: start with no tenant registry, verify system works as before
+- [ ] 8.2 Integration test: start with tenant registry, obtain JWT with tenant secret, verify LLM calls use tenant credentials
+- [ ] 8.3 Smoke test: OIDC login with Keycloak group, verify tenant resolved in JWT
+- [ ] 8.4 Smoke test: add tenant to registry, call reload endpoint, verify new tenant works without restart

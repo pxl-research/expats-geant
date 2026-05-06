@@ -45,6 +45,38 @@ ready-to-use tenant config block.
 - **THEN** the script outputs a JSON block containing the hashed secret, encrypted key,
   and the plaintext API secret (displayed once, for the tenant to store)
 
+### Requirement: Tenant Registry Reload Endpoint
+
+The system SHALL provide a `POST /admin/reload-tenants` endpoint that re-reads the
+tenant registry from disk and replaces the in-memory tenant configuration without
+restarting the service. The endpoint SHALL also clear the per-tenant LLM client cache
+so that new or updated tenant credentials take effect on the next request.
+
+The endpoint SHALL be protected by the global `API_SECRET` (provided in the request
+body or as a bearer token). It SHALL return a summary of the reload result (number of
+tenants loaded).
+
+When no tenant registry file is present, the endpoint SHALL return a success response
+indicating zero tenants loaded (single-tenant mode).
+
+#### Scenario: Reload after adding a tenant
+
+- **WHEN** an operator adds a new tenant to the registry file and calls
+  `POST /admin/reload-tenants` with a valid `API_SECRET`
+- **THEN** the new tenant is available immediately without restarting the service
+- **AND** the response indicates the number of tenants loaded
+
+#### Scenario: Reload with invalid secret
+
+- **WHEN** `POST /admin/reload-tenants` is called with an incorrect or missing secret
+- **THEN** the endpoint returns HTTP 401 Unauthorized
+
+#### Scenario: Reload with no registry file
+
+- **WHEN** `POST /admin/reload-tenants` is called but no registry file exists
+- **THEN** the endpoint returns success with zero tenants loaded
+- **AND** the system continues in single-tenant mode
+
 ## MODIFIED Requirements
 
 ### Requirement: API Token Endpoint

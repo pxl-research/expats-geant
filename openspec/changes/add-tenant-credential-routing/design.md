@@ -128,9 +128,11 @@ This avoids manual Fernet encryption and SHA-256 hashing.
 
 ## Risks / Trade-offs
 
-- **Restart required for tenant changes**: The registry is loaded at startup. Adding
-  or removing a tenant requires a container restart. Acceptable for PoC; a future
-  file-watcher or API reload endpoint could remove this limitation.
+- **Tenant changes require reload**: The registry is loaded at startup. Adding or
+  removing a tenant requires either a container restart or a call to the
+  `POST /admin/reload-tenants` endpoint. The reload endpoint re-reads the config
+  file and clears the LLM client cache. Active sessions using the old config are
+  unaffected until their next LLM call.
 
 - **Encryption key rotation**: Changing `TENANT_ENCRYPTION_KEY` requires re-encrypting
   all tenant API keys. The management script can handle this, but there's no automated

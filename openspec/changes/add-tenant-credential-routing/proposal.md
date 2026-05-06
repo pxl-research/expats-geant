@@ -27,6 +27,9 @@ without requiring separate infrastructure per tenant.
   request context.
 - **Keycloak group mapping**: a protocol mapper in the realm export adds a `groups`
   claim to the JWT. Admin assigns users to groups matching tenant slugs. No UI changes.
+- **Hot reload endpoint**: `POST /admin/reload-tenants` (protected by the global
+  `API_SECRET`) re-reads the tenant registry from disk without restarting the service.
+  Invalidates the LLM client cache so new/changed tenants take effect immediately.
 
 ## Impact
 
@@ -40,4 +43,4 @@ without requiring separate infrastructure per tenant.
   - `keycloak/realm-export.json` (add groups + group mapper)
   - `.env.example` (document `TENANT_ENCRYPTION_KEY`)
 - Not in scope: per-tenant data isolation (sessions are already user-isolated), per-tenant
-  rate limiting, tenant management UI/API, tenant-specific model selection
+  rate limiting, tenant management CRUD API/UI, tenant-specific model selection
