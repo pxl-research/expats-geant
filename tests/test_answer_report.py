@@ -211,6 +211,109 @@ class TestDownloadEndpoint:
         assert resp.status_code == 404
 
 
+class TestSuggestionCacheCreated:
+    """Batch suggest creates cached_suggestions.json alongside answer_report."""
+
+    def test_batch_suggest_creates_cache(
+        self, client, auth_token, tmp_path, session_manager, mock_llm
+    ):
+        session = _seed_doc(tmp_path, session_manager, auth_token)
+        mock_llm.create_completion.return_value = (
+            '{"answer": "36 months.", "reasoning": "Policy states this."}'
+        )
+
+        resp = client.post(
+            "/suggest/batch",
+            json={
+                "assessment_id": "test",
+                "items": [
+                    {
+                        "id": "q1",
+                        "type": "open_ended",
+                        "prompt": "Retention period?",
+                        "choices": [],
+                    },
+                    {"id": "q2", "type": "open_ended", "prompt": "Audit frequency?", "choices": []},
+                ],
+            },
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+        assert resp.status_code == 200
+
+        cache_path = (
+            session_manager._get_session_path(session.session_id) / "cached_suggestions.json"
+        )
+        assert cache_path.exists()
+        cache = json.loads(cache_path.read_text())
+        assert "q1" in cache
+        assert "q2" in cache
+        assert cache["q1"]["item_id"] == "q1"
+        assert cache["q1"]["suggestion"] == "36 months."
+        assert "citations" in cache["q1"]
+
+    def test_cache_has_full_item_suggestion_fields(
+        self, client, auth_token, tmp_path, session_manager, mock_llm
+    ):
+        _seed_doc(tmp_path, session_manager, auth_token)
+        mock_llm.create_completion.return_value = (
+            '{"answer": "Yes.", "reasoning": "Found evidence."}'
+        )
+
+        resp = client.post(
+            "/suggest/batch",
+            json={
+                "assessment_id": "test",
+                "items": [
+                    {"id": "q1", "type": "open_ended", "prompt": "Do we audit?", "choices": []},
+                ],
+            },
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+        assert resp.status_code == 200
+
+        resp = client.get("/cached-suggestions", headers={"Authorization": f"Bearer {auth_token}"})
+        assert resp.status_code == 200
+        data = resp.json()["suggestions"]
+        assert "q1" in data
+        sug = data["q1"]
+        assert sug["type"] == "open_ended"
+        assert sug["suggestion"] == "Yes."
+        assert sug["reasoning"] == "Found evidence."
+        assert isinstance(sug["citations"], list)
+
+    def test_cache_accumulates_across_batches(
+        self, client, auth_token, tmp_path, session_manager, mock_llm
+    ):
+        _seed_doc(tmp_path, session_manager, auth_token)
+        mock_llm.create_completion.return_value = '{"answer": "A.", "reasoning": "R."}'
+
+        client.post(
+            "/suggest/batch",
+            json={
+                "assessment_id": "t1",
+                "items": [
+                    {"id": "q1", "type": "open_ended", "prompt": "Q1?", "choices": []},
+                ],
+            },
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+        client.post(
+            "/suggest/batch",
+            json={
+                "assessment_id": "t2",
+                "items": [
+                    {"id": "q2", "type": "open_ended", "prompt": "Q2?", "choices": []},
+                ],
+            },
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+
+        resp = client.get("/cached-suggestions", headers={"Authorization": f"Bearer {auth_token}"})
+        data = resp.json()["suggestions"]
+        assert "q1" in data
+        assert "q2" in data
+
+
 class TestReportDeletedWithSession:
     """6.4 — DELETE /session removes the entire session directory including the report."""
 
