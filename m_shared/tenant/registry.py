@@ -62,13 +62,17 @@ class TenantRegistry:
                 logger.error("Failed to decrypt API key for tenant %r: %s", slug, exc)
                 continue
 
+            raw_hash = entry.get("api_secret_hash", "")
+            if not raw_hash.startswith("sha256:") or len(raw_hash) != 71:
+                logger.warning("Tenant %r has invalid api_secret_hash format, skipping", slug)
+                continue
+
             tenants[slug] = TenantConfig(
                 slug=slug,
                 name=entry.get("name", slug),
                 api_key=api_key,
                 base_url=entry.get("base_url"),
             )
-            raw_hash = entry.get("api_secret_hash", "")
             secret_hashes[slug] = raw_hash.removeprefix("sha256:")
 
         self._tenants = tenants

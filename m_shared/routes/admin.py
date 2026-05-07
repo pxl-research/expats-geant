@@ -49,17 +49,16 @@ async def reload_tenants(request: Request):
         del pool[slug]
 
     for slug in registry.slugs:
-        if slug not in pool:
-            tenant = registry.get_tenant(slug)
-            if tenant is None:
-                continue
-            try:
-                pool[slug] = LLMClient(api_key=tenant.api_key, base_url=tenant.base_url)
-                logger.info("Created LLM client for tenant '%s'", slug)
-            except Exception as e:
-                logger.warning("Failed to create LLM client for tenant '%s': %s", slug, e)
-                if default_client:
-                    pool[slug] = default_client
+        tenant = registry.get_tenant(slug)
+        if tenant is None:
+            continue
+        try:
+            pool[slug] = LLMClient(api_key=tenant.api_key, base_url=tenant.base_url)
+            logger.info("Created LLM client for tenant '%s'", slug)
+        except Exception as e:
+            logger.warning("Failed to create LLM client for tenant '%s': %s", slug, e)
+            if default_client:
+                pool[slug] = default_client
 
     request.app.state.llm_client_pool = pool
     logger.info("Tenant registry reloaded: %d tenant(s)", len(registry))

@@ -417,17 +417,14 @@ class RAGPipeline:
 
         client = llm_client or self.llm_client
         temperature = temperature or self.default_temperature
-        original_temp = client.temperature
-        client.temperature = temperature
 
-        try:
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content},
-            ]
-            raw = client.create_completion(messages=messages, max_tokens=self.max_tokens)
-        finally:
-            client.temperature = original_temp
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ]
+        raw = client.create_completion(
+            messages=messages, max_tokens=self.max_tokens, temperature=temperature
+        )
 
         if not raw or not raw.strip():
             raise RuntimeError("LLM returned empty response")
