@@ -134,6 +134,14 @@ class SessionMiddleware(BaseHTTPMiddleware):
         request.state.claims = claims
         request.state.session_manager = self.session_manager
 
+        # Resolve per-tenant LLM client from pool (if configured)
+        pool = getattr(request.app.state, "llm_client_pool", None)
+        if pool:
+            org = claims.get("org", "default")
+            request.state.llm_client = pool.get(org) or pool.get("default")
+        elif hasattr(request.app.state, "llm_client"):
+            request.state.llm_client = request.app.state.llm_client
+
         # Process request
         response = await call_next(request)
 
@@ -177,5 +185,6 @@ class SessionMiddleware(BaseHTTPMiddleware):
             "/auth/token",
             "/auth/login",
             "/auth/callback",
+            "/admin/reload-tenants",
         ]
         return path in public_paths

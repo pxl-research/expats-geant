@@ -669,6 +669,83 @@ server {
 }
 ```
 
+## Multi-Tenant Setup
+
+By default, the platform operates in **single-tenant mode** — all users share the global `OPENROUTER_API_KEY`. When an institution has subsidiaries (e.g. faculties) that each manage their own LLM budget, multi-tenant mode routes LLM calls through per-tenant API keys.
+
+### When to use
+
+- Multiple subsidiaries share one deployment
+- Each subsidiary has its own OpenRouter (or other LLM provider) API key
+- You want LLM cost attribution per subsidiary
+
+### Setup
+
+**1. Generate an encryption key:**
+
+```bash
+python scripts/manage_tenants.py generate-key
+```
+
+Set the output as `TENANT_ENCRYPTION_KEY` in your `.env`.
+
+**2. Create tenant credentials:**
+
+```bash
+python scripts/manage_tenants.py create \
+    --slug faculty-a \
+    --name "Faculty of Sciences" \
+    --api-key sk-or-v1-your-openrouter-key
+```
+
+The script outputs a JSON block and a one-time API secret. Give the secret to the tenant; add the JSON block to `.secrets/tenants.json`:
+
+```json
+{
+  "tenants": {
+    "faculty-a": {
+      "name": "Faculty of Sciences",
+      "api_secret_hash": "sha256:...",
+      "api_key_encrypted": "gAAAAA...",
+      "base_url": "https://openrouter.ai/api/v1"
+    }
+  }
+}
+```
+
+**3. Configure environment:**
+
+```bash
+TENANT_REGISTRY_PATH=.secrets/tenants.json
+TENANT_ENCRYPTION_KEY=<your-generated-key>
+```
+
+**4. Restart services.** Tenants are loaded at startup. You can also hot-reload without restart:
+
+```bash
+curl -X POST http://localhost:8001/admin/reload-tenants \
+  -H "Authorization: Bearer <API_SECRET>"
+```
+
+### How it works
+
+- **API users**: POST `/auth/token` with a tenant's API secret → JWT contains `org=<tenant-slug>` → LLM calls use that tenant's API key.
+- **OIDC users**: Assign users to Keycloak groups matching tenant slugs (e.g. group `faculty-a`). The groups claim in the ID token resolves the tenant automatically.
+- **No tenant match**: Falls back to the global `OPENROUTER_API_KEY` (single-tenant behaviour).
+
+### Keycloak group assignment
+
+The realm export includes example groups (`faculty-a`, `faculty-b`) and a `group-membership` protocol mapper that injects groups into the JWT. To assign a user to a tenant:
+
+1. Open the Keycloak admin console → Users → select user → Groups tab
+2. Add the user to the group matching their tenant slug
+
+### Backwards compatibility
+
+When `TENANT_REGISTRY_PATH` is not set (or the file doesn't exist), the system behaves identically to a single-tenant deployment. No configuration changes are needed for existing deployments.
+
+---
+
 ## Support
 
 - Documentation: [README.md](../README.md)

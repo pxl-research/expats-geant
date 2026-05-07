@@ -121,6 +121,7 @@ async def suggest_answer_batch(
 
     session = request.state.session
     claims = request.state.claims
+    tenant_llm_client = getattr(request.state, "llm_client", None)
 
     try:
         sections = normalize_to_sections(batch_request)
@@ -130,6 +131,7 @@ async def suggest_answer_batch(
             session_id=session.session_id,
             assessment_id=batch_request.assessment_id,
             user_id=claims.get("user_id"),
+            llm_client=tenant_llm_client,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -151,11 +153,12 @@ async def suggest_answer_batch(
     except Exception as exc:
         logger.warning("Failed to persist batch answer report: %s", exc)
 
+    active_client = tenant_llm_client or rag_pipeline.llm_client
     return BatchSuggestResponse(
         assessment_id=batch_request.assessment_id,
         session_id=session.session_id,
         generated_at=datetime.now(UTC).isoformat(),
-        model=rag_pipeline.llm_client.model_name,
+        model=active_client.model_name,
         responses=responses,
     )
 
@@ -175,6 +178,7 @@ async def suggest_answer_stream(request: Request, batch_request: BatchSuggestReq
 
     session = request.state.session
     claims = request.state.claims
+    tenant_llm_client = getattr(request.state, "llm_client", None)
     sections = normalize_to_sections(batch_request)
     item_prompts = {item.id: item.prompt for sec in sections for item in sec.items}
 
@@ -185,6 +189,7 @@ async def suggest_answer_stream(request: Request, batch_request: BatchSuggestReq
                 session.session_id,
                 batch_request.assessment_id,
                 user_id=claims.get("user_id"),
+                llm_client=tenant_llm_client,
             ):
                 item_sug = _to_item_suggestion(r)
                 yield f"event: suggestion\ndata: {item_sug.model_dump_json()}\n\n"

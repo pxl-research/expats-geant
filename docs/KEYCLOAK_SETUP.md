@@ -50,6 +50,12 @@ Keycloak can federate with external providers, allowing users to log in with the
 3. Enable periodic sync
 4. Map LDAP attributes to Keycloak profile fields as needed
 
+### Tenant Group Mapping
+
+For multi-tenant deployments, Keycloak groups map OIDC users to tenants. The bundled realm export includes example groups (`faculty-a`, `faculty-b`) and a `group-membership` protocol mapper that injects group names into the JWT `groups` claim.
+
+To assign a user to a tenant: Keycloak admin → **Users** → select user → **Groups** tab → add the group matching the tenant slug. See [DEPLOYMENT.md § Multi-Tenant Setup](DEPLOYMENT.md#multi-tenant-setup) for the full configuration.
+
 ---
 
 ## Production Hardening

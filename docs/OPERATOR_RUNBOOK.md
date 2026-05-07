@@ -24,6 +24,8 @@ Choose the option that fits your institution's data governance requirements:
 | **OpenRouter standard** (`openrouter.ai`) | Routing not guaranteed EU | Low | Acceptable with a data processing addendum (DPA) in place |
 | **Direct OpenAI / Anthropic** | Non-EU data centres | Low | Requires Standard Contractual Clauses (SCCs) under GDPR Art. 46 |
 
+**Multi-tenant note:** If subsidiaries (e.g. faculties) manage their own LLM budgets, each can have a separate API key routed through a single deployment. See [DEPLOYMENT.md § Multi-Tenant Setup](DEPLOYMENT.md#multi-tenant-setup).
+
 **Recommendation for EU institutions:** Use OpenRouter's EU endpoint or a self-hosted model.
 For OpenRouter EU routing, set in your `.env`:
 ```bash

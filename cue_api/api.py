@@ -15,6 +15,7 @@ from cue_api.routes.suggestions import router as suggestions_router
 from cue_api.routes.surveys import router as surveys_router
 from m_shared.llm.client import LLMClient
 from m_shared.rate_limit import apply_rate_limiting
+from m_shared.routes.admin import router as admin_router
 from m_shared.session.manager import SessionManager
 from m_shared.utils.audit import AuditLogger
 
@@ -122,5 +123,6 @@ def create_app(
     app.include_router(suggestions_router)
     app.include_router(audit_router)
     app.include_router(surveys_router)
+    app.include_router(admin_router)
 
     return app

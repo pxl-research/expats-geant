@@ -110,6 +110,8 @@ TOKEN=$(curl -s -X POST "$BASE_URL/auth/token" \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
 ```
 
+> **Multi-tenant deployments:** Use the tenant's API secret instead of the global `API_SECRET` to obtain a tenant-scoped token. The resulting JWT `org` claim will route LLM calls through the tenant's credentials.
+
 ### 3. E2E spot-check scripts
 
 Four automated scripts cover the full deployed stack:

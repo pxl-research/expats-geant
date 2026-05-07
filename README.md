@@ -76,6 +76,7 @@ cd expats
 # Configure environment
 cp .env.example .env
 # Edit .env: set OPENROUTER_API_KEY (or OPENAI_API_KEY) and JWT_SECRET
+# For multi-tenant deployments (per-subsidiary LLM keys), see docs/DEPLOYMENT.md § Multi-Tenant Setup
 
 # Build and run
 docker-compose up --build

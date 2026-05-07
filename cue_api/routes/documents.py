@@ -31,7 +31,7 @@ async def upload_document(
     claims = request.state.claims
     max_file_size_mb = request.app.state.max_file_size_mb
     audit_logger = request.app.state.audit_logger
-    llm_client = request.app.state.llm_client
+    llm_client = getattr(request.state, "llm_client", None) or request.app.state.llm_client
 
     temp_dir = manager._get_session_path(session.session_id) / "uploads"
     temp_dir.mkdir(exist_ok=True)

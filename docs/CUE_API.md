@@ -110,10 +110,15 @@ def create_institutional_token(user_id: str, org: str) -> str:
 
 ### Using the `/auth/token` Endpoint
 
-`POST /auth/token` issues a JWT to any caller that presents the shared `API_SECRET`. It
+`POST /auth/token` issues a JWT to any caller that presents a valid API secret. It
 is available in **all environments** (development and production) and is the recommended
 way to authenticate automated scripts, server-to-server integrations, and anonymous API
 consumers.
+
+In multi-tenant deployments, each tenant has its own API secret. The endpoint matches the
+secret against the tenant registry first, then falls back to the global `API_SECRET`. The
+resulting JWT `org` claim determines which tenant's LLM credentials are used for
+subsequent requests. See [DEPLOYMENT.md § Multi-Tenant Setup](DEPLOYMENT.md#multi-tenant-setup).
 
 > **Anonymous callers**: supply any stable unique string as `user_id` (e.g. a UUID or
 > HMAC-hash of an internal user identifier). The resulting session is fully isolated.

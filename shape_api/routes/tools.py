@@ -54,7 +54,7 @@ def _get_chat_session_context(
 @limiter.limit("10/minute")
 async def suggest_endpoint(request: Request, body: SuggestRequest):
     """Generate improved phrasings for a survey question."""
-    llm_client = request.app.state.llm_client
+    llm_client = getattr(request.state, "llm_client", None) or request.app.state.llm_client
     session_manager = request.app.state.session_manager
 
     if llm_client is None:
@@ -102,7 +102,7 @@ async def suggest_endpoint(request: Request, body: SuggestRequest):
 @limiter.limit("10/minute")
 async def validate_endpoint(request: Request, body: ValidateRequest):
     """Validate a question or full survey for quality issues."""
-    llm_client = request.app.state.llm_client
+    llm_client = getattr(request.state, "llm_client", None) or request.app.state.llm_client
     session_manager = request.app.state.session_manager
 
     claims = request.state.claims
@@ -194,7 +194,7 @@ async def validate_endpoint(request: Request, body: ValidateRequest):
 @limiter.limit("10/minute")
 async def tag_endpoint(request: Request, body: TagRequest):
     """Suggest normalised tags for a survey question."""
-    llm_client = request.app.state.llm_client
+    llm_client = getattr(request.state, "llm_client", None) or request.app.state.llm_client
     session_manager = request.app.state.session_manager
 
     if llm_client is None:

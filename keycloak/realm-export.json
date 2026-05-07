@@ -55,7 +55,33 @@
         "phone",
         "offline_access",
         "microprofile-jwt"
+      ],
+      "protocolMappers": [
+        {
+          "name": "group-membership",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "groups"
+          }
+        }
       ]
+    }
+  ],
+  "groups": [
+    {
+      "name": "faculty-a",
+      "path": "/faculty-a"
+    },
+    {
+      "name": "faculty-b",
+      "path": "/faculty-b"
     }
   ],
   "roles": {

@@ -1,7 +1,5 @@
 """Cue API: authentication routes."""
 
-import hmac
-import os
 import uuid
 
 from fastapi import APIRouter, HTTPException, Request, status
@@ -17,6 +15,7 @@ from m_shared.auth.oauth import (
     get_authorization_url,
 )
 from m_shared.rate_limit import limiter
+from m_shared.tenant import resolve_org
 
 router = APIRouter()
 
@@ -30,11 +29,12 @@ class TokenRequest(BaseModel):
 @limiter.limit("10/minute")
 async def issue_api_token(request: Request, body: TokenRequest):
     """Issue a JWT for server-to-server callers presenting a shared API secret."""
-    expected = os.getenv("API_SECRET", "")
-    if not expected or not hmac.compare_digest(body.api_secret, expected):
+    tenant_registry = getattr(request.app.state, "tenant_registry", None)
+    org = resolve_org(body.api_secret, tenant_registry)
+    if org is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API secret")
     session_id = uuid.uuid4().hex[:12]
-    token = create_token(user_id=body.user_id, session_id=session_id, org="api", roles=["user"])
+    token = create_token(user_id=body.user_id, session_id=session_id, org=org, roles=["user"])
     return {"token": token, "user_id": body.user_id}
 
 
@@ -57,10 +57,13 @@ async def auth_login():
 
 
 @router.get("/auth/callback", tags=["Authentication"])
-async def auth_callback(code: str, state: str):
+async def auth_callback(request: Request, code: str, state: str):
     """Handle OIDC authorization callback and return a platform JWT."""
+    tenant_registry = getattr(request.app.state, "tenant_registry", None)
     try:
-        platform_token = await exchange_code(code=code, state=state)
+        platform_token = await exchange_code(
+            code=code, state=state, tenant_registry=tenant_registry
+        )
         return {"token": platform_token, "token_type": "bearer"}
     except OIDCStateError as exc:
         raise HTTPException(

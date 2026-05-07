@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from m_shared.rate_limit import apply_rate_limiting
+from m_shared.routes.admin import router as admin_router
 from m_shared.session.manager import SessionManager
 from shape_api.routes.auth import router as auth_router
 from shape_api.routes.chat import router as chat_router
@@ -71,5 +72,6 @@ def create_app(
     app.include_router(transforms_router)
     app.include_router(tools_router)
     app.include_router(chat_router)
+    app.include_router(admin_router)
 
     return app

@@ -206,7 +206,12 @@ async def get_authorization_url(redirect_uri: str | None = None) -> tuple[str, s
     return authorization_url, state
 
 
-async def exchange_code(code: str, state: str, redirect_uri: str | None = None) -> str:
+async def exchange_code(
+    code: str,
+    state: str,
+    redirect_uri: str | None = None,
+    tenant_registry=None,
+) -> str:
     """Exchange an authorization code for a platform JWT.
 
     Validates the CSRF state, calls the token endpoint, validates the ID token,
@@ -216,6 +221,7 @@ async def exchange_code(code: str, state: str, redirect_uri: str | None = None) 
         code: Authorization code from the OIDC callback query parameter.
         state: State value from the OIDC callback query parameter.
         redirect_uri: Override the OIDC_REDIRECT_URI env var (optional).
+        tenant_registry: Optional TenantRegistry for resolving org from groups claim.
 
     Returns:
         Platform JWT string (same format as tokens from /dev/token).
@@ -325,10 +331,18 @@ async def exchange_code(code: str, state: str, redirect_uri: str | None = None) 
     user_id = _normalize_sub(iss, sub)
     session_id = str(uuid4())
 
+    org = "default"
+    if tenant_registry:
+        for group in claims.get("groups", []):
+            group_name = group.lstrip("/")
+            if tenant_registry.get_tenant(group_name):
+                org = group_name
+                break
+
     platform_token = create_token(
         user_id=user_id,
         session_id=session_id,
-        org="default",
+        org=org,
     )
-    logger.info("OIDC login successful: user_id=%r", user_id)
+    logger.info("OIDC login successful: user_id=%r, org=%r", user_id, org)
     return platform_token

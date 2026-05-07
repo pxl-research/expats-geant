@@ -227,7 +227,7 @@ async def reset_chat_session(request: Request, session_id: str):
 @limiter.limit("10/minute")
 async def chat_turn(request: Request, session_id: str, body: ChatTurnRequest):
     """Send a message to the AI and get a response; optionally updates draft survey."""
-    llm_client = request.app.state.llm_client
+    llm_client = getattr(request.state, "llm_client", None) or request.app.state.llm_client
     session_manager = request.app.state.session_manager
 
     if llm_client is None:
@@ -347,7 +347,7 @@ async def update_style_profile(request: Request, session_id: str, body: StyleUpd
 @limiter.limit("10/minute")
 async def upload_style_document(request: Request, session_id: str, file: UploadFile = File(...)):
     """Upload a style guide document to update the session style profile."""
-    llm_client = request.app.state.llm_client
+    llm_client = getattr(request.state, "llm_client", None) or request.app.state.llm_client
     session_manager = request.app.state.session_manager
 
     user_id = request.state.claims["user_id"]
@@ -401,7 +401,7 @@ async def upload_style_document(request: Request, session_id: str, file: UploadF
 @limiter.limit("10/minute")
 async def upload_content_document(request: Request, session_id: str, file: UploadFile = File(...)):
     """Upload a content document to provide context for chat turns."""
-    llm_client = request.app.state.llm_client
+    llm_client = getattr(request.state, "llm_client", None) or request.app.state.llm_client
     session_manager = request.app.state.session_manager
 
     user_id = request.state.claims["user_id"]
