@@ -50,7 +50,8 @@ def _read_review_state(session_path: Path) -> dict:
         return {}
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Failed to read review state from %s: %s", path, exc)
         return {}
 
 
@@ -102,6 +103,7 @@ async def get_cached_suggestions(request: Request):
         return {"suggestions": {}}
     try:
         data = json.loads(cache_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Failed to read cached suggestions from %s: %s", cache_path, exc)
         data = {}
     return {"suggestions": data}

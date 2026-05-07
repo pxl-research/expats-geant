@@ -446,8 +446,8 @@ async def delete_session(request: Request):
 # ---------------------------------------------------------------------------
 
 
-@router.put("/session/{session_id}/review-state/{question_id}")
-async def save_review_state(request: Request, session_id: str, question_id: str):
+@router.put("/review-state/{question_id}")
+async def save_review_state(request: Request, question_id: str):
     """Proxy review state save to the Cue API."""
     token = get_token(request)
     if not token:
@@ -463,8 +463,8 @@ async def save_review_state(request: Request, session_id: str, question_id: str)
     return JSONResponse({"status": "ok"})
 
 
-@router.get("/session/{session_id}/review-state")
-async def get_review_state(request: Request, session_id: str):
+@router.get("/review-state")
+async def get_review_state(request: Request):
     """Proxy review state load from the Cue API."""
     token = get_token(request)
     if not token:
@@ -473,4 +473,4 @@ async def get_review_state(request: Request, session_id: str):
         states = await api_client.get_review_state(token)
     except APIError as exc:
         return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
-    return JSONResponse(states)
+    return {"states": states}

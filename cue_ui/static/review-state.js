@@ -1,11 +1,9 @@
 /**
- * ReviewState — localStorage helper for per-session review state.
+ * ReviewState — per-session review state with server persistence.
  *
- * State is stored under the key "review-{sessionId}" as a JSON object
- * mapping question IDs to state objects:
- *   { state: "accepted"|"dismissed"|"edited"|"pending", value?, selected_id? }
- *
- * No server round-trips are made. State is written on every interaction.
+ * State is stored under the key "review-{sessionId}" in localStorage
+ * (optimistic cache) and persisted to the server via PUT /review-state/{qid}
+ * on every interaction. On page load, server state takes precedence.
  */
 class ReviewState {
   constructor(sessionId) {
@@ -36,7 +34,7 @@ class ReviewState {
     const map = this.load();
     map[questionId] = stateObj;
     this._persist(map);
-    fetch("/session/" + this._sessionId + "/review-state/" + encodeURIComponent(questionId), {
+    fetch("/review-state/" + encodeURIComponent(questionId), {
       method: "PUT",
       headers: {"Content-Type": "application/json"},
       credentials: "same-origin",
