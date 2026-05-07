@@ -23,6 +23,7 @@ Shape is the administrator co-pilot for questionnaire design. It provides statel
   - [GET /chat/{session_id}](#get-chatsession_id)
   - [POST /chat/{session_id}](#post-chatsession_id)
   - [GET /chat/{session_id}/survey](#get-chatsession_idsurvey)
+  - [PUT /chat/{session_id}/survey](#put-chatsession_idsurvey)
   - [GET /chat/{session_id}/messages](#get-chatsession_idmessages)
   - [DELETE /chat/{session_id}](#delete-chatsession_id)
   - [POST /chat/{session_id}/reset](#post-chatsession_idreset)
@@ -347,6 +348,7 @@ POST /chat/sessions          ← create session
   │    └── survey_updated: true → draft updated in session
   │
   ├─ GET  /chat/{id}/survey  ← retrieve current draft at any time
+  ├─ PUT  /chat/{id}/survey  ← push external edits to the draft
   │
   ├─ POST /export            ← export draft to target platform
   │
@@ -485,6 +487,80 @@ curl http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000/survey \
 ```
 
 `survey` is `null` if no draft has been created yet.
+
+---
+
+### PUT /chat/{session_id}/survey
+
+Replace the draft survey with an externally edited version. Use this to sync changes
+made in an external editor back to the session, instead of sending the full survey JSON
+in a chat message. The endpoint validates the survey schema and returns any
+methodological quality issues.
+
+```bash
+curl -X PUT http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000/survey \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "survey": {
+      "id": "survey_1",
+      "title": "Staff Survey",
+      "sections": [
+        {
+          "id": "sec_1",
+          "title": "Work Preferences",
+          "description": "",
+          "order": 0,
+          "metadata": {},
+          "questions": [
+            {
+              "id": "q_1",
+              "text": "What is your preferred work arrangement?",
+              "type": "single_choice",
+              "order": 0,
+              "required": true,
+              "answer_options": [
+                {"id": "opt_1", "text": "Remote"},
+                {"id": "opt_2", "text": "Hybrid"},
+                {"id": "opt_3", "text": "Office"}
+              ],
+              "min_value": null,
+              "max_value": null,
+              "step": null,
+              "metadata": {}
+            }
+          ]
+        }
+      ],
+      "metadata": {}
+    }
+  }'
+```
+
+**Response** (`200 OK`):
+
+```json
+{
+  "status": "saved",
+  "validation_issues": [
+    {
+      "question_id": "q_1",
+      "severity": "warning",
+      "code": "scale_too_short",
+      "message": "Only 3 option(s) provided; consider at least 4 for a meaningful scale."
+    }
+  ]
+}
+```
+
+**Errors:**
+- `422` if the survey JSON does not match the required schema (missing fields, invalid question type, etc.)
+- `403` if the session does not exist or belongs to another user
+
+**Typical workflow for external editor integration:**
+1. `PUT /chat/{id}/survey` to sync your local edits to the server
+2. `POST /chat/{id}` with a short instruction (e.g., "improve question 3") — no need to include the survey JSON
+3. `GET /chat/{id}/survey` to fetch the AI's updated version back
 
 ---
 

@@ -315,6 +315,88 @@ class TestChatTurnEndpoint:
 
 
 # ---------------------------------------------------------------------------
+# TestSurveyUpdateEndpoint
+# ---------------------------------------------------------------------------
+
+
+class TestSurveyUpdateEndpoint:
+    def test_put_survey_saves_draft(self, client, jwt_secret):
+        headers = _make_auth_headers("user1")
+        sid = _create_chat_session(client, headers)
+        resp = client.put(
+            f"/chat/{sid}/survey", json={"survey": SAMPLE_SURVEY_DICT}, headers=headers
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "saved"
+        get_resp = client.get(f"/chat/{sid}/survey", headers=headers)
+        assert get_resp.json()["survey"]["title"] == "Test Survey"
+
+    def test_put_survey_returns_validation_issues(self, client, jwt_secret):
+        survey = {
+            **SAMPLE_SURVEY_DICT,
+            "sections": [
+                {
+                    "id": "sec1",
+                    "title": "Section 1",
+                    "description": "",
+                    "order": 0,
+                    "metadata": {},
+                    "questions": [
+                        {
+                            "id": "q1",
+                            "text": "Pick one",
+                            "type": "single_choice",
+                            "order": 0,
+                            "required": False,
+                            "min_value": None,
+                            "max_value": None,
+                            "step": None,
+                            "metadata": {},
+                            "answer_options": [
+                                {"id": "opt1", "text": "Yes"},
+                                {"id": "opt2", "text": "No"},
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+        headers = _make_auth_headers("user1")
+        sid = _create_chat_session(client, headers)
+        resp = client.put(f"/chat/{sid}/survey", json={"survey": survey}, headers=headers)
+        assert resp.status_code == 200
+        issues = resp.json()["validation_issues"]
+        assert any(i["code"] == "scale_too_short" for i in issues)
+
+    def test_put_survey_rejects_invalid_schema(self, client, jwt_secret):
+        headers = _make_auth_headers("user1")
+        sid = _create_chat_session(client, headers)
+        resp = client.put(f"/chat/{sid}/survey", json={"survey": {"bad": "data"}}, headers=headers)
+        assert resp.status_code == 422
+
+    def test_put_survey_wrong_session_returns_403(self, client, jwt_secret):
+        headers_a = _make_auth_headers("user_a")
+        headers_b = _make_auth_headers("user_b")
+        sid = _create_chat_session(client, headers_a)
+        resp = client.put(
+            f"/chat/{sid}/survey", json={"survey": SAMPLE_SURVEY_DICT}, headers=headers_b
+        )
+        assert resp.status_code == 403
+
+    def test_put_survey_no_prior_draft(self, client, jwt_secret):
+        headers = _make_auth_headers("user1")
+        sid = _create_chat_session(client, headers)
+        get_resp = client.get(f"/chat/{sid}/survey", headers=headers)
+        assert get_resp.json()["survey"] is None
+        resp = client.put(
+            f"/chat/{sid}/survey", json={"survey": SAMPLE_SURVEY_DICT}, headers=headers
+        )
+        assert resp.status_code == 200
+        get_resp = client.get(f"/chat/{sid}/survey", headers=headers)
+        assert get_resp.json()["survey"] is not None
+
+
+# ---------------------------------------------------------------------------
 # TestStyleEndpoints
 # ---------------------------------------------------------------------------
 

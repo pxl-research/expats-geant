@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
 
+from m_shared.models.survey import Survey
 from m_shared.rate_limit import limiter
 from m_shared.session.manager import SessionManager
 from m_shared.utils.file_validation import validate_file_upload
@@ -22,6 +23,8 @@ from shape_api.models import (
     DocumentUploadResponse,
     StyleProfileResponse,
     StyleUpdateRequest,
+    SurveyUpdateRequest,
+    SurveyUpdateResponse,
 )
 from shape_api.session import (
     DEFAULT_STYLE_PROFILE,
@@ -32,9 +35,11 @@ from shape_api.session import (
     load_conversation,
     load_draft_survey,
     load_style_profile,
+    save_draft_survey,
     save_style_profile,
 )
 from shape_api.style import extract_style_document, summarise_style_rules
+from shape_api.validation_engine import validate_survey
 
 router = APIRouter()
 
@@ -266,6 +271,34 @@ async def get_chat_survey(request: Request, session_id: str):
     base_path = str(session_manager.base_path)
     survey = load_draft_survey(base_path, session_id)
     return ChatSurveyResponse(survey=survey.model_dump() if survey else None)
+
+
+@router.put("/chat/{session_id}/survey", response_model=SurveyUpdateResponse)
+@limiter.limit("10/minute")
+async def put_chat_survey(request: Request, session_id: str, body: SurveyUpdateRequest):
+    """Replace the draft survey for a chat session and return validation issues."""
+    session_manager = request.app.state.session_manager
+    user_id = request.state.claims["user_id"]
+    session = _verify_session_owner(session_id, user_id, session_manager)
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Session not found or access denied",
+        )
+    try:
+        survey = Survey(**body.survey)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid survey payload: {exc}",
+        )
+    base_path = str(session_manager.base_path)
+    save_draft_survey(base_path, session_id, survey)
+    issues = [
+        {"question_id": i.question_id, "severity": i.severity, "code": i.code, "message": i.message}
+        for i in validate_survey(survey)
+    ]
+    return SurveyUpdateResponse(status="saved", validation_issues=issues)
 
 
 # ---------------------------------------------------------------------------

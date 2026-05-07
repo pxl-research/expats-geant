@@ -111,6 +111,15 @@ class ChatSurveyResponse(BaseModel):
     survey: dict | None
 
 
+class SurveyUpdateRequest(BaseModel):
+    survey: dict
+
+
+class SurveyUpdateResponse(BaseModel):
+    status: str
+    validation_issues: list[dict]
+
+
 class StyleUpdateRequest(BaseModel):
     language: str | None = Field(default=None, max_length=100)
     free_text: str | None = Field(default=None, max_length=5000)
