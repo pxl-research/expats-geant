@@ -112,6 +112,11 @@ document.addEventListener("DOMContentLoaded", function () {
     btn.disabled = !hasAcceptable;
   }
 
+  // If some suggestions are already rendered from cache, try enabling immediately
+  if (document.querySelectorAll(".suggestion-block").length > 0) {
+    enableAcceptAllIfReady();
+  }
+
   // Also enable after each OOB swap (suggestion arrived)
   document.body.addEventListener("htmx:oobAfterSwap", enableAcceptAllIfReady);
 

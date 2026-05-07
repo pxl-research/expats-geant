@@ -219,6 +219,20 @@ async def get_review_state(token: str) -> dict:
     return resp.json().get("states", {})
 
 
+async def get_cached_suggestions(token: str) -> dict:
+    """Fetch cached suggestion objects for the session.
+
+    GET /cached-suggestions → dict mapping question_id to ItemSuggestion, or {}.
+    """
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{CUE_API_URL}/cached-suggestions",
+            headers=auth_headers(token),
+        )
+    _raise_for_status(resp)
+    return resp.json().get("suggestions", {})
+
+
 def _raise_for_status(resp: httpx.Response) -> None:
     """Raise APIError for 4xx/5xx responses."""
     if resp.is_error:

@@ -23,5 +23,5 @@
 
 - [ ] 4.1 Smoke-test in browser: accept/dismiss/edit suggestions, reload page, verify state restored from server
 - [ ] 4.2 Smoke-test cross-device: review in one browser, open same session URL in another, verify state appears
-- [ ] 4.3 Verify answer report download includes review state after reviewing suggestions
-- [ ] 4.4 Verify session deletion cleans up review_state.json
+- [x] 4.3 Verify answer report download includes review state after reviewing suggestions
+- [x] 4.4 Verify session deletion cleans up review_state.json

@@ -3,6 +3,8 @@
 import asyncio
 import json
 import logging
+import os
+import tempfile
 import threading
 from collections import OrderedDict
 from datetime import UTC, datetime
@@ -56,6 +58,30 @@ def _append_to_answer_report(session_path: Path, entries: list[dict]) -> None:
         with open(report_path, "a", encoding="utf-8") as f:
             for entry in entries:
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
+def _cache_suggestion(session_path: Path, suggestion: ItemSuggestion) -> None:
+    """Cache a full ItemSuggestion for instant page reload."""
+    cache_path = session_path / "cached_suggestions.json"
+    with _get_report_lock(session_path):
+        existing = {}
+        if cache_path.exists():
+            try:
+                existing = json.loads(cache_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                pass
+        existing[suggestion.item_id] = suggestion.model_dump()
+        fd, tmp = tempfile.mkstemp(dir=session_path, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(existing, f, ensure_ascii=False)
+            os.replace(tmp, cache_path)
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
 
 
 def _build_report_entries(raw_responses: list[dict], item_prompts: dict) -> list[dict]:
@@ -144,14 +170,17 @@ async def suggest_answer_batch(
 
     responses = [_to_item_suggestion(r) for r in raw_responses]
 
+    session_path = session_manager._get_session_path(session.session_id)
     item_prompts = {item.id: item.prompt for section in sections for item in section.items}
     try:
-        _append_to_answer_report(
-            session_manager._get_session_path(session.session_id),
-            _build_report_entries(raw_responses, item_prompts),
-        )
+        _append_to_answer_report(session_path, _build_report_entries(raw_responses, item_prompts))
     except Exception as exc:
         logger.warning("Failed to persist batch answer report: %s", exc)
+    try:
+        for sug in responses:
+            _cache_suggestion(session_path, sug)
+    except Exception as exc:
+        logger.warning("Failed to cache batch suggestions: %s", exc)
 
     active_client = tenant_llm_client or rag_pipeline.llm_client
     return BatchSuggestResponse(
@@ -193,14 +222,19 @@ async def suggest_answer_stream(request: Request, batch_request: BatchSuggestReq
             ):
                 item_sug = _to_item_suggestion(r)
                 yield f"event: suggestion\ndata: {item_sug.model_dump_json()}\n\n"
+                session_path = session_manager._get_session_path(session.session_id)
                 try:
                     await asyncio.to_thread(
                         _append_to_answer_report,
-                        session_manager._get_session_path(session.session_id),
+                        session_path,
                         _build_report_entries([r], item_prompts),
                     )
                 except Exception as exc:
                     logger.warning("Failed to persist stream answer report entry: %s", exc)
+                try:
+                    await asyncio.to_thread(_cache_suggestion, session_path, item_sug)
+                except Exception as exc:
+                    logger.warning("Failed to cache stream suggestion: %s", exc)
         except ValueError as e:
             logger.error("Stream suggest session error: %s", e)
             yield f"event: error\ndata: {json.dumps({'detail': str(e)})}\n\n"

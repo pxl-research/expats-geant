@@ -291,3 +291,44 @@ class TestAnswerReportEnrichment:
         data = resp.json()
         assert data[2]["review_state"] == "edited"
         assert data[2]["final_value"] == ["opt-a", "opt-c"]
+
+
+class TestCachedSuggestions:
+    def test_empty_session_returns_empty(self, client, auth_token, session_manager):
+        _session_path(session_manager, auth_token)
+        resp = client.get("/cached-suggestions", headers=_auth(auth_token))
+        assert resp.status_code == 200
+        assert resp.json() == {"suggestions": {}}
+
+    def test_cached_suggestions_returned(self, client, auth_token, session_manager):
+        sp = _session_path(session_manager, auth_token)
+        cache = {
+            "q1": {
+                "item_id": "q1",
+                "type": "open_ended",
+                "suggestion": "36 months",
+                "reasoning": "Policy states this",
+                "selected_id": None,
+                "selected_ids": None,
+                "citations": [],
+            }
+        }
+        (sp / "cached_suggestions.json").write_text(json.dumps(cache))
+
+        resp = client.get("/cached-suggestions", headers=_auth(auth_token))
+        assert resp.status_code == 200
+        data = resp.json()["suggestions"]
+        assert "q1" in data
+        assert data["q1"]["suggestion"] == "36 months"
+
+    def test_session_delete_removes_cache(self, client, auth_token, session_manager):
+        sp = _session_path(session_manager, auth_token)
+        (sp / "cached_suggestions.json").write_text('{"q1": {}}')
+        assert (sp / "cached_suggestions.json").exists()
+
+        client.delete("/session", headers=_auth(auth_token))
+        assert not sp.exists()
+
+    def test_unauthenticated_returns_401(self, client):
+        resp = client.get("/cached-suggestions")
+        assert resp.status_code == 401
