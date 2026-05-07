@@ -197,9 +197,21 @@ Keycloak is the bundled identity provider, pre-configured with the `expats` real
 
 - **Service name**: `keycloak` (docker-compose)
 - **Port**: `8080`
-- **Admin console**: `http://localhost:8080` (user: `admin`, password from `KEYCLOAK_ADMIN_PASSWORD`, default: `admin`)
+- **Admin console**: `http://localhost:8080` (user: `admin`, password from `KEYCLOAK_ADMIN_PASSWORD`)
 
 The realm import in `keycloak/` is loaded automatically on first start. OIDC redirect flows are handled by Cue UI (`/auth/callback` on port 8002), which proxies the token back to the browser.
+
+**Local dev note**: The Keycloak *master* realm defaults to `sslRequired: external`, which blocks the admin console over plain HTTP in Docker. The imported *expats* realm is unaffected. To access the admin console locally, run this one-time command (resets when the container is recreated):
+
+```bash
+docker compose exec keycloak /opt/keycloak/bin/kcadm.sh config credentials \
+  --server http://localhost:8080 --realm master --user admin \
+  --password <KEYCLOAK_ADMIN_PASSWORD>
+docker compose exec keycloak /opt/keycloak/bin/kcadm.sh update realms/master \
+  -s sslRequired=NONE
+```
+
+For production deployments behind a TLS-terminating reverse proxy, keep `sslRequired` set to `external` (the default) for both realms.
 
 ```bash
 docker-compose logs -f keycloak
@@ -358,6 +370,9 @@ python3 run_api.py
 | `SESSION_TTL_HOURS`      | `24`                         | Session lifetime (hours)                                       |
 | `MAX_FILE_SIZE_MB`       | `50`                         | Upload limit (MB)                                              |
 | `AUDIT_RETENTION_DAYS`   | `365`                        | Audit log retention (days)                                     |
+| `CUE_QUERY_REWRITE`      | `true`                       | Enable LLM query rewriting before vector search                |
+| `CUE_REWRITE_BATCH_SIZE` | `20`                         | Max questions per rewrite LLM call                             |
+| `CUE_REWRITE_MODEL`      | —                            | Dedicated model for rewriting (e.g. `google/gemini-2.0-flash-001`) |
 | `THINKING_BUDGET_TOKENS` | —                            | Token budget for extended thinking (Claude 3.5+/4.x only)      |
 | `PORT`                   | `8001`                       | API server port                                                |
 | `LOG_LEVEL`              | `INFO`                       | Logging level                                                  |

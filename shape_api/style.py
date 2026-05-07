@@ -66,7 +66,7 @@ def build_style_context(profile: dict) -> str:
         Human-readable style context string for inclusion in LLM prompts
     """
     if not profile:
-        return "Language: English. Use neutral formal tone."
+        return "Write all responses in English. Use neutral formal tone."
 
     lang_code = profile.get("language", "en")
     lang_name = _LANGUAGE_NAMES.get(lang_code, lang_code)
@@ -74,7 +74,10 @@ def build_style_context(profile: dict) -> str:
     free_text = (profile.get("free_text") or "").strip()
     doc_summary = (profile.get("document_summary") or "").strip()
 
-    parts = [f"Language: {lang_name} ({lang_code})."]
+    parts = [
+        f"Write all responses in {lang_name} ({lang_code}), including explanations, "
+        f"suggestions, and methodology advice.",
+    ]
 
     if free_text:
         parts.append(f"Style guidelines: {free_text}.")

@@ -448,6 +448,22 @@ On error, an `event: error` is emitted with a JSON `{"detail": "..."}` payload i
 
 The answer report is persisted to `answer_report.json` after all items have been streamed, identical to the batch endpoint.
 
+#### Query Rewriting
+
+Before vector search, Cue can optionally rewrite survey questions into concise search queries using the LLM. This improves retrieval by stripping verbose framing and extracting key terms — for example, *"Could you please describe your current employment status and the nature of your work arrangement?"* becomes *"employment status work arrangement"*.
+
+Rewriting is **enabled by default** and runs once per section (batching all questions in a single LLM call). It uses available context — question type, answer choices (for choice questions), section title, and uploaded document filenames — to produce targeted search queries.
+
+If the rewrite call fails for any reason, the pipeline silently falls back to the original question text.
+
+| Variable | Default | Description |
+|---|---|---|
+| `CUE_QUERY_REWRITE` | `true` | Set to `false` to disable query rewriting |
+| `CUE_REWRITE_BATCH_SIZE` | `20` | Max questions rewritten per LLM call; larger sections are split |
+| `CUE_REWRITE_MODEL` | _(unset)_ | Dedicated model for rewriting (e.g. `google/gemini-2.0-flash-001`); falls back to the primary LLM configuration when unset |
+
+The rewritten query is logged in the audit trail alongside each suggestion for pilot diagnostics.
+
 #### Get Session Statistics
 
 ```bash

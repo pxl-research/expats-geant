@@ -296,7 +296,7 @@ def test_sse_format(client: httpx.Client, headers: dict) -> None:
         f"{len(malformed)} malformed" if malformed else "",
     )
 
-    non_empty = [s for s in suggestions if s.get("suggestion", "").strip()]
+    non_empty = [s for s in suggestions if (s.get("suggestion") or "").strip()]
     check(
         "All suggestions have non-empty suggestion text",
         len(non_empty) == len(suggestions),

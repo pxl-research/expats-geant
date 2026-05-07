@@ -161,7 +161,7 @@ def test_session_isolation(client: httpx.Client, token_a: str, token_b: str) -> 
         headers=auth_headers(token_b),
     )
     if check("User B POST /suggest/batch → 200", r.status_code == 200):
-        suggestion = (r.json().get("responses") or [{}])[0].get("suggestion", "")
+        suggestion = (r.json().get("responses") or [{}])[0].get("suggestion") or ""
         no_docs = "couldn't find" in suggestion.lower() or "no relevant" in suggestion.lower()
         check(
             "User B gets 'no documents' answer (not User A's data)",
@@ -242,9 +242,9 @@ def test_happy_path(client: httpx.Client, token: str) -> None:
 
         if check(f'Suggest "{question[:55]}..." → 200', r.status_code == 200, f"{elapsed:.1f}s"):
             item = (r.json().get("responses") or [{}])[0]
-            has_answer = bool(item.get("suggestion", "").strip())
+            has_answer = bool((item.get("suggestion") or "").strip())
             has_citations = len(item.get("citations", [])) > 0
-            check("  Has non-empty answer", has_answer, item.get("suggestion", "")[:80])
+            check("  Has non-empty answer", has_answer, (item.get("suggestion") or "")[:80])
             check("  Has citations", has_citations, f"{len(item.get('citations', []))} citation(s)")
 
     # --- Performance summary ---

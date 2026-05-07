@@ -64,15 +64,34 @@ def create_app(
     rag_pipeline = None
     if llm_client:
         try:
-            max_citation_distance = max(0.0, float(os.getenv("CUE_MAX_CITATION_DISTANCE", "1.5")))
+            max_citation_distance = max(0.0, float(os.getenv("CUE_MAX_CITATION_DISTANCE", "1.8")))
         except ValueError:
-            logger.warning("Invalid CUE_MAX_CITATION_DISTANCE value; using default 1.5")
-            max_citation_distance = 1.5
+            logger.warning("Invalid CUE_MAX_CITATION_DISTANCE value; using default 1.8")
+            max_citation_distance = 1.8
+        query_rewrite = os.getenv("CUE_QUERY_REWRITE", "true").lower() != "false"
+        try:
+            rewrite_batch_size = max(1, int(os.getenv("CUE_REWRITE_BATCH_SIZE", "20")))
+        except ValueError:
+            logger.warning("Invalid CUE_REWRITE_BATCH_SIZE; using default 20")
+            rewrite_batch_size = 20
+        rewrite_llm_client = None
+        rewrite_model = os.getenv("CUE_REWRITE_MODEL") or os.getenv(
+            "DEFAULT_LLM_MODEL", "anthropic/claude-haiku-4.5"
+        )
+        from m_shared.llm import LLMClient as _LLMClient
+
+        try:
+            rewrite_llm_client = _LLMClient(model_name=rewrite_model)
+        except Exception as e:
+            logger.warning("Failed to create rewrite LLM client: %s; using main client", e)
         rag_pipeline = RAGPipeline(
             session_manager=session_manager,
             llm_client=llm_client,
             audit_logger=audit_logger,
             max_citation_distance=max_citation_distance,
+            query_rewrite=query_rewrite,
+            rewrite_batch_size=rewrite_batch_size,
+            rewrite_llm_client=rewrite_llm_client,
         )
 
     # Store dependencies on app.state for route modules

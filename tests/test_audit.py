@@ -149,6 +149,34 @@ class TestAuditLogger:
         assert entries[0].details["question"] == "What is my job title?"
         assert len(entries[0].details["sources_used"]) == 2
 
+    def test_log_suggestion_with_rewritten_query(self, logger):
+        """Test logging a suggestion with rewritten query."""
+        logger.log_suggestion(
+            session_id="sess_123",
+            question="Could you please describe your current employment status?",
+            suggested_answer="Full-time researcher",
+            sources_used=["contract.pdf"],
+            model="anthropic/claude-3-sonnet",
+            rewritten_query="employment status",
+        )
+
+        entries = logger.get_entries("sess_123")
+        assert len(entries) == 1
+        assert entries[0].details["rewritten_query"] == "employment status"
+
+    def test_log_suggestion_without_rewritten_query(self, logger):
+        """Test that rewritten_query is absent when not provided."""
+        logger.log_suggestion(
+            session_id="sess_123",
+            question="Question?",
+            suggested_answer="Answer",
+            sources_used=[],
+            model="test-model",
+        )
+
+        entries = logger.get_entries("sess_123")
+        assert "rewritten_query" not in entries[0].details
+
     def test_log_edit(self, logger):
         """Test logging a user edit."""
         logger.log_edit(

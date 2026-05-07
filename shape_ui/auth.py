@@ -6,16 +6,25 @@ import urllib.parse
 import httpx
 from fastapi import Request
 
+
+def _public_url(env_var: str, port: int, path: str = "", default: str | None = None) -> str | None:
+    value = os.getenv(env_var, "").strip()
+    if value:
+        return value
+    host = os.getenv("PUBLIC_HOST", "").strip()
+    if host:
+        return f"http://{host}:{port}{path}"
+    return default
+
+
 COOKIE_NAME = "chat_token"
 
 # Server-to-server URL (Docker-internal or localhost)
 SHAPE_API_URL = os.getenv("SHAPE_API_URL", "http://localhost:8003")
 
-# Browser-accessible URL for OAuth redirects (must be reachable by the end user's browser)
-SHAPE_PUBLIC_URL = os.getenv("SHAPE_PUBLIC_URL", "http://localhost:8003")
-
-# Public base URL of this UI (used as post-logout redirect target)
-SHAPE_UI_PUBLIC_URL = os.getenv("SHAPE_UI_PUBLIC_URL", "http://localhost:8004")
+# Browser-accessible URLs (derived from PUBLIC_HOST when not set explicitly)
+SHAPE_PUBLIC_URL = _public_url("SHAPE_PUBLIC_URL", 8003, default="http://localhost:8003")
+SHAPE_UI_PUBLIC_URL = _public_url("SHAPE_UI_PUBLIC_URL", 8004, default="http://localhost:8004")
 
 # Set COOKIE_SECURE=true in production (HTTPS deployments)
 _COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
@@ -57,6 +66,10 @@ async def get_logout_url(post_logout_redirect_uri: str | None = None) -> str:
         return post_logout_redirect_uri or "/"
     if not end_session_endpoint:
         return post_logout_redirect_uri or "/"
+    keycloak_public_url = (_public_url("KEYCLOAK_PUBLIC_URL", 8080) or "").rstrip("/")
+    if keycloak_public_url:
+        internal_base = issuer_url.split("/realms/")[0].rstrip("/")
+        end_session_endpoint = end_session_endpoint.replace(internal_base, keycloak_public_url, 1)
     params = {"client_id": client_id}
     if post_logout_redirect_uri:
         params["post_logout_redirect_uri"] = post_logout_redirect_uri

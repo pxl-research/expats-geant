@@ -14,6 +14,7 @@ from authlib.jose import jwt as authlib_jwt
 from authlib.jose.errors import JoseError
 
 from m_shared.auth.jwt_handler import create_token
+from m_shared.utils.public_url import get_public_url
 
 logger = logging.getLogger(__name__)
 
@@ -55,11 +56,15 @@ def _get_env(name: str) -> str:
 
 def _get_oidc_settings() -> tuple[str, str, str, str]:
     """Return (issuer_url, client_id, client_secret, redirect_uri)."""
+    redirect_port = int(os.getenv("OIDC_REDIRECT_PORT", "8002"))
+    redirect_uri = get_public_url(
+        "OIDC_REDIRECT_URI", redirect_port, path="/auth/callback"
+    ) or _get_env("OIDC_REDIRECT_URI")
     return (
         _get_env("OIDC_ISSUER_URL"),
         _get_env("OIDC_CLIENT_ID"),
         _get_env("OIDC_CLIENT_SECRET"),
-        _get_env("OIDC_REDIRECT_URI"),
+        redirect_uri,
     )
 
 
@@ -158,7 +163,7 @@ async def get_authorization_url(redirect_uri: str | None = None) -> tuple[str, s
     # Rewrite the authorization endpoint hostname for browser-facing redirects.
     # Keycloak's discovery document uses its internal hostname (e.g. http://keycloak:8080),
     # which is unreachable from external browsers. KEYCLOAK_PUBLIC_URL replaces the base.
-    keycloak_public_url = os.getenv("KEYCLOAK_PUBLIC_URL", "").rstrip("/")
+    keycloak_public_url = (get_public_url("KEYCLOAK_PUBLIC_URL", 8080) or "").rstrip("/")
     if keycloak_public_url:
         internal_base = issuer_url.split("/realms/")[0].rstrip("/")
         authorization_endpoint = authorization_endpoint.replace(
@@ -280,9 +285,17 @@ async def exchange_code(code: str, state: str, redirect_uri: str | None = None) 
         logger.warning("ID token validation failed: %s", exc)
         raise OIDCTokenError(f"ID token validation failed: {exc}") from exc
 
-    # Verify issuer matches configured OIDC provider (OIDC spec requirement)
+    # Verify issuer matches configured OIDC provider (OIDC spec requirement).
+    # When KEYCLOAK_PUBLIC_URL rewrites the hostname, the ID token's issuer uses the
+    # public URL while OIDC_ISSUER_URL uses the Docker-internal URL — both are valid.
     token_iss = claims.get("iss")
-    if token_iss != issuer_url:
+    keycloak_public_url = (get_public_url("KEYCLOAK_PUBLIC_URL", 8080) or "").rstrip("/")
+    if keycloak_public_url:
+        internal_base = issuer_url.split("/realms/")[0].rstrip("/")
+        expected_public_issuer = issuer_url.replace(internal_base, keycloak_public_url, 1)
+    else:
+        expected_public_issuer = None
+    if token_iss != issuer_url and token_iss != expected_public_issuer:
         logger.warning("ID token issuer mismatch: got %r, expected %r", token_iss, issuer_url)
         raise OIDCTokenError(
             f"ID token issuer {token_iss!r} does not match configured issuer {issuer_url!r}."
