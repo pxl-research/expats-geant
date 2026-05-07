@@ -128,6 +128,8 @@ MUST be set to a strong random value in all deployments.
 - **WHEN** more than 5 token requests per minute originate from the same client
 - **THEN** subsequent requests within that window are rejected with HTTP 429 Too Many Requests
 
+## ADDED Requirements
+
 ### Requirement: Tenant Resolution via Keycloak Groups
 
 OIDC-authenticated users SHALL be associated with a tenant when their JWT contains a

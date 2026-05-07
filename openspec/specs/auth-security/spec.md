@@ -195,18 +195,32 @@ The system SHALL provide a `POST /auth/token` endpoint for issuing JWTs to
 server-to-server callers and anonymous API consumers. The endpoint SHALL require two
 fields in the request body: a `user_id` string (caller-supplied; may be any stable unique
 identifier such as a UUID, an HMAC-hash of an internal user ID, or an institutional
-service-account name) and an `api_secret` string validated against the `API_SECRET`
-environment variable using constant-time comparison. On success the endpoint SHALL return
-a signed JWT with `org="api"` and `roles=["user"]`. The endpoint SHALL be rate-limited to
-5 requests per minute per client and SHALL be publicly accessible (no prior token
-required). The `API_SECRET` environment variable MUST be set to a strong random value in
-all deployments.
+service-account name) and an `api_secret` string.
+
+When a tenant registry is configured, the endpoint SHALL match the provided `api_secret`
+against all tenant API secret hashes using constant-time comparison. On match, the
+issued JWT SHALL contain `org` set to the tenant slug. When no tenant matches but the
+secret matches the global `API_SECRET`, the JWT SHALL contain `org="api"` (default
+behaviour). When no match is found, the endpoint SHALL return 401 Unauthorized.
+
+When no tenant registry is configured, the endpoint SHALL validate against the global
+`API_SECRET` as before.
+
+The endpoint SHALL be rate-limited to 5 requests per minute per client and SHALL be
+publicly accessible (no prior token required). The `API_SECRET` environment variable
+MUST be set to a strong random value in all deployments.
 
 #### Scenario: Server-to-server caller obtains JWT
 
 - **WHEN** a backend service posts `{"user_id": "svc-account-1", "api_secret": "<correct>"}` to `POST /auth/token`
 - **THEN** a signed JWT is returned containing `user_id="svc-account-1"`, `org="api"`, `roles=["user"]`
 - **AND** the token is accepted in subsequent `Authorization: Bearer <token>` requests
+
+#### Scenario: Tenant-specific caller obtains JWT
+
+- **WHEN** a caller posts an `api_secret` that matches tenant `faculty-a`
+- **THEN** the issued JWT contains `org="faculty-a"`
+- **AND** subsequent requests using this token are routed to faculty-a's LLM credentials
 
 #### Scenario: Anonymous caller uses a unique identifier
 
@@ -223,6 +237,34 @@ all deployments.
 
 - **WHEN** more than 5 token requests per minute originate from the same client
 - **THEN** subsequent requests within that window are rejected with HTTP 429 Too Many Requests
+
+### Requirement: Tenant Resolution via Keycloak Groups
+
+OIDC-authenticated users SHALL be associated with a tenant when their JWT contains a
+`groups` claim with a value matching a tenant slug in the registry. The Keycloak realm
+configuration SHALL include a protocol mapper that injects the user's group memberships
+into the `groups` claim of the ID token.
+
+When a user belongs to multiple groups, the first group matching a tenant slug SHALL be
+used. When no group matches, the user falls back to the global default credentials.
+
+#### Scenario: OIDC user in tenant group
+
+- **WHEN** a user authenticates via OIDC and their Keycloak groups include `faculty-a`
+- **AND** `faculty-a` is a registered tenant
+- **THEN** the platform JWT is issued with `org="faculty-a"`
+- **AND** subsequent requests use faculty-a's LLM credentials
+
+#### Scenario: OIDC user without tenant group
+
+- **WHEN** a user authenticates via OIDC and has no groups matching a tenant slug
+- **THEN** the platform JWT is issued with `org="default"`
+- **AND** subsequent requests use the global LLM credentials
+
+#### Scenario: Keycloak groups claim included in JWT
+
+- **WHEN** a user authenticates through the bundled Keycloak instance
+- **THEN** the ID token includes a `groups` claim listing the user's group memberships
 
 ## Notes
 
