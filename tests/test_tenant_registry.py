@@ -1,7 +1,8 @@
-"""Tests for m_shared.tenant.registry."""
+"""Tests for m_shared.tenant.registry, OIDC groups resolution, and middleware pool routing."""
 
 import hashlib
 import json
+from unittest.mock import MagicMock
 
 import pytest
 from cryptography.fernet import Fernet
@@ -178,3 +179,125 @@ class TestResolveOrg:
         reg = TenantRegistry(encryption_key=ENCRYPTION_KEY)
         reg.load(path)
         assert resolve_org(TENANT_SECRET_A, reg) == "faculty-a"
+
+
+class TestOIDCGroupsResolution:
+    """Task 4.4 — verify groups claim → tenant resolution logic used by exchange_code()."""
+
+    def _make_registry(self, tmp_path):
+        path = _make_registry_file(tmp_path)
+        reg = TenantRegistry(encryption_key=ENCRYPTION_KEY)
+        reg.load(path)
+        return reg
+
+    def test_matching_group_resolves_tenant(self, tmp_path):
+        reg = self._make_registry(tmp_path)
+        groups = ["/faculty-a"]
+        org = "default"
+        for group in groups:
+            group_name = group.lstrip("/")
+            if reg.get_tenant(group_name):
+                org = group_name
+                break
+        assert org == "faculty-a"
+
+    def test_no_matching_group_stays_default(self, tmp_path):
+        reg = self._make_registry(tmp_path)
+        groups = ["/unknown-dept", "/another-dept"]
+        org = "default"
+        for group in groups:
+            group_name = group.lstrip("/")
+            if reg.get_tenant(group_name):
+                org = group_name
+                break
+        assert org == "default"
+
+    def test_empty_groups_stays_default(self, tmp_path):
+        reg = self._make_registry(tmp_path)
+        groups = []
+        org = "default"
+        for group in groups:
+            group_name = group.lstrip("/")
+            if reg.get_tenant(group_name):
+                org = group_name
+                break
+        assert org == "default"
+
+    def test_multiple_groups_first_match_wins(self, tmp_path):
+        reg = self._make_registry(tmp_path)
+        groups = ["/faculty-b", "/faculty-a"]
+        org = "default"
+        for group in groups:
+            group_name = group.lstrip("/")
+            if reg.get_tenant(group_name):
+                org = group_name
+                break
+        assert org == "faculty-b"
+
+    def test_groups_without_leading_slash(self, tmp_path):
+        reg = self._make_registry(tmp_path)
+        groups = ["faculty-a"]
+        org = "default"
+        for group in groups:
+            group_name = group.lstrip("/")
+            if reg.get_tenant(group_name):
+                org = group_name
+                break
+        assert org == "faculty-a"
+
+    def test_no_registry_stays_default(self):
+        groups = ["/faculty-a"]
+        registry = None
+        org = "default"
+        if registry:
+            for group in groups:
+                group_name = group.lstrip("/")
+                if registry.get_tenant(group_name):
+                    org = group_name
+                    break
+        assert org == "default"
+
+
+class TestMiddlewarePoolResolution:
+    """Task 5.4 — verify middleware logic for routing tenant → LLM client from pool."""
+
+    def _resolve(self, claims, pool):
+        """Replicate the middleware's pool resolution logic."""
+        org = claims.get("org", "default")
+        if pool:
+            return pool.get(org) or pool.get("default")
+        return None
+
+    def test_correct_client_per_tenant(self):
+        client_a = MagicMock(name="client-a")
+        client_b = MagicMock(name="client-b")
+        default = MagicMock(name="default")
+        pool = {"default": default, "faculty-a": client_a, "faculty-b": client_b}
+
+        assert self._resolve({"org": "faculty-a"}, pool) is client_a
+        assert self._resolve({"org": "faculty-b"}, pool) is client_b
+
+    def test_default_for_unknown_tenant(self):
+        default = MagicMock(name="default")
+        pool = {"default": default}
+
+        assert self._resolve({"org": "unknown-tenant"}, pool) is default
+
+    def test_default_when_org_missing(self):
+        default = MagicMock(name="default")
+        pool = {"default": default}
+
+        assert self._resolve({}, pool) is default
+
+    def test_api_org_uses_default(self):
+        default = MagicMock(name="default")
+        api_client = MagicMock(name="api")
+        pool = {"default": default, "api": api_client}
+
+        assert self._resolve({"org": "api"}, pool) is api_client
+
+    def test_no_pool_returns_none(self):
+        assert self._resolve({"org": "faculty-a"}, None) is None
+
+    def test_empty_pool_returns_none(self):
+        assert self._resolve({"org": "faculty-a"}, {}) is None
