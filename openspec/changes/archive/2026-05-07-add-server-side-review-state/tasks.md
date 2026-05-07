@@ -22,6 +22,6 @@
 ## 4. Testing
 
 - [x] 4.1 Smoke-test in browser: accept/dismiss/edit suggestions, reload page, verify state restored from server
-- [ ] 4.2 Smoke-test cross-device: review in one browser, open same session URL in another, verify state appears
+- [x] 4.2 ~~Smoke-test cross-device~~ — out of scope: requires user-scoped sessions (separate proposal)
 - [x] 4.3 Verify answer report download includes review state after reviewing suggestions
 - [x] 4.4 Verify session deletion cleans up review_state.json
