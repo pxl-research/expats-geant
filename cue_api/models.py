@@ -1,5 +1,7 @@
 """Pydantic models for Cue API."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, model_validator
 
 from m_shared.models.question import QuestionType
@@ -205,6 +207,27 @@ class LiveApiImportRequest(BaseModel):
     username: str | None = Field(default=None, max_length=200)
     password: str | None = Field(default=None, max_length=200)
     datacenter_id: str | None = Field(default=None, max_length=50)
+
+
+class ReviewStateUpdate(BaseModel):
+    """Review state for a single question."""
+
+    state: Literal["accepted", "dismissed", "edited"] = Field(..., description="Review decision")
+    value: str | None = Field(default=None, max_length=10_000, description="Final text value")
+    selected_id: str | None = Field(
+        default=None, max_length=200, description="Selected choice ID (single_choice)"
+    )
+    selected_ids: list[str] | None = Field(
+        default=None, max_length=100, description="Selected choice IDs (multiple_choice)"
+    )
+
+
+class ReviewStateResponse(BaseModel):
+    """Full review state map for a session."""
+
+    states: dict[str, dict] = Field(
+        default_factory=dict, description="Mapping of question_id to state object"
+    )
 
 
 # ---------------------------------------------------------------------------

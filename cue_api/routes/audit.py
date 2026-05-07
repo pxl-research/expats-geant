@@ -114,6 +114,29 @@ async def download_answer_report(request: Request):
             ]
 
     data = await asyncio.to_thread(_read)
+
+    review_state_path = session_path / "review_state.json"
+    if review_state_path.exists():
+        try:
+            review_map = json.loads(review_state_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            review_map = {}
+        for entry in data:
+            qid = entry.get("question_id")
+            rs = review_map.get(qid) if qid else None
+            if rs:
+                entry["review_state"] = rs.get("state")
+                if rs.get("state") == "dismissed":
+                    entry["final_value"] = None
+                elif rs.get("value") is not None:
+                    entry["final_value"] = rs["value"]
+                elif rs.get("selected_id") is not None:
+                    entry["final_value"] = rs["selected_id"]
+                elif rs.get("selected_ids") is not None:
+                    entry["final_value"] = rs["selected_ids"]
+                else:
+                    entry["final_value"] = entry.get("answer")
+
     return Response(
         content=json.dumps(data, ensure_ascii=False),
         media_type="application/json",

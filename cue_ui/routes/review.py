@@ -186,6 +186,20 @@ async def review_page(request: Request, session_id: str):
     except APIError:
         pass
 
+    # Fetch server-side review state (best-effort; falls back to localStorage)
+    review_state = {}
+    try:
+        review_state = await api_client.get_review_state(token)
+    except Exception:  # noqa: S110
+        pass
+
+    # Fetch cached suggestions (skip SSE regeneration on reload)
+    cached_suggestions = {}
+    try:
+        cached_suggestions = await api_client.get_cached_suggestions(token)
+    except Exception:  # noqa: S110
+        pass
+
     return templates.TemplateResponse(
         request,
         "survey.html",
@@ -195,6 +209,8 @@ async def review_page(request: Request, session_id: str):
             "can_submit": can_submit,
             "form_values": {},
             "documents": documents,
+            "review_state": review_state,
+            "cached_suggestions": cached_suggestions,
         },
     )
 
@@ -236,6 +252,26 @@ async def suggest_stream(session_id: str, request: Request):
         return HTMLResponse(f"Error: {exc.detail}", status_code=exc.status_code)
 
     items = _survey_to_batch_items(survey)
+
+    # Skip questions that already have cached suggestions
+    try:
+        cached = await api_client.get_cached_suggestions(token)
+    except Exception:  # noqa: S110
+        cached = {}
+    if cached:
+        items = [item for item in items if item["id"] not in cached]
+
+    if not items:
+
+        async def all_cached_generator():
+            yield "event: done\ndata: {}\n\n"
+
+        return StreamingResponse(
+            all_cached_generator(),
+            media_type="text/event-stream",
+            headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+        )
+
     body = {"assessment_id": session_id, "items": items}
 
     async def proxy_generator():
@@ -403,3 +439,38 @@ async def delete_session(request: Request):
     except APIError as exc:
         return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
     return JSONResponse({"status": "deleted"}, status_code=200)
+
+
+# ---------------------------------------------------------------------------
+# Review state proxy (UI → Cue API)
+# ---------------------------------------------------------------------------
+
+
+@router.put("/review-state/{question_id}")
+async def save_review_state(request: Request, question_id: str):
+    """Proxy review state save to the Cue API."""
+    token = get_token(request)
+    if not token:
+        return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"detail": "Invalid JSON"}, status_code=400)
+    try:
+        await api_client.save_review_state(token, question_id, body)
+    except APIError as exc:
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    return JSONResponse({"status": "ok"})
+
+
+@router.get("/review-state")
+async def get_review_state(request: Request):
+    """Proxy review state load from the Cue API."""
+    token = get_token(request)
+    if not token:
+        return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+    try:
+        states = await api_client.get_review_state(token)
+    except APIError as exc:
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    return {"states": states}

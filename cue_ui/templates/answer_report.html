@@ -49,6 +49,16 @@
     justify-content: space-between;
     margin-bottom: 1.5rem;
   }
+
+  .review-badge {
+    display: inline-block; font-size: 0.7rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    padding: 0.15rem 0.5rem; border-radius: 999px; margin-left: 0.75rem;
+    vertical-align: middle;
+  }
+  .review-badge-accepted { background: #dcfce7; color: #166534; }
+  .review-badge-edited   { background: #dbeafe; color: #1e40af; }
+  .review-badge-dismissed { background: #fef2f2; color: #991b1b; }
 </style>
 {% endblock %}
 
@@ -69,6 +79,9 @@
 <div class="report-card">
   <div class="report-card-header">
     {{ entry.question or "(no question text)" }}
+    {% if entry.review_state %}
+    <span class="review-badge review-badge-{{ entry.review_state }}">{{ entry.review_state | capitalize }}</span>
+    {% endif %}
   </div>
   <div class="report-card-body">
 
@@ -76,6 +89,13 @@
       <div class="report-label">Suggested answer</div>
       <div class="report-value">{{ entry.answer }}</div>
     </div>
+
+    {% if entry.final_value is defined and entry.final_value is not none %}
+    <div class="report-section">
+      <div class="report-label">Final answer</div>
+      <div class="report-value">{% if entry.final_value is iterable and entry.final_value is not string %}{{ entry.final_value | join(", ") }}{% else %}{{ entry.final_value }}{% endif %}</div>
+    </div>
+    {% endif %}
 
     {% if entry.reasoning %}
     <div class="report-section">

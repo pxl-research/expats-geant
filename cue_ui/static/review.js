@@ -10,6 +10,16 @@ document.addEventListener("DOMContentLoaded", function () {
   var sessionId = formEl ? formEl.dataset.sessionId : "";
   var reviewState = new ReviewState(sessionId);
 
+  var serverStateEl = document.getElementById("server-review-state");
+  if (serverStateEl) {
+    try {
+      var serverState = JSON.parse(serverStateEl.textContent);
+      if (serverState && Object.keys(serverState).length > 0) {
+        reviewState.loadWithServer(serverState);
+      }
+    } catch (e) {}
+  }
+
   reviewState.restoreAll();
 
   // ---------------------------------------------------------------
@@ -100,6 +110,11 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!btn) return;
     var hasAcceptable = document.querySelectorAll("[data-action='accept']").length > 0;
     btn.disabled = !hasAcceptable;
+  }
+
+  // If some suggestions are already rendered from cache, try enabling immediately
+  if (document.querySelectorAll(".suggestion-block").length > 0) {
+    enableAcceptAllIfReady();
   }
 
   // Also enable after each OOB swap (suggestion arrived)
