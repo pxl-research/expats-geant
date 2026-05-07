@@ -10,6 +10,7 @@ from cue_api.rag_pipeline import RAGPipeline
 from cue_api.routes.audit import router as audit_router
 from cue_api.routes.auth import router as auth_router
 from cue_api.routes.documents import router as documents_router
+from cue_api.routes.review_state import router as review_state_router
 from cue_api.routes.session import router as session_router
 from cue_api.routes.suggestions import router as suggestions_router
 from cue_api.routes.surveys import router as surveys_router
@@ -122,6 +123,7 @@ def create_app(
     app.include_router(documents_router)
     app.include_router(suggestions_router)
     app.include_router(audit_router)
+    app.include_router(review_state_router)
     app.include_router(surveys_router)
     app.include_router(admin_router)
 

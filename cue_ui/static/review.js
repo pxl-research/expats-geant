@@ -10,6 +10,16 @@ document.addEventListener("DOMContentLoaded", function () {
   var sessionId = formEl ? formEl.dataset.sessionId : "";
   var reviewState = new ReviewState(sessionId);
 
+  var serverStateEl = document.getElementById("server-review-state");
+  if (serverStateEl) {
+    try {
+      var serverState = JSON.parse(serverStateEl.textContent);
+      if (serverState && Object.keys(serverState).length > 0) {
+        reviewState.loadWithServer(serverState);
+      }
+    } catch (e) {}
+  }
+
   reviewState.restoreAll();
 
   // ---------------------------------------------------------------

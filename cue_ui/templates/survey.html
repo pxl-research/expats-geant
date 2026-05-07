@@ -90,6 +90,7 @@
   <div sse-swap="suggestion" hx-swap="none" style="display:none;"></div>
 </div>
 
+<script id="server-review-state" type="application/json">{{ review_state | default({}) | tojson }}</script>
 <form method="post" action="/session/{{ session_id }}/submit" id="survey-form" data-session-id="{{ session_id }}">
 
 {% for section in survey.sections | default([]) %}

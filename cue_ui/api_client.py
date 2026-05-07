@@ -191,6 +191,34 @@ async def fetch_answer_report(token: str) -> list[dict] | None:
     return resp.json()
 
 
+async def save_review_state(token: str, question_id: str, state: dict) -> None:
+    """Save review state for a single question.
+
+    PUT /review-state/{question_id}
+    """
+    async with httpx.AsyncClient() as client:
+        resp = await client.put(
+            f"{CUE_API_URL}/review-state/{question_id}",
+            headers=auth_headers(token),
+            json=state,
+        )
+    _raise_for_status(resp)
+
+
+async def get_review_state(token: str) -> dict:
+    """Fetch full review state map for the session.
+
+    GET /review-state → states dict, or {} if empty.
+    """
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{CUE_API_URL}/review-state",
+            headers=auth_headers(token),
+        )
+    _raise_for_status(resp)
+    return resp.json().get("states", {})
+
+
 def _raise_for_status(resp: httpx.Response) -> None:
     """Raise APIError for 4xx/5xx responses."""
     if resp.is_error:

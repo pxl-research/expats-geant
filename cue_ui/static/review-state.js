@@ -10,6 +10,7 @@
 class ReviewState {
   constructor(sessionId) {
     this._key = "review-" + sessionId;
+    this._sessionId = sessionId;
   }
 
   /** Load full state map from localStorage. Returns {} if missing or corrupt. */
@@ -30,16 +31,34 @@ class ReviewState {
     }
   }
 
-  /** Save state for a single question. */
+  /** Save state for a single question (localStorage + server). */
   save(questionId, stateObj) {
     const map = this.load();
     map[questionId] = stateObj;
     this._persist(map);
+    fetch("/session/" + this._sessionId + "/review-state/" + encodeURIComponent(questionId), {
+      method: "PUT",
+      headers: {"Content-Type": "application/json"},
+      credentials: "same-origin",
+      body: JSON.stringify(stateObj)
+    }).catch(function() {});
   }
 
   /** Get state for a single question. Returns null if not saved. */
   get(questionId) {
     return this.load()[questionId] || null;
+  }
+
+  /** Merge server state into localStorage. Server keys take precedence. */
+  loadWithServer(serverState) {
+    var map = this.load();
+    for (var qid in serverState) {
+      if (serverState.hasOwnProperty(qid)) {
+        map[qid] = serverState[qid];
+      }
+    }
+    this._persist(map);
+    return map;
   }
 
   /** Clear all state for this session. */
