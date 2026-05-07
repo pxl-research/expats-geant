@@ -29,13 +29,15 @@ async def reload_tenants(request: Request):
             detail="Invalid or missing API secret",
         )
 
-    registry: TenantRegistry | None = getattr(request.app.state, "tenant_registry", None)
-    if registry is None:
-        return {"status": "ok", "tenants_loaded": 0, "message": "No tenant registry configured"}
-
     registry_path = os.getenv("TENANT_REGISTRY_PATH", "")
     if not registry_path:
         return {"status": "ok", "tenants_loaded": 0, "message": "TENANT_REGISTRY_PATH not set"}
+
+    registry: TenantRegistry | None = getattr(request.app.state, "tenant_registry", None)
+    if registry is None:
+        encryption_key = os.getenv("TENANT_ENCRYPTION_KEY", "")
+        registry = TenantRegistry(encryption_key=encryption_key or None)
+        request.app.state.tenant_registry = registry
 
     registry.load(registry_path)
 

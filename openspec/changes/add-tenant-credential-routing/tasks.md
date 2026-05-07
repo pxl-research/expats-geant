@@ -43,6 +43,6 @@
 ## 8. Testing
 
 - [x] 8.1 Integration test: start with no tenant registry, verify system works as before (all 1011 existing tests pass)
-- [ ] 8.2 Integration test: start with tenant registry, obtain JWT with tenant secret, verify LLM calls use tenant credentials
-- [ ] 8.3 Smoke test: OIDC login with Keycloak group, verify tenant resolved in JWT
-- [ ] 8.4 Smoke test: add tenant to registry, call reload endpoint, verify new tenant works without restart
+- [x] 8.2 Integration test: start with tenant registry, obtain JWT with tenant secret, verify LLM calls use tenant credentials
+- [x] 8.3 Smoke test: OIDC login with Keycloak group, verify tenant resolved in JWT
+- [x] 8.4 Smoke test: add tenant to registry, call reload endpoint, verify new tenant works without restart
