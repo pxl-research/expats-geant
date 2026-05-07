@@ -6,16 +6,7 @@ import urllib.parse
 import httpx
 from fastapi import Request
 
-
-def _public_url(env_var: str, port: int, path: str = "", default: str | None = None) -> str | None:
-    value = os.getenv(env_var, "").strip()
-    if value:
-        return value
-    host = os.getenv("PUBLIC_HOST", "").strip()
-    if host:
-        return f"http://{host}:{port}{path}"
-    return default
-
+from m_shared.utils.public_url import get_public_url as _public_url
 
 COOKIE_NAME = "autofill_token"
 

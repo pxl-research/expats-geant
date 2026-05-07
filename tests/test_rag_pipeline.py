@@ -523,7 +523,7 @@ def rewrite_pipeline(mock_session_manager, mock_llm_client):
     )
 
 
-class TestDistillQueries:
+class TestRewriteQueries:
     """Tests for _rewrite_queries() core method."""
 
     def test_success(self, rewrite_pipeline, mock_llm_client):
@@ -605,7 +605,7 @@ class TestDistillQueries:
         assert "Section A" in user_msg
 
 
-class TestDistillBatchSplitting:
+class TestRewriteBatchSplitting:
     """Tests for section batch splitting."""
 
     def test_within_batch_size(self, mock_session_manager, mock_llm_client):
@@ -643,7 +643,7 @@ class TestDistillBatchSplitting:
         assert mock_llm_client.create_completion.call_count == 3
 
 
-class TestDistillFeatureToggle:
+class TestRewriteFeatureToggle:
     """Tests for feature toggle."""
 
     def test_disabled_skips_llm(self, mock_session_manager, mock_llm_client):
@@ -676,7 +676,7 @@ class TestDistillFeatureToggle:
         assert mock_llm_client.create_completion.called
 
 
-class TestDistillInProcessItem:
+class TestRewriteInProcessItem:
     """Tests for rewritten query usage in _process_item."""
 
     def test_uses_rewritten_query_for_retrieval(self, mock_session_manager, mock_llm_client):
@@ -767,7 +767,7 @@ class TestDistillInProcessItem:
         assert original_prompt in user_msg
 
 
-class TestDistillAuditLogging:
+class TestRewriteAuditLogging:
     """Tests for rewritten query in audit log."""
 
     def test_audit_includes_rewritten_query(self, mock_session_manager, mock_llm_client):
@@ -850,7 +850,7 @@ class TestDistillAuditLogging:
         assert call_kwargs["rewritten_query"] is None
 
 
-class TestDistillEdgeCases:
+class TestRewriteEdgeCases:
     """Tests for edge-case branches in rewriting."""
 
     def test_empty_llm_response(self, rewrite_pipeline, mock_llm_client):

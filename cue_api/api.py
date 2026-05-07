@@ -75,15 +75,16 @@ def create_app(
             logger.warning("Invalid CUE_REWRITE_BATCH_SIZE; using default 20")
             rewrite_batch_size = 20
         rewrite_llm_client = None
-        rewrite_model = os.getenv("CUE_REWRITE_MODEL") or os.getenv(
-            "DEFAULT_LLM_MODEL", "anthropic/claude-haiku-4.5"
-        )
-        from m_shared.llm import LLMClient as _LLMClient
+        if query_rewrite:
+            rewrite_model = os.getenv("CUE_REWRITE_MODEL") or os.getenv(
+                "DEFAULT_LLM_MODEL", "anthropic/claude-haiku-4.5"
+            )
+            from m_shared.llm import LLMClient as _LLMClient
 
-        try:
-            rewrite_llm_client = _LLMClient(model_name=rewrite_model)
-        except Exception as e:
-            logger.warning("Failed to create rewrite LLM client: %s; using main client", e)
+            try:
+                rewrite_llm_client = _LLMClient(model_name=rewrite_model)
+            except Exception as e:
+                logger.warning("Failed to create rewrite LLM client: %s; using main client", e)
         rag_pipeline = RAGPipeline(
             session_manager=session_manager,
             llm_client=llm_client,
