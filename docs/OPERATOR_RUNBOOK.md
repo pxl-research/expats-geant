@@ -62,6 +62,11 @@ Configure these values in `.env` before first launch:
 Operational data (uploaded documents, vector indices) is deleted automatically when a session
 expires. Audit reports are retained for the configured period and then permanently deleted.
 
+Each session directory contains: `metadata.json`, `survey.json`, `answer_report.json` (JSONL),
+`review_state.json` (user review decisions), `cached_suggestions.json` (full suggestion cache
+for instant page reload), `audit_log.json`, uploaded files, and a per-session ChromaDB store.
+All files are removed when the session expires or is manually deleted.
+
 ### 1.4 Network Exposure
 
 - [ ] Is the platform accessible only on your internal network (intranet)?

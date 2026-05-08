@@ -304,6 +304,10 @@ All endpoints except `/`, `/health`, `/privacy`, `/auth/token`, `/auth/login`, a
 | `/upload` | POST | Upload evidence document (PDF, DOCX, TXT, MD, PPTX, XLSX, XLS, JPG, JPEG, PNG, GIF, WEBP) |
 | `/suggest/batch` | POST | Answer suggestions (single or multi-question) from QTI-inspired JSON payload |
 | `/suggest/stream` | POST | Same as `/suggest/batch` but streams results via Server-Sent Events — one `event: suggestion` per item as it completes, then `event: done` |
+| `/review-state/{question_id}` | PUT | Save review decision (accepted/dismissed/edited) for a single question |
+| `/review-state` | GET | Load full review state map for the session |
+| `/cached-suggestions` | GET | Retrieve cached suggestion results for instant page reload |
+| `/answer-report/download` | GET | Download answer report as JSON (includes review state when available) |
 | `/session/stats` | GET | Session TTL, document count, isolation info |
 | `/audit-report` | GET | Full session audit trail (JSON or plaintext) |
 | `/session` | DELETE | Delete session and all associated data immediately |
@@ -468,6 +472,105 @@ If the rewrite call fails for any reason, the pipeline silently falls back to th
 | `CUE_REWRITE_MODEL` | _(unset)_ | Dedicated model for rewriting (e.g. `google/gemini-2.0-flash-001`); falls back to the primary LLM configuration when unset |
 
 The rewritten query is logged in the audit trail alongside each suggestion for pilot diagnostics.
+
+#### Review State
+
+The review state endpoints persist the respondent's per-question review decisions
+(accepted, dismissed, edited) server-side. The Cue UI writes to these endpoints on
+every interaction and reads the full state on page load. Review state is stored as
+`review_state.json` in the session directory and is deleted with the session.
+
+```bash
+PUT /review-state/{question_id}
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "state": "accepted",
+  "value": "36 months"
+}
+```
+
+The `state` field is required (`accepted`, `dismissed`, or `edited`). Optional fields:
+`value` (text answer), `selected_id` (single choice), `selected_ids` (multiple choice).
+
+```bash
+GET /review-state
+Authorization: Bearer <token>
+```
+
+**Response:**
+
+```json
+{
+  "states": {
+    "q1": { "state": "accepted", "value": "36 months" },
+    "q2": { "state": "dismissed" }
+  }
+}
+```
+
+Returns `{"states": {}}` if no review actions have been taken.
+
+#### Cached Suggestions
+
+Suggestions are cached to `cached_suggestions.json` as they are generated (both batch
+and streaming). On page reload, the UI fetches the cache and renders previously generated
+suggestions instantly — only uncached questions trigger a new SSE stream.
+
+```bash
+GET /cached-suggestions
+Authorization: Bearer <token>
+```
+
+**Response:**
+
+```json
+{
+  "suggestions": {
+    "q1": {
+      "item_id": "q1",
+      "type": "open_ended",
+      "suggestion": "36 months.",
+      "reasoning": "Policy document states this.",
+      "selected_id": null,
+      "selected_ids": null,
+      "citations": [...]
+    }
+  }
+}
+```
+
+Returns `{"suggestions": {}}` if no suggestions have been generated yet.
+
+#### Download Answer Report
+
+```bash
+GET /answer-report/download
+Authorization: Bearer <token>
+```
+
+Returns the session's answer report as a downloadable JSON array. Each entry contains
+the question, suggested answer, reasoning, and citations. When review state exists,
+entries are enriched with `review_state` and `final_value` fields:
+
+```json
+[
+  {
+    "question_id": "q1",
+    "question": "What is your data retention period?",
+    "answer": "36 months.",
+    "reasoning": "Policy document states this.",
+    "citations": [{"source": "policy.pdf", "position": 0.45, "excerpt": "..."}],
+    "generated_at": "2026-05-07T12:00:00Z",
+    "review_state": "accepted",
+    "final_value": "36 months."
+  }
+]
+```
+
+Returns 404 if no suggestions have been generated yet. The `review_state` and
+`final_value` fields are only present for questions with a review decision.
 
 #### Get Session Statistics
 
