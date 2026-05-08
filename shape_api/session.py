@@ -15,8 +15,19 @@ DEFAULT_STYLE_PROFILE: dict = {
 
 
 def get_session_path(base_path: str, session_id: str) -> Path:
-    """Return the Path to the session directory."""
-    return Path(base_path) / session_id
+    """Return the Path to the session directory.
+
+    Searches the nested user-scoped layout (base_path/{user_hash}/{session_id})
+    first, then falls back to flat layout (base_path/{session_id}).
+    """
+    base = Path(base_path)
+    for user_dir in base.iterdir():
+        if not user_dir.is_dir():
+            continue
+        candidate = user_dir / session_id
+        if candidate.exists():
+            return candidate
+    return base / session_id
 
 
 # ---------------------------------------------------------------------------

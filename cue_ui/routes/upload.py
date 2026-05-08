@@ -1,4 +1,4 @@
-"""Cue UI: landing page and survey upload routes."""
+"""Cue UI: landing page, session list, and survey upload routes."""
 
 from typing import Annotated
 
@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from cue_ui import api_client
 from cue_ui.api_client import APIError
-from cue_ui.auth import get_token
+from cue_ui.auth import get_token, set_token_cookie
 from cue_ui.router import SURVEY_FORMATS, templates
 
 router = APIRouter()
@@ -17,7 +17,64 @@ _API_FORMATS = ["lss", "qsf"]
 
 @router.get("/", response_class=HTMLResponse)
 async def landing(request: Request):
-    """Landing page: enter survey ID or upload file."""
+    """Landing: redirect to session list (or login)."""
+    token = get_token(request)
+    if not token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    return RedirectResponse(url="/sessions", status_code=302)
+
+
+@router.get("/sessions", response_class=HTMLResponse)
+async def session_list_page(request: Request):
+    """Show the user's active sessions."""
+    token = get_token(request)
+    if not token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    try:
+        sessions = await api_client.list_sessions(token)
+    except Exception:  # noqa: S110
+        sessions = []
+    return templates.TemplateResponse(request, "sessions.html", {"sessions": sessions})
+
+
+@router.post("/sessions/new")
+async def ui_create_session(request: Request):
+    """Create a new session and redirect to the upload page."""
+    token = get_token(request)
+    if not token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    try:
+        result = await api_client.create_new_session(token)
+    except APIError as exc:
+        return templates.TemplateResponse(
+            request,
+            "sessions.html",
+            {"sessions": [], "error": exc.detail},
+            status_code=exc.status_code,
+        )
+    response = RedirectResponse(url="/upload", status_code=302)
+    set_token_cookie(response, result["token"])
+    return response
+
+
+@router.post("/sessions/{session_id}/select")
+async def ui_select_session(request: Request, session_id: str):
+    """Resume a session and redirect to review."""
+    token = get_token(request)
+    if not token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    try:
+        result = await api_client.select_session(token, session_id)
+    except APIError:
+        return RedirectResponse(url="/sessions", status_code=302)
+    response = RedirectResponse(url=f"/session/{session_id}/review", status_code=302)
+    set_token_cookie(response, result["token"])
+    return response
+
+
+@router.get("/upload", response_class=HTMLResponse)
+async def upload_page(request: Request):
+    """Survey upload page."""
     token = get_token(request)
     if not token:
         return RedirectResponse(url="/auth/login", status_code=302)

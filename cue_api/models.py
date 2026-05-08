@@ -231,6 +231,33 @@ class ReviewStateResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Session management
+# ---------------------------------------------------------------------------
+
+
+class SessionListItem(BaseModel):
+    """Summary of a user session."""
+
+    session_id: str
+    created_at: str
+    expires_at: str
+    remaining_hours: float
+    has_survey: bool = False
+
+
+class SessionListResponse(BaseModel):
+    """List of user sessions."""
+
+    sessions: list[SessionListItem] = Field(default_factory=list)
+
+
+class TransferRequest(BaseModel):
+    """Request to transfer a session to another user."""
+
+    recipient_user_id: str = Field(max_length=200)
+
+
+# ---------------------------------------------------------------------------
 # Batch suggest endpoint helpers
 # ---------------------------------------------------------------------------
 

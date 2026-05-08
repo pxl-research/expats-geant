@@ -60,7 +60,9 @@ def _seed_doc(tmp_path, session_manager, auth_token):
     """Create a session, ingest a document, and return the session."""
     doc = tmp_path / "doc.txt"
     doc.write_text("Data is retained for 36 months. Annual audits are conducted in Q3.")
-    session = session_manager.create_session(user_id="test_user", jwt_token=auth_token)
+    session = session_manager.create_session(
+        user_id="test_user", explicit_session_id="dev_session_test_user"
+    )
     store = session_manager.get_vector_store(session.session_id)
     ingest_files_into_store(file_paths=[str(doc)], store=store, session_id=session.session_id)
     return session

@@ -114,7 +114,7 @@ Professional development: €2,000 annual budget
 def test_full_pipeline_single_document(rag_pipeline, session_manager, sample_document, tmp_path):
     """Test complete flow: upload → ingest → suggest → verify citations."""
     # Create session
-    session = session_manager.create_session(user_id="user_123", jwt_token="test_token_123")
+    session = session_manager.create_session(user_id="user_123")
 
     # Ingest document
     store = session_manager.get_vector_store(session.session_id)
@@ -150,7 +150,7 @@ def test_multiple_documents_multi_source_citations(
 ):
     """Test that suggestions from multiple documents include citations from correct sources."""
     # Create session
-    session = session_manager.create_session(user_id="user_456", jwt_token="test_token_456")
+    session = session_manager.create_session(user_id="user_456")
 
     # Ingest documents
     store = session_manager.get_vector_store(session.session_id)
@@ -177,8 +177,8 @@ def test_multiple_documents_multi_source_citations(
 def test_session_isolation(rag_pipeline, session_manager, sample_document, multiple_documents):
     """Test that suggestions in session A don't leak to session B."""
     # Create two sessions
-    session_a = session_manager.create_session(user_id="user_a", jwt_token="token_a")
-    session_b = session_manager.create_session(user_id="user_b", jwt_token="token_b")
+    session_a = session_manager.create_session(user_id="user_a")
+    session_b = session_manager.create_session(user_id="user_b")
 
     # Ingest different documents to each session
     store_a = session_manager.get_vector_store(session_a.session_id)
@@ -208,7 +208,7 @@ def test_session_isolation(rag_pipeline, session_manager, sample_document, multi
 def test_no_documents_in_session(rag_pipeline, session_manager):
     """Test graceful handling when session has no documents."""
     # Create empty session
-    session = session_manager.create_session(user_id="user_empty", jwt_token="token_empty")
+    session = session_manager.create_session(user_id="user_empty")
 
     # Try to get suggestion
     result = rag_pipeline.suggest_answer(
@@ -224,7 +224,7 @@ def test_no_documents_in_session(rag_pipeline, session_manager):
 def test_malformed_question_handling(rag_pipeline, session_manager, sample_document):
     """Test handling of empty or malformed questions."""
     # Create session with document
-    session = session_manager.create_session(user_id="user_test", jwt_token="token_test")
+    session = session_manager.create_session(user_id="user_test")
     store = session_manager.get_vector_store(session.session_id)
     ingest_files_into_store(store=store, file_paths=[str(sample_document)])
 
@@ -240,7 +240,7 @@ def test_malformed_question_handling(rag_pipeline, session_manager, sample_docum
 def test_obscure_question_no_relevant_results(rag_pipeline, session_manager, sample_document):
     """Test handling when question doesn't match any document content."""
     # Create session with document
-    session = session_manager.create_session(user_id="user_test2", jwt_token="token_test2")
+    session = session_manager.create_session(user_id="user_test2")
     store = session_manager.get_vector_store(session.session_id)
     ingest_files_into_store(store=store, file_paths=[str(sample_document)])
 
@@ -260,7 +260,7 @@ def test_obscure_question_no_relevant_results(rag_pipeline, session_manager, sam
 def test_citation_accuracy_spot_check(rag_pipeline, session_manager, sample_document):
     """Spot check: Verify that citations actually reference the answer content."""
     # Create session
-    session = session_manager.create_session(user_id="user_cite", jwt_token="token_cite")
+    session = session_manager.create_session(user_id="user_cite")
     store = session_manager.get_vector_store(session.session_id)
     ingest_files_into_store(store=store, file_paths=[str(sample_document)])
 
@@ -284,7 +284,7 @@ def test_citation_accuracy_spot_check(rag_pipeline, session_manager, sample_docu
 def test_custom_parameters(rag_pipeline, session_manager, sample_document):
     """Test RAG pipeline with custom top_k and temperature parameters."""
     # Create session
-    session = session_manager.create_session(user_id="user_custom", jwt_token="token_custom")
+    session = session_manager.create_session(user_id="user_custom")
     store = session_manager.get_vector_store(session.session_id)
     ingest_files_into_store(store=store, file_paths=[str(sample_document)])
 

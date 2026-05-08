@@ -60,7 +60,9 @@ def _auth(token):
 
 
 def _session_path(session_manager, auth_token):
-    session = session_manager.create_session(user_id="test_user", jwt_token=auth_token)
+    session = session_manager.create_session(
+        user_id="test_user", explicit_session_id="dev_session_test_user"
+    )
     return session_manager._get_session_path(session.session_id)
 
 
@@ -220,7 +222,9 @@ class TestAnswerReportEnrichment:
     """Answer report download includes review state when present."""
 
     def _seed_answer_report(self, session_manager, auth_token):
-        session = session_manager.create_session(user_id="test_user", jwt_token=auth_token)
+        session = session_manager.create_session(
+            user_id="test_user", explicit_session_id="dev_session_test_user"
+        )
         sp = session_manager._get_session_path(session.session_id)
         report_path = sp / "answer_report.json"
         entries = [

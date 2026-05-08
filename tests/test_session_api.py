@@ -257,17 +257,16 @@ class TestMiddlewareEdgeCases:
         response = client.get("/session/stats", headers={"Authorization": "abc123"})
         assert response.status_code == 401
 
-    def test_token_without_required_claims(self, client, jwt_secret):
-        """Token without required claims should be rejected."""
+    def test_token_without_session_id_returns_403_on_session_endpoint(self, client, jwt_secret):
+        """Token without session_id is forbidden on session-scoped endpoints."""
         import jwt
 
-        # Create token without session_id
         payload = {"user_id": "test_user", "exp": datetime.now(UTC) + timedelta(hours=1)}
         token = jwt.encode(payload, jwt_secret, algorithm="HS256")
 
         response = client.get("/session/stats", headers={"Authorization": f"Bearer {token}"})
-        assert response.status_code == 401
-        assert "missing required claims" in response.json()["detail"].lower()
+        assert response.status_code == 403
+        assert "no active session" in response.json()["detail"].lower()
 
 
 class TestUploadEndpoint:
@@ -687,7 +686,9 @@ class TestSubmitEndpointErrors:
     @pytest.fixture
     def token_and_session(self, valid_token, session_manager):
         """Pre-create the session so we know the actual session_id (hash of token)."""
-        session = session_manager.create_session(user_id="test_user_123", jwt_token=valid_token)
+        session = session_manager.create_session(
+            user_id="test_user_123", explicit_session_id="test_session_456"
+        )
         return valid_token, session
 
     def test_submit_session_mismatch(self, submit_client, valid_token):

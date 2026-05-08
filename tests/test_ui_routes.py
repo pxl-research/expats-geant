@@ -57,11 +57,11 @@ class TestLandingPage:
         assert resp.status_code == 302
         assert "/auth/login" in resp.headers["location"]
 
-    def test_render_landing_when_authenticated(self):
+    def test_landing_redirects_to_sessions(self):
         client = TestClient(app, follow_redirects=False)
         resp = client.get("/", cookies=TOKEN_COOKIE)
-        assert resp.status_code == 200
-        assert "Upload" in resp.text
+        assert resp.status_code == 302
+        assert resp.headers["location"] == "/sessions"
 
 
 class TestAuthCallback:

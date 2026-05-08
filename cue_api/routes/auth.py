@@ -1,5 +1,6 @@
 """Cue API: authentication routes."""
 
+import os
 import uuid
 
 from fastapi import APIRouter, HTTPException, Request, status
@@ -23,6 +24,7 @@ router = APIRouter()
 class TokenRequest(BaseModel):
     user_id: str = Field(max_length=200)
     api_secret: str = Field(max_length=500)
+    session_id: str | None = Field(default=None, max_length=100)
 
 
 @router.post("/auth/token", tags=["Auth"])
@@ -33,7 +35,27 @@ async def issue_api_token(request: Request, body: TokenRequest):
     org = resolve_org(body.api_secret, tenant_registry)
     if org is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API secret")
-    session_id = uuid.uuid4().hex[:12]
+
+    session_manager = getattr(request.app.state, "session_manager", None)
+
+    if body.session_id:
+        if session_manager:
+            session = session_manager.get_session(body.session_id, user_id=body.user_id)
+            if not session:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Session '{body.session_id}' not found for this user",
+                )
+        session_id = body.session_id
+    else:
+        session_id = uuid.uuid4().hex[:12]
+        if session_manager:
+            session_manager.create_session(
+                user_id=body.user_id,
+                ttl_hours=int(os.getenv("SESSION_TTL_HOURS", "24")),
+                explicit_session_id=session_id,
+            )
+
     token = create_token(user_id=body.user_id, session_id=session_id, org=org, roles=["user"])
     return {"token": token, "user_id": body.user_id}
 
@@ -60,9 +82,13 @@ async def auth_login():
 async def auth_callback(request: Request, code: str, state: str):
     """Handle OIDC authorization callback and return a platform JWT."""
     tenant_registry = getattr(request.app.state, "tenant_registry", None)
+    session_manager = getattr(request.app.state, "session_manager", None)
     try:
         platform_token = await exchange_code(
-            code=code, state=state, tenant_registry=tenant_registry
+            code=code,
+            state=state,
+            tenant_registry=tenant_registry,
+            session_manager=session_manager,
         )
         return {"token": platform_token, "token_type": "bearer"}
     except OIDCStateError as exc:

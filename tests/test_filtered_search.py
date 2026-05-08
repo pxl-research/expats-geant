@@ -111,7 +111,7 @@ class TestQueryWithFilterIntegration:
         from cue_api.rag_pipeline import RAGPipeline
 
         manager = SessionManager(base_path=str(tmp_path))
-        session = manager.create_session(user_id="u1", jwt_token="tok1")
+        session = manager.create_session(user_id="u1")
         store = manager.get_vector_store(session.session_id)
         ingest_files_into_store(
             file_paths=[
@@ -143,7 +143,7 @@ class TestQueryWithFilterIntegration:
         from cue_api.rag_pipeline import RAGPipeline
 
         manager = SessionManager(base_path=str(tmp_path))
-        session = manager.create_session(user_id="u2", jwt_token="tok2")
+        session = manager.create_session(user_id="u2")
         store = manager.get_vector_store(session.session_id)
         ingest_files_into_store(
             file_paths=[str(TEST_DATA_DIR / "sample.txt")],

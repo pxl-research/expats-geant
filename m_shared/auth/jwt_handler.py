@@ -31,17 +31,17 @@ class TokenInvalidError(TokenError):
 
 def create_token(
     user_id: str,
-    session_id: str,
+    session_id: str | None = None,
     org: str = "default",
     roles: list[str] | None = None,
     expiration_hours: int | None = None,
 ) -> str:
     """
-    Create a signed JWT token for authenticated session access.
+    Create a signed JWT token for authenticated access.
 
     Args:
         user_id: Unique identifier for the user
-        session_id: Session identifier for session-scoped authorization
+        session_id: Session identifier (None for session-list-only tokens)
         org: Organization identifier for multi-tenancy
         roles: List of user roles (e.g., ["respondent"], ["administrator"])
         expiration_hours: Token validity period in hours (defaults to JWT_EXPIRATION_HOURS env var or 24)
@@ -51,10 +51,6 @@ def create_token(
 
     Raises:
         ValueError: If JWT_SECRET environment variable is not set
-
-    Example:
-        >>> token = create_token("user123", "session456", roles=["respondent"])
-        >>> # Use token in Authorization header: Bearer <token>
     """
     secret = os.getenv("JWT_SECRET")
     if not secret:

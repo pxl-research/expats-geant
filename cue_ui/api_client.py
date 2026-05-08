@@ -233,6 +233,33 @@ async def get_cached_suggestions(token: str) -> dict:
     return resp.json().get("suggestions", {})
 
 
+async def list_sessions(token: str) -> list[dict]:
+    """Fetch all active sessions for the authenticated user."""
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"{CUE_API_URL}/sessions", headers=auth_headers(token))
+    _raise_for_status(resp)
+    return resp.json().get("sessions", [])
+
+
+async def create_new_session(token: str) -> dict:
+    """Create a new session. Returns {token, session_id}."""
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(f"{CUE_API_URL}/sessions/new", headers=auth_headers(token))
+    _raise_for_status(resp)
+    return resp.json()
+
+
+async def select_session(token: str, session_id: str) -> dict:
+    """Select/resume a session. Returns {token, session_id}."""
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{CUE_API_URL}/sessions/{session_id}/select",
+            headers=auth_headers(token),
+        )
+    _raise_for_status(resp)
+    return resp.json()
+
+
 def _raise_for_status(resp: httpx.Response) -> None:
     """Raise APIError for 4xx/5xx responses."""
     if resp.is_error:

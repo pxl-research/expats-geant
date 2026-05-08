@@ -100,25 +100,46 @@ class SessionMiddleware(BaseHTTPMiddleware):
         session_id = claims.get("session_id")
         user_id = claims.get("user_id")
 
-        if not session_id or not user_id:
+        if not user_id:
             logger.warning(
-                "Token missing required claims (session_id, user_id) on %s %s",
+                "Token missing user_id on %s %s",
                 request.method,
                 request.url.path,
             )
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"detail": "Token missing required claims (session_id, user_id)"},
+                content={"detail": "Token missing required claim: user_id"},
             )
+
+        # Resolve per-tenant LLM client from pool (if configured)
+        pool = getattr(request.app.state, "llm_client_pool", None)
+
+        if not session_id:
+            # Session-less token: only session management endpoints allowed
+            if not self._is_session_optional_endpoint(request.url.path):
+                return JSONResponse(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    content={"detail": "No active session. Select or create a session first."},
+                )
+            request.state.session = None
+            request.state.claims = claims
+            request.state.session_manager = self.session_manager
+            if pool:
+                org = claims.get("org", "default")
+                request.state.llm_client = pool.get(org) or pool.get("default")
+            elif hasattr(request.app.state, "llm_client"):
+                request.state.llm_client = request.app.state.llm_client
+            return await call_next(request)
 
         # Get or create session (lazy initialization)
         try:
-            session = self.session_manager.get_session(session_id)
+            session = self.session_manager.get_session(session_id, user_id=user_id)
 
             if not session:
-                # Session doesn't exist or expired - create new one
                 session = self.session_manager.create_session(
-                    user_id=user_id, jwt_token=token, ttl_hours=self.ttl_hours
+                    user_id=user_id,
+                    ttl_hours=self.ttl_hours,
+                    explicit_session_id=session_id,
                 )
         except Exception as e:
             logger.error(
@@ -129,20 +150,30 @@ class SessionMiddleware(BaseHTTPMiddleware):
                 content={"detail": "Session error"},
             )
 
+        # Verify session belongs to authenticated user
+        if session.user_id != user_id:
+            logger.warning(
+                "Session ownership mismatch: session %s belongs to %s, not %s",
+                session_id,
+                session.user_id,
+                user_id,
+            )
+            return JSONResponse(
+                status_code=status.HTTP_403_FORBIDDEN,
+                content={"detail": "Access denied: session belongs to a different user"},
+            )
+
         # Attach session and claims to request state
         request.state.session = session
         request.state.claims = claims
         request.state.session_manager = self.session_manager
 
-        # Resolve per-tenant LLM client from pool (if configured)
-        pool = getattr(request.app.state, "llm_client_pool", None)
         if pool:
             org = claims.get("org", "default")
             request.state.llm_client = pool.get(org) or pool.get("default")
         elif hasattr(request.app.state, "llm_client"):
             request.state.llm_client = request.app.state.llm_client
 
-        # Process request
         response = await call_next(request)
 
         return response
@@ -165,6 +196,14 @@ class SessionMiddleware(BaseHTTPMiddleware):
             return None
 
         return parts[1]
+
+    def _is_session_optional_endpoint(self, path: str) -> bool:
+        """Endpoints that work with a session-less token (user authenticated but no session)."""
+        if path == "/sessions" or path == "/sessions/new":
+            return True
+        if path.startswith("/sessions/") and path.endswith(("/select", "/transfer")):
+            return True
+        return False
 
     def _is_public_endpoint(self, path: str) -> bool:
         """Check if endpoint should skip authentication.

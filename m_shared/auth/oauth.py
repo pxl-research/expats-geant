@@ -215,6 +215,7 @@ async def exchange_code(
     state: str,
     redirect_uri: str | None = None,
     tenant_registry=None,
+    session_manager=None,
 ) -> str:
     """Exchange an authorization code for a platform JWT.
 
@@ -333,7 +334,9 @@ async def exchange_code(
         raise OIDCTokenError("ID token is missing the 'sub' claim.")
 
     user_id = _normalize_sub(iss, sub)
-    session_id = str(uuid4())
+
+    if session_manager:
+        session_manager.ensure_user_directory(user_id)
 
     org = "default"
     if tenant_registry:
@@ -345,7 +348,7 @@ async def exchange_code(
 
     platform_token = create_token(
         user_id=user_id,
-        session_id=session_id,
+        session_id=None,
         org=org,
     )
     logger.info("OIDC login successful: user_id=%r, org=%r", user_id, org)

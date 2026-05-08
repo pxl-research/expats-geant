@@ -57,7 +57,9 @@ class TestSuggestReasoning:
         doc = tmp_path / "policy.txt"
         doc.write_text("Data is retained for 36 months after contract termination.")
 
-        session = tmp_session_manager.create_session(user_id="test_user", jwt_token=auth_token)
+        session = tmp_session_manager.create_session(
+            user_id="test_user", explicit_session_id="dev_session_test_user"
+        )
         store = tmp_session_manager.get_vector_store(session.session_id)
         ingest_files_into_store(file_paths=[str(doc)], store=store, session_id=session.session_id)
 
@@ -91,7 +93,9 @@ class TestSuggestReasoning:
         doc = tmp_path / "policy.txt"
         doc.write_text("Annual audits are conducted every Q3.")
 
-        session = tmp_session_manager.create_session(user_id="test_user", jwt_token=auth_token)
+        session = tmp_session_manager.create_session(
+            user_id="test_user", explicit_session_id="dev_session_test_user"
+        )
         store = tmp_session_manager.get_vector_store(session.session_id)
 
         from cue_api.ingest import ingest_files_into_store
@@ -134,7 +138,9 @@ class TestBatchSuggestEndpoint:
         doc.write_text(
             "We retain data for 36 months. Annual audits are performed in Q3. We process health and contact data."
         )
-        session = tmp_session_manager.create_session(user_id="test_user", jwt_token=auth_token)
+        session = tmp_session_manager.create_session(
+            user_id="test_user", explicit_session_id="dev_session_test_user"
+        )
         store = tmp_session_manager.get_vector_store(session.session_id)
         ingest_files_into_store(file_paths=[str(doc)], store=store, session_id=session.session_id)
 

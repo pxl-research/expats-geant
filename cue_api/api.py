@@ -12,6 +12,7 @@ from cue_api.routes.auth import router as auth_router
 from cue_api.routes.documents import router as documents_router
 from cue_api.routes.review_state import router as review_state_router
 from cue_api.routes.session import router as session_router
+from cue_api.routes.sessions import router as sessions_router
 from cue_api.routes.suggestions import router as suggestions_router
 from cue_api.routes.surveys import router as surveys_router
 from m_shared.llm.client import LLMClient
@@ -120,6 +121,7 @@ def create_app(
 
     app.include_router(auth_router)
     app.include_router(session_router)
+    app.include_router(sessions_router)
     app.include_router(documents_router)
     app.include_router(suggestions_router)
     app.include_router(audit_router)
