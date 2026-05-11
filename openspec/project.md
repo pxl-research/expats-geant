@@ -142,7 +142,7 @@ Our executables are pip3 and python3 (not pip and python)
 **Pull Requests:**
 
 - Required for all merges to `main` and `develop`
-- Code review: @stilkin-pxl as reviewer
+- Code review: project maintainer as reviewer
 - Squash and merge to `develop`; rebase and merge to `main` for clean history
 
 **Versioning:**

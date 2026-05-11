@@ -70,7 +70,7 @@ All code is open-source for non-commercial use only.
 
 ```bash
 # Clone repository
-git clone https://github.com/pxl-be/expats.git
+git clone https://github.com/pxl-research/expats-geant.git
 cd expats
 
 # Configure environment
@@ -108,7 +108,7 @@ See [Deployment Guide](docs/DEPLOYMENT.md) for full configuration options, manua
 
 ```bash
 # Clone repository
-git clone https://github.com/pxl-be/expats.git
+git clone https://github.com/pxl-research/expats-geant.git
 cd expats
 
 # Create virtual environment

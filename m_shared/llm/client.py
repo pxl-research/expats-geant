@@ -66,8 +66,8 @@ class LLMClient(OpenAI):
 
         if custom_headers is None:
             custom_headers = {
-                "HTTP-Referer": "https://pxl-research.be/expats",
-                "X-Title": "PXL Expats-GEANT",
+                "HTTP-Referer": "https://github.com/pxl-research/expats-geant",
+                "X-Title": "Expats-GEANT",
             }
 
         budget_env = os.getenv("THINKING_BUDGET_TOKENS")

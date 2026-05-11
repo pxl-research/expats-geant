@@ -21,4 +21,22 @@ docs/application_form.pdf
 
 # Python
 __pycache__/
-__pycache__/logs/
+*.pyc
+.venv/
+*.egg-info/
+
+# IDE
+.vscode/
+
+# OS
+.DS_Store
+
+# Build artifacts
+dist/
+build/
+node_modules/
+
+# Data
+sessions/
+*.sqlite
+*.db

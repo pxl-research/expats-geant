@@ -27,7 +27,7 @@ This is the **recommended** deployment method.
 ### 1. Clone and Configure
 
 ```bash
-git clone https://github.com/pxl-be/expats.git
+git clone https://github.com/pxl-research/expats-geant.git
 cd expats
 
 # Copy environment template
@@ -751,4 +751,4 @@ When `TENANT_REGISTRY_PATH` is not set (or the file doesn't exist), the system b
 - Documentation: [README.md](../README.md)
 - Integration guide: [docs/CUE_API.md](CUE_API.md)
 - Project specs: [openspec/project.md](../openspec/project.md)
-- Issues: [GitHub Issues](https://github.com/pxl-be/expats/issues)
+- Issues: [GitHub Issues](https://github.com/pxl-research/expats-geant/issues)

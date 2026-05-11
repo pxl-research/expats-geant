@@ -1,10 +1,14 @@
 """ChromaDB wrapper for document storage and retrieval."""
 
+import logging
+
 import chromadb
 from chromadb import QueryResult
 from tqdm import tqdm
 
 from m_shared.vectordb.utils import clean_up_string, sanitize_filename
+
+logger = logging.getLogger(__name__)
 
 
 def repack_query_results(results: QueryResult) -> list[dict]:
@@ -77,7 +81,9 @@ class ChromaDocumentStore:
         collection_name = clean_up_string(document_name)
 
         if collection_name in self.list_documents():
-            print(f"A document with this name is already in the collection: {collection_name}")
+            logger.warning(
+                "A document with this name is already in the collection: %s", collection_name
+            )
             return
 
         collection = self.cdb_client.create_collection(name=collection_name)

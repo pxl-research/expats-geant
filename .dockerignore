@@ -3,11 +3,15 @@
 .agent
 .claude
 .idea
+.vscode
+.venv
 .ruff_cache
 .coverage
+.secrets/
 .env
 .env.example
 .pre-commit-config.yaml
+.DS_Store
 __pycache__
 *.pyc
 tests/
@@ -17,7 +21,10 @@ openspec/
 keycloak/
 logs/
 data/
+sessions/
 *.md
+*.sqlite
+*.db
 mypy.ini
 pytest.ini
 ruff.toml

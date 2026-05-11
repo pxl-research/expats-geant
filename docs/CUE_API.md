@@ -843,7 +843,7 @@ See [DEPLOYMENT.md — Production Hardening](DEPLOYMENT.md#production-hardening)
 
 - **Technical Issues**: Open issue on GitHub repository
 - **Integration Questions**: Contact project maintainers
-- **Security Concerns**: Report privately to security@institution.edu
+- **Security Concerns**: Report privately to smartict@pxl.be
 
 ---
 
