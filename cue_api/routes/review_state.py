@@ -73,7 +73,9 @@ def _write_review_state(session_path: Path, state_map: dict) -> None:
 @router.put("/review-state/{question_id}")
 async def save_review_state(question_id: str, body: ReviewStateUpdate, request: Request):
     session = request.state.session
-    session_path = request.state.session_manager._get_session_path(session.session_id)
+    session_path = request.state.session_manager._get_session_path(
+        session.session_id, user_id=session.user_id
+    )
 
     def _save():
         with _get_review_lock(session_path):
@@ -88,7 +90,9 @@ async def save_review_state(question_id: str, body: ReviewStateUpdate, request: 
 @router.get("/review-state", response_model=ReviewStateResponse)
 async def get_review_state(request: Request):
     session = request.state.session
-    session_path = request.state.session_manager._get_session_path(session.session_id)
+    session_path = request.state.session_manager._get_session_path(
+        session.session_id, user_id=session.user_id
+    )
 
     state_map = await asyncio.to_thread(_read_review_state, session_path)
     return ReviewStateResponse(states=state_map)
@@ -97,7 +101,9 @@ async def get_review_state(request: Request):
 @router.get("/cached-suggestions")
 async def get_cached_suggestions(request: Request):
     session = request.state.session
-    session_path = request.state.session_manager._get_session_path(session.session_id)
+    session_path = request.state.session_manager._get_session_path(
+        session.session_id, user_id=session.user_id
+    )
     cache_path = session_path / "cached_suggestions.json"
     if not cache_path.exists():
         return {"suggestions": {}}

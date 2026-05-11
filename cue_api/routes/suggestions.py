@@ -170,7 +170,7 @@ async def suggest_answer_batch(
 
     responses = [_to_item_suggestion(r) for r in raw_responses]
 
-    session_path = session_manager._get_session_path(session.session_id)
+    session_path = session_manager._get_session_path(session.session_id, user_id=session.user_id)
     item_prompts = {item.id: item.prompt for section in sections for item in section.items}
     try:
         _append_to_answer_report(session_path, _build_report_entries(raw_responses, item_prompts))
@@ -212,6 +212,9 @@ async def suggest_answer_stream(request: Request, batch_request: BatchSuggestReq
     item_prompts = {item.id: item.prompt for sec in sections for item in sec.items}
 
     async def event_generator():
+        session_path = session_manager._get_session_path(
+            session.session_id, user_id=session.user_id
+        )
         try:
             async for r in rag_pipeline.suggest_batch_stream(
                 sections,
@@ -222,7 +225,6 @@ async def suggest_answer_stream(request: Request, batch_request: BatchSuggestReq
             ):
                 item_sug = _to_item_suggestion(r)
                 yield f"event: suggestion\ndata: {item_sug.model_dump_json()}\n\n"
-                session_path = session_manager._get_session_path(session.session_id)
                 try:
                     await asyncio.to_thread(
                         _append_to_answer_report,

@@ -200,6 +200,8 @@ class AuditLogger:
         then flat layout (base_path/{session_id}) for backward compatibility.
         Returns flat-layout path as fallback for new writes.
         """
+        if not self.base_path.exists():
+            return self.base_path / session_id
         for user_dir in self.base_path.iterdir():
             if not user_dir.is_dir():
                 continue

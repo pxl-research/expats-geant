@@ -21,6 +21,8 @@ def get_session_path(base_path: str, session_id: str) -> Path:
     first, then falls back to flat layout (base_path/{session_id}).
     """
     base = Path(base_path)
+    if not base.exists():
+        return base / session_id
     for user_dir in base.iterdir():
         if not user_dir.is_dir():
             continue
