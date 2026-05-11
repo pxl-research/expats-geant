@@ -605,7 +605,7 @@ sudo systemctl start docker
 
 Docker volumes persist data across container restarts:
 
-- `sessions_data` - Session files and audit logs
+- `sessions_data` - User-scoped session files (`{user_hash}/{session_id}/`) and audit logs
 - `chroma_data` - Vector database (document embeddings)
 
 **Backup volumes:**

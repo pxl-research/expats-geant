@@ -62,10 +62,15 @@ Configure these values in `.env` before first launch:
 Operational data (uploaded documents, vector indices) is deleted automatically when a session
 expires. Audit reports are retained for the configured period and then permanently deleted.
 
-Each session directory contains: `metadata.json`, `survey.json`, `answer_report.json` (JSONL),
-`review_state.json` (user review decisions), `cached_suggestions.json` (full suggestion cache
-for instant page reload), `audit_log.json`, uploaded files, and a per-session ChromaDB store.
+Sessions are stored under user-scoped directories: `data/sessions/{user_hash}/{session_id}/`.
+Each user can have multiple concurrent sessions. Each session directory contains:
+`metadata.json`, `survey.json`, `answer_report.json` (JSONL), `review_state.json`
+(user review decisions), `cached_suggestions.json` (full suggestion cache for instant page
+reload), `audit_log.json`, uploaded files, and a per-session ChromaDB store.
 All files are removed when the session expires or is manually deleted.
+
+**GDPR Right to Be Forgotten**: deleting a user's data means removing their entire user
+directory (`data/sessions/{user_hash}/`), which removes all sessions at once.
 
 ### 1.4 Network Exposure
 
@@ -182,8 +187,9 @@ open http://localhost:8080/admin    # Keycloak admin console
 
 1. Create Keycloak accounts or enable self-registration in the Keycloak admin console
 2. Share the Cue UI URL: `http(s)://your-host:8002`
-3. Brief users: they upload their personal documents (CVs, reports, etc.) at the start of a session, then use the AI suggestions when filling out the form
-4. Remind users: uploaded documents are automatically deleted after the session expires; they can also delete immediately via the UI
+3. Brief users on the flow: after logging in, they see a **session list** where they can start a new session or resume an existing one. Within a session, they upload documents and use AI suggestions when filling out the form
+4. Users can work on multiple surveys by creating separate sessions
+5. Remind users: uploaded documents are automatically deleted after the session expires; they can also delete immediately via the UI
 
 ---
 
