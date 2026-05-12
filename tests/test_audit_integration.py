@@ -177,6 +177,15 @@ class TestAuditIntegration:
         assert "SESSION_START" in text_report
         assert "UPLOAD" in text_report
 
+        # Test markdown format
+        from cue_api.routes.audit import _format_audit_markdown
+
+        md_report = _format_audit_markdown(report, session_id)
+        assert "# Audit Report" in md_report
+        assert session_id in md_report
+        assert "## Documents Uploaded" in md_report
+        assert "## Summary" in md_report
+
     def test_retention_and_cleanup(self, session_manager, audit_logger, session):
         """Test retention policy enforcement."""
         session_id = session.session_id

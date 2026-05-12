@@ -191,6 +191,22 @@ async def fetch_answer_report(token: str) -> list[dict] | None:
     return resp.json()
 
 
+async def fetch_audit_report_markdown(token: str) -> str | None:
+    """Fetch the session audit report in Markdown format.
+
+    GET /audit-report?format=markdown → Markdown string, or None on 404.
+    """
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{CUE_API_URL}/audit-report?format=markdown",
+            headers=auth_headers(token),
+        )
+    if resp.status_code == 404:
+        return None
+    _raise_for_status(resp)
+    return resp.text
+
+
 async def save_review_state(token: str, question_id: str, state: dict) -> None:
     """Save review state for a single question.
 

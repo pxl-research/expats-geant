@@ -65,7 +65,10 @@
 {% block content %}
 <div class="page-actions">
   <a href="/session/{{ session_id }}/review" class="btn btn-ghost">← Back to review</a>
-  <a href="/session/{{ session_id }}/answer-report/download" class="btn btn-primary">Download as JSON</a>
+  <div>
+    <a href="/session/{{ session_id }}/audit-report" class="btn btn-ghost">View audit report</a>
+    <a href="/session/{{ session_id }}/answer-report/download" class="btn btn-primary">Download as JSON</a>
+  </div>
 </div>
 
 <h1>Answer Report</h1>
@@ -122,7 +125,7 @@
     {% endif %}
 
     <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.5rem;">
-      Generated: {{ entry.generated_at }}
+      Generated: {{ entry.generated_at | datefmt }}
     </div>
 
   </div>

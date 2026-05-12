@@ -53,6 +53,109 @@ DOCUMENTS UPLOADED ({n_docs}):
     return plaintext
 
 
+def _escape_md_table(value: str) -> str:
+    """Escape pipe characters for Markdown table cells."""
+    return value.replace("|", "\\|")
+
+
+def _fmt_ts(ts) -> str:
+    """Format a datetime for display: '11 May 2026, 14:03 UTC'."""
+    if ts is None:
+        return "N/A"
+    return ts.strftime("%-d %b %Y, %H:%M UTC")
+
+
+def _format_audit_markdown(report, session_id: str) -> str:
+    """Render an AuditReport as a structured Markdown string."""
+    doc_entries = [e for e in report.log_entries if e.event_type == AuditEventType.UPLOAD]
+    sug_entries = [e for e in report.log_entries if e.event_type == AuditEventType.SUGGEST]
+    edit_entries = [e for e in report.log_entries if e.event_type == AuditEventType.EDIT_SUGGESTION]
+    n_docs = report.summary.get("documents_uploaded", len(doc_entries))
+    n_sugs = report.summary.get("suggestions_generated", len(sug_entries))
+    n_edits = report.summary.get("suggestions_edited", len(edit_entries))
+    source_counts = [e.details.get("source_count", 0) for e in sug_entries]
+    avg_sources = sum(source_counts) / len(source_counts) if source_counts else 0.0
+
+    lines = [
+        f"# Audit Report — Session {session_id}",
+        "",
+        f"**Created:** {_fmt_ts(report.created_at)}  ",
+        f"**Ended:** {_fmt_ts(report.ended_at)}  ",
+        f"**Retention until:** {_fmt_ts(report.retention_until)}",
+        "",
+    ]
+
+    # --- Documents ---
+    lines.append(f"## Documents Uploaded ({n_docs})")
+    lines.append("")
+    if doc_entries:
+        lines.append("| # | Filename | Size | Uploaded |")
+        lines.append("|---|----------|------|----------|")
+        for i, entry in enumerate(doc_entries, 1):
+            d = entry.details
+            fname = _escape_md_table(str(d.get("filename", "")))
+            size = f"{d.get('file_size', 0):,} bytes"
+            lines.append(f"| {i} | {fname} | {size} | {_fmt_ts(entry.timestamp)} |")
+        lines.append("")
+    else:
+        lines.append("No documents uploaded.")
+        lines.append("")
+
+    # --- Suggestions ---
+    lines.append(f"## Suggestions Generated ({n_sugs})")
+    lines.append("")
+    for i, entry in enumerate(sug_entries, 1):
+        s = entry.details
+        question = s.get("question", "(no question)")
+        answer = str(s.get("suggested_answer", ""))[:200]
+        lines.append(f"### {i}. {question}")
+        lines.append("")
+        lines.append(f"- **Suggestion:** {answer}")
+
+        details = s.get("source_details")
+        if details:
+            lines.append("- **Sources:**")
+            for sd in details:
+                pos = sd.get("position")
+                pos_str = f" ({pos * 100:.1f}%)" if pos is not None else ""
+                lines.append(f"    - {sd.get('source', '?')}{pos_str}")
+        else:
+            sources = ", ".join(s.get("sources_used", []))
+            lines.append(f"- **Sources:** {sources or 'none'}")
+
+        lines.append(f"- **Generated:** {_fmt_ts(entry.timestamp)}")
+        lines.append("")
+
+    if not sug_entries:
+        lines.append("No suggestions generated.")
+        lines.append("")
+
+    # --- Edits ---
+    if edit_entries:
+        lines.append(f"## Edits ({n_edits})")
+        lines.append("")
+        for i, entry in enumerate(edit_entries, 1):
+            d = entry.details
+            original = str(d.get("original_suggestion", ""))[:200]
+            edited = str(d.get("edited_version", ""))[:200]
+            lines.append(f"### Edit {i}")
+            lines.append("")
+            lines.append(f"- **Original:** {original}")
+            lines.append(f"- **Edited:** {edited}")
+            lines.append("")
+
+    # --- Summary ---
+    lines.append("## Summary")
+    lines.append("")
+    lines.append(f"- **Total Documents:** {n_docs}")
+    lines.append(f"- **Total Suggestions:** {n_sugs}")
+    lines.append(f"- **Total Edits:** {n_edits}")
+    lines.append(f"- **Avg Sources per Suggestion:** {avg_sources:.1f}")
+    lines.append("")
+
+    return "\n".join(lines)
+
+
 @router.get("/audit-report")
 async def get_audit_report(
     request: Request,
@@ -79,6 +182,11 @@ async def get_audit_report(
 
         if format == "plaintext":
             return PlainTextResponse(content=_format_audit_plaintext(report, session.session_id))
+        elif format == "markdown":
+            return PlainTextResponse(
+                content=_format_audit_markdown(report, session.session_id),
+                media_type="text/markdown",
+            )
         else:
             return report
 

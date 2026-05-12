@@ -690,6 +690,14 @@ class RAGPipeline:
         # Step 4: Log to audit trail
         if self.audit_logger:
             sources_used = [c.source_id for c in citations]
+            source_details = [
+                {
+                    "source": c.source_id,
+                    "position": c.position_percentage,
+                    "excerpt": (c.highlights[0][:120] if c.highlights else None),
+                }
+                for c in citations
+            ]
             self.audit_logger.log_suggestion(
                 session_id=session_id,
                 question=question,
@@ -699,6 +707,7 @@ class RAGPipeline:
                 user_id=user_id,
                 question_id=question_id,
                 rewritten_query=rewritten_query,
+                source_details=source_details,
             )
 
         # Return structured result
@@ -804,6 +813,14 @@ class RAGPipeline:
         citations = self.format_citations(chunks, item.prompt, answer or "")
 
         if self.audit_logger:
+            source_details = [
+                {
+                    "source": c.source_id,
+                    "position": c.position_percentage,
+                    "excerpt": (c.highlights[0][:120] if c.highlights else None),
+                }
+                for c in citations
+            ]
             self.audit_logger.log_suggestion(
                 session_id=session_id,
                 question=item.prompt,
@@ -813,6 +830,7 @@ class RAGPipeline:
                 user_id=user_id,
                 question_id=item.id,
                 rewritten_query=rewritten_query,
+                source_details=source_details,
             )
 
         return {

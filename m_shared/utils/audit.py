@@ -302,6 +302,7 @@ class AuditLogger:
         user_id: str | None = None,
         question_id: str | None = None,
         rewritten_query: str | None = None,
+        source_details: list[dict] | None = None,
     ) -> None:
         """Log an answer suggestion generation event.
 
@@ -314,8 +315,9 @@ class AuditLogger:
             user_id: Optional user identifier
             question_id: Optional question identifier
             rewritten_query: Optional rewritten search query used for retrieval
+            source_details: Optional list of dicts with source, position, excerpt
         """
-        details = {
+        details: dict[str, Any] = {
             "question": question,
             "question_id": question_id,
             "suggested_answer": suggested_answer,
@@ -323,6 +325,8 @@ class AuditLogger:
             "model": model,
             "source_count": len(sources_used),
         }
+        if source_details:
+            details["source_details"] = source_details
         if rewritten_query is not None:
             details["rewritten_query"] = rewritten_query
         entry = AuditLogEntry(
