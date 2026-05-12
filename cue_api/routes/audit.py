@@ -62,7 +62,7 @@ def _fmt_ts(ts) -> str:
     """Format a datetime for display: '11 May 2026, 14:03 UTC'."""
     if ts is None:
         return "N/A"
-    return ts.strftime("%-d %b %Y, %H:%M UTC")
+    return f"{ts.day} {ts.strftime('%b %Y, %H:%M')} UTC"
 
 
 def _format_audit_markdown(report, session_id: str) -> str:

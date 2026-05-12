@@ -28,7 +28,7 @@ This is the **recommended** deployment method.
 
 ```bash
 git clone https://github.com/pxl-research/expats-geant.git
-cd expats
+cd expats-geant
 
 # Copy environment template
 cp .env.example .env

@@ -71,7 +71,7 @@ All code is open-source for non-commercial use only.
 ```bash
 # Clone repository
 git clone https://github.com/pxl-research/expats-geant.git
-cd expats
+cd expats-geant
 
 # Configure environment
 cp .env.example .env
@@ -109,7 +109,7 @@ See [Deployment Guide](docs/DEPLOYMENT.md) for full configuration options, manua
 ```bash
 # Clone repository
 git clone https://github.com/pxl-research/expats-geant.git
-cd expats
+cd expats-geant
 
 # Create virtual environment
 python3 -m venv .venv

@@ -33,7 +33,7 @@ async def upload_document(
     audit_logger = request.app.state.audit_logger
     llm_client = getattr(request.state, "llm_client", None) or request.app.state.llm_client
 
-    temp_dir = manager._get_session_path(session.session_id) / "uploads"
+    temp_dir = manager._get_session_path(session.session_id, user_id=session.user_id) / "uploads"
     temp_dir.mkdir(exist_ok=True)
     safe_name = Path(file.filename).name if file.filename else "upload"
     file_path = temp_dir / safe_name

@@ -34,7 +34,7 @@ def _datefmt_filter(value) -> str:
             value = datetime.fromisoformat(value)
         except ValueError:
             return str(value)
-    return value.strftime("%-d %b %Y, %H:%M UTC")
+    return f"{value.day} {value.strftime('%b %Y, %H:%M')} UTC"
 
 
 templates.env.filters["datefmt"] = _datefmt_filter
