@@ -44,7 +44,7 @@
 ## 5. Migration
 
 - [x] 5.1 Write `scripts/migrate_sessions_to_user_scoped.py`
-- [ ] 5.2 Add migration instructions to `docs/DEPLOYMENT.md`
+- [x] 5.2 ~~Add migration instructions to `docs/DEPLOYMENT.md`~~ — skipped: no production deployments on old layout; migration script exists as safety net
 
 ## 6. Testing
 
