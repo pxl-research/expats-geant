@@ -199,9 +199,11 @@ class SessionMiddleware(BaseHTTPMiddleware):
 
     def _is_session_optional_endpoint(self, path: str) -> bool:
         """Endpoints that work with a session-less token (user authenticated but no session)."""
-        if path == "/sessions" or path == "/sessions/new":
+        if path in ("/sessions", "/sessions/new", "/chat/sessions", "/chat/sessions/new"):
             return True
         if path.startswith("/sessions/") and path.endswith(("/select", "/transfer")):
+            return True
+        if path.startswith("/chat/sessions/") and path.endswith(("/select", "/transfer")):
             return True
         return False
 
