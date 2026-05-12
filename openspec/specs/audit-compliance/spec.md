@@ -3,9 +3,7 @@
 ## Purpose
 
 Session audit logging and report generation for transparency and user traceability. Covers the audit trail, audit reports, data retention, consent, and log integrity.
-
 ## Requirements
-
 ### Requirement: Session Audit Trail
 
 The system SHALL log all suggestion activity within a user session with complete traceability.
@@ -88,6 +86,13 @@ The system SHALL generate a complete audit report at session completion or on de
 - **WHEN** a user or administrator requests an audit report for a session
 - **THEN** a report is generated immediately (not just at session end)
 - **AND** report reflects all activity up to the time of request
+
+#### Scenario: Report available in multiple formats
+
+- **WHEN** a user requests an audit report via the API
+- **THEN** the report is available in JSON, plaintext, or Markdown format via the `format` query parameter
+- **AND** Markdown format includes structured headings, document and suggestion lists, and summary statistics suitable for rendering as HTML or printing to PDF
+- **AND** the default format remains JSON
 
 ### Requirement: Audit Data Retention
 

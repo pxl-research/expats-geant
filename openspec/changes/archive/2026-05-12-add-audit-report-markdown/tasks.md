@@ -13,5 +13,5 @@
 
 ## 3. Testing
 
-- [ ] 3.1 Smoke-test: complete a Cue session, view audit report in browser, print to PDF
+- [x] 3.1 Smoke-test: complete a Cue session, view audit report in browser, print to PDF
 - [x] 3.2 Verify JSON and plaintext formats still work unchanged
