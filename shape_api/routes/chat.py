@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
 
+from m_shared.auth.jwt_handler import create_token
 from m_shared.models.survey import Survey
 from m_shared.rate_limit import limiter
 from m_shared.session.manager import SessionManager
@@ -99,25 +100,31 @@ async def _save_and_validate_upload(file: UploadFile, dest_path: Path, max_mb: i
 async def create_chat_session(request: Request, body: CreateChatSessionRequest):
     """Create a new conversational chat session."""
     session_manager = request.app.state.session_manager
-    user_id = request.state.claims["user_id"]
-    jwt_token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    claims = request.state.claims
+    user_id = claims["user_id"]
     chat_session_id = str(uuid4())
     ttl_hours = int(os.getenv("SESSION_TTL_HOURS", "24"))
     session = session_manager.create_session(
         user_id,
-        jwt_token,
         ttl_hours=ttl_hours,
         explicit_session_id=chat_session_id,
         session_type="chat",
     )
     base_path = str(session_manager.base_path)
     initialize_chat_session(base_path, chat_session_id)
+    token = create_token(
+        user_id=user_id,
+        session_id=session.session_id,
+        org=claims.get("org", "default"),
+        roles=claims.get("roles", []),
+    )
     return ChatSessionResponse(
         session_id=session.session_id,
         user_id=session.user_id,
         created_at=session.created_at.isoformat(),
         expires_at=session.expires_at.isoformat(),
         style_profile=dict(DEFAULT_STYLE_PROFILE),
+        token=token,
     )
 
 
@@ -143,6 +150,36 @@ async def list_chat_sessions(request: Request):
             )
         )
     return ChatSessionListResponse(sessions=session_responses)
+
+
+@router.post("/chat/sessions/{session_id}/select", response_model=ChatSessionResponse)
+async def select_chat_session(request: Request, session_id: str):
+    """Select/resume a chat session. Returns a new JWT scoped to it."""
+    session_manager = request.app.state.session_manager
+    claims = request.state.claims
+    user_id = claims["user_id"]
+    session = _verify_session_owner(session_id, user_id, session_manager)
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+    base_path = str(session_manager.base_path)
+    profile = load_style_profile(base_path, session_id)
+    token = create_token(
+        user_id=user_id,
+        session_id=session_id,
+        org=claims.get("org", "default"),
+        roles=claims.get("roles", []),
+    )
+    return ChatSessionResponse(
+        session_id=session.session_id,
+        user_id=session.user_id,
+        created_at=session.created_at.isoformat(),
+        expires_at=session.expires_at.isoformat(),
+        style_profile=profile,
+        token=token,
+    )
 
 
 @router.get("/chat/{session_id}/messages")

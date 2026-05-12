@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from shape_ui import api_client
 from shape_ui.api_client import APIError
-from shape_ui.auth import get_token
+from shape_ui.auth import get_token, set_token_cookie
 from shape_ui.router import EXPORT_FORMATS, _render_error, templates
 
 logger = logging.getLogger(__name__)
@@ -30,6 +30,13 @@ async def chat_page(request: Request, session_id: str):
         return RedirectResponse(url="/auth/login", status_code=302)
 
     try:
+        selected = await api_client.select_session(token, session_id)
+        token = selected.get("token") or token
+    except APIError:
+        pass
+    assert token is not None
+
+    try:
         session = await api_client.get_session(token, session_id)
         style = await api_client.get_style(token, session_id)
         survey = await api_client.get_survey(token, session_id)
@@ -39,7 +46,7 @@ async def chat_page(request: Request, session_id: str):
             return _render_error(request, "Session not found or access denied.", 403)
         return _render_error(request, f"Could not load chat: {exc.detail}", exc.status_code)
 
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         request,
         "chat.html",
         {
@@ -50,6 +57,8 @@ async def chat_page(request: Request, session_id: str):
             "messages": messages,
         },
     )
+    set_token_cookie(response, token)
+    return response
 
 
 @router.post("/session/{session_id}/chat", response_class=HTMLResponse)

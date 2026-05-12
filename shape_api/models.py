@@ -92,6 +92,7 @@ class ChatSessionResponse(BaseModel):
     created_at: str  # ISO-8601
     expires_at: str  # ISO-8601
     style_profile: dict
+    token: str | None = None
 
 
 class ChatSessionListResponse(BaseModel):

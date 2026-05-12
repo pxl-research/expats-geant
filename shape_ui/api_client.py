@@ -49,6 +49,20 @@ async def create_session(token: str) -> dict[str, Any]:
     return resp.json()
 
 
+async def select_session(token: str, session_id: str) -> dict[str, Any]:
+    """Select/resume a chat session. Returns a new JWT scoped to it.
+
+    POST /chat/sessions/{session_id}/select → ChatSessionResponse
+    """
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{SHAPE_API_URL}/chat/sessions/{session_id}/select",
+            headers=_auth_headers(token),
+        )
+    _raise_for_status(resp)
+    return resp.json()
+
+
 async def list_sessions(token: str) -> list[dict[str, Any]]:
     """List all chat sessions for the authenticated user.
 
