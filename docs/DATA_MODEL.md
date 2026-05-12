@@ -66,6 +66,7 @@ classDiagram
         open_ended
         ranking
         slider
+        descriptive
     }
 
     Survey "1" --> "1..*" Section
@@ -85,8 +86,9 @@ classDiagram
 | `open_ended` | Free-text response. | No | No |
 | `ranking` | User orders options by preference. | Yes | No |
 | `slider` | User picks a numeric value within a defined range. | No | Yes |
+| `descriptive` | Display-only informational text. No response expected. | No | No |
 
-These five types cover the vast majority of question styles found across QTI 3.0, LimeSurvey, Qualtrics, and SurveyMonkey. More exotic types (matrix/grid, media upload, date pickers) are out of scope for the current MVP.
+These six types cover the vast majority of question styles found across QTI 3.0, LimeSurvey, Qualtrics, and SurveyMonkey. More exotic types (matrix/grid, media upload, date pickers) are out of scope for the current MVP.
 
 ---
 
