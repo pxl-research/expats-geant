@@ -20,6 +20,7 @@ Shape is the administrator co-pilot for questionnaire design. It provides statel
   - [Session Lifecycle](#session-lifecycle)
   - [POST /chat/sessions](#post-chatsessions)
   - [GET /chat/sessions](#get-chatsessions)
+  - [POST /chat/sessions/{session_id}/select](#post-chatsessionssession_idselect)
   - [GET /chat/{session_id}](#get-chatsession_id)
   - [POST /chat/{session_id}](#post-chatsession_id)
   - [GET /chat/{session_id}/survey](#get-chatsession_idsurvey)
@@ -382,9 +383,12 @@ curl -X POST http://localhost:8003/chat/sessions \
     "language": "en",
     "free_text": "",
     "document_summary": ""
-  }
+  },
+  "token": "eyJhbGciOiJIUzI1NiIs..."
 }
 ```
+
+The `token` field contains a new JWT scoped to the created session. Use this token for all subsequent API calls on this session.
 
 ---
 
@@ -412,6 +416,32 @@ curl http://localhost:8003/chat/sessions \
   ]
 }
 ```
+
+---
+
+### POST /chat/sessions/{session_id}/select
+
+Select (resume) an existing chat session. Returns a new JWT scoped to the selected session.
+
+```bash
+curl -X POST http://localhost:8003/chat/sessions/550e8400-.../select \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Response:**
+
+```json
+{
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "user_id": "dev_user",
+  "created_at": "2026-03-12T10:00:00",
+  "expires_at": "2026-03-13T10:00:00",
+  "style_profile": { "language": "en", "free_text": "", "document_summary": "" },
+  "token": "eyJhbGciOiJIUzI1NiIs..."
+}
+```
+
+Use the returned `token` for all subsequent API calls on this session. The initial token from OIDC login has no session scope — you must create or select a session before accessing session-specific endpoints.
 
 ---
 
