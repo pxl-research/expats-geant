@@ -80,10 +80,11 @@ def build_system_prompt(draft, profile: dict) -> str:
         "  ]\n"
         "}\n"
         "Rules:\n"
-        "- 'type' MUST be one of: open_ended, single_choice, multiple_choice, ranking, slider\n"
+        "- 'type' MUST be one of: open_ended, single_choice, multiple_choice, ranking, slider, descriptive\n"
         "- single_choice, multiple_choice, ranking MUST have answer_options: "
         '[{"id": "opt_1", "text": "Label", "value": null}]\n'
         "- slider MUST have min_value and max_value as numbers\n"
+        "- descriptive items are display-only text (no answer_options, not required)\n"
         "- Use short unique IDs (sec_1, q_1, opt_1, etc.)\n"
         "- Output the COMPLETE survey every time, not just the changed parts\n"
     )

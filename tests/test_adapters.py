@@ -1625,8 +1625,8 @@ class TestSurveyMonkeyAdapterImport:
         survey = self.adapter.import_survey(sm)
         assert survey.sections[0].questions == []
 
-    def test_presentation_family_skipped(self):
-        """'presentation' questions are display-only and must be skipped."""
+    def test_presentation_family_imported_as_descriptive(self):
+        """'presentation' questions are imported as DESCRIPTIVE type."""
         sm = json.dumps(
             {
                 "id": "x",
@@ -1654,7 +1654,11 @@ class TestSurveyMonkeyAdapterImport:
             }
         )
         survey = self.adapter.import_survey(sm)
-        assert survey.sections[0].questions == []
+        assert len(survey.sections[0].questions) == 1
+        q = survey.sections[0].questions[0]
+        assert q.type == QuestionType.DESCRIPTIVE
+        assert q.text == "Header text"
+        assert q.required is False
 
     def test_invalid_json_raises_value_error(self):
         with pytest.raises(ValueError, match="Invalid SurveyMonkey JSON"):

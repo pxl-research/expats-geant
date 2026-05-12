@@ -53,6 +53,7 @@ _LS_TYPE_MAP: dict[str, QuestionType] = {
     "R": QuestionType.RANKING,
     "N": QuestionType.SLIDER,
     "K": QuestionType.SLIDER,  # numerical multi
+    "X": QuestionType.DESCRIPTIVE,
 }
 
 # Internal QuestionType → LimeSurvey type code (for export)
@@ -62,6 +63,7 @@ _INTERNAL_TO_LS_TYPE: dict[QuestionType, str] = {
     QuestionType.OPEN_ENDED: "T",
     QuestionType.RANKING: "R",
     QuestionType.SLIDER: "N",
+    QuestionType.DESCRIPTIVE: "X",
 }
 
 

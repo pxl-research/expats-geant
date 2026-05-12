@@ -157,10 +157,14 @@
           {% endfor %}
         </ol>
 
+      {% elif question.type == "descriptive" %}
+        {# Display-only informational text — no input control #}
+
       {% else %}
         <textarea name="q_{{ question.id }}" rows="2" placeholder="Your answer…"></textarea>
       {% endif %}
 
+      {% if question.type != "descriptive" %}
       <!-- Suggestion zone: cached block or SSE placeholder -->
       {% if cached_suggestions and question.id in cached_suggestions %}
         {% with sug=cached_suggestions[question.id] %}
@@ -170,6 +174,7 @@
         <div class="suggestion-zone" id="sug-{{ question.id }}">
           <p class="suggestion-loading"><span class="spinner"></span>Generating suggestion…</p>
         </div>
+      {% endif %}
       {% endif %}
     </div>
   </div>

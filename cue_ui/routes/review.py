@@ -227,6 +227,8 @@ def _survey_to_batch_items(survey: dict) -> list[dict]:
         for q in section.get("questions", []):
             opts = q.get("answer_options", [])
             q_type = q["type"]
+            if q_type == "descriptive":
+                continue
             if q_type in ("single_choice", "multiple_choice"):
                 if opts:
                     choices = [{"id": o["id"], "label": o["text"]} for o in opts]

@@ -137,6 +137,31 @@ class TestQuestion:
             )
         assert "must have min_value and max_value" in str(exc_info.value)
 
+    def test_create_descriptive_question(self):
+        """Test creating a descriptive (display-only) question."""
+        q = Question(
+            id="q6",
+            text="Please read the following instructions carefully.",
+            type=QuestionType.DESCRIPTIVE,
+        )
+        assert q.type == QuestionType.DESCRIPTIVE
+        assert len(q.answer_options) == 0
+        assert q.required is False
+
+    def test_descriptive_required_forced_false(self):
+        """Test that descriptive questions always have required=False."""
+        q = Question(id="q7", text="Info block", type=QuestionType.DESCRIPTIVE, required=True)
+        assert q.required is False
+
+    def test_descriptive_serialization_roundtrip(self):
+        """Test JSON roundtrip for descriptive questions."""
+        q = Question(id="q8", text="Welcome to this survey.", type=QuestionType.DESCRIPTIVE)
+        data = q.model_dump()
+        q2 = Question(**data)
+        assert q2.type == QuestionType.DESCRIPTIVE
+        assert q2.text == q.text
+        assert q2.required is False
+
     def test_order_defaults_to_zero(self):
         q = Question(id="q1", text="Q", type=QuestionType.OPEN_ENDED)
         assert q.order == 0

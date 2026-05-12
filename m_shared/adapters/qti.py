@@ -243,8 +243,20 @@ def _parse_item(item_el: Element, order: int = 0) -> Question | None:
             break
 
     if interaction_el is None:
-        logger.warning("assessmentItem '%s' has no recognised interaction — skipping", item_id)
-        return None
+        has_any_interaction = any(
+            _local(child.tag).endswith("Interaction") for child in item_body.iter()
+        )
+        if has_any_interaction:
+            logger.warning("assessmentItem '%s' has no recognised interaction — skipping", item_id)
+            return None
+        body_text = " ".join(item_body.itertext()).strip() or title
+        return Question(
+            id=f"q_{item_id}",
+            text=body_text,
+            type=QuestionType.DESCRIPTIVE,
+            order=order,
+            metadata={"platform": "qti", "qti_identifier": item_id},
+        )
 
     assert (
         interaction_type is not None
@@ -314,6 +326,12 @@ def _build_item_element(parent: Element, question: Question) -> None:
     item_el.set("title", question.text)
     item_el.set("adaptive", "false")
     item_el.set("timeDependent", "false")
+
+    if question.type == QuestionType.DESCRIPTIVE:
+        item_body = ET.SubElement(item_el, _q("itemBody"))
+        p_el = ET.SubElement(item_body, _q("p"))
+        p_el.text = question.text
+        return
 
     # responseDeclaration
     resp_decl = ET.SubElement(item_el, _q("responseDeclaration"))

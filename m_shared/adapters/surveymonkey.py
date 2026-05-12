@@ -69,7 +69,7 @@ _FAMILY_MAP: dict[str, QuestionType | None] = {
     "matrix": QuestionType.SINGLE_CHOICE,
     "ranking": QuestionType.RANKING,
     "slider": QuestionType.SLIDER,
-    "presentation": None,  # display-only elements, skip
+    "presentation": QuestionType.DESCRIPTIVE,
 }
 
 # Internal QuestionType → SM family for export
@@ -79,6 +79,7 @@ _TYPE_TO_FAMILY: dict[QuestionType, str] = {
     QuestionType.OPEN_ENDED: "open_ended",
     QuestionType.RANKING: "ranking",
     QuestionType.SLIDER: "slider",
+    QuestionType.DESCRIPTIVE: "presentation",
 }
 
 

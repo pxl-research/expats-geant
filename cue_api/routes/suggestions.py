@@ -20,6 +20,7 @@ from cue_api.models import (
     ItemSuggestion,
     normalize_to_sections,
 )
+from m_shared.models.question import QuestionType
 from m_shared.rate_limit import limiter
 
 logger = logging.getLogger(__name__)
@@ -151,6 +152,9 @@ async def suggest_answer_batch(
 
     try:
         sections = normalize_to_sections(batch_request)
+        for section in sections:
+            section.items = [i for i in section.items if i.type != QuestionType.DESCRIPTIVE]
+        sections = [s for s in sections if s.items]
         raw_responses = await asyncio.to_thread(
             rag_pipeline.suggest_batch,
             sections=sections,
@@ -209,6 +213,9 @@ async def suggest_answer_stream(request: Request, batch_request: BatchSuggestReq
     claims = request.state.claims
     tenant_llm_client = getattr(request.state, "llm_client", None)
     sections = normalize_to_sections(batch_request)
+    for section in sections:
+        section.items = [i for i in section.items if i.type != QuestionType.DESCRIPTIVE]
+    sections = [s for s in sections if s.items]
     item_prompts = {item.id: item.prompt for sec in sections for item in sec.items}
 
     async def event_generator():
