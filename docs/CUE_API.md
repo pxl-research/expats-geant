@@ -610,7 +610,7 @@ If the rewrite call fails for any reason, the pipeline silently falls back to th
 |---|---|---|
 | `CUE_QUERY_REWRITE` | `true` | Set to `false` to disable query rewriting |
 | `CUE_REWRITE_BATCH_SIZE` | `20` | Max questions rewritten per LLM call; larger sections are split |
-| `CUE_REWRITE_MODEL` | _(unset)_ | Dedicated model for rewriting (e.g. `google/gemini-2.0-flash-001`); falls back to `DEFAULT_LLM_MODEL` when unset |
+| `CUE_REWRITE_MODEL` | _(unset)_ | Dedicated model for rewriting (e.g. `google/gemini-2.5-flash`); falls back to `DEFAULT_LLM_MODEL` when unset |
 
 The rewritten query is logged in the audit trail alongside each suggestion for pilot diagnostics.
 

@@ -372,7 +372,7 @@ python3 run_api.py
 | `AUDIT_RETENTION_DAYS`   | `365`                        | Audit log retention (days)                                     |
 | `CUE_QUERY_REWRITE`      | `true`                       | Enable LLM query rewriting before vector search                |
 | `CUE_REWRITE_BATCH_SIZE` | `20`                         | Max questions per rewrite LLM call                             |
-| `CUE_REWRITE_MODEL`      | —                            | Dedicated model for rewriting (e.g. `google/gemini-2.0-flash-001`) |
+| `CUE_REWRITE_MODEL`      | —                            | Dedicated model for rewriting (e.g. `google/gemini-2.5-flash`) |
 | `THINKING_BUDGET_TOKENS` | —                            | Token budget for extended thinking (Claude 3.5+/4.x only)      |
 | `PORT`                   | `8001`                       | API server port                                                |
 | `LOG_LEVEL`              | `INFO`                       | Logging level                                                  |
