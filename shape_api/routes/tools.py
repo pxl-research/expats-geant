@@ -2,8 +2,6 @@
 
 from fastapi import APIRouter, HTTPException, Request, status
 
-from m_shared.models.question import Question
-from m_shared.models.survey import Survey
 from m_shared.rate_limit import limiter
 from m_shared.session.manager import SessionManager
 from shape_api.models import (
@@ -79,23 +77,14 @@ async def suggest_endpoint(request: Request, body: SuggestRequest):
         style_profile = ctx["style_profile"]
         survey_context = ctx["draft_survey"]
 
-    try:
-        question = Question(**body.question)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid question payload: {exc}",
-        )
-
     results = suggest_question(
-        question=question,
+        question=body.question,
         llm_client=llm_client,
         survey_context=survey_context,
         style_profile=style_profile,
         n_suggestions=body.n_suggestions,
     )
-    suggestions = [{"phrasing": r.phrasing, "reasoning": r.reasoning} for r in results]
-    return SuggestResponse(suggestions=suggestions)
+    return SuggestResponse(suggestions=results)
 
 
 @router.post("/validate", response_model=ValidateResponse)
@@ -126,66 +115,25 @@ async def validate_endpoint(request: Request, body: ValidateRequest):
             detail="Either 'question' or 'survey' must be provided, or a session_id with an existing draft",
         )
 
-    issues = []
+    issues: list = []
     if body.question is not None:
-        try:
-            question = Question(**body.question)
-        except Exception as exc:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Invalid question payload: {exc}",
-            )
-        raw_issues = validate_question(
-            question=question,
+        issues = validate_question(
+            question=body.question,
             llm_client=llm_client,
             style_profile=style_profile,
         )
-        issues = [
-            {
-                "question_id": i.question_id,
-                "severity": i.severity,
-                "code": i.code,
-                "message": i.message,
-            }
-            for i in raw_issues
-        ]
     elif body.survey is not None:
-        try:
-            survey = Survey(**body.survey)
-        except Exception as exc:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Invalid survey payload: {exc}",
-            )
-        raw_issues = validate_survey(
-            survey=survey,
+        issues = validate_survey(
+            survey=body.survey,
             llm_client=llm_client,
             style_profile=style_profile,
         )
-        issues = [
-            {
-                "question_id": i.question_id,
-                "severity": i.severity,
-                "code": i.code,
-                "message": i.message,
-            }
-            for i in raw_issues
-        ]
     elif session_draft is not None:
-        raw_issues = validate_survey(
+        issues = validate_survey(
             survey=session_draft,
             llm_client=llm_client,
             style_profile=style_profile,
         )
-        issues = [
-            {
-                "question_id": i.question_id,
-                "severity": i.severity,
-                "code": i.code,
-                "message": i.message,
-            }
-            for i in raw_issues
-        ]
 
     return ValidateResponse(issues=issues)
 
@@ -220,16 +168,8 @@ async def tag_endpoint(request: Request, body: TagRequest):
         style_profile = session_ctx["style_profile"]
         vocabulary = session_ctx["vocabulary"]
 
-    try:
-        question = Question(**body.question)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid question payload: {exc}",
-        )
-
     tags = suggest_tags(
-        question=question,
+        question=body.question,
         llm_client=llm_client,
         vocabulary=vocabulary,
         style_profile=style_profile,
@@ -240,7 +180,7 @@ async def tag_endpoint(request: Request, body: TagRequest):
         updated_vocab = update_vocabulary(
             vocab=session_ctx["vocabulary"],
             new_tags=tags,
-            question_id=question.id,
+            question_id=body.question.id,
         )
         save_tag_vocabulary(str(session_manager.base_path), body.session_id, updated_vocab)
         vocabulary_updated = True

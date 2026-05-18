@@ -2,7 +2,8 @@
 
 import json
 import logging
-from dataclasses import dataclass
+
+from pydantic import BaseModel
 
 from m_shared.llm.client import LLMClient
 from m_shared.models.question import Question
@@ -10,8 +11,7 @@ from m_shared.models.survey import Survey
 from m_shared.utils.llm_parsing import strip_code_fences
 
 
-@dataclass
-class SuggestionResult:
+class SuggestionResult(BaseModel):
     """A single suggested rephrasing with reasoning."""
 
     phrasing: str

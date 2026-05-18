@@ -8,20 +8,22 @@ from uuid import uuid4
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
 
 from m_shared.auth.jwt_handler import create_token
-from m_shared.models.survey import Survey
 from m_shared.rate_limit import limiter
 from m_shared.session.manager import SessionManager
 from m_shared.utils.file_validation import validate_file_upload
 from m_shared.vectordb.utils import document_to_markdown, image_description
 from shape_api.conversation import execute_chat_turn
 from shape_api.models import (
+    ChatMessagesResponse,
     ChatSessionListResponse,
     ChatSessionResponse,
     ChatSurveyResponse,
     ChatTurnRequest,
     ChatTurnResponse,
     CreateChatSessionRequest,
+    DeleteSessionResponse,
     DocumentUploadResponse,
+    ResetSessionResponse,
     StyleProfileResponse,
     StyleUpdateRequest,
     SurveyUpdateRequest,
@@ -182,7 +184,7 @@ async def select_chat_session(request: Request, session_id: str):
     )
 
 
-@router.get("/chat/{session_id}/messages")
+@router.get("/chat/{session_id}/messages", response_model=ChatMessagesResponse)
 async def get_chat_messages(request: Request, session_id: str):
     """Get the full conversation history for a chat session."""
     session_manager = request.app.state.session_manager
@@ -195,7 +197,7 @@ async def get_chat_messages(request: Request, session_id: str):
         )
     base_path = str(session_manager.base_path)
     messages = load_conversation(base_path, session_id)
-    return {"messages": messages}
+    return ChatMessagesResponse(messages=messages)
 
 
 @router.get("/chat/{session_id}", response_model=ChatSessionResponse)
@@ -220,7 +222,7 @@ async def get_chat_session(request: Request, session_id: str):
     )
 
 
-@router.delete("/chat/{session_id}")
+@router.delete("/chat/{session_id}", response_model=DeleteSessionResponse)
 async def delete_chat_session(request: Request, session_id: str):
     """Delete a chat session and all its data."""
     session_manager = request.app.state.session_manager
@@ -232,10 +234,10 @@ async def delete_chat_session(request: Request, session_id: str):
             detail="Session not found or access denied",
         )
     session_manager.delete_session(session_id)
-    return {"deleted": True, "session_id": session_id}
+    return DeleteSessionResponse(deleted=True, session_id=session_id)
 
 
-@router.post("/chat/{session_id}/reset")
+@router.post("/chat/{session_id}/reset", response_model=ResetSessionResponse)
 async def reset_chat_session(request: Request, session_id: str):
     """Clear draft survey and tag vocabulary, leaving conversation history intact."""
     session_manager = request.app.state.session_manager
@@ -248,11 +250,11 @@ async def reset_chat_session(request: Request, session_id: str):
         )
     base_path = str(session_manager.base_path)
     clear_draft_and_vocabulary(base_path, session_id)
-    return {
-        "reset": True,
-        "session_id": session_id,
-        "cleared": ["draft_survey.json", "tag_vocabulary.json"],
-    }
+    return ResetSessionResponse(
+        reset=True,
+        session_id=session_id,
+        cleared=["draft_survey.json", "tag_vocabulary.json"],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -307,7 +309,7 @@ async def get_chat_survey(request: Request, session_id: str):
         )
     base_path = str(session_manager.base_path)
     survey = load_draft_survey(base_path, session_id)
-    return ChatSurveyResponse(survey=survey.model_dump() if survey else None)
+    return ChatSurveyResponse(survey=survey)
 
 
 @router.put("/chat/{session_id}/survey", response_model=SurveyUpdateResponse)
@@ -322,20 +324,9 @@ async def put_chat_survey(request: Request, session_id: str, body: SurveyUpdateR
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Session not found or access denied",
         )
-    try:
-        survey = Survey(**body.survey)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid survey payload: {exc}",
-        )
     base_path = str(session_manager.base_path)
-    save_draft_survey(base_path, session_id, survey)
-    issues = [
-        {"question_id": i.question_id, "severity": i.severity, "code": i.code, "message": i.message}
-        for i in validate_survey(survey)
-    ]
-    return SurveyUpdateResponse(status="saved", validation_issues=issues)
+    save_draft_survey(base_path, session_id, body.survey)
+    return SurveyUpdateResponse(status="saved", validation_issues=validate_survey(body.survey))
 
 
 # ---------------------------------------------------------------------------
