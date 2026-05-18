@@ -19,12 +19,17 @@ class SuggestionResult(BaseModel):
 
 
 def compact_survey_summary(survey: Survey) -> str:
-    """Return title + section names + question texts only. No metadata."""
+    """Return title + section/question IDs and texts. No types, options, or metadata.
+
+    The IDs are emitted as `[id]` anchors so the LLM can refer to elements
+    unambiguously in conversation. Other fields are deliberately omitted; the
+    `get_full_survey` tool exists to supply them when needed.
+    """
     lines = [f"Survey: {survey.title}"]
     for section in survey.sections:
-        lines.append(f"  Section: {section.title}")
+        lines.append(f"  Section [{section.id}]: {section.title}")
         for q in section.questions:
-            lines.append(f"    - {q.text}")
+            lines.append(f"    - [{q.id}] {q.text}")
     return "\n".join(lines)
 
 

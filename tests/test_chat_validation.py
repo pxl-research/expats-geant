@@ -4,6 +4,7 @@ import json
 from unittest.mock import Mock
 
 from m_shared.llm.client import LLMClient
+from m_shared.llm.tool_calling import CompletionResult
 from m_shared.models.answer_option import AnswerOption
 from m_shared.models.question import Question, QuestionType
 from m_shared.models.section import Section
@@ -515,10 +516,15 @@ def test_advisory_note_appended_for_new_issue(tmp_path):
     from shape_api.conversation import execute_chat_turn
 
     mock_llm = Mock()
-    mock_llm.create_completion.return_value = (
-        f"Here is the updated survey."
-        f"<survey_update>{json.dumps(_survey_dict_with_social_desirability())}</survey_update>"
+    mock_llm.create_completion_full.return_value = CompletionResult(
+        content=(
+            f"Here is the updated survey."
+            f"<survey_update>{json.dumps(_survey_dict_with_social_desirability())}</survey_update>"
+        ),
+        tool_calls=[],
     )
+    # validate_survey() still uses the older content-only API
+    mock_llm.create_completion.return_value = "[]"
 
     text, survey_updated = execute_chat_turn(
         session_id="sess1",
@@ -550,7 +556,11 @@ def test_advisory_note_not_shown_for_preexisting_issue(tmp_path):
     save_draft_survey(str(tmp_path), session_id, existing_survey)
 
     mock_llm = Mock()
-    mock_llm.create_completion.return_value = f"No changes.<survey_update>{json.dumps(_survey_dict_with_social_desirability())}</survey_update>"
+    mock_llm.create_completion_full.return_value = CompletionResult(
+        content=f"No changes.<survey_update>{json.dumps(_survey_dict_with_social_desirability())}</survey_update>",
+        tool_calls=[],
+    )
+    mock_llm.create_completion.return_value = "[]"
 
     text, survey_updated = execute_chat_turn(
         session_id=session_id,
@@ -605,9 +615,11 @@ def test_advisory_note_not_shown_for_info_only_issue(tmp_path):
     }
 
     mock_llm = Mock()
-    mock_llm.create_completion.return_value = (
-        f"Updated.<survey_update>{json.dumps(survey_dict)}</survey_update>"
+    mock_llm.create_completion_full.return_value = CompletionResult(
+        content=f"Updated.<survey_update>{json.dumps(survey_dict)}</survey_update>",
+        tool_calls=[],
     )
+    mock_llm.create_completion.return_value = "[]"
 
     text, survey_updated = execute_chat_turn(
         session_id="sess_info",

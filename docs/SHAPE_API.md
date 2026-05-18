@@ -482,6 +482,16 @@ curl -X POST http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000 \
 
 When `survey_updated` is `true`, fetch the updated draft via `GET /chat/{session_id}/survey`.
 
+**How the turn works internally.** The server runs a bounded tool-call loop
+(max 3 model round-trips per turn). The model sees an ID-anchored summary of
+the current draft in its system prompt — types, options, and metadata are
+deliberately omitted from the summary. When the model proposes a structural
+change, it is instructed to first call the internal `get_full_survey` tool,
+which returns the full authoritative draft JSON for the session. The model
+then builds its `<survey_update>` from that JSON. This typically adds one
+round-trip to edit turns; pure Q&A turns remain a single round-trip and incur
+no tool overhead.
+
 ---
 
 ### GET /chat/{session_id}/survey

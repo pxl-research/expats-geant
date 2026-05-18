@@ -21,6 +21,7 @@ from fastapi.testclient import TestClient
 
 from m_shared.auth.jwt_handler import create_token
 from m_shared.auth.middleware import SessionMiddleware
+from m_shared.llm.tool_calling import CompletionResult
 from m_shared.models.survey import Survey
 from m_shared.session.manager import SessionManager
 from shape_api.api import create_app
@@ -118,6 +119,13 @@ def app(session_manager, jwt_secret):
 def mock_llm():
     llm = MagicMock()
     llm.create_completion.return_value = "How can I help you design your survey?"
+
+    # Chat-turn loop calls create_completion_full; mirror create_completion's
+    # current return_value as text content so existing tests don't need to change.
+    def _full(messages=None, tools=None, **kwargs):
+        return CompletionResult(content=llm.create_completion.return_value, tool_calls=[])
+
+    llm.create_completion_full.side_effect = _full
     return llm
 
 
