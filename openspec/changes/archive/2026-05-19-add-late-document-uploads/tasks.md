@@ -76,5 +76,5 @@
   mid-review and how regeneration works)
 - [x] 6.3 Run `pytest` and confirm all suites green
 - [x] 6.4 Run `openspec validate add-late-document-uploads --strict`
-- [ ] 6.5 Manual smoke test: start session, get suggestions, upload extra doc, verify
+- [x] 6.5 Manual smoke test: start session, get suggestions, upload extra doc, verify
   per-question and bulk buttons behave per the spec
