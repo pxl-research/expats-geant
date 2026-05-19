@@ -4,7 +4,7 @@ import json
 import logging
 
 import httpx
-from fastapi import APIRouter, File, Form, Request, UploadFile
+from fastapi import APIRouter, File, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 
 from cue_ui import api_client
@@ -28,10 +28,12 @@ async def documents_page(request: Request, session_id: str, warning: str | None 
     token = get_token(request)
     if not token:
         return RedirectResponse(url="/auth/login", status_code=302)
+    documents: list[dict] = []
     web_ingest_enabled = False
     web_consent = False
     try:
         stats = await api_client.get_session_stats(token)
+        documents = stats.get("documents", [])
         web_ingest_enabled = bool(stats.get("web_ingest_enabled", False))
         web_consent = bool(stats.get("web_consent", False))
     except APIError:
@@ -42,6 +44,7 @@ async def documents_page(request: Request, session_id: str, warning: str | None 
         {
             "session_id": session_id,
             "warning": warning,
+            "documents": documents,
             "web_ingest_enabled": web_ingest_enabled,
             "web_consent": web_consent,
         },
@@ -171,67 +174,6 @@ async def upload_text_snippet(request: Request, session_id: str):
     except APIError as exc:
         return JSONResponse({"error": exc.detail}, status_code=exc.status_code)
     return JSONResponse({"status": "ok"})
-
-
-@router.post("/session/{session_id}/documents")
-async def documents_upload(
-    request: Request,
-    session_id: str,
-    files: list[UploadFile] | None = File(default=None),
-    text: str = Form(default=""),
-    text_label: str = Form(default=""),
-):
-    """Forward each uploaded document and/or text snippet to Cue ingestion API."""
-    token = get_token(request)
-    if not token:
-        return RedirectResponse(url="/auth/login", status_code=302)
-
-    has_text = bool(text.strip())
-
-    if not files and not has_text:
-        return RedirectResponse(url=f"/session/{session_id}/review", status_code=302)
-
-    file_errors: list[dict] = []
-
-    if files:
-        for upload in files:
-            if not upload.filename:
-                continue
-            file_bytes = await upload.read()
-            try:
-                await api_client.ingest_document(
-                    token=token,
-                    session_id=session_id,
-                    file_bytes=file_bytes,
-                    filename=upload.filename,
-                )
-            except APIError as exc:
-                file_errors.append({"filename": upload.filename, "error": exc.detail})
-
-    if has_text:
-        label = text_label.strip() or None
-        try:
-            await api_client.ingest_text_snippet(
-                token=token,
-                session_id=session_id,
-                text=text,
-                label=label,
-            )
-        except APIError as exc:
-            file_errors.append({"filename": label or "pasted text", "error": exc.detail})
-
-    if file_errors:
-        return templates.TemplateResponse(
-            request,
-            "documents.html",
-            {
-                "session_id": session_id,
-                "file_errors": file_errors,
-            },
-            status_code=422,
-        )
-
-    return RedirectResponse(url=f"/session/{session_id}/review", status_code=302)
 
 
 # ---------------------------------------------------------------------------

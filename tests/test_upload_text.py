@@ -204,78 +204,30 @@ TOKEN_COOKIE = {"autofill_token": "test-jwt-token"}
 
 class TestDocumentsPageTextSnippet:
     @respx.mock
-    def test_text_snippet_submitted_redirects_to_review(self):
-        """Non-empty text → calls /upload-text, redirects to review."""
-        respx.post(f"{BASE}/upload-text").mock(
-            return_value=httpx.Response(200, json={"status": "success"})
-        )
-        client = TestClient(ui_app, follow_redirects=False)
-        resp = client.post(
-            f"/session/{SESSION_ID}/documents",
-            data={"text": "Some pasted context.", "text_label": "My notes"},
-            cookies=TOKEN_COOKIE,
-        )
-        assert resp.status_code == 302
-        assert f"/session/{SESSION_ID}/review" in resp.headers["location"]
-
-    @respx.mock
-    def test_text_and_files_combined(self):
-        """Both text and files → both /upload and /upload-text called, redirects."""
-        respx.post(f"{BASE}/upload").mock(
-            return_value=httpx.Response(200, json={"status": "success"})
-        )
-        respx.post(f"{BASE}/upload-text").mock(
-            return_value=httpx.Response(200, json={"status": "success"})
-        )
-        client = TestClient(ui_app, follow_redirects=False)
-        resp = client.post(
-            f"/session/{SESSION_ID}/documents",
-            data={"text": "Extra context.", "text_label": ""},
-            files=[("files", ("doc.pdf", b"pdf content", "application/pdf"))],
-            cookies=TOKEN_COOKIE,
-        )
-        assert resp.status_code == 302
-        assert f"/session/{SESSION_ID}/review" in resp.headers["location"]
-
-    @respx.mock
-    def test_empty_text_field_ignored(self):
-        """Empty textarea + file → only /upload called, /upload-text NOT called."""
-        upload_route = respx.post(f"{BASE}/upload").mock(
-            return_value=httpx.Response(200, json={"status": "success"})
-        )
-        text_route = respx.post(f"{BASE}/upload-text").mock(
-            return_value=httpx.Response(200, json={"status": "success"})
-        )
-        client = TestClient(ui_app, follow_redirects=False)
-        resp = client.post(
-            f"/session/{SESSION_ID}/documents",
-            data={"text": "", "text_label": ""},
-            files=[("files", ("doc.pdf", b"pdf content", "application/pdf"))],
-            cookies=TOKEN_COOKIE,
-        )
-        assert resp.status_code == 302
-        assert upload_route.called
-        assert not text_route.called
-
-    @respx.mock
-    def test_text_snippet_error_shows_inline_error(self):
-        """API error on /upload-text → re-renders page with error, no redirect."""
-        respx.post(f"{BASE}/upload-text").mock(
-            return_value=httpx.Response(400, json={"detail": "text must not be empty"})
-        )
-        client = TestClient(ui_app, follow_redirects=False)
-        resp = client.post(
-            f"/session/{SESSION_ID}/documents",
-            data={"text": "Some text.", "text_label": "My label"},
-            cookies=TOKEN_COOKIE,
-        )
-        assert resp.status_code == 422
-        assert "My label" in resp.text
-
     def test_textarea_present_on_documents_page(self):
-        """Documents page renders the paste textarea and label input."""
+        """Documents page renders the paste-text card with textarea and label inputs."""
+        respx.get(f"{BASE}/session/stats").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "session_id": SESSION_ID,
+                    "user_id": "user-test",
+                    "created_at": "2026-01-01T00:00:00Z",
+                    "expires_at": "2026-01-02T00:00:00Z",
+                    "remaining_hours": 24.0,
+                    "is_expired": False,
+                    "document_count": 0,
+                    "documents": [],
+                    "isolation_scope": "user",
+                    "last_upload_at": None,
+                    "web_ingest_enabled": False,
+                    "web_consent": False,
+                },
+            )
+        )
         client = TestClient(ui_app, follow_redirects=False)
         resp = client.get(f"/session/{SESSION_ID}/documents", cookies=TOKEN_COOKIE)
         assert resp.status_code == 200
-        assert 'name="text"' in resp.text
-        assert 'name="text_label"' in resp.text
+        assert 'id="text-snippet"' in resp.text
+        assert 'id="text-label"' in resp.text
+        assert 'id="text-card-form"' in resp.text

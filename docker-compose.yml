@@ -52,6 +52,9 @@ services:
       - CUE_REWRITE_BATCH_SIZE=${CUE_REWRITE_BATCH_SIZE:-20}
       - CUE_REWRITE_MODEL=${CUE_REWRITE_MODEL:-}
 
+      # Web URL ingestion (operator gate; per-session consent still required)
+      - CUE_WEB_INGEST_ENABLED=${CUE_WEB_INGEST_ENABLED:-false}
+
       # Multi-tenant credential routing (optional)
       - TENANT_REGISTRY_PATH=${TENANT_REGISTRY_PATH:-}
       - TENANT_ENCRYPTION_KEY=${TENANT_ENCRYPTION_KEY:-}

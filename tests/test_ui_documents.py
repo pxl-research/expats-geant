@@ -1,4 +1,4 @@
-"""Tests for document upload step — success, format errors, API errors, skip."""
+"""Tests for the GET documents page (four-card layout + per-card fetch ingest)."""
 
 import httpx
 import respx
@@ -11,122 +11,82 @@ BASE = "http://localhost:8001"
 SESSION_ID = "session-doc-test"
 
 
-class TestDocumentUploadSuccess:
+def _stats_response(documents=None, web_ingest_enabled=False, web_consent=False):
+    return {
+        "session_id": SESSION_ID,
+        "user_id": "user-test",
+        "created_at": "2026-01-01T00:00:00Z",
+        "expires_at": "2026-01-02T00:00:00Z",
+        "remaining_hours": 24.0,
+        "is_expired": False,
+        "document_count": len(documents or []),
+        "documents": documents or [],
+        "isolation_scope": "user",
+        "last_upload_at": None,
+        "web_ingest_enabled": web_ingest_enabled,
+        "web_consent": web_consent,
+    }
+
+
+class TestDocumentsPageLayout:
     @respx.mock
-    def test_all_files_uploaded_redirects_to_review(self):
-        respx.post(f"{BASE}/upload").mock(
-            return_value=httpx.Response(200, json={"status": "success"})
+    def test_renders_four_cards_when_web_enabled(self):
+        respx.get(f"{BASE}/session/stats").mock(
+            return_value=httpx.Response(200, json=_stats_response(web_ingest_enabled=True))
         )
-        client = TestClient(app, follow_redirects=False)
-        resp = client.post(
-            f"/session/{SESSION_ID}/documents",
-            files=[
-                ("files", ("doc1.pdf", b"pdf1", "application/pdf")),
-                ("files", ("doc2.txt", b"txt1", "text/plain")),
-            ],
-            cookies=TOKEN_COOKIE,
-        )
-        assert resp.status_code == 302
-        assert f"/session/{SESSION_ID}/review" in resp.headers["location"]
-
-    @respx.mock
-    def test_single_file_success_redirects(self):
-        """Single file upload succeeds → redirect to review."""
-        respx.post(f"{BASE}/upload").mock(
-            return_value=httpx.Response(200, json={"status": "success"})
-        )
-        client = TestClient(app, follow_redirects=False)
-        resp = client.post(
-            f"/session/{SESSION_ID}/documents",
-            files=[("files", ("report.pdf", b"pdf content", "application/pdf"))],
-            cookies=TOKEN_COOKIE,
-        )
-        assert resp.status_code == 302
-        assert f"/session/{SESSION_ID}/review" in resp.headers["location"]
-
-
-class TestDocumentUploadErrors:
-    @respx.mock
-    def test_unsupported_format_shows_per_file_error(self):
-        respx.post(f"{BASE}/upload").mock(
-            return_value=httpx.Response(400, json={"detail": "Unsupported file type: exe"})
-        )
-        client = TestClient(app, follow_redirects=False)
-        resp = client.post(
-            f"/session/{SESSION_ID}/documents",
-            files=[("files", ("bad.exe", b"exe", "application/octet-stream"))],
-            cookies=TOKEN_COOKIE,
-        )
-        assert resp.status_code == 422
-        assert "bad.exe" in resp.text
-        assert "Unsupported file type" in resp.text
-
-    @respx.mock
-    def test_api_error_shows_inline_error_retry_available(self):
-        respx.post(f"{BASE}/upload").mock(
-            return_value=httpx.Response(500, json={"detail": "Ingestion pipeline error"})
-        )
-        client = TestClient(app, follow_redirects=False)
-        resp = client.post(
-            f"/session/{SESSION_ID}/documents",
-            files=[("files", ("report.pdf", b"pdf", "application/pdf"))],
-            cookies=TOKEN_COOKIE,
-        )
-        assert resp.status_code == 422
-        assert "report.pdf" in resp.text
-        # The page should still show the upload form (retry available)
-        assert "Upload" in resp.text or "documents" in resp.text.lower()
-
-    @respx.mock
-    def test_partial_failure_shows_only_failed_files(self):
-        """One file succeeds, one fails — only the failed file shows an error."""
-        call_count = 0
-
-        def side_effect(request):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return httpx.Response(200, json={"status": "success"})
-            return httpx.Response(400, json={"detail": "Unsupported type"})
-
-        respx.post(f"{BASE}/upload").mock(side_effect=side_effect)
-        client = TestClient(app, follow_redirects=False)
-        resp = client.post(
-            f"/session/{SESSION_ID}/documents",
-            files=[
-                ("files", ("good.pdf", b"pdf", "application/pdf")),
-                ("files", ("bad.exe", b"exe", "application/octet-stream")),
-            ],
-            cookies=TOKEN_COOKIE,
-        )
-        assert resp.status_code == 422
-        assert "bad.exe" in resp.text
-        # good.pdf should not appear in errors
-        assert "good.pdf" not in resp.text
-
-
-class TestDocumentUploadSkip:
-    def test_skip_link_points_to_review(self):
-        """Skip link on documents page goes directly to review (no upload form submit)."""
         client = TestClient(app, follow_redirects=False)
         resp = client.get(f"/session/{SESSION_ID}/documents", cookies=TOKEN_COOKIE)
         assert resp.status_code == 200
-        # The skip link URL should point to the review page
-        assert f"/session/{SESSION_ID}/review" in resp.text
-        assert "Skip" in resp.text
+        body = resp.text
+        assert "Files" in body
+        assert "Paste Text" in body
+        assert "Add a Web Source" in body
+        assert "Your Sources" in body
+        assert f"/session/{SESSION_ID}/review" in body
+        assert 'id="continue-btn"' in body
 
-    def test_skip_link_present_on_documents_page(self):
+    @respx.mock
+    def test_renders_three_cards_when_web_disabled(self):
+        respx.get(f"{BASE}/session/stats").mock(
+            return_value=httpx.Response(200, json=_stats_response(web_ingest_enabled=False))
+        )
         client = TestClient(app, follow_redirects=False)
         resp = client.get(f"/session/{SESSION_ID}/documents", cookies=TOKEN_COOKIE)
         assert resp.status_code == 200
-        assert f"/session/{SESSION_ID}/review" in resp.text
+        body = resp.text
+        assert "Files" in body
+        assert "Paste Text" in body
+        assert "Add a Web Source" not in body
+        assert "Your Sources" in body
 
-    def test_post_with_no_files_redirects_to_review(self):
-        """Submitting the document form with no files selected redirects to review."""
-        client = TestClient(app, follow_redirects=False)
-        resp = client.post(
-            f"/session/{SESSION_ID}/documents",
-            cookies=TOKEN_COOKIE,
+    @respx.mock
+    def test_empty_sources_shows_empty_state(self):
+        respx.get(f"{BASE}/session/stats").mock(
+            return_value=httpx.Response(200, json=_stats_response(documents=[]))
         )
-        assert resp.status_code == 302
-        assert resp.headers["location"] == f"/session/{SESSION_ID}/review"
+        client = TestClient(app, follow_redirects=False)
+        resp = client.get(f"/session/{SESSION_ID}/documents", cookies=TOKEN_COOKIE)
+        assert resp.status_code == 200
+        assert "No sources yet" in resp.text
+
+    @respx.mock
+    def test_existing_sources_listed(self):
+        respx.get(f"{BASE}/session/stats").mock(
+            return_value=httpx.Response(
+                200,
+                json=_stats_response(
+                    documents=[
+                        {"name": "cv.pdf", "chunk_count": 4},
+                        {"name": "notes", "chunk_count": 1},
+                    ]
+                ),
+            )
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.get(f"/session/{SESSION_ID}/documents", cookies=TOKEN_COOKIE)
+        assert resp.status_code == 200
+        body = resp.text
+        assert "cv.pdf" in body
+        assert "4 chunks" in body
+        assert "notes" in body
+        assert "1 chunk</td>" in body or "1 chunk\n" in body or ">1 chunk" in body

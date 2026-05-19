@@ -191,6 +191,7 @@ document.addEventListener("DOMContentLoaded", function () {
       var discard = previewContainer.querySelector("[data-action='web-discard']");
       if (discard) discard.disabled = true;
       setStatus("Adding source…");
+      document.dispatchEvent(new CustomEvent("web-ingest-start"));
       fetch("/session/" + sessionId + "/web/ingest", {
         method: "POST",
         credentials: "same-origin",
@@ -221,6 +222,9 @@ document.addEventListener("DOMContentLoaded", function () {
           setStatus("Network error during ingest.", "error");
           ingestBtn.disabled = false;
           if (discard) discard.disabled = false;
+        })
+        .finally(function () {
+          document.dispatchEvent(new CustomEvent("web-ingest-end"));
         });
     });
   }
