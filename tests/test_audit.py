@@ -411,6 +411,71 @@ class TestAuditReport:
         assert "ACTIVITY LOG" in formatted
         assert "UPLOAD" in formatted
 
+    def test_format_audit_markdown(self, logger):
+        """Test formatting audit report as Markdown."""
+        logger.log_upload(
+            session_id="sess_123", filename="test.pdf", file_size=1000, file_type=".pdf"
+        )
+        logger.log_suggestion(
+            session_id="sess_123",
+            question="What is your job title?",
+            suggested_answer="Senior Developer based on the CV provided.",
+            sources_used=["test.pdf"],
+            model="anthropic/claude-3-sonnet",
+        )
+        logger.log_edit(
+            session_id="sess_123",
+            original_suggestion="Senior Developer based on the CV provided.",
+            edited_version="Lead Developer",
+        )
+
+        report = logger.generate_report(session_id="sess_123")
+
+        from cue_api.routes.audit import _format_audit_markdown
+
+        formatted = _format_audit_markdown(report, "sess_123")
+
+        assert "# Audit Report" in formatted
+        assert "sess_123" in formatted
+        assert "## Documents Uploaded" in formatted
+        assert "test.pdf" in formatted
+        assert "## Suggestions Generated" in formatted
+        assert "What is your job title?" in formatted
+        assert "Senior Developer" in formatted
+        assert "## Edits" in formatted
+        assert "Lead Developer" in formatted
+        assert "## Summary" in formatted
+        assert "**Total Documents:** 1" in formatted
+        assert "**Total Suggestions:** 1" in formatted
+        assert "**Total Edits:** 1" in formatted
+
+    def test_format_audit_markdown_empty(self, logger):
+        """Test Markdown format with no log entries."""
+        report = logger.generate_report(session_id="sess_empty")
+
+        from cue_api.routes.audit import _format_audit_markdown
+
+        formatted = _format_audit_markdown(report, "sess_empty")
+
+        assert "# Audit Report" in formatted
+        assert "No documents uploaded." in formatted
+        assert "No suggestions generated." in formatted
+        assert "## Summary" in formatted
+
+    def test_format_audit_markdown_pipe_escape(self, logger):
+        """Test that pipe characters in filenames are escaped in Markdown tables."""
+        logger.log_upload(
+            session_id="sess_123", filename="file|with|pipes.pdf", file_size=500, file_type=".pdf"
+        )
+
+        report = logger.generate_report(session_id="sess_123")
+
+        from cue_api.routes.audit import _format_audit_markdown
+
+        formatted = _format_audit_markdown(report, "sess_123")
+
+        assert "file\\|with\\|pipes.pdf" in formatted
+
     def test_mark_claimed(self, logger, temp_dir):
         """Test marking report as claimed."""
         logger.log_upload(

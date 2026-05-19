@@ -36,7 +36,6 @@ class TestAuditIntegration:
         """Create a test session."""
         return session_manager.create_session(
             user_id="test_user",
-            jwt_token="test_token_123",
             ttl_hours=24,
             terms_version="1.0",
             privacy_version="1.0",
@@ -178,6 +177,15 @@ class TestAuditIntegration:
         assert "SESSION_START" in text_report
         assert "UPLOAD" in text_report
 
+        # Test markdown format
+        from cue_api.routes.audit import _format_audit_markdown
+
+        md_report = _format_audit_markdown(report, session_id)
+        assert "# Audit Report" in md_report
+        assert session_id in md_report
+        assert "## Documents Uploaded" in md_report
+        assert "## Summary" in md_report
+
     def test_retention_and_cleanup(self, session_manager, audit_logger, session):
         """Test retention policy enforcement."""
         session_id = session.session_id
@@ -198,9 +206,9 @@ class TestAuditIntegration:
     def test_concurrent_session_isolation(self, session_manager, audit_logger, test_documents):
         """Test audit logs are isolated across concurrent sessions."""
         # Create two sessions
-        session1 = session_manager.create_session(user_id="user1", jwt_token="token1", ttl_hours=24)
+        session1 = session_manager.create_session(user_id="user1", ttl_hours=24)
 
-        session2 = session_manager.create_session(user_id="user2", jwt_token="token2", ttl_hours=24)
+        session2 = session_manager.create_session(user_id="user2", ttl_hours=24)
 
         # Upload different documents to each
         store1 = session_manager.get_vector_store(session1.session_id)
@@ -245,7 +253,6 @@ class TestAuditIntegration:
         # Create session with very short TTL
         session = session_manager.create_session(
             user_id="test_user",
-            jwt_token="short_lived",
             ttl_hours=0,  # Expires immediately
         )
 
@@ -295,7 +302,7 @@ class TestAuditWithRealDocuments:
         session_manager = SessionManager(base_path=temp_dir)
         audit_logger = AuditLogger(base_path=temp_dir)
 
-        session = session_manager.create_session(user_id="test_user", jwt_token="test_token")
+        session = session_manager.create_session(user_id="test_user")
 
         # Ingest documents
         store = session_manager.get_vector_store(session.session_id)

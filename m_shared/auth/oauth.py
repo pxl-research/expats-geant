@@ -57,9 +57,13 @@ def _get_env(name: str) -> str:
 def _get_oidc_settings() -> tuple[str, str, str, str]:
     """Return (issuer_url, client_id, client_secret, redirect_uri)."""
     redirect_port = int(os.getenv("OIDC_REDIRECT_PORT", "8002"))
-    redirect_uri = get_public_url(
-        "OIDC_REDIRECT_URI", redirect_port, path="/auth/callback"
-    ) or _get_env("OIDC_REDIRECT_URI")
+    localhost_default = f"http://localhost:{redirect_port}/auth/callback"
+    redirect_uri = (
+        get_public_url(
+            "OIDC_REDIRECT_URI", redirect_port, path="/auth/callback", default=localhost_default
+        )
+        or localhost_default
+    )
     return (
         _get_env("OIDC_ISSUER_URL"),
         _get_env("OIDC_CLIENT_ID"),
@@ -206,7 +210,13 @@ async def get_authorization_url(redirect_uri: str | None = None) -> tuple[str, s
     return authorization_url, state
 
 
-async def exchange_code(code: str, state: str, redirect_uri: str | None = None) -> str:
+async def exchange_code(
+    code: str,
+    state: str,
+    redirect_uri: str | None = None,
+    tenant_registry=None,
+    session_manager=None,
+) -> str:
     """Exchange an authorization code for a platform JWT.
 
     Validates the CSRF state, calls the token endpoint, validates the ID token,
@@ -216,6 +226,7 @@ async def exchange_code(code: str, state: str, redirect_uri: str | None = None) 
         code: Authorization code from the OIDC callback query parameter.
         state: State value from the OIDC callback query parameter.
         redirect_uri: Override the OIDC_REDIRECT_URI env var (optional).
+        tenant_registry: Optional TenantRegistry for resolving org from groups claim.
 
     Returns:
         Platform JWT string (same format as tokens from /dev/token).
@@ -323,12 +334,22 @@ async def exchange_code(code: str, state: str, redirect_uri: str | None = None) 
         raise OIDCTokenError("ID token is missing the 'sub' claim.")
 
     user_id = _normalize_sub(iss, sub)
-    session_id = str(uuid4())
+
+    if session_manager:
+        session_manager.ensure_user_directory(user_id)
+
+    org = "default"
+    if tenant_registry:
+        for group in claims.get("groups", []):
+            group_name = group.lstrip("/")
+            if tenant_registry.get_tenant(group_name):
+                org = group_name
+                break
 
     platform_token = create_token(
         user_id=user_id,
-        session_id=session_id,
-        org="default",
+        session_id=None,
+        org=org,
     )
-    logger.info("OIDC login successful: user_id=%r", user_id)
+    logger.info("OIDC login successful: user_id=%r, org=%r", user_id, org)
     return platform_token

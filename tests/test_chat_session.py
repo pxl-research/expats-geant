@@ -252,13 +252,9 @@ def test_save_style_profile_creates_parent_dirs(tmp_path):
 
 def test_list_sessions_for_user_filters_by_user(tmp_path):
     manager = SessionManager(base_path=str(tmp_path))
-    manager.create_session(
-        user_id="alice", jwt_token="token-alice", explicit_session_id="sess-alice-1"
-    )
-    manager.create_session(
-        user_id="alice", jwt_token="token-alice-2", explicit_session_id="sess-alice-2"
-    )
-    manager.create_session(user_id="bob", jwt_token="token-bob", explicit_session_id="sess-bob-1")
+    manager.create_session(user_id="alice", explicit_session_id="sess-alice-1")
+    manager.create_session(user_id="alice", explicit_session_id="sess-alice-2")
+    manager.create_session(user_id="bob", explicit_session_id="sess-bob-1")
 
     alice_sessions = manager.list_sessions_for_user("alice")
     bob_sessions = manager.list_sessions_for_user("bob")
@@ -270,7 +266,7 @@ def test_list_sessions_for_user_filters_by_user(tmp_path):
 
 def test_list_sessions_for_user_returns_empty_for_unknown(tmp_path):
     manager = SessionManager(base_path=str(tmp_path))
-    manager.create_session(user_id="alice", jwt_token="token-alice")
+    manager.create_session(user_id="alice")
     result = manager.list_sessions_for_user("unknown")
     assert result == []
 
@@ -296,20 +292,16 @@ def test_two_sessions_dont_interfere(tmp_path):
 
 def test_explicit_session_id_allows_multi_session(tmp_path):
     manager = SessionManager(base_path=str(tmp_path))
-    s1 = manager.create_session(
-        user_id="user1", jwt_token="same-token", explicit_session_id="uuid-001"
-    )
-    s2 = manager.create_session(
-        user_id="user1", jwt_token="same-token", explicit_session_id="uuid-002"
-    )
+    s1 = manager.create_session(user_id="user1", explicit_session_id="uuid-001")
+    s2 = manager.create_session(user_id="user1", explicit_session_id="uuid-002")
 
     assert s1.session_id == "uuid-001"
     assert s2.session_id == "uuid-002"
     assert s1.session_id != s2.session_id
 
 
-def test_jwt_hash_still_works_without_explicit_id(tmp_path):
+def test_explicit_session_id_returns_same_session(tmp_path):
     manager = SessionManager(base_path=str(tmp_path))
-    s1 = manager.create_session(user_id="user1", jwt_token="my-token")
-    s2 = manager.create_session(user_id="user1", jwt_token="my-token")
+    s1 = manager.create_session(user_id="user1", explicit_session_id="fixed-id")
+    s2 = manager.create_session(user_id="user1", explicit_session_id="fixed-id")
     assert s1.session_id == s2.session_id

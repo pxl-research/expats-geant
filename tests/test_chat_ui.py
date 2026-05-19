@@ -464,6 +464,9 @@ def test_style_doc_upload_returns_partial(client):
 
 @respx.mock
 def test_chat_page_renders(client):
+    respx.post(f"{BASE}/chat/sessions/{SESSION_ID}/select").mock(
+        return_value=httpx.Response(200, json={**SAMPLE_SESSION, "token": "scoped-token"})
+    )
     respx.get(f"{BASE}/chat/{SESSION_ID}").mock(
         return_value=httpx.Response(200, json=SAMPLE_SESSION)
     )

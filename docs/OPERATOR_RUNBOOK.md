@@ -24,6 +24,8 @@ Choose the option that fits your institution's data governance requirements:
 | **OpenRouter standard** (`openrouter.ai`) | Routing not guaranteed EU | Low | Acceptable with a data processing addendum (DPA) in place |
 | **Direct OpenAI / Anthropic** | Non-EU data centres | Low | Requires Standard Contractual Clauses (SCCs) under GDPR Art. 46 |
 
+**Multi-tenant note:** If subsidiaries (e.g. faculties) manage their own LLM budgets, each can have a separate API key routed through a single deployment. See [DEPLOYMENT.md § Multi-Tenant Setup](DEPLOYMENT.md#multi-tenant-setup).
+
 **Recommendation for EU institutions:** Use OpenRouter's EU endpoint or a self-hosted model.
 For OpenRouter EU routing, set in your `.env`:
 ```bash
@@ -59,6 +61,16 @@ Configure these values in `.env` before first launch:
 
 Operational data (uploaded documents, vector indices) is deleted automatically when a session
 expires. Audit reports are retained for the configured period and then permanently deleted.
+
+Sessions are stored under user-scoped directories: `data/sessions/{user_hash}/{session_id}/`.
+Each user can have multiple concurrent sessions. Each session directory contains:
+`metadata.json`, `survey.json`, `answer_report.json` (JSONL), `review_state.json`
+(user review decisions), `cached_suggestions.json` (full suggestion cache for instant page
+reload), `audit_log.json`, uploaded files, and a per-session ChromaDB store.
+All files are removed when the session expires or is manually deleted.
+
+**GDPR Right to Be Forgotten**: deleting a user's data means removing their entire user
+directory (`data/sessions/{user_hash}/`), which removes all sessions at once.
 
 ### 1.4 Network Exposure
 
@@ -175,8 +187,9 @@ open http://localhost:8080/admin    # Keycloak admin console
 
 1. Create Keycloak accounts or enable self-registration in the Keycloak admin console
 2. Share the Cue UI URL: `http(s)://your-host:8002`
-3. Brief users: they upload their personal documents (CVs, reports, etc.) at the start of a session, then use the AI suggestions when filling out the form
-4. Remind users: uploaded documents are automatically deleted after the session expires; they can also delete immediately via the UI
+3. Brief users on the flow: after logging in, they see a **session list** where they can start a new session or resume an existing one. Within a session, they upload documents and use AI suggestions when filling out the form
+4. Users can work on multiple surveys by creating separate sessions
+5. Remind users: uploaded documents are automatically deleted after the session expires; they can also delete immediately via the UI
 
 ---
 

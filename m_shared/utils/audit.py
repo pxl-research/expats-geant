@@ -193,6 +193,23 @@ class AuditLogger:
                 self._locks[session_id] = threading.Lock()
             return self._locks[session_id]
 
+    def _find_session_dir(self, session_id: str) -> Path:
+        """Locate a session directory in nested or flat layout.
+
+        Checks nested layout (base_path/{user_hash}/{session_id}) first,
+        then flat layout (base_path/{session_id}) for backward compatibility.
+        Returns flat-layout path as fallback for new writes.
+        """
+        if not self.base_path.exists():
+            return self.base_path / session_id
+        for user_dir in self.base_path.iterdir():
+            if not user_dir.is_dir():
+                continue
+            candidate = user_dir / session_id
+            if candidate.exists():
+                return candidate
+        return self.base_path / session_id
+
     def _get_audit_log_path(self, session_id: str) -> Path:
         """Get path to audit log file for a session.
 
@@ -202,7 +219,7 @@ class AuditLogger:
         Returns:
             Path to audit_log.json
         """
-        return self.base_path / session_id / "audit_log.json"
+        return self._find_session_dir(session_id) / "audit_log.json"
 
     def _load_entries(self, session_id: str) -> list[AuditLogEntry]:
         """Load existing audit log entries for a session.
@@ -285,6 +302,7 @@ class AuditLogger:
         user_id: str | None = None,
         question_id: str | None = None,
         rewritten_query: str | None = None,
+        source_details: list[dict] | None = None,
     ) -> None:
         """Log an answer suggestion generation event.
 
@@ -297,8 +315,9 @@ class AuditLogger:
             user_id: Optional user identifier
             question_id: Optional question identifier
             rewritten_query: Optional rewritten search query used for retrieval
+            source_details: Optional list of dicts with source, position, excerpt
         """
-        details = {
+        details: dict[str, Any] = {
             "question": question,
             "question_id": question_id,
             "suggested_answer": suggested_answer,
@@ -306,6 +325,8 @@ class AuditLogger:
             "model": model,
             "source_count": len(sources_used),
         }
+        if source_details:
+            details["source_details"] = source_details
         if rewritten_query is not None:
             details["rewritten_query"] = rewritten_query
         entry = AuditLogEntry(
@@ -522,7 +543,8 @@ class AuditLogger:
         Args:
             session_id: Session identifier
         """
-        claim_path = self.base_path / session_id / "report_claimed.json"
+        session_dir = self._find_session_dir(session_id)
+        claim_path = session_dir / "report_claimed.json"
         claim_path.parent.mkdir(parents=True, exist_ok=True)
 
         with open(claim_path, "w") as f:
@@ -537,8 +559,8 @@ class AuditLogger:
         Returns:
             True if report was downloaded by user
         """
-        claim_path = self.base_path / session_id / "report_claimed.json"
-        return claim_path.exists()
+        session_dir = self._find_session_dir(session_id)
+        return (session_dir / "report_claimed.json").exists()
 
     def delete_report(self, session_id: str) -> None:
         """Delete audit report for a session (GDPR Right to Erasure).
@@ -554,7 +576,7 @@ class AuditLogger:
             session_id: Session identifier
         """
         with self._get_lock(session_id):
-            session_dir = self.base_path / session_id
+            session_dir = self._find_session_dir(session_id)
 
             log_path = self._get_audit_log_path(session_id)
             if log_path.exists():
@@ -584,4 +606,5 @@ class AuditLogger:
         Returns:
             True if delete_report() was called for this session
         """
-        return (self.base_path / session_id / "report_deleted.json").exists()
+        session_dir = self._find_session_dir(session_id)
+        return (session_dir / "report_deleted.json").exists()

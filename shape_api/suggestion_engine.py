@@ -2,7 +2,8 @@
 
 import json
 import logging
-from dataclasses import dataclass
+
+from pydantic import BaseModel
 
 from m_shared.llm.client import LLMClient
 from m_shared.models.question import Question
@@ -10,8 +11,7 @@ from m_shared.models.survey import Survey
 from m_shared.utils.llm_parsing import strip_code_fences
 
 
-@dataclass
-class SuggestionResult:
+class SuggestionResult(BaseModel):
     """A single suggested rephrasing with reasoning."""
 
     phrasing: str
@@ -19,12 +19,17 @@ class SuggestionResult:
 
 
 def compact_survey_summary(survey: Survey) -> str:
-    """Return title + section names + question texts only. No metadata."""
+    """Return title + section/question IDs and texts. No types, options, or metadata.
+
+    The IDs are emitted as `[id]` anchors so the LLM can refer to elements
+    unambiguously in conversation. Other fields are deliberately omitted; the
+    `get_full_survey` tool exists to supply them when needed.
+    """
     lines = [f"Survey: {survey.title}"]
     for section in survey.sections:
-        lines.append(f"  Section: {section.title}")
+        lines.append(f"  Section [{section.id}]: {section.title}")
         for q in section.questions:
-            lines.append(f"    - {q.text}")
+            lines.append(f"    - [{q.id}] {q.text}")
     return "\n".join(lines)
 
 

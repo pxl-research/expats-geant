@@ -142,7 +142,7 @@ Our executables are pip3 and python3 (not pip and python)
 **Pull Requests:**
 
 - Required for all merges to `main` and `develop`
-- Code review: @stilkin-pxl as reviewer
+- Code review: project maintainer as reviewer
 - Squash and merge to `develop`; rebase and merge to `main` for clean history
 
 **Versioning:**
@@ -156,7 +156,7 @@ Our executables are pip3 and python3 (not pip and python)
 **Questionnaire & Survey Concepts:**
 
 - Core entities: Survey (questionnaire), Section (page), Question, Answer (submission/response)
-- Common question types: Open-ended, Multiple Choice, Single Choice, Ranking/Ordering, Scale/Range, Slider
+- Common question types: Open-ended, Multiple Choice, Single Choice, Ranking/Ordering, Scale/Range, Slider, Descriptive (display-only)
 - Metadata & tagging: Labels, answer types, answer options, tags for organization and categorization
 - Context: Not education-specific; applicable to any complex questionnaire scenarios
 

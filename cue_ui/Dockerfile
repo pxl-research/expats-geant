@@ -13,6 +13,7 @@ COPY cue_ui/requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY cue_ui/ ./cue_ui/
+COPY m_shared/ ./m_shared/
 
 # Run as non-root user
 RUN groupadd -r appuser && useradd -r -g appuser -d /app appuser \

@@ -20,9 +20,11 @@ Shape is the administrator co-pilot for questionnaire design. It provides statel
   - [Session Lifecycle](#session-lifecycle)
   - [POST /chat/sessions](#post-chatsessions)
   - [GET /chat/sessions](#get-chatsessions)
+  - [POST /chat/sessions/{session_id}/select](#post-chatsessionssession_idselect)
   - [GET /chat/{session_id}](#get-chatsession_id)
   - [POST /chat/{session_id}](#post-chatsession_id)
   - [GET /chat/{session_id}/survey](#get-chatsession_idsurvey)
+  - [PUT /chat/{session_id}/survey](#put-chatsession_idsurvey)
   - [GET /chat/{session_id}/messages](#get-chatsession_idmessages)
   - [DELETE /chat/{session_id}](#delete-chatsession_id)
   - [POST /chat/{session_id}/reset](#post-chatsession_idreset)
@@ -347,6 +349,7 @@ POST /chat/sessions          ← create session
   │    └── survey_updated: true → draft updated in session
   │
   ├─ GET  /chat/{id}/survey  ← retrieve current draft at any time
+  ├─ PUT  /chat/{id}/survey  ← push external edits to the draft
   │
   ├─ POST /export            ← export draft to target platform
   │
@@ -380,9 +383,12 @@ curl -X POST http://localhost:8003/chat/sessions \
     "language": "en",
     "free_text": "",
     "document_summary": ""
-  }
+  },
+  "token": "eyJhbGciOiJIUzI1NiIs..."
 }
 ```
+
+The `token` field contains a new JWT scoped to the created session. Use this token for all subsequent API calls on this session.
 
 ---
 
@@ -410,6 +416,32 @@ curl http://localhost:8003/chat/sessions \
   ]
 }
 ```
+
+---
+
+### POST /chat/sessions/{session_id}/select
+
+Select (resume) an existing chat session. Returns a new JWT scoped to the selected session.
+
+```bash
+curl -X POST http://localhost:8003/chat/sessions/550e8400-.../select \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Response:**
+
+```json
+{
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "user_id": "dev_user",
+  "created_at": "2026-03-12T10:00:00",
+  "expires_at": "2026-03-13T10:00:00",
+  "style_profile": { "language": "en", "free_text": "", "document_summary": "" },
+  "token": "eyJhbGciOiJIUzI1NiIs..."
+}
+```
+
+Use the returned `token` for all subsequent API calls on this session. The initial token from OIDC login has no session scope — you must create or select a session before accessing session-specific endpoints.
 
 ---
 
@@ -450,6 +482,16 @@ curl -X POST http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000 \
 
 When `survey_updated` is `true`, fetch the updated draft via `GET /chat/{session_id}/survey`.
 
+**How the turn works internally.** The server runs a bounded tool-call loop
+(max 3 model round-trips per turn). The model sees an ID-anchored summary of
+the current draft in its system prompt — types, options, and metadata are
+deliberately omitted from the summary. When the model proposes a structural
+change, it is instructed to first call the internal `get_full_survey` tool,
+which returns the full authoritative draft JSON for the session. The model
+then builds its `<survey_update>` from that JSON. This typically adds one
+round-trip to edit turns; pure Q&A turns remain a single round-trip and incur
+no tool overhead.
+
 ---
 
 ### GET /chat/{session_id}/survey
@@ -468,15 +510,32 @@ curl http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000/survey \
   "survey": {
     "id": "draft_550e8400",
     "title": "Staff Survey Draft",
-    "questions": [
+    "description": "",
+    "metadata": {},
+    "sections": [
       {
-        "id": "q1",
-        "type": "single_choice",
-        "text": "What is your preferred work arrangement?",
-        "choices": [
-          { "id": "c1", "text": "Always remote" },
-          { "id": "c2", "text": "Hybrid" },
-          { "id": "c3", "text": "Office only" }
+        "id": "sec_1",
+        "title": "Work Preferences",
+        "description": "",
+        "order": 0,
+        "metadata": {},
+        "questions": [
+          {
+            "id": "q_1",
+            "text": "What is your preferred work arrangement?",
+            "type": "single_choice",
+            "order": 0,
+            "required": true,
+            "min_value": null,
+            "max_value": null,
+            "step": null,
+            "metadata": {},
+            "answer_options": [
+              { "id": "opt_1", "text": "Always remote", "value": null },
+              { "id": "opt_2", "text": "Hybrid", "value": null },
+              { "id": "opt_3", "text": "Office only", "value": null }
+            ]
+          }
         ]
       }
     ]
@@ -484,7 +543,83 @@ curl http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000/survey \
 }
 ```
 
-`survey` is `null` if no draft has been created yet.
+`survey` is `null` if no draft has been created yet. The full schema (Survey →
+Section → Question → AnswerOption, with field-level constraints) is exposed in
+the auto-generated OpenAPI docs at `/docs` and `/openapi.json`.
+
+---
+
+### PUT /chat/{session_id}/survey
+
+Replace the draft survey with an externally edited version. Use this to sync changes
+made in an external editor back to the session, instead of sending the full survey JSON
+in a chat message. The endpoint validates the survey schema and returns any
+methodological quality issues.
+
+```bash
+curl -X PUT http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000/survey \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "survey": {
+      "id": "survey_1",
+      "title": "Staff Survey",
+      "sections": [
+        {
+          "id": "sec_1",
+          "title": "Work Preferences",
+          "description": "",
+          "order": 0,
+          "metadata": {},
+          "questions": [
+            {
+              "id": "q_1",
+              "text": "What is your preferred work arrangement?",
+              "type": "single_choice",
+              "order": 0,
+              "required": true,
+              "answer_options": [
+                {"id": "opt_1", "text": "Remote"},
+                {"id": "opt_2", "text": "Hybrid"},
+                {"id": "opt_3", "text": "Office"}
+              ],
+              "min_value": null,
+              "max_value": null,
+              "step": null,
+              "metadata": {}
+            }
+          ]
+        }
+      ],
+      "metadata": {}
+    }
+  }'
+```
+
+**Response** (`200 OK`):
+
+```json
+{
+  "status": "saved",
+  "validation_issues": [
+    {
+      "question_id": "q_1",
+      "severity": "warning",
+      "code": "scale_too_short",
+      "message": "Only 3 option(s) provided; consider at least 4 for a meaningful scale."
+    }
+  ]
+}
+```
+
+**Errors:**
+- `422` if the survey JSON does not match the required schema (missing fields, invalid question type, etc.). The response body follows FastAPI's standard validation-error format: `{"detail": [{"type": "...", "loc": [...], "msg": "...", "input": ...}, ...]}`.
+- `403` if the session does not exist or belongs to another user
+
+**Typical workflow for external editor integration:**
+1. `PUT /chat/{id}/survey` to sync your local edits to the server
+2. `POST /chat/{id}` with a short instruction (e.g., "improve question 3") — no need to include the survey JSON
+3. `GET /chat/{id}/survey` to fetch the AI's updated version back
 
 ---
 

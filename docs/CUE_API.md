@@ -42,8 +42,8 @@ Cue uses a **federated authentication** approach with two options:
 ### Key Principles
 
 1. **Token-based**: All API requests require a valid JWT in the `Authorization` header
-2. **Stateless**: No server-side session storage; JWT contains all auth info
-3. **Session-scoped**: Each JWT includes a `session_id` that isolates user data
+2. **User-scoped sessions**: Sessions are grouped per user — same user across devices sees the same sessions
+3. **Explicit session selection**: OIDC login issues a session-less JWT (`session_id=null`); users must create or resume a session before accessing session-scoped endpoints
 4. **Time-limited**: Tokens expire after 24 hours (configurable)
 
 ---
@@ -57,7 +57,7 @@ Your institutional IdP must include these claims in issued JWT tokens:
 ```json
 {
   "user_id": "unique_user_identifier",
-  "session_id": "stable_session_identifier",
+  "session_id": "stable_session_identifier_or_null",
   "org": "organization_identifier",
   "roles": ["respondent"],
   "iat": 1705132800,
@@ -65,14 +65,16 @@ Your institutional IdP must include these claims in issued JWT tokens:
 }
 ```
 
-| Claim        | Type      | Description                                                              |
-| ------------ | --------- | ------------------------------------------------------------------------ |
-| `user_id`    | string    | Unique, stable user identifier (e.g., email, employee ID)                |
-| `session_id` | string    | Session identifier (should be stable across requests in same session)    |
-| `org`        | string    | Organization/tenant identifier for multi-tenant deployments              |
-| `roles`      | array     | User roles (currently supports `["respondent"]` for survey participants) |
-| `iat`        | timestamp | Token issued-at time (Unix timestamp)                                    |
-| `exp`        | timestamp | Token expiration time (Unix timestamp)                                   |
+| Claim        | Type           | Description                                                              |
+| ------------ | -------------- | ------------------------------------------------------------------------ |
+| `user_id`    | string         | Unique, stable user identifier (e.g., email, employee ID)                |
+| `session_id` | string \| null | Session identifier, or `null` for session-list-only tokens               |
+| `org`        | string         | Organization/tenant identifier for multi-tenant deployments              |
+| `roles`      | array          | User roles (currently supports `["respondent"]` for survey participants) |
+| `iat`        | timestamp      | Token issued-at time (Unix timestamp)                                    |
+| `exp`        | timestamp      | Token expiration time (Unix timestamp)                                   |
+
+> **Session-less tokens** (`session_id=null`) are issued by OIDC login. They can only access session management endpoints (`GET /sessions`, `POST /sessions/new`, `POST /sessions/{id}/select`). All other endpoints require a session-scoped token.
 
 ### Token Format
 
@@ -110,10 +112,15 @@ def create_institutional_token(user_id: str, org: str) -> str:
 
 ### Using the `/auth/token` Endpoint
 
-`POST /auth/token` issues a JWT to any caller that presents the shared `API_SECRET`. It
+`POST /auth/token` issues a JWT to any caller that presents a valid API secret. It
 is available in **all environments** (development and production) and is the recommended
 way to authenticate automated scripts, server-to-server integrations, and anonymous API
 consumers.
+
+In multi-tenant deployments, each tenant has its own API secret. The endpoint matches the
+secret against the tenant registry first, then falls back to the global `API_SECRET`. The
+resulting JWT `org` claim determines which tenant's LLM credentials are used for
+subsequent requests. See [DEPLOYMENT.md § Multi-Tenant Setup](DEPLOYMENT.md#multi-tenant-setup).
 
 > **Anonymous callers**: supply any stable unique string as `user_id` (e.g. a UUID or
 > HMAC-hash of an internal user identifier). The resulting session is fully isolated.
@@ -129,6 +136,18 @@ curl -X POST http://localhost:8001/auth/token \
   }'
 ```
 
+To resume an existing session, include the optional `session_id` field:
+
+```bash
+curl -X POST http://localhost:8001/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "test_user",
+    "api_secret": "your-shared-api-secret",
+    "session_id": "a1b2c3d4e5f6"
+  }'
+```
+
 **Response:**
 
 ```json
@@ -138,6 +157,13 @@ curl -X POST http://localhost:8001/auth/token \
 }
 ```
 
+| Field | Required | Description |
+|---|---|---|
+| `user_id` | yes | Unique user identifier (max 200 chars) |
+| `api_secret` | yes | Shared API secret or tenant secret |
+| `session_id` | no | Resume an existing session; returns 404 if not found |
+
+Without `session_id`, a new session is created automatically and the JWT includes it.
 The endpoint is rate-limited to **10 requests per minute**. An incorrect or absent
 `api_secret` returns HTTP 401.
 
@@ -198,9 +224,20 @@ Browser                Cue             OIDC Provider
   │                       │  id_token             │
   │                       │<──────────────────────┤
   │                       │  validate, extract sub│
-  │  { "token": "<jwt>" } │                        │
+  │  JWT (session_id=null)│                        │
+  │<──────────────────────┤                        │
+  │                       │                        │
+  │  → /sessions (list)   │                        │
+  │  POST /sessions/new   │                        │
+  ├──────────────────────>│                        │
+  │  JWT (session_id=xxx) │                        │
   │<──────────────────────┤                        │
 ```
+
+After OIDC login, the JWT has `session_id=null`. The Cue UI redirects to the
+session list page where the user creates a new session or resumes an existing one.
+Session management endpoints (`/sessions/*`) issue a new JWT with a `session_id`
+claim, which is then used for all subsequent API calls.
 
 ### Quick Start with Bundled Keycloak
 
@@ -217,11 +254,19 @@ OIDC_REDIRECT_URI=http://localhost:8001/auth/callback
 # 3. Open login URL in browser
 open http://localhost:8001/auth/login
 # → redirected to Keycloak login
-# → after login, browser receives { "token": "eyJ..." }
+# → after login, JWT with session_id=null is issued
+# → UI redirects to session list page
 
-# 4. Use the platform JWT
+# 4. Create a session and use the token
+# (The Cue UI handles this automatically via the session list page)
+# For API usage, create a session explicitly:
+curl -X POST http://localhost:8001/sessions/new \
+  -H "Authorization: Bearer <login-token>"
+# → returns { "token": "...", "session_id": "..." }
+
+# 5. Use the session-scoped JWT
 curl http://localhost:8001/session/stats \
-  -H "Authorization: Bearer <token>"
+  -H "Authorization: Bearer <session-token>"
 ```
 
 See `docs/KEYCLOAK_SETUP.md` for federation (Google, Microsoft, LDAP) and production hardening.
@@ -257,34 +302,45 @@ The token must be signed with the same `JWT_SECRET` configured in Cue.
 
 ### Session Creation
 
-Sessions are **automatically created** on first authenticated request:
+Sessions are **explicitly created** by the user (not auto-created on first request):
 
-1. User authenticates with IdP and receives JWT
-2. User makes first API request (e.g., `POST /upload`)
-3. Cue middleware extracts `session_id` from JWT
-4. Session folder created: `sessions/{session_id}/`
-5. Session metadata saved with TTL (default: 24 hours)
+1. User authenticates with IdP (OIDC) and receives JWT with `session_id=null`
+2. User is redirected to the session list page (`GET /sessions`)
+3. User creates a new session (`POST /sessions/new`) or resumes an existing one (`POST /sessions/{id}/select`)
+4. A new JWT is issued with the `session_id` claim populated
+5. Session folder created: `data/sessions/{user_hash}/{session_id}/`
+
+For API token users (`POST /auth/token`), a session is created automatically when no `session_id` is provided (backward-compatible).
 
 ### Session Expiration
 
 - **TTL-based**: Sessions expire after configured hours (default: 24)
-- **Automatic cleanup**: Background job removes expired sessions
+- **Automatic cleanup**: Background job removes expired sessions and prunes empty user directories
 - **User-initiated**: Users can delete sessions immediately via `DELETE /session`
 
-### Session Isolation
+### Session Storage
 
-Each session has isolated storage:
+Sessions are stored under user-scoped directories. Each user's sessions are isolated by a hash of their `user_id`:
 
 ```
-sessions/
-├── sess_abc123/
-│   ├── metadata.json       # Session info (created_at, expires_at)
-│   ├── chroma_store/       # Vector embeddings
-│   ├── documents/          # Uploaded files
-│   └── audit_log.json      # Audit trail
-└── sess_xyz789/
+data/sessions/
+├── a1b2c3d4e5f6g7h8/             # sha256(user_id)[:16]
+│   ├── f47ac10b58cc/              # session_id (UUID)
+│   │   ├── metadata.json          # Session info (created_at, expires_at, user_id)
+│   │   ├── survey.json            # Imported survey
+│   │   ├── answer_report.json     # Generated answers (JSONL)
+│   │   ├── review_state.json      # User review decisions
+│   │   ├── cached_suggestions.json # Suggestion cache for instant reload
+│   │   ├── audit_log.json         # Audit trail
+│   │   ├── chroma_xxxxxxxx/       # Vector embeddings (ChromaDB)
+│   │   └── uploads/               # Uploaded documents
+│   └── 9c3e7a1b2d4f/              # Another session for the same user
+│       └── ...
+└── x9y8z7w6v5u4t3s2/              # Another user
     └── ...
 ```
+
+This layout enables cross-device session resume (same user, different device), multiple concurrent sessions per user, and GDPR-compliant data deletion (`rm -rf data/sessions/{user_hash}/`).
 
 ---
 
@@ -292,16 +348,110 @@ sessions/
 
 ### Authentication Required
 
-All endpoints except `/`, `/health`, `/privacy`, `/auth/token`, `/auth/login`, and `/auth/callback` require authentication.
+All endpoints except `/`, `/health`, `/privacy`, `/auth/token`, `/auth/login`, and `/auth/callback` require authentication. Session management endpoints (`/sessions/*`) work with session-less tokens; all others require a session-scoped token.
 
 | Endpoint | Method | Description |
 |---|---|---|
+| `/sessions` | GET | List all active sessions for the authenticated user |
+| `/sessions/new` | POST | Create a new session; returns JWT with session_id |
+| `/sessions/{id}/select` | POST | Resume an existing session; returns JWT with session_id |
+| `/sessions/{id}/transfer` | POST | Transfer session ownership to another user |
 | `/upload` | POST | Upload evidence document (PDF, DOCX, TXT, MD, PPTX, XLSX, XLS, JPG, JPEG, PNG, GIF, WEBP) |
 | `/suggest/batch` | POST | Answer suggestions (single or multi-question) from QTI-inspired JSON payload |
 | `/suggest/stream` | POST | Same as `/suggest/batch` but streams results via Server-Sent Events — one `event: suggestion` per item as it completes, then `event: done` |
+| `/review-state/{question_id}` | PUT | Save review decision (accepted/dismissed/edited) for a single question |
+| `/review-state` | GET | Load full review state map for the session |
+| `/cached-suggestions` | GET | Retrieve cached suggestion results for instant page reload |
+| `/answer-report/download` | GET | Download answer report as JSON (includes review state when available) |
 | `/session/stats` | GET | Session TTL, document count, isolation info |
 | `/audit-report` | GET | Full session audit trail (JSON or plaintext) |
 | `/session` | DELETE | Delete session and all associated data immediately |
+
+#### List Sessions
+
+```bash
+GET /sessions
+Authorization: Bearer <token>
+```
+
+Returns all active (non-expired) sessions for the authenticated user. Works with session-less tokens.
+
+**Response:**
+
+```json
+{
+  "sessions": [
+    {
+      "session_id": "f47ac10b58cc",
+      "created_at": "2026-05-10T09:00:00",
+      "expires_at": "2026-05-11T09:00:00",
+      "remaining_hours": 18.5,
+      "has_survey": true
+    }
+  ]
+}
+```
+
+#### Create New Session
+
+```bash
+POST /sessions/new
+Authorization: Bearer <token>
+```
+
+Creates a new session for the authenticated user and returns a session-scoped JWT.
+
+**Response** (201):
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "session_id": "a1b2c3d4e5f6"
+}
+```
+
+#### Select / Resume Session
+
+```bash
+POST /sessions/{session_id}/select
+Authorization: Bearer <token>
+```
+
+Resume an existing session. Returns a new JWT scoped to that session. Returns 404 if the session does not exist or does not belong to the caller.
+
+**Response:**
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "session_id": "f47ac10b58cc"
+}
+```
+
+#### Transfer Session
+
+```bash
+POST /sessions/{session_id}/transfer
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "recipient_user_id": "localhost:8080:other-user-sub"
+}
+```
+
+Transfers ownership of a session to another user. The recipient must have logged in at least once (their user directory must exist). After transfer, the caller's JWT is no longer valid for this session.
+
+**Response:**
+
+```json
+{
+  "status": "transferred",
+  "session_id": "f47ac10b58cc"
+}
+```
+
+Returns 404 if the session doesn't exist, isn't owned by the caller, or the recipient hasn't logged in.
 
 #### Upload Document
 
@@ -460,9 +610,108 @@ If the rewrite call fails for any reason, the pipeline silently falls back to th
 |---|---|---|
 | `CUE_QUERY_REWRITE` | `true` | Set to `false` to disable query rewriting |
 | `CUE_REWRITE_BATCH_SIZE` | `20` | Max questions rewritten per LLM call; larger sections are split |
-| `CUE_REWRITE_MODEL` | _(unset)_ | Dedicated model for rewriting (e.g. `google/gemini-2.0-flash-001`); falls back to the primary LLM configuration when unset |
+| `CUE_REWRITE_MODEL` | _(unset)_ | Dedicated model for rewriting (e.g. `google/gemini-2.5-flash`); falls back to `DEFAULT_LLM_MODEL` when unset |
 
 The rewritten query is logged in the audit trail alongside each suggestion for pilot diagnostics.
+
+#### Review State
+
+The review state endpoints persist the respondent's per-question review decisions
+(accepted, dismissed, edited) server-side. The Cue UI writes to these endpoints on
+every interaction and reads the full state on page load. Review state is stored as
+`review_state.json` in the session directory and is deleted with the session.
+
+```bash
+PUT /review-state/{question_id}
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "state": "accepted",
+  "value": "36 months"
+}
+```
+
+The `state` field is required (`accepted`, `dismissed`, or `edited`). Optional fields:
+`value` (text answer), `selected_id` (single choice), `selected_ids` (multiple choice).
+
+```bash
+GET /review-state
+Authorization: Bearer <token>
+```
+
+**Response:**
+
+```json
+{
+  "states": {
+    "q1": { "state": "accepted", "value": "36 months" },
+    "q2": { "state": "dismissed" }
+  }
+}
+```
+
+Returns `{"states": {}}` if no review actions have been taken.
+
+#### Cached Suggestions
+
+Suggestions are cached to `cached_suggestions.json` as they are generated (both batch
+and streaming). On page reload, the UI fetches the cache and renders previously generated
+suggestions instantly — only uncached questions trigger a new SSE stream.
+
+```bash
+GET /cached-suggestions
+Authorization: Bearer <token>
+```
+
+**Response:**
+
+```json
+{
+  "suggestions": {
+    "q1": {
+      "item_id": "q1",
+      "type": "open_ended",
+      "suggestion": "36 months.",
+      "reasoning": "Policy document states this.",
+      "selected_id": null,
+      "selected_ids": null,
+      "citations": [...]
+    }
+  }
+}
+```
+
+Returns `{"suggestions": {}}` if no suggestions have been generated yet.
+
+#### Download Answer Report
+
+```bash
+GET /answer-report/download
+Authorization: Bearer <token>
+```
+
+Returns the session's answer report as a downloadable JSON array. Each entry contains
+the question, suggested answer, reasoning, and citations. When review state exists,
+entries are enriched with `review_state` and `final_value` fields:
+
+```json
+[
+  {
+    "question_id": "q1",
+    "question": "What is your data retention period?",
+    "answer": "36 months.",
+    "reasoning": "Policy document states this.",
+    "citations": [{"source": "policy.pdf", "position": 0.45, "excerpt": "..."}],
+    "generated_at": "2026-05-07T12:00:00Z",
+    "review_state": "accepted",
+    "final_value": "36 months."
+  }
+]
+```
+
+Returns 404 if no suggestions have been generated yet. The `review_state` and
+`final_value` fields are only present for questions with a review decision.
 
 #### Get Session Statistics
 
@@ -542,15 +791,25 @@ curl -X POST http://localhost:8001/auth/token \
 2. Ensure algorithm is HS256
 3. Check token was generated with correct secret
 
-### "Session not found"
+### "No active session" (403)
 
-**Cause**: Session expired or never created
+**Cause**: JWT has `session_id=null` (session-less token) but the endpoint requires an active session
+
+**Solution**: Create or select a session first:
+
+- `POST /sessions/new` to create a new session
+- `POST /sessions/{id}/select` to resume an existing one
+- The returned JWT includes a `session_id` — use it for subsequent requests
+
+### "Session not found" (404)
+
+**Cause**: Session expired, was deleted, or doesn't belong to the caller
 
 **Solution**:
 
+- List available sessions: `GET /sessions`
 - Check session stats: `GET /session/stats`
-- Upload a document to trigger session creation
-- Verify JWT contains valid `session_id`
+- Verify JWT contains a valid `session_id`
 
 ### "Invalid API secret"
 
@@ -584,9 +843,9 @@ See [DEPLOYMENT.md — Production Hardening](DEPLOYMENT.md#production-hardening)
 
 - **Technical Issues**: Open issue on GitHub repository
 - **Integration Questions**: Contact project maintainers
-- **Security Concerns**: Report privately to security@institution.edu
+- **Security Concerns**: Report privately to smartict@pxl.be
 
 ---
 
-**Last Updated**: March 2026
-**Version**: 0.3.0 (Streaming batch suggestions)
+**Last Updated**: May 2026
+**Version**: 0.3.0 (User-scoped sessions, streaming batch suggestions)

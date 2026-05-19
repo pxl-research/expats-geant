@@ -476,12 +476,14 @@ class TestSuggestEndpoint:
     ):
         """session_id provided → style_profile context is loaded and passed to engine."""
         # Create a chat session with a style profile
-        session_manager.create_session(
+        session = session_manager.create_session(
             user_id="test_user",
-            jwt_token="chat-token-1",
             explicit_session_id="chat_sess_1",
         )
-        style_path = session_manager.base_path / "chat_sess_1" / "style_profile.json"
+        style_path = (
+            session_manager._get_session_path(session.session_id, user_id="test_user")
+            / "style_profile.json"
+        )
         style_path.write_text(json.dumps({"language": "fr", "free_text": "formal"}))
 
         client = TestClient(app_with_llm, raise_server_exceptions=False)
@@ -503,7 +505,6 @@ class TestSuggestEndpoint:
         """session_id belonging to another user → 403."""
         session_manager.create_session(
             user_id="other_user",
-            jwt_token="other-token",
             explicit_session_id="foreign_sess",
         )
         client = TestClient(app_with_llm, raise_server_exceptions=False)
@@ -658,7 +659,6 @@ class TestTagEndpoint:
         """Providing session_id causes vocabulary to be updated and saved."""
         session_manager.create_session(
             user_id="test_user",
-            jwt_token="chat-token-2",
             explicit_session_id="tag_sess_1",
         )
         mock_llm.create_completion.return_value = json.dumps(["new-tag", "another-tag"])
@@ -677,7 +677,10 @@ class TestTagEndpoint:
         assert data["vocabulary_updated"] is True
 
         # Verify vocabulary file was written
-        vocab_path = session_manager.base_path / "tag_sess_1" / "tag_vocabulary.json"
+        vocab_path = (
+            session_manager._get_session_path("tag_sess_1", user_id="test_user")
+            / "tag_vocabulary.json"
+        )
         assert vocab_path.exists()
         vocab = json.loads(vocab_path.read_text())
         assert len(vocab) > 0
@@ -699,7 +702,6 @@ class TestTagEndpoint:
     ):
         session_manager.create_session(
             user_id="other_user",
-            jwt_token="other-token-2",
             explicit_session_id="foreign_tag_sess",
         )
         mock_llm.create_completion.return_value = json.dumps(["tag1"])

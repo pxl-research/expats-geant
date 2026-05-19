@@ -53,6 +53,7 @@ _EXPORT_TYPE: dict[QuestionType, tuple[str, str]] = {
     QuestionType.OPEN_ENDED: ("TE", "ML"),
     QuestionType.RANKING: ("RO", "Rank"),
     QuestionType.SLIDER: ("Slider", "HSLIDER"),
+    QuestionType.DESCRIPTIVE: ("DB", "TB"),
 }
 
 _API_BASE = "https://{datacenter}.qualtrics.com/API/v3"
@@ -512,6 +513,8 @@ def _map_question_type(q_type_code: str, selector: str) -> QuestionType | None:
         return QuestionType.RANKING
     if q_type_code == "Matrix":
         return QuestionType.SINGLE_CHOICE  # best-effort
+    if q_type_code == "DB":
+        return QuestionType.DESCRIPTIVE
     return None
 
 

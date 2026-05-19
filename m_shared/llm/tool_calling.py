@@ -31,11 +31,36 @@ class ToolCall:
         return json.loads(self.arguments_json)
 
 
+@dataclass
+class CompletionResult:
+    """A non-streaming completion's parsed assistant message.
+
+    `content` is None when the model emitted only tool calls.
+    `tool_calls` is an empty list when the model emitted text only.
+    """
+
+    content: str | None
+    tool_calls: list[ToolCall]
+
+
 ToolFn = Callable[..., Any]
 
 
 class ToolCallingError(RuntimeError):
     pass
+
+
+def tool_calls_from_sdk_message(message) -> list[ToolCall]:
+    """Convert an OpenAI SDK chat-completion message's tool_calls to our dataclass."""
+    sdk_calls = getattr(message, "tool_calls", None) or []
+    return [
+        ToolCall(
+            tool_call_id=call.id,
+            name=call.function.name,
+            arguments_json=call.function.arguments or "",
+        )
+        for call in sdk_calls
+    ]
 
 
 def _collect_streamed_tool_calls(response_stream) -> tuple[str, list[ToolCall]]:

@@ -4,7 +4,6 @@ from fastapi import APIRouter, HTTPException, status
 
 from m_shared.adapters.base import SurveyAdapter
 from m_shared.adapters.registry import get_adapter
-from m_shared.models.survey import Survey
 from m_shared.utils.url_validation import validate_api_url, validate_datacenter_id
 from shape_api.models import (
     CreateRequest,
@@ -64,21 +63,14 @@ async def import_survey(body: ImportRequest):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Could not parse survey: {exc}",
         )
-    return ImportResponse(survey=survey.model_dump())
+    return ImportResponse(survey=survey)
 
 
 @router.post("/export", response_model=ExportResponse)
 async def export_survey(body: ExportRequest):
     """Serialise an internal Survey to a platform-specific format."""
     adapter = _get_adapter(body.format, None, None, None, None)
-    try:
-        survey = Survey(**body.survey)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid survey payload: {exc}",
-        )
-    content = adapter.export_survey(survey)
+    content = adapter.export_survey(body.survey)
     return ExportResponse(format=body.format, content=content)
 
 
@@ -86,13 +78,7 @@ async def export_survey(body: ExportRequest):
 async def create_survey_endpoint(body: CreateRequest):
     """Create a survey on the target platform or fall back to file export."""
     adapter = _get_adapter(body.format, body.api_url, body.token, body.username, body.password)
-    try:
-        survey = Survey(**body.survey)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid survey payload: {exc}",
-        )
+    survey = body.survey
 
     credentials_present = any([body.api_url, body.token, body.username, body.password])
 

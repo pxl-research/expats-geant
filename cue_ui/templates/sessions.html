@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}My Sessions — Cue{% endblock %}
+
+{% block head %}
+<style>
+  .session-table { width: 100%; border-collapse: collapse; }
+  .session-table th, .session-table td {
+    text-align: left; padding: 0.625rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.875rem;
+  }
+  .session-table th { color: var(--text-muted); font-weight: 500; }
+  .session-table tr:hover { background: var(--surface); }
+  .time-remaining { font-variant-numeric: tabular-nums; }
+  .empty-state { text-align: center; padding: 3rem 1rem; }
+  .empty-state p { margin-bottom: 1.25rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+    <h1>My Sessions</h1>
+    <form method="post" action="/sessions/new" style="margin:0;">
+      <button type="submit" class="btn btn-primary">New Session</button>
+    </form>
+  </div>
+
+  {% if error %}
+  <div class="alert alert-error">{{ error }}</div>
+  {% endif %}
+
+  {% if sessions %}
+  <table class="session-table">
+    <thead>
+      <tr>
+        <th>Session</th>
+        <th>Created</th>
+        <th>Time remaining</th>
+        <th>Survey</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in sessions %}
+      <tr>
+        <td><code style="font-size:0.8rem;">{{ s.session_id }}</code></td>
+        <td>{{ s.created_at[:16].replace('T', ' ') }}</td>
+        <td class="time-remaining">{{ "%.1f"|format(s.remaining_hours) }}h</td>
+        <td>{% if s.has_survey %}Loaded{% else %}&mdash;{% endif %}</td>
+        <td style="text-align:right;">
+          <form method="post" action="/sessions/{{ s.session_id }}/select" style="display:inline;">
+            <button type="submit" class="btn btn-ghost" style="padding:0.35rem 0.75rem;">Resume</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">
+    <p>No active sessions. Start a new one to begin reviewing a survey.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

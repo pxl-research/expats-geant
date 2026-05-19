@@ -40,26 +40,43 @@ class SessionManager:
         self.audit_logger = AuditLogger(base_path=base_path)
         self._vector_store_cache: dict[str, ChromaDocumentStore] = {}
 
-    def _hash_token(self, jwt_token: str) -> str:
-        """Generate stable session_id from JWT token.
-
-        Args:
-            jwt_token: JWT token string
+    def _hash_user_id(self, user_id: str) -> str:
+        """Generate stable directory name from user_id.
 
         Returns:
-            16-character hex hash of the token
+            16-character hex hash of the user_id
         """
-        return hashlib.sha256(jwt_token.encode()).hexdigest()[:16]
+        return hashlib.sha256(user_id.encode()).hexdigest()[:16]
 
-    def _get_session_path(self, session_id: str) -> Path:
+    def _get_user_path(self, user_id: str) -> Path:
+        """Get path to user's session directory."""
+        return self.base_path / self._hash_user_id(user_id)
+
+    def ensure_user_directory(self, user_id: str) -> Path:
+        """Create user directory if it doesn't exist. Returns path."""
+        user_path = self._get_user_path(user_id)
+        user_path.mkdir(parents=True, exist_ok=True)
+        return user_path
+
+    def _get_session_path(self, session_id: str, user_id: str | None = None) -> Path:
         """Get path to session folder.
 
         Args:
             session_id: Unique session identifier
+            user_id: Optional user_id for direct path resolution.
+                     Without it, scans user directories (slower fallback).
 
         Returns:
             Path to session directory
         """
+        if user_id:
+            return self._get_user_path(user_id) / session_id
+        for user_dir in self.base_path.iterdir():
+            if not user_dir.is_dir():
+                continue
+            candidate = user_dir / session_id
+            if candidate.exists():
+                return candidate
         return self.base_path / session_id
 
     def _save_session_metadata(self, session: Session) -> None:
@@ -68,7 +85,7 @@ class SessionManager:
         Args:
             session: Session object to save
         """
-        session_path = self._get_session_path(session.session_id)
+        session_path = self._get_session_path(session.session_id, user_id=session.user_id)
         metadata_path = session_path / "metadata.json"
 
         metadata = {
@@ -83,16 +100,25 @@ class SessionManager:
         with open(metadata_path, "w") as f:
             json.dump(metadata, f, indent=2)
 
-    def _load_session_metadata(self, session_id: str) -> Session | None:
+    def _load_session_metadata(
+        self,
+        session_id: str,
+        *,
+        session_path: Path | None = None,
+        user_id: str | None = None,
+    ) -> Session | None:
         """Load session metadata from JSON file.
 
         Args:
             session_id: Session identifier
+            session_path: Direct path to session directory (avoids scan)
+            user_id: Optional user_id for direct path resolution
 
         Returns:
             Session object if exists, None otherwise
         """
-        session_path = self._get_session_path(session_id)
+        if session_path is None:
+            session_path = self._get_session_path(session_id, user_id=user_id)
         metadata_path = session_path / "metadata.json"
 
         if not metadata_path.exists():
@@ -110,7 +136,7 @@ class SessionManager:
     def create_session(
         self,
         user_id: str,
-        jwt_token: str,
+        jwt_token: str | None = None,
         ttl_hours: int = 24,
         isolation_scope: str = "user",
         consent: Consent | None = None,
@@ -123,13 +149,13 @@ class SessionManager:
 
         Args:
             user_id: ID of the user owning this session
-            jwt_token: JWT token to hash for session_id
+            jwt_token: Unused, kept for backward compatibility
             ttl_hours: Time-to-live in hours (default: 24)
             isolation_scope: Data isolation scope (default: "user")
             consent: Optional pre-created Consent object
             terms_version: Terms version if consent not provided (default: "1.0")
             privacy_version: Privacy policy version if consent not provided (default: "1.0")
-            explicit_session_id: Optional explicit session ID (skips JWT hash derivation)
+            explicit_session_id: Optional explicit session ID (default: auto-generated UUID)
             session_type: Optional session type tag (e.g. "chat", "autofill")
 
         Returns:
@@ -138,8 +164,9 @@ class SessionManager:
         Raises:
             FileExistsError: If session already exists and is not expired
         """
-        session_id = explicit_session_id or self._hash_token(jwt_token)
-        session_path = self._get_session_path(session_id)
+        session_id = explicit_session_id or uuid.uuid4().hex[:12]
+        self.ensure_user_directory(user_id)
+        session_path = self._get_session_path(session_id, user_id=user_id)
 
         # Check if session already exists
         if session_path.exists():
@@ -193,16 +220,17 @@ class SessionManager:
 
         return session
 
-    def get_session(self, session_id: str) -> Session | None:
+    def get_session(self, session_id: str, user_id: str | None = None) -> Session | None:
         """Get session by ID.
 
         Args:
             session_id: Session identifier
+            user_id: Optional user_id for direct path resolution
 
         Returns:
             Session object if exists and not expired, None otherwise
         """
-        session = self._load_session_metadata(session_id)
+        session = self._load_session_metadata(session_id, user_id=user_id)
         if session and session.is_expired():
             return None
         return session
@@ -259,7 +287,6 @@ class SessionManager:
         if not session_path.exists():
             return False
 
-        # Log session end before deletion
         session = self.get_session(session_id)
         if session:
             self.audit_logger.log_session_event(
@@ -269,12 +296,40 @@ class SessionManager:
                 reason=reason,
             )
 
+        parent_dir = session_path.parent
         self._vector_store_cache.pop(session_id, None)
         shutil.rmtree(session_path)
+
+        # Remove empty user directory
+        if parent_dir != self.base_path and parent_dir.exists():
+            try:
+                if not any(parent_dir.iterdir()):
+                    parent_dir.rmdir()
+            except OSError:
+                pass
+
+        return True
+
+    def delete_user_data(self, user_id: str) -> bool:
+        """Delete all sessions and data for a user (GDPR Right to Be Forgotten).
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            True if user data was deleted, False if user directory didn't exist
+        """
+        user_path = self._get_user_path(user_id)
+        if not user_path.exists():
+            return False
+        for session_dir in user_path.iterdir():
+            if session_dir.is_dir():
+                self._vector_store_cache.pop(session_dir.name, None)
+        shutil.rmtree(user_path)
         return True
 
     def list_sessions(self, include_expired: bool = False) -> list[Session]:
-        """List all sessions.
+        """List all sessions across all users.
 
         Args:
             include_expired: Whether to include expired sessions
@@ -284,14 +339,16 @@ class SessionManager:
         """
         sessions = []
 
-        for session_dir in self.base_path.iterdir():
-            if not session_dir.is_dir():
+        for user_dir in self.base_path.iterdir():
+            if not user_dir.is_dir():
                 continue
-
-            session = self._load_session_metadata(session_dir.name)
-            if session:
-                if include_expired or not session.is_expired():
-                    sessions.append(session)
+            for session_dir in user_dir.iterdir():
+                if not session_dir.is_dir():
+                    continue
+                session = self._load_session_metadata(session_dir.name, session_path=session_dir)
+                if session:
+                    if include_expired or not session.is_expired():
+                        sessions.append(session)
 
         return sessions
 
@@ -305,14 +362,24 @@ class SessionManager:
         Returns:
             List of Session objects owned by the user
         """
-        return [
-            s for s in self.list_sessions(include_expired=include_expired) if s.user_id == user_id
-        ]
+        user_path = self._get_user_path(user_id)
+        if not user_path.exists():
+            return []
+        sessions = []
+        for session_dir in user_path.iterdir():
+            if not session_dir.is_dir():
+                continue
+            session = self._load_session_metadata(session_dir.name, session_path=session_dir)
+            if session:
+                if include_expired or not session.is_expired():
+                    sessions.append(session)
+        return sessions
 
     def cleanup_expired_sessions(self) -> list[str]:
         """Remove all expired sessions.
 
         Also cleans up unclaimed audit reports past retention period (1 year).
+        Prunes empty user directories after cleanup.
 
         Returns:
             List of deleted session IDs
@@ -324,10 +391,19 @@ class SessionManager:
             if self.delete_session(session.session_id, reason="expired"):
                 deleted.append(session.session_id)
 
-        # Also cleanup old unclaimed audit reports
         deleted.extend(self._cleanup_old_reports())
 
+        self._prune_empty_user_dirs()
+
         return deleted
+
+    def _prune_empty_user_dirs(self) -> None:
+        """Remove user directories that contain no sessions."""
+        for user_dir in self.base_path.iterdir():
+            if not user_dir.is_dir():
+                continue
+            if not any(user_dir.iterdir()):
+                user_dir.rmdir()
 
     def _cleanup_old_reports(self, retention_years: int = 1) -> list[str]:
         """Clean up unclaimed audit reports past retention period.
@@ -341,27 +417,27 @@ class SessionManager:
         cleaned = []
         cutoff_date = datetime.utcnow() - timedelta(days=365 * retention_years)
 
-        for session_dir in self.base_path.iterdir():
-            if not session_dir.is_dir():
+        for user_dir in self.base_path.iterdir():
+            if not user_dir.is_dir():
                 continue
+            for session_dir in user_dir.iterdir():
+                if not session_dir.is_dir():
+                    continue
 
-            session_id = session_dir.name
+                session_id = session_dir.name
+                audit_log_path = session_dir / "audit_log.json"
 
-            # Check if report is claimed
-            if self.audit_logger.is_claimed(session_id):
-                continue
+                if self.audit_logger.is_claimed(session_id):
+                    continue
 
-            # Check report age (use last modified time of audit_log.json)
-            audit_log_path = self.audit_logger._get_audit_log_path(session_id)
-            if not audit_log_path.exists():
-                continue
+                if not audit_log_path.exists():
+                    continue
 
-            last_modified = datetime.fromtimestamp(audit_log_path.stat().st_mtime)
+                last_modified = datetime.fromtimestamp(audit_log_path.stat().st_mtime)
 
-            if last_modified < cutoff_date:
-                # Report is old and unclaimed, delete it
-                if self.delete_session(session_id, reason="retention_policy"):
-                    cleaned.append(session_id)
+                if last_modified < cutoff_date:
+                    if self.delete_session(session_id, reason="retention_policy"):
+                        cleaned.append(session_id)
 
         return cleaned
 

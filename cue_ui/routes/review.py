@@ -186,6 +186,20 @@ async def review_page(request: Request, session_id: str):
     except APIError:
         pass
 
+    # Fetch server-side review state (best-effort; falls back to localStorage)
+    review_state = {}
+    try:
+        review_state = await api_client.get_review_state(token)
+    except Exception:  # noqa: S110
+        pass
+
+    # Fetch cached suggestions (skip SSE regeneration on reload)
+    cached_suggestions = {}
+    try:
+        cached_suggestions = await api_client.get_cached_suggestions(token)
+    except Exception:  # noqa: S110
+        pass
+
     return templates.TemplateResponse(
         request,
         "survey.html",
@@ -195,6 +209,8 @@ async def review_page(request: Request, session_id: str):
             "can_submit": can_submit,
             "form_values": {},
             "documents": documents,
+            "review_state": review_state,
+            "cached_suggestions": cached_suggestions,
         },
     )
 
@@ -211,6 +227,8 @@ def _survey_to_batch_items(survey: dict) -> list[dict]:
         for q in section.get("questions", []):
             opts = q.get("answer_options", [])
             q_type = q["type"]
+            if q_type == "descriptive":
+                continue
             if q_type in ("single_choice", "multiple_choice"):
                 if opts:
                     choices = [{"id": o["id"], "label": o["text"]} for o in opts]
@@ -236,6 +254,26 @@ async def suggest_stream(session_id: str, request: Request):
         return HTMLResponse(f"Error: {exc.detail}", status_code=exc.status_code)
 
     items = _survey_to_batch_items(survey)
+
+    # Skip questions that already have cached suggestions
+    try:
+        cached = await api_client.get_cached_suggestions(token)
+    except Exception:  # noqa: S110
+        cached = {}
+    if cached:
+        items = [item for item in items if item["id"] not in cached]
+
+    if not items:
+
+        async def all_cached_generator():
+            yield "event: done\ndata: {}\n\n"
+
+        return StreamingResponse(
+            all_cached_generator(),
+            media_type="text/event-stream",
+            headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+        )
+
     body = {"assessment_id": session_id, "items": items}
 
     async def proxy_generator():
@@ -344,6 +382,36 @@ async def download_answer_report_proxy(request: Request, session_id: str):
     )
 
 
+@router.get("/session/{session_id}/audit-report", response_class=HTMLResponse)
+async def audit_report_page(request: Request, session_id: str):
+    token = get_token(request)
+    if not token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    try:
+        await api_client.get_survey(token=token, survey_id=session_id)
+    except APIError as exc:
+        if exc.status_code in (404, 410):
+            return templates.TemplateResponse(
+                request,
+                "error.html",
+                {
+                    "message": "Your session has expired. Please start a new session.",
+                    "session_expired": True,
+                },
+                status_code=410,
+            )
+        return _render_error(request, f"Could not validate session: {exc.detail}", exc.status_code)
+    try:
+        markdown_text = await api_client.fetch_audit_report_markdown(token=token)
+    except APIError as exc:
+        return _render_error(request, f"Could not load audit report: {exc.detail}", exc.status_code)
+    return templates.TemplateResponse(
+        request,
+        "audit_report.html",
+        {"session_id": session_id, "report_markdown": markdown_text},
+    )
+
+
 @router.post("/session/{session_id}/submit")
 async def submit_responses(request: Request, session_id: str):
     """Collect form data, call submit API, redirect to submitted.html or show error."""
@@ -403,3 +471,38 @@ async def delete_session(request: Request):
     except APIError as exc:
         return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
     return JSONResponse({"status": "deleted"}, status_code=200)
+
+
+# ---------------------------------------------------------------------------
+# Review state proxy (UI → Cue API)
+# ---------------------------------------------------------------------------
+
+
+@router.put("/review-state/{question_id}")
+async def save_review_state(request: Request, question_id: str):
+    """Proxy review state save to the Cue API."""
+    token = get_token(request)
+    if not token:
+        return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"detail": "Invalid JSON"}, status_code=400)
+    try:
+        await api_client.save_review_state(token, question_id, body)
+    except APIError as exc:
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    return JSONResponse({"status": "ok"})
+
+
+@router.get("/review-state")
+async def get_review_state(request: Request):
+    """Proxy review state load from the Cue API."""
+    token = get_token(request)
+    if not token:
+        return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+    try:
+        states = await api_client.get_review_state(token)
+    except APIError as exc:
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    return {"states": states}

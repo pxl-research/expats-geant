@@ -57,11 +57,11 @@ class TestLandingPage:
         assert resp.status_code == 302
         assert "/auth/login" in resp.headers["location"]
 
-    def test_render_landing_when_authenticated(self):
+    def test_landing_redirects_to_sessions(self):
         client = TestClient(app, follow_redirects=False)
         resp = client.get("/", cookies=TOKEN_COOKIE)
-        assert resp.status_code == 200
-        assert "Upload" in resp.text
+        assert resp.status_code == 302
+        assert resp.headers["location"] == "/sessions"
 
 
 class TestAuthCallback:
@@ -382,3 +382,132 @@ class TestSubmitRoute:
         )
         assert resp.status_code == 503
         assert "Platform down" in resp.text
+
+
+class TestReviewStateProxy:
+    @respx.mock
+    def test_put_review_state_proxies_to_api(self):
+        respx.put(f"{BASE}/review-state/q1").mock(
+            return_value=httpx.Response(200, json={"status": "ok"})
+        )
+        client = TestClient(app)
+        resp = client.put(
+            "/review-state/q1",
+            json={"state": "accepted", "value": "yes"},
+            cookies=TOKEN_COOKIE,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "ok"
+
+    @respx.mock
+    def test_get_review_state_proxies_to_api(self):
+        respx.get(f"{BASE}/review-state").mock(
+            return_value=httpx.Response(
+                200, json={"states": {"q1": {"state": "accepted", "value": "yes"}}}
+            )
+        )
+        client = TestClient(app)
+        resp = client.get("/review-state", cookies=TOKEN_COOKIE)
+        assert resp.status_code == 200
+        assert "q1" in resp.json()["states"]
+
+    def test_put_review_state_unauthenticated(self):
+        client = TestClient(app)
+        resp = client.put("/review-state/q1", json={"state": "accepted"})
+        assert resp.status_code == 401
+
+    def test_get_review_state_unauthenticated(self):
+        client = TestClient(app)
+        resp = client.get("/review-state")
+        assert resp.status_code == 401
+
+
+class TestReviewPageWithCachedSuggestions:
+    @respx.mock
+    def test_cached_suggestions_rendered_inline(self):
+        """When cached suggestions exist, template renders suggestion blocks instead of spinners."""
+        respx.get(f"{BASE}/surveys/survey-abc").mock(
+            return_value=httpx.Response(200, json=SURVEY_FIXTURE)
+        )
+        respx.get(f"{BASE}/adapters/qsf/capabilities").mock(
+            return_value=httpx.Response(200, json=["read"])
+        )
+        respx.get(f"{BASE}/session/stats").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "session_id": "",
+                    "user_id": "",
+                    "created_at": "",
+                    "expires_at": "",
+                    "remaining_hours": 0,
+                    "is_expired": False,
+                    "document_count": 0,
+                    "documents": [],
+                    "isolation_scope": "session",
+                },
+            )
+        )
+        respx.get(f"{BASE}/review-state").mock(
+            return_value=httpx.Response(200, json={"states": {}})
+        )
+        respx.get(f"{BASE}/cached-suggestions").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "suggestions": {
+                        "q1": {
+                            "item_id": "q1",
+                            "type": "open_ended",
+                            "suggestion": "Software Engineer",
+                            "reasoning": "Based on your profile",
+                            "selected_id": None,
+                            "selected_ids": None,
+                            "citations": [],
+                        }
+                    }
+                },
+            )
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.get("/session/survey-abc/review", cookies=TOKEN_COOKIE)
+        assert resp.status_code == 200
+        assert "AI Suggestion" in resp.text
+        assert "Software Engineer" in resp.text
+
+    @respx.mock
+    def test_no_cache_shows_spinners(self):
+        """When no cached suggestions, template renders spinners for SSE."""
+        respx.get(f"{BASE}/surveys/survey-abc").mock(
+            return_value=httpx.Response(200, json=SURVEY_FIXTURE)
+        )
+        respx.get(f"{BASE}/adapters/qsf/capabilities").mock(
+            return_value=httpx.Response(200, json=["read"])
+        )
+        respx.get(f"{BASE}/session/stats").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "session_id": "",
+                    "user_id": "",
+                    "created_at": "",
+                    "expires_at": "",
+                    "remaining_hours": 0,
+                    "is_expired": False,
+                    "document_count": 0,
+                    "documents": [],
+                    "isolation_scope": "session",
+                },
+            )
+        )
+        respx.get(f"{BASE}/review-state").mock(
+            return_value=httpx.Response(200, json={"states": {}})
+        )
+        respx.get(f"{BASE}/cached-suggestions").mock(
+            return_value=httpx.Response(200, json={"suggestions": {}})
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.get("/session/survey-abc/review", cookies=TOKEN_COOKIE)
+        assert resp.status_code == 200
+        assert "Generating suggestion" in resp.text
+        assert "sse-connect" in resp.text

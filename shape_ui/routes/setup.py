@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from shape_ui import api_client
 from shape_ui.api_client import APIError
-from shape_ui.auth import get_token
+from shape_ui.auth import get_token, set_token_cookie
 from shape_ui.router import _render_error, templates
 
 router = APIRouter()
@@ -47,7 +47,10 @@ async def create_session(request: Request):
         return _render_error(request, f"Could not create session: {exc.detail}", exc.status_code)
 
     session_id = session["session_id"]
-    return RedirectResponse(url=f"/session/{session_id}/setup", status_code=302)
+    response = RedirectResponse(url=f"/session/{session_id}/setup", status_code=302)
+    if session.get("token"):
+        set_token_cookie(response, session["token"])
+    return response
 
 
 @router.get("/session/{session_id}/setup", response_class=HTMLResponse)

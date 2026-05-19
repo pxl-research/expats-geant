@@ -91,6 +91,30 @@ def test_compact_survey_summary_no_metadata():
     assert "metadata" not in result
 
 
+def test_compact_survey_summary_anchors_section_and_question_ids():
+    survey = _make_survey()
+    result = compact_survey_summary(survey)
+    assert "[sec1]" in result
+    assert "[q1]" in result
+    assert "[q2]" in result
+
+
+def test_compact_survey_summary_omits_field_internals():
+    """Summary must NOT leak types, options, required flags, or numeric ranges."""
+    survey = _make_survey()
+    result = compact_survey_summary(survey)
+    for forbidden in (
+        "answer_options",
+        "single_choice",
+        "open_ended",
+        "required",
+        "min_value",
+        "max_value",
+        "Very satisfied",  # option text from _make_question
+    ):
+        assert forbidden not in result, f"summary leaked '{forbidden}': {result!r}"
+
+
 # ---------------------------------------------------------------------------
 # suggest_question — without context
 # ---------------------------------------------------------------------------

@@ -52,6 +52,10 @@ services:
       - CUE_REWRITE_BATCH_SIZE=${CUE_REWRITE_BATCH_SIZE:-20}
       - CUE_REWRITE_MODEL=${CUE_REWRITE_MODEL:-}
 
+      # Multi-tenant credential routing (optional)
+      - TENANT_REGISTRY_PATH=${TENANT_REGISTRY_PATH:-}
+      - TENANT_ENCRYPTION_KEY=${TENANT_ENCRYPTION_KEY:-}
+
       # Logging
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - ENVIRONMENT=${ENVIRONMENT:-development}
@@ -60,9 +64,7 @@ services:
       # Persistent storage for sessions and audit logs
       - sessions_data:/app/data/sessions
       - chroma_data:/app/data/chroma
-
-      # Optional: Mount .env file for local development
-      # - ./.env:/app/.env:ro
+      - ./.secrets:/app/.secrets:ro
 
     depends_on:
       - keycloak
@@ -116,12 +118,15 @@ services:
       - SESSIONS_BASE_PATH=/app/data/sessions
       - SESSION_TTL_HOURS=${SESSION_TTL_HOURS:-24}
       - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-50}
+      - TENANT_REGISTRY_PATH=${TENANT_REGISTRY_PATH:-}
+      - TENANT_ENCRYPTION_KEY=${TENANT_ENCRYPTION_KEY:-}
       - CHAT_PORT=8003
       - HOST=0.0.0.0
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - ENVIRONMENT=${ENVIRONMENT:-development}
     volumes:
       - chat_sessions_data:/app/data/sessions
+      - ./.secrets:/app/.secrets:ro
     depends_on:
       - keycloak
     restart: unless-stopped

@@ -1625,8 +1625,8 @@ class TestSurveyMonkeyAdapterImport:
         survey = self.adapter.import_survey(sm)
         assert survey.sections[0].questions == []
 
-    def test_presentation_family_skipped(self):
-        """'presentation' questions are display-only and must be skipped."""
+    def test_presentation_family_imported_as_descriptive(self):
+        """'presentation' questions are imported as DESCRIPTIVE type."""
         sm = json.dumps(
             {
                 "id": "x",
@@ -1654,7 +1654,11 @@ class TestSurveyMonkeyAdapterImport:
             }
         )
         survey = self.adapter.import_survey(sm)
-        assert survey.sections[0].questions == []
+        assert len(survey.sections[0].questions) == 1
+        q = survey.sections[0].questions[0]
+        assert q.type == QuestionType.DESCRIPTIVE
+        assert q.text == "Header text"
+        assert q.required is False
 
     def test_invalid_json_raises_value_error(self):
         with pytest.raises(ValueError, match="Invalid SurveyMonkey JSON"):
@@ -2031,3 +2035,82 @@ class TestCrossPlatformRoundTrip:
         exported = LimeSurveyAdapter().export_survey(survey)
         survey2 = LimeSurveyAdapter().import_survey(exported)
         assert len(survey.sections) == len(survey2.sections)
+
+
+# ---------------------------------------------------------------------------
+# Descriptive question type — round-trip across all adapters
+# ---------------------------------------------------------------------------
+
+
+def _make_descriptive_survey() -> Survey:
+    """Create a minimal survey with a descriptive question for round-trip tests."""
+    return Survey(
+        id="rt_desc",
+        title="Round-trip Descriptive Test",
+        sections=[
+            Section(
+                id="sec_1",
+                title="Info",
+                questions=[
+                    Question(
+                        id="q_info",
+                        text="Please read these instructions before continuing.",
+                        type=QuestionType.DESCRIPTIVE,
+                    ),
+                    Question(
+                        id="q_real",
+                        text="What is your name?",
+                        type=QuestionType.OPEN_ENDED,
+                    ),
+                ],
+            )
+        ],
+    )
+
+
+class TestDescriptiveRoundTrip:
+    """Export → re-import preserves DESCRIPTIVE questions across all adapters."""
+
+    def test_limesurvey_round_trip(self):
+        adapter = LimeSurveyAdapter()
+        survey = _make_descriptive_survey()
+        exported = adapter.export_survey(survey)
+        survey2 = adapter.import_survey(exported)
+        types = [q.type for q in survey2.sections[0].questions]
+        assert QuestionType.DESCRIPTIVE in types
+        desc = [q for q in survey2.sections[0].questions if q.type == QuestionType.DESCRIPTIVE][0]
+        assert "instructions" in desc.text.lower()
+        assert desc.required is False
+
+    def test_qualtrics_round_trip(self):
+        adapter = QualtricsAdapter()
+        survey = _make_descriptive_survey()
+        exported = adapter.export_survey(survey)
+        survey2 = adapter.import_survey(exported)
+        types = [q.type for q in survey2.sections[0].questions]
+        assert QuestionType.DESCRIPTIVE in types
+        desc = [q for q in survey2.sections[0].questions if q.type == QuestionType.DESCRIPTIVE][0]
+        assert "instructions" in desc.text.lower()
+        assert desc.required is False
+
+    def test_surveymonkey_round_trip(self):
+        adapter = SurveyMonkeyAdapter()
+        survey = _make_descriptive_survey()
+        exported = adapter.export_survey(survey)
+        survey2 = adapter.import_survey(exported)
+        types = [q.type for q in survey2.sections[0].questions]
+        assert QuestionType.DESCRIPTIVE in types
+        desc = [q for q in survey2.sections[0].questions if q.type == QuestionType.DESCRIPTIVE][0]
+        assert "instructions" in desc.text.lower()
+        assert desc.required is False
+
+    def test_qti_round_trip(self):
+        adapter = QTIAdapter()
+        survey = _make_descriptive_survey()
+        exported = adapter.export_survey(survey)
+        survey2 = adapter.import_survey(exported)
+        types = [q.type for q in survey2.sections[0].questions]
+        assert QuestionType.DESCRIPTIVE in types
+        desc = [q for q in survey2.sections[0].questions if q.type == QuestionType.DESCRIPTIVE][0]
+        assert "instructions" in desc.text.lower()
+        assert desc.required is False

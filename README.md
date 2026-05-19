@@ -70,12 +70,13 @@ All code is open-source for non-commercial use only.
 
 ```bash
 # Clone repository
-git clone https://github.com/pxl-be/expats.git
-cd expats
+git clone https://github.com/pxl-research/expats-geant.git
+cd expats-geant
 
 # Configure environment
 cp .env.example .env
 # Edit .env: set OPENROUTER_API_KEY (or OPENAI_API_KEY) and JWT_SECRET
+# For multi-tenant deployments (per-subsidiary LLM keys), see docs/DEPLOYMENT.md § Multi-Tenant Setup
 
 # Build and run
 docker-compose up --build
@@ -107,8 +108,8 @@ See [Deployment Guide](docs/DEPLOYMENT.md) for full configuration options, manua
 
 ```bash
 # Clone repository
-git clone https://github.com/pxl-be/expats.git
-cd expats
+git clone https://github.com/pxl-research/expats-geant.git
+cd expats-geant
 
 # Create virtual environment
 python3 -m venv .venv

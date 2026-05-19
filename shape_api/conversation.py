@@ -13,10 +13,18 @@ from shape_api.session import (
 )
 from shape_api.style import build_style_context
 from shape_api.suggestion_engine import compact_survey_summary
+from shape_api.tools import GET_FULL_SURVEY_TOOL, dispatch_tool_call
 from shape_api.validation_engine import validate_survey
+
+_LOGGER = logging.getLogger(__name__)
 
 # Conversation history window sent to the LLM (balances context vs token cost)
 _LAST_N_MESSAGES = 20
+
+# Maximum number of LLM round-trips per chat turn (one iteration = one model call).
+# A normal edit turn uses 2 (call + tool + final), pure Q&A uses 1. The cap is
+# defensive; a model that hits it has misbehaved.
+MAX_TOOL_CALL_ITERATIONS = 3
 
 _SURVEY_TAG_RE = re.compile(r"<survey_update>(.*?)</survey_update>", re.DOTALL)
 
@@ -44,8 +52,12 @@ def build_system_prompt(draft, profile: dict) -> str:
         "scientific quality concerns you notice and ask whether the choice was intentional — "
         "do not lecture on every minor edit.\n\n"
         f"{build_style_context(profile)}\n\n"
-        "Current draft survey:\n"
+        "Current draft survey (summary — IDs and titles only):\n"
         f"{compact_survey_summary(draft) if draft else 'No survey draft exists yet.'}\n\n"
+        "Before emitting a <survey_update> block, you MUST call the get_full_survey tool to load "
+        "the authoritative current draft. The summary above intentionally omits answer options, "
+        "question types, required flags, numeric ranges, and metadata. Build your update from the "
+        "JSON returned by the tool and copy unchanged fields VERBATIM — do not rewrite them.\n\n"
         "When you propose changes to the survey, output the complete updated survey JSON "
         "inside <survey_update> tags. Only include <survey_update> when proposing structural "
         "changes — for questions or explanations, respond with plain text.\n\n"
@@ -80,13 +92,61 @@ def build_system_prompt(draft, profile: dict) -> str:
         "  ]\n"
         "}\n"
         "Rules:\n"
-        "- 'type' MUST be one of: open_ended, single_choice, multiple_choice, ranking, slider\n"
+        "- 'type' MUST be one of: open_ended, single_choice, multiple_choice, ranking, slider, descriptive\n"
         "- single_choice, multiple_choice, ranking MUST have answer_options: "
         '[{"id": "opt_1", "text": "Label", "value": null}]\n'
         "- slider MUST have min_value and max_value as numbers\n"
+        "- descriptive items are display-only text (no answer_options, not required)\n"
         "- Use short unique IDs (sec_1, q_1, opt_1, etc.)\n"
         "- Output the COMPLETE survey every time, not just the changed parts\n"
     )
+
+
+def _append_assistant_tool_call_message(messages: list[dict], result) -> None:
+    """Append the assistant's tool-call message in OpenAI's expected shape."""
+    messages.append(
+        {
+            "role": "assistant",
+            "content": result.content,
+            "tool_calls": [
+                {
+                    "id": tc.tool_call_id,
+                    "type": "function",
+                    "function": {"name": tc.name, "arguments": tc.arguments_json},
+                }
+                for tc in result.tool_calls
+            ],
+        }
+    )
+
+
+def _run_tool_call(tc, base_path: str, session_id: str, iteration: int) -> tuple[str, bool]:
+    """Dispatch one tool call, return (json_result, was_get_full_survey)."""
+    try:
+        args = tc.parse_arguments()
+    except Exception:
+        args = {}
+    try:
+        tool_result = dispatch_tool_call(
+            name=tc.name,
+            arguments=args,
+            base_path=base_path,
+            session_id=session_id,
+        )
+    except ValueError as exc:
+        tool_result = json.dumps({"error": str(exc)})
+        _LOGGER.warning(
+            "unknown_tool_call session_id=%s iteration=%d name=%s",
+            session_id,
+            iteration,
+            tc.name,
+        )
+        return tool_result, False
+
+    was_get_full = tc.name == "get_full_survey"
+    if was_get_full:
+        _LOGGER.info("get_full_survey session_id=%s iteration=%d", session_id, iteration)
+    return tool_result, was_get_full
 
 
 def execute_chat_turn(
@@ -96,7 +156,7 @@ def execute_chat_turn(
     llm_client,
     conversation: list[dict],
 ) -> tuple[str, bool]:
-    """Run one chat turn: call LLM, parse response, save draft if updated.
+    """Run one chat turn: call LLM (looping on tool calls), parse response, save draft if updated.
 
     Returns (reply_text, survey_updated).
     """
@@ -109,7 +169,7 @@ def execute_chat_turn(
     history = conversation[-_LAST_N_MESSAGES:]
     history_msgs = [{"role": m["role"], "content": m["content"]} for m in history]
 
-    messages = [{"role": "system", "content": system_content}]
+    messages: list[dict] = [{"role": "system", "content": system_content}]
     if docs_context:
         messages.append(
             {
@@ -120,8 +180,47 @@ def execute_chat_turn(
     messages.extend(history_msgs)
     messages.append({"role": "user", "content": message})
 
-    raw = llm_client.create_completion(messages=messages)
-    text, survey_dict = _parse_chat_response(raw)
+    loaded_via_tool = False
+    final_content = ""
+    hit_cap = False
+
+    for iteration in range(1, MAX_TOOL_CALL_ITERATIONS + 1):
+        result = llm_client.create_completion_full(
+            messages=messages,
+            tools=[GET_FULL_SURVEY_TOOL],
+        )
+        if not result.tool_calls:
+            final_content = result.content or ""
+            break
+
+        _append_assistant_tool_call_message(messages, result)
+        for tc in result.tool_calls:
+            tool_json, was_get_full = _run_tool_call(tc, base_path, session_id, iteration)
+            if was_get_full:
+                loaded_via_tool = True
+            messages.append(
+                {
+                    "role": "tool",
+                    "name": tc.name,
+                    "tool_call_id": tc.tool_call_id,
+                    "content": tool_json,
+                }
+            )
+    else:
+        hit_cap = True
+        final_content = result.content or ""
+        _LOGGER.warning(
+            "tool_loop_cap_hit session_id=%s iterations=%d",
+            session_id,
+            MAX_TOOL_CALL_ITERATIONS,
+        )
+
+    text, survey_dict = _parse_chat_response(final_content)
+    if hit_cap and not text:
+        text = (
+            "I wasn't able to complete that within the allowed tool-call budget. "
+            "Could you try rephrasing or breaking the change into smaller steps?"
+        )
 
     survey_updated = False
     if survey_dict is not None:
@@ -132,6 +231,8 @@ def execute_chat_turn(
             survey_obj = Survey(**survey_dict)
             save_draft_survey(base_path, session_id, survey_obj)
             survey_updated = True
+            if not loaded_via_tool:
+                _LOGGER.warning("survey_update_without_tool_load session_id=%s", session_id)
             new_issues = validate_survey(survey_obj)
             introduced = [
                 i
@@ -145,6 +246,6 @@ def execute_chat_turn(
                 )
                 text = f"{text}\n\n{notes}"
         except Exception as exc:
-            logging.getLogger(__name__).warning("Invalid survey_update payload: %s", exc)
+            _LOGGER.warning("Invalid survey_update payload: %s", exc)
 
     return text, survey_updated

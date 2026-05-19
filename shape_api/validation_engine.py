@@ -2,8 +2,9 @@
 
 import json
 import logging
-from dataclasses import dataclass
 from typing import Literal
+
+from pydantic import BaseModel
 
 from m_shared.llm.client import LLMClient
 from m_shared.models.question import Question, QuestionType
@@ -15,8 +16,7 @@ from m_shared.utils.llm_parsing import strip_code_fences
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class ValidationIssue:
+class ValidationIssue(BaseModel):
     """A single validation finding for a question."""
 
     question_id: str

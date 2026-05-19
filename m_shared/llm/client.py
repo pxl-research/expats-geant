@@ -9,6 +9,8 @@ from collections.abc import Iterable
 import tiktoken
 from openai import APIError, OpenAI, RateLimitError
 
+from m_shared.llm.tool_calling import CompletionResult, tool_calls_from_sdk_message
+
 
 class LLMClient(OpenAI):
     """
@@ -66,8 +68,8 @@ class LLMClient(OpenAI):
 
         if custom_headers is None:
             custom_headers = {
-                "HTTP-Referer": "https://pxl-research.be/expats",
-                "X-Title": "PXL Expats-GEANT",
+                "HTTP-Referer": "https://github.com/pxl-research/expats-geant",
+                "X-Title": "Expats-GEANT",
             }
 
         budget_env = os.getenv("THINKING_BUDGET_TOKENS")
@@ -142,6 +144,46 @@ class LLMClient(OpenAI):
             **kwargs,
         )
         return response.choices[0].message.content
+
+    def create_completion_full(
+        self,
+        messages: list[dict],
+        tools: Iterable | None = None,
+        **kwargs,
+    ) -> CompletionResult:
+        """
+        Create a non-streaming chat completion and return the full assistant message.
+
+        Mirrors `create_completion` for retry/headers/thinking-budget handling, but
+        surfaces both the textual content and any tool calls so callers can implement
+        a tool-call loop. The default `tools_list` configured on the client is used
+        unless `tools` is provided explicitly for this call.
+
+        Args:
+            messages: List of message dicts for the chat API
+            tools: Optional per-call tool definitions; overrides the client's default
+            **kwargs: Additional arguments to pass to the completions API
+
+        Returns:
+            CompletionResult with parsed content and tool_calls
+        """
+        kwargs = self._inject_thinking(kwargs)
+        temperature = kwargs.pop("temperature", self.temperature)
+        response = self._retry_with_backoff(
+            self.chat.completions.create,
+            model=self.model_name,
+            messages=messages,
+            tools=tools if tools is not None else self.tools_list,
+            stream=False,
+            temperature=temperature,
+            extra_headers=self.extra_headers,
+            **kwargs,
+        )
+        message = response.choices[0].message
+        return CompletionResult(
+            content=message.content,
+            tool_calls=tool_calls_from_sdk_message(message),
+        )
 
     def set_model(self, model_name: str) -> None:
         """

@@ -358,6 +358,7 @@ class RAGPipeline:
         sibling_prompts: list[str] | None = None,
         choices: list | None = None,
         question_type: str | None = None,
+        llm_client=None,
     ) -> tuple[str | None, str | None, str | None]:
         """Generate answer and reasoning from retrieved chunks using LLM.
 
@@ -414,18 +415,16 @@ class RAGPipeline:
             user_content += f"\n<choices>\n{choice_block}</choices>\n"
         user_content += f"\n<excerpts>\n{context}</excerpts>"
 
+        client = llm_client or self.llm_client
         temperature = temperature or self.default_temperature
-        original_temp = self.llm_client.temperature
-        self.llm_client.temperature = temperature
 
-        try:
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content},
-            ]
-            raw = self.llm_client.create_completion(messages=messages, max_tokens=self.max_tokens)
-        finally:
-            self.llm_client.temperature = original_temp
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ]
+        raw = client.create_completion(
+            messages=messages, max_tokens=self.max_tokens, temperature=temperature
+        )
 
         if not raw or not raw.strip():
             raise RuntimeError("LLM returned empty response")
@@ -691,6 +690,14 @@ class RAGPipeline:
         # Step 4: Log to audit trail
         if self.audit_logger:
             sources_used = [c.source_id for c in citations]
+            source_details = [
+                {
+                    "source": c.source_id,
+                    "position": c.position_percentage,
+                    "excerpt": (c.highlights[0][:120] if c.highlights else None),
+                }
+                for c in citations
+            ]
             self.audit_logger.log_suggestion(
                 session_id=session_id,
                 question=question,
@@ -700,6 +707,7 @@ class RAGPipeline:
                 user_id=user_id,
                 question_id=question_id,
                 rewritten_query=rewritten_query,
+                source_details=source_details,
             )
 
         # Return structured result
@@ -725,6 +733,7 @@ class RAGPipeline:
         assessment_id: str,
         user_id: str | None,
         rewritten_query: str | None = None,
+        llm_client=None,
     ) -> dict:
         """Process a single item through the full RAG pipeline.
 
@@ -741,6 +750,7 @@ class RAGPipeline:
             Suggestion dict with item_id, type, suggestion, selected_id, selected_ids,
             reasoning, and citations.
         """
+        client = llm_client or self.llm_client
         context_prompts = [p for p in sibling_prompts if p != item.prompt]
 
         search_query = rewritten_query or item.prompt
@@ -754,7 +764,7 @@ class RAGPipeline:
                     question=item.prompt,
                     suggested_answer=no_match_answer,
                     sources_used=[],
-                    model=self.llm_client.model_name,
+                    model=client.model_name,
                     user_id=user_id,
                     question_id=item.id,
                     rewritten_query=rewritten_query,
@@ -781,6 +791,7 @@ class RAGPipeline:
                 sibling_prompts=context_prompts,
                 choices=choices,
                 question_type=item.type.value,
+                llm_client=client,
             )
         except RuntimeError as e:
             return {
@@ -802,15 +813,24 @@ class RAGPipeline:
         citations = self.format_citations(chunks, item.prompt, answer or "")
 
         if self.audit_logger:
+            source_details = [
+                {
+                    "source": c.source_id,
+                    "position": c.position_percentage,
+                    "excerpt": (c.highlights[0][:120] if c.highlights else None),
+                }
+                for c in citations
+            ]
             self.audit_logger.log_suggestion(
                 session_id=session_id,
                 question=item.prompt,
                 suggested_answer=answer or "",
                 sources_used=[c.source_id for c in citations],
-                model=self.llm_client.model_name,
+                model=client.model_name,
                 user_id=user_id,
                 question_id=item.id,
                 rewritten_query=rewritten_query,
+                source_details=source_details,
             )
 
         return {
@@ -829,6 +849,7 @@ class RAGPipeline:
         session_id: str,
         assessment_id: str,
         user_id: str | None = None,
+        llm_client=None,
     ) -> list[dict]:
         """Generate answer suggestions for multiple questionnaire items.
 
@@ -840,6 +861,7 @@ class RAGPipeline:
             session_id: Session identifier
             assessment_id: Assessment identifier for audit logging
             user_id: Optional user ID for audit logging
+            llm_client: Optional per-tenant LLM client override
 
         Returns:
             List of suggestion dicts, one per item, in input order
@@ -864,6 +886,7 @@ class RAGPipeline:
                         assessment_id,
                         user_id,
                         rewritten_query=rewritten.get(item.id),
+                        llm_client=llm_client,
                     )
                 )
         return responses
@@ -874,6 +897,7 @@ class RAGPipeline:
         session_id: str,
         assessment_id: str,
         user_id: str | None = None,
+        llm_client=None,
     ) -> AsyncGenerator[dict, None]:
         """Yield suggestion dicts one at a time as each LLM call completes.
 
@@ -885,6 +909,7 @@ class RAGPipeline:
             session_id: Session identifier
             assessment_id: Assessment identifier for audit logging
             user_id: Optional user ID for audit logging
+            llm_client: Optional per-tenant LLM client override
 
         Yields:
             Suggestion dict per item, in input order
@@ -905,6 +930,7 @@ class RAGPipeline:
                         assessment_id,
                         user_id,
                         rewritten.get(item.id),
+                        llm_client,
                     )
                 except Exception as e:
                     logger.exception("Item %s failed: %s", item.id, e)

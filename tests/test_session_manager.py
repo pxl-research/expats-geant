@@ -1,5 +1,6 @@
 """Tests for SessionManager."""
 
+import hashlib
 import json
 import time
 from datetime import timedelta
@@ -7,6 +8,10 @@ from datetime import timedelta
 import pytest
 
 from m_shared.session import SessionManager
+
+
+def _user_hash(user_id: str) -> str:
+    return hashlib.sha256(user_id.encode()).hexdigest()[:16]
 
 
 class TestSessionManagerBasics:
@@ -20,25 +25,34 @@ class TestSessionManagerBasics:
         assert base.exists()
         assert base.is_dir()
 
-    def test_hash_token_stable(self, tmp_path):
-        """Test that same token produces same session_id."""
+    def test_hash_user_id_stable(self, tmp_path):
+        """Test that same user_id produces same hash."""
         manager = SessionManager(base_path=str(tmp_path))
 
-        token = "test_jwt_token_abc123"
-        hash1 = manager._hash_token(token)
-        hash2 = manager._hash_token(token)
+        hash1 = manager._hash_user_id("user_123")
+        hash2 = manager._hash_user_id("user_123")
 
         assert hash1 == hash2
         assert len(hash1) == 16
 
-    def test_hash_token_different_for_different_tokens(self, tmp_path):
-        """Test that different tokens produce different session_ids."""
+    def test_hash_user_id_different_for_different_users(self, tmp_path):
+        """Test that different user_ids produce different hashes."""
         manager = SessionManager(base_path=str(tmp_path))
 
-        hash1 = manager._hash_token("token1")
-        hash2 = manager._hash_token("token2")
+        hash1 = manager._hash_user_id("user_1")
+        hash2 = manager._hash_user_id("user_2")
 
         assert hash1 != hash2
+
+    def test_ensure_user_directory(self, tmp_path):
+        """Test that ensure_user_directory creates the user folder."""
+        manager = SessionManager(base_path=str(tmp_path))
+
+        user_path = manager.ensure_user_directory("user_123")
+
+        assert user_path.exists()
+        assert user_path.is_dir()
+        assert user_path == tmp_path / _user_hash("user_123")
 
 
 class TestSessionCreation:
@@ -48,7 +62,7 @@ class TestSessionCreation:
         """Test basic session creation."""
         manager = SessionManager(base_path=str(tmp_path))
 
-        session = manager.create_session(user_id="user_123", jwt_token="test_token", ttl_hours=24)
+        session = manager.create_session(user_id="user_123", ttl_hours=24)
 
         assert session.session_id is not None
         assert session.user_id == "user_123"
@@ -56,12 +70,12 @@ class TestSessionCreation:
         assert not session.is_expired()
 
     def test_create_session_creates_folder_structure(self, tmp_path):
-        """Test that session creation creates proper folder structure."""
+        """Test that session creation creates proper nested folder structure."""
         manager = SessionManager(base_path=str(tmp_path))
 
-        session = manager.create_session(user_id="user_123", jwt_token="test_token")
+        session = manager.create_session(user_id="user_123")
 
-        session_path = tmp_path / session.session_id
+        session_path = tmp_path / _user_hash("user_123") / session.session_id
         assert session_path.exists()
         assert (session_path / "metadata.json").exists()
         chroma_dir = session.metadata.get("chroma_dir", "chroma_store")
@@ -72,11 +86,10 @@ class TestSessionCreation:
         """Test that session metadata is saved correctly."""
         manager = SessionManager(base_path=str(tmp_path))
 
-        session = manager.create_session(
-            user_id="user_456", jwt_token="another_token", ttl_hours=48
-        )
+        session = manager.create_session(user_id="user_456", ttl_hours=48)
 
-        metadata_path = tmp_path / session.session_id / "metadata.json"
+        session_path = tmp_path / _user_hash("user_456") / session.session_id
+        metadata_path = session_path / "metadata.json"
         with open(metadata_path) as f:
             data = json.load(f)
 
@@ -84,13 +97,12 @@ class TestSessionCreation:
         assert data["session_id"] == session.session_id
         assert data["metadata"]["ttl_hours"] == 48
 
-    def test_create_session_with_existing_valid_returns_existing(self, tmp_path):
-        """Test that creating session with same token returns existing if valid."""
+    def test_create_session_with_explicit_id_returns_existing(self, tmp_path):
+        """Test that creating session with same explicit_session_id returns existing if valid."""
         manager = SessionManager(base_path=str(tmp_path))
 
-        token = "test_token"
-        session1 = manager.create_session(user_id="user_123", jwt_token=token)
-        session2 = manager.create_session(user_id="user_123", jwt_token=token)
+        session1 = manager.create_session(user_id="user_123", explicit_session_id="fixed_id_123")
+        session2 = manager.create_session(user_id="user_123", explicit_session_id="fixed_id_123")
 
         assert session1.session_id == session2.session_id
 
@@ -98,10 +110,9 @@ class TestSessionCreation:
         """Test session creation with custom TTL."""
         manager = SessionManager(base_path=str(tmp_path))
 
-        session = manager.create_session(user_id="user_789", jwt_token="token_789", ttl_hours=1)
+        session = manager.create_session(user_id="user_789", ttl_hours=1)
 
         expected_expiry = session.created_at + timedelta(hours=1)
-        # Allow small time difference
         assert abs((session.expires_at - expected_expiry).total_seconds()) < 2
 
 
@@ -112,7 +123,9 @@ class TestSessionRetrieval:
         """Test retrieving an existing session."""
         manager = SessionManager(base_path=str(tmp_path))
 
-        created = manager.create_session(user_id="user_123", jwt_token="token_abc")
+        created = manager.create_session(
+            user_id="user_123",
+        )
         retrieved = manager.get_session(created.session_id)
 
         assert retrieved is not None
@@ -134,7 +147,6 @@ class TestSessionRetrieval:
         # Create session with very short TTL
         session = manager.create_session(
             user_id="user_123",
-            jwt_token="token_short",
             ttl_hours=0.0001,  # ~0.36 seconds
         )
 
@@ -152,7 +164,9 @@ class TestVectorStore:
         """Test getting vector store for existing session."""
         manager = SessionManager(base_path=str(tmp_path))
 
-        session = manager.create_session(user_id="user_123", jwt_token="token_xyz")
+        session = manager.create_session(
+            user_id="user_123",
+        )
         store = manager.get_vector_store(session.session_id)
 
         assert store is not None
@@ -170,7 +184,9 @@ class TestVectorStore:
         """Test getting documents path for session."""
         manager = SessionManager(base_path=str(tmp_path))
 
-        session = manager.create_session(user_id="user_123", jwt_token="token_doc")
+        session = manager.create_session(
+            user_id="user_123",
+        )
         docs_path = manager.get_documents_path(session.session_id)
 
         assert docs_path.exists()
@@ -185,11 +201,10 @@ class TestSessionDeletion:
         """Test successful session deletion."""
         manager = SessionManager(base_path=str(tmp_path))
 
-        session = manager.create_session(user_id="user_123", jwt_token="token_del")
+        session = manager.create_session(user_id="user_123")
         assert manager.delete_session(session.session_id)
 
-        # Verify session is gone
-        session_path = tmp_path / session.session_id
+        session_path = tmp_path / _user_hash("user_123") / session.session_id
         assert not session_path.exists()
 
     def test_delete_session_nonexistent(self, tmp_path):
@@ -203,18 +218,43 @@ class TestSessionDeletion:
         """Test that deletion removes all session data."""
         manager = SessionManager(base_path=str(tmp_path))
 
-        session = manager.create_session(user_id="user_123", jwt_token="token_data")
+        session = manager.create_session(user_id="user_123")
 
-        # Add some files
         docs_path = manager.get_documents_path(session.session_id)
         (docs_path / "test.txt").write_text("test content")
 
-        # Delete session
         manager.delete_session(session.session_id)
 
-        # Verify everything is gone
         assert not docs_path.exists()
-        assert not (tmp_path / session.session_id).exists()
+        session_path = tmp_path / _user_hash("user_123") / session.session_id
+        assert not session_path.exists()
+
+    def test_delete_last_session_removes_user_dir(self, tmp_path):
+        """Test that deleting the last session also removes the empty user directory."""
+        manager = SessionManager(base_path=str(tmp_path))
+
+        session = manager.create_session(user_id="user_123")
+        user_dir = tmp_path / _user_hash("user_123")
+        assert user_dir.exists()
+
+        manager.delete_session(session.session_id)
+        assert not user_dir.exists()
+
+    def test_delete_user_data(self, tmp_path):
+        """Test RTBF: delete all user data at once."""
+        manager = SessionManager(base_path=str(tmp_path))
+
+        manager.create_session(user_id="user_123")
+        manager.create_session(user_id="user_123")
+
+        assert manager.delete_user_data("user_123")
+        assert not (tmp_path / _user_hash("user_123")).exists()
+        assert manager.list_sessions_for_user("user_123") == []
+
+    def test_delete_user_data_nonexistent(self, tmp_path):
+        """Test deleting nonexistent user returns False."""
+        manager = SessionManager(base_path=str(tmp_path))
+        assert manager.delete_user_data("nonexistent") is False
 
 
 class TestSessionListing:
@@ -231,9 +271,9 @@ class TestSessionListing:
         """Test listing multiple sessions."""
         manager = SessionManager(base_path=str(tmp_path))
 
-        s1 = manager.create_session(user_id="user_1", jwt_token="token_1")
-        s2 = manager.create_session(user_id="user_2", jwt_token="token_2")
-        s3 = manager.create_session(user_id="user_3", jwt_token="token_3")
+        s1 = manager.create_session(user_id="user_1")
+        s2 = manager.create_session(user_id="user_2")
+        s3 = manager.create_session(user_id="user_3")
 
         sessions = manager.list_sessions()
         assert len(sessions) == 3
@@ -243,13 +283,26 @@ class TestSessionListing:
         assert s2.session_id in session_ids
         assert s3.session_id in session_ids
 
+    def test_list_sessions_for_user(self, tmp_path):
+        """Test listing sessions for a specific user."""
+        manager = SessionManager(base_path=str(tmp_path))
+
+        s1 = manager.create_session(user_id="user_1")
+        s2 = manager.create_session(user_id="user_1")
+        manager.create_session(user_id="user_2")
+
+        sessions = manager.list_sessions_for_user("user_1")
+        assert len(sessions) == 2
+        session_ids = {s.session_id for s in sessions}
+        assert s1.session_id in session_ids
+        assert s2.session_id in session_ids
+
     def test_list_sessions_excludes_expired_by_default(self, tmp_path):
         """Test that expired sessions are excluded by default."""
         manager = SessionManager(base_path=str(tmp_path))
 
-        # Create one valid and one expired session
-        valid = manager.create_session(user_id="user_1", jwt_token="token_1", ttl_hours=24)
-        expired = manager.create_session(user_id="user_2", jwt_token="token_2", ttl_hours=0.0001)
+        valid = manager.create_session(user_id="user_1", ttl_hours=24)
+        expired = manager.create_session(user_id="user_2", ttl_hours=0.0001)
 
         time.sleep(1)
 
@@ -263,8 +316,8 @@ class TestSessionListing:
         """Test that expired sessions are included when requested."""
         manager = SessionManager(base_path=str(tmp_path))
 
-        valid = manager.create_session(user_id="user_1", jwt_token="token_1", ttl_hours=24)
-        expired = manager.create_session(user_id="user_2", jwt_token="token_2", ttl_hours=0.0001)
+        valid = manager.create_session(user_id="user_1", ttl_hours=24)
+        expired = manager.create_session(user_id="user_2", ttl_hours=0.0001)
 
         time.sleep(1)
 
@@ -282,28 +335,27 @@ class TestCleanup:
         """Test basic cleanup of expired sessions."""
         manager = SessionManager(base_path=str(tmp_path))
 
-        # Create expired session
-        expired = manager.create_session(user_id="user_1", jwt_token="token_exp", ttl_hours=0.0001)
+        expired = manager.create_session(user_id="user_1", ttl_hours=0.0001)
         time.sleep(1)
 
-        # Create valid session
-        valid = manager.create_session(user_id="user_2", jwt_token="token_val", ttl_hours=24)
+        valid = manager.create_session(user_id="user_2", ttl_hours=24)
 
         deleted = manager.cleanup_expired_sessions()
 
         assert len(deleted) == 1
         assert expired.session_id in deleted
-        assert not (tmp_path / expired.session_id).exists()
-        assert (tmp_path / valid.session_id).exists()
+        expired_path = tmp_path / _user_hash("user_1") / expired.session_id
+        assert not expired_path.exists()
+        valid_path = tmp_path / _user_hash("user_2") / valid.session_id
+        assert valid_path.exists()
 
     def test_cleanup_multiple_expired(self, tmp_path):
         """Test cleanup removes all expired sessions."""
         manager = SessionManager(base_path=str(tmp_path))
 
-        # Create multiple expired sessions
-        exp1 = manager.create_session(user_id="user_1", jwt_token="token_1", ttl_hours=0.0001)
-        exp2 = manager.create_session(user_id="user_2", jwt_token="token_2", ttl_hours=0.0001)
-        exp3 = manager.create_session(user_id="user_3", jwt_token="token_3", ttl_hours=0.0001)
+        exp1 = manager.create_session(user_id="user_1", ttl_hours=0.0001)
+        exp2 = manager.create_session(user_id="user_2", ttl_hours=0.0001)
+        exp3 = manager.create_session(user_id="user_3", ttl_hours=0.0001)
 
         time.sleep(1)
 
@@ -318,12 +370,24 @@ class TestCleanup:
         """Test cleanup with no expired sessions returns empty list."""
         manager = SessionManager(base_path=str(tmp_path))
 
-        manager.create_session(user_id="user_1", jwt_token="token_1", ttl_hours=24)
-        manager.create_session(user_id="user_2", jwt_token="token_2", ttl_hours=24)
+        manager.create_session(user_id="user_1", ttl_hours=24)
+        manager.create_session(user_id="user_2", ttl_hours=24)
 
         deleted = manager.cleanup_expired_sessions()
 
         assert deleted == []
+
+    def test_cleanup_prunes_empty_user_dirs(self, tmp_path):
+        """Test that cleanup removes empty user directories."""
+        manager = SessionManager(base_path=str(tmp_path))
+
+        manager.create_session(user_id="user_1", ttl_hours=0.0001)
+        time.sleep(1)
+
+        manager.cleanup_expired_sessions()
+
+        user_dir = tmp_path / _user_hash("user_1")
+        assert not user_dir.exists()
 
 
 class TestSessionStats:
@@ -333,7 +397,7 @@ class TestSessionStats:
         """Test getting statistics for existing session."""
         manager = SessionManager(base_path=str(tmp_path))
 
-        session = manager.create_session(user_id="user_123", jwt_token="token_stats", ttl_hours=24)
+        session = manager.create_session(user_id="user_123", ttl_hours=24)
         stats = manager.get_session_stats(session.session_id)
 
         assert stats is not None
@@ -355,7 +419,9 @@ class TestSessionStats:
         """Test session stats reflect ingested document count from the vector store."""
         manager = SessionManager(base_path=str(tmp_path))
 
-        session = manager.create_session(user_id="user_123", jwt_token="token_docs")
+        session = manager.create_session(
+            user_id="user_123",
+        )
         store = manager.get_vector_store(session.session_id)
 
         # Simulate ingested documents (raw files are deleted after ingestion)

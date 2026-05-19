@@ -10,11 +10,14 @@ from cue_api.rag_pipeline import RAGPipeline
 from cue_api.routes.audit import router as audit_router
 from cue_api.routes.auth import router as auth_router
 from cue_api.routes.documents import router as documents_router
+from cue_api.routes.review_state import router as review_state_router
 from cue_api.routes.session import router as session_router
+from cue_api.routes.sessions import router as sessions_router
 from cue_api.routes.suggestions import router as suggestions_router
 from cue_api.routes.surveys import router as surveys_router
 from m_shared.llm.client import LLMClient
 from m_shared.rate_limit import apply_rate_limiting
+from m_shared.routes.admin import router as admin_router
 from m_shared.session.manager import SessionManager
 from m_shared.utils.audit import AuditLogger
 
@@ -75,15 +78,16 @@ def create_app(
             logger.warning("Invalid CUE_REWRITE_BATCH_SIZE; using default 20")
             rewrite_batch_size = 20
         rewrite_llm_client = None
-        rewrite_model = os.getenv("CUE_REWRITE_MODEL") or os.getenv(
-            "DEFAULT_LLM_MODEL", "anthropic/claude-haiku-4.5"
-        )
-        from m_shared.llm import LLMClient as _LLMClient
+        if query_rewrite:
+            rewrite_model = os.getenv("CUE_REWRITE_MODEL") or os.getenv(
+                "DEFAULT_LLM_MODEL", "anthropic/claude-haiku-4.5"
+            )
+            from m_shared.llm import LLMClient as _LLMClient
 
-        try:
-            rewrite_llm_client = _LLMClient(model_name=rewrite_model)
-        except Exception as e:
-            logger.warning("Failed to create rewrite LLM client: %s; using main client", e)
+            try:
+                rewrite_llm_client = _LLMClient(model_name=rewrite_model)
+            except Exception as e:
+                logger.warning("Failed to create rewrite LLM client: %s; using main client", e)
         rag_pipeline = RAGPipeline(
             session_manager=session_manager,
             llm_client=llm_client,
@@ -117,9 +121,12 @@ def create_app(
 
     app.include_router(auth_router)
     app.include_router(session_router)
+    app.include_router(sessions_router)
     app.include_router(documents_router)
     app.include_router(suggestions_router)
     app.include_router(audit_router)
+    app.include_router(review_state_router)
     app.include_router(surveys_router)
+    app.include_router(admin_router)
 
     return app

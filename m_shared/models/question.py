@@ -16,6 +16,7 @@ class QuestionType(str, Enum):
     OPEN_ENDED = "open_ended"
     RANKING = "ranking"
     SLIDER = "slider"
+    DESCRIPTIVE = "descriptive"
 
 
 class Question(BaseModel):
@@ -27,6 +28,7 @@ class Question(BaseModel):
     - open_ended: User provides free-text response
     - ranking: User orders options by preference
     - slider: User selects a numeric value within a range
+    - descriptive: Display-only informational text (no response expected)
 
     Examples:
         >>> # Single choice (Likert scale)
@@ -91,6 +93,13 @@ class Question(BaseModel):
         if self.type == QuestionType.SLIDER:
             if self.min_value is None or self.max_value is None:
                 raise ValueError("Slider questions must have min_value and max_value")
+        return self
+
+    @model_validator(mode="after")
+    def validate_descriptive_defaults(self) -> "Question":
+        """Descriptive items are display-only and never required."""
+        if self.type == QuestionType.DESCRIPTIVE:
+            self.required = False
         return self
 
     model_config = ConfigDict(

@@ -28,7 +28,7 @@ Coverage threshold: `--cov-fail-under=80` (configured in `pyproject.toml` / `set
 
 | File | Description |
 |---|---|
-| `test_session_api.py` | Cue API endpoints (upload, batch suggest, session stats, delete) |
+| `test_session_api.py` | Cue API endpoints (upload, batch suggest, session stats, delete, session-less token handling) |
 | `test_batch_suggest.py` | Batch suggestion endpoint with sections and flat item lists |
 | `test_rag_pipeline.py` | RAG pipeline: document ingestion, chunking, retrieval |
 | `test_rag_integration.py` | End-to-end RAG with ChromaDB (integration) |
@@ -46,8 +46,9 @@ Coverage threshold: `--cov-fail-under=80` (configured in `pyproject.toml` / `set
 | `test_validators.py` | Input validators |
 | `test_upload_text.py` | Text snippet ingestion — ingest helper, API endpoint, and UI route |
 | `test_live_api_import_api.py` | `POST /surveys/import-from-api` endpoint integration tests |
-| `test_answer_report.py` | Per-session `answer_report.json` persistence and download endpoint |
+| `test_answer_report.py` | Per-session `answer_report.json` persistence, download endpoint, and suggestion caching |
 | `test_autofill_suggest_stream.py` | `POST /suggest/stream` SSE endpoint: event format, done sentinel, mid-stream error handling |
+| `test_review_state.py` | Server-side review state: PUT/GET endpoints, overwrite, cleanup, auth, answer report enrichment, cached suggestions |
 
 ### Shape (`shape_api/`)
 
@@ -79,6 +80,8 @@ Coverage threshold: `--cov-fail-under=80` (configured in `pyproject.toml` / `set
 | `test_startup_checks.py` | Startup configuration validation |
 | `test_tool_calling.py` | LLM tool/function calling |
 | `test_live_api_import_adapters.py` | `LimeSurveyAdapter.fetch_survey` and `QualtricsAdapter.fetch_survey` unit tests |
+| `test_tenant_registry.py` | Tenant registry: load, secret verification, resolve_org, OIDC groups, middleware pool |
+| `test_admin_reload.py` | `POST /admin/reload-tenants` endpoint: auth, reload, new tenant pickup |
 
 ### Cue UI (`cue_ui/`)
 
@@ -109,6 +112,8 @@ TOKEN=$(curl -s -X POST "$BASE_URL/auth/token" \
   -d '{"user_id": "smoke_test", "api_secret": "$API_SECRET"}' \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
 ```
+
+> **Multi-tenant deployments:** Use the tenant's API secret instead of the global `API_SECRET` to obtain a tenant-scoped token. The resulting JWT `org` claim will route LLM calls through the tenant's credentials.
 
 ### 3. E2E spot-check scripts
 

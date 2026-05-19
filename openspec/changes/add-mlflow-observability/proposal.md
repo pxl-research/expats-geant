@@ -17,5 +17,5 @@ The pilot phase (Jan–May 2026) generates valuable operational data — LLM cal
 ## Impact
 
 - Affected specs: new `observability` capability
-- Affected code: `m_shared/llm/client.py`, `m_autofill/` pipeline, `m_chat/` engines, `docker-compose.yml`
+- Affected code: `m_shared/llm/client.py`, `cue_api/` pipeline, `shape_api/` engines, `docker-compose.yml`
 - No breaking changes to existing APIs or data models

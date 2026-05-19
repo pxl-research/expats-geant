@@ -7,21 +7,27 @@ from uuid import uuid4
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
 
+from m_shared.auth.jwt_handler import create_token
 from m_shared.rate_limit import limiter
 from m_shared.session.manager import SessionManager
 from m_shared.utils.file_validation import validate_file_upload
 from m_shared.vectordb.utils import document_to_markdown, image_description
 from shape_api.conversation import execute_chat_turn
 from shape_api.models import (
+    ChatMessagesResponse,
     ChatSessionListResponse,
     ChatSessionResponse,
     ChatSurveyResponse,
     ChatTurnRequest,
     ChatTurnResponse,
     CreateChatSessionRequest,
+    DeleteSessionResponse,
     DocumentUploadResponse,
+    ResetSessionResponse,
     StyleProfileResponse,
     StyleUpdateRequest,
+    SurveyUpdateRequest,
+    SurveyUpdateResponse,
 )
 from shape_api.session import (
     DEFAULT_STYLE_PROFILE,
@@ -32,9 +38,11 @@ from shape_api.session import (
     load_conversation,
     load_draft_survey,
     load_style_profile,
+    save_draft_survey,
     save_style_profile,
 )
 from shape_api.style import extract_style_document, summarise_style_rules
+from shape_api.validation_engine import validate_survey
 
 router = APIRouter()
 
@@ -94,25 +102,31 @@ async def _save_and_validate_upload(file: UploadFile, dest_path: Path, max_mb: i
 async def create_chat_session(request: Request, body: CreateChatSessionRequest):
     """Create a new conversational chat session."""
     session_manager = request.app.state.session_manager
-    user_id = request.state.claims["user_id"]
-    jwt_token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    claims = request.state.claims
+    user_id = claims["user_id"]
     chat_session_id = str(uuid4())
     ttl_hours = int(os.getenv("SESSION_TTL_HOURS", "24"))
     session = session_manager.create_session(
         user_id,
-        jwt_token,
         ttl_hours=ttl_hours,
         explicit_session_id=chat_session_id,
         session_type="chat",
     )
     base_path = str(session_manager.base_path)
     initialize_chat_session(base_path, chat_session_id)
+    token = create_token(
+        user_id=user_id,
+        session_id=session.session_id,
+        org=claims.get("org", "default"),
+        roles=claims.get("roles", []),
+    )
     return ChatSessionResponse(
         session_id=session.session_id,
         user_id=session.user_id,
         created_at=session.created_at.isoformat(),
         expires_at=session.expires_at.isoformat(),
         style_profile=dict(DEFAULT_STYLE_PROFILE),
+        token=token,
     )
 
 
@@ -140,7 +154,37 @@ async def list_chat_sessions(request: Request):
     return ChatSessionListResponse(sessions=session_responses)
 
 
-@router.get("/chat/{session_id}/messages")
+@router.post("/chat/sessions/{session_id}/select", response_model=ChatSessionResponse)
+async def select_chat_session(request: Request, session_id: str):
+    """Select/resume a chat session. Returns a new JWT scoped to it."""
+    session_manager = request.app.state.session_manager
+    claims = request.state.claims
+    user_id = claims["user_id"]
+    session = _verify_session_owner(session_id, user_id, session_manager)
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+    base_path = str(session_manager.base_path)
+    profile = load_style_profile(base_path, session_id)
+    token = create_token(
+        user_id=user_id,
+        session_id=session_id,
+        org=claims.get("org", "default"),
+        roles=claims.get("roles", []),
+    )
+    return ChatSessionResponse(
+        session_id=session.session_id,
+        user_id=session.user_id,
+        created_at=session.created_at.isoformat(),
+        expires_at=session.expires_at.isoformat(),
+        style_profile=profile,
+        token=token,
+    )
+
+
+@router.get("/chat/{session_id}/messages", response_model=ChatMessagesResponse)
 async def get_chat_messages(request: Request, session_id: str):
     """Get the full conversation history for a chat session."""
     session_manager = request.app.state.session_manager
@@ -153,7 +197,7 @@ async def get_chat_messages(request: Request, session_id: str):
         )
     base_path = str(session_manager.base_path)
     messages = load_conversation(base_path, session_id)
-    return {"messages": messages}
+    return ChatMessagesResponse(messages=messages)
 
 
 @router.get("/chat/{session_id}", response_model=ChatSessionResponse)
@@ -178,7 +222,7 @@ async def get_chat_session(request: Request, session_id: str):
     )
 
 
-@router.delete("/chat/{session_id}")
+@router.delete("/chat/{session_id}", response_model=DeleteSessionResponse)
 async def delete_chat_session(request: Request, session_id: str):
     """Delete a chat session and all its data."""
     session_manager = request.app.state.session_manager
@@ -190,10 +234,10 @@ async def delete_chat_session(request: Request, session_id: str):
             detail="Session not found or access denied",
         )
     session_manager.delete_session(session_id)
-    return {"deleted": True, "session_id": session_id}
+    return DeleteSessionResponse(deleted=True, session_id=session_id)
 
 
-@router.post("/chat/{session_id}/reset")
+@router.post("/chat/{session_id}/reset", response_model=ResetSessionResponse)
 async def reset_chat_session(request: Request, session_id: str):
     """Clear draft survey and tag vocabulary, leaving conversation history intact."""
     session_manager = request.app.state.session_manager
@@ -206,11 +250,11 @@ async def reset_chat_session(request: Request, session_id: str):
         )
     base_path = str(session_manager.base_path)
     clear_draft_and_vocabulary(base_path, session_id)
-    return {
-        "reset": True,
-        "session_id": session_id,
-        "cleared": ["draft_survey.json", "tag_vocabulary.json"],
-    }
+    return ResetSessionResponse(
+        reset=True,
+        session_id=session_id,
+        cleared=["draft_survey.json", "tag_vocabulary.json"],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -222,7 +266,7 @@ async def reset_chat_session(request: Request, session_id: str):
 @limiter.limit("10/minute")
 async def chat_turn(request: Request, session_id: str, body: ChatTurnRequest):
     """Send a message to the AI and get a response; optionally updates draft survey."""
-    llm_client = request.app.state.llm_client
+    llm_client = getattr(request.state, "llm_client", None) or request.app.state.llm_client
     session_manager = request.app.state.session_manager
 
     if llm_client is None:
@@ -265,7 +309,24 @@ async def get_chat_survey(request: Request, session_id: str):
         )
     base_path = str(session_manager.base_path)
     survey = load_draft_survey(base_path, session_id)
-    return ChatSurveyResponse(survey=survey.model_dump() if survey else None)
+    return ChatSurveyResponse(survey=survey)
+
+
+@router.put("/chat/{session_id}/survey", response_model=SurveyUpdateResponse)
+@limiter.limit("10/minute")
+async def put_chat_survey(request: Request, session_id: str, body: SurveyUpdateRequest):
+    """Replace the draft survey for a chat session and return validation issues."""
+    session_manager = request.app.state.session_manager
+    user_id = request.state.claims["user_id"]
+    session = _verify_session_owner(session_id, user_id, session_manager)
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Session not found or access denied",
+        )
+    base_path = str(session_manager.base_path)
+    save_draft_survey(base_path, session_id, body.survey)
+    return SurveyUpdateResponse(status="saved", validation_issues=validate_survey(body.survey))
 
 
 # ---------------------------------------------------------------------------
@@ -314,7 +375,7 @@ async def update_style_profile(request: Request, session_id: str, body: StyleUpd
 @limiter.limit("10/minute")
 async def upload_style_document(request: Request, session_id: str, file: UploadFile = File(...)):
     """Upload a style guide document to update the session style profile."""
-    llm_client = request.app.state.llm_client
+    llm_client = getattr(request.state, "llm_client", None) or request.app.state.llm_client
     session_manager = request.app.state.session_manager
 
     user_id = request.state.claims["user_id"]
@@ -368,7 +429,7 @@ async def upload_style_document(request: Request, session_id: str, file: UploadF
 @limiter.limit("10/minute")
 async def upload_content_document(request: Request, session_id: str, file: UploadFile = File(...)):
     """Upload a content document to provide context for chat turns."""
-    llm_client = request.app.state.llm_client
+    llm_client = getattr(request.state, "llm_client", None) or request.app.state.llm_client
     session_manager = request.app.state.session_manager
 
     user_id = request.state.claims["user_id"]

@@ -11,6 +11,7 @@ COPY shape_ui/requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY shape_ui/ ./shape_ui/
+COPY m_shared/ ./m_shared/
 
 # Run as non-root user
 RUN groupadd -r appuser && useradd -r -g appuser -d /app appuser \
