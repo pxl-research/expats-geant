@@ -510,15 +510,32 @@ curl http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000/survey \
   "survey": {
     "id": "draft_550e8400",
     "title": "Staff Survey Draft",
-    "questions": [
+    "description": "",
+    "metadata": {},
+    "sections": [
       {
-        "id": "q1",
-        "type": "single_choice",
-        "text": "What is your preferred work arrangement?",
-        "choices": [
-          { "id": "c1", "text": "Always remote" },
-          { "id": "c2", "text": "Hybrid" },
-          { "id": "c3", "text": "Office only" }
+        "id": "sec_1",
+        "title": "Work Preferences",
+        "description": "",
+        "order": 0,
+        "metadata": {},
+        "questions": [
+          {
+            "id": "q_1",
+            "text": "What is your preferred work arrangement?",
+            "type": "single_choice",
+            "order": 0,
+            "required": true,
+            "min_value": null,
+            "max_value": null,
+            "step": null,
+            "metadata": {},
+            "answer_options": [
+              { "id": "opt_1", "text": "Always remote", "value": null },
+              { "id": "opt_2", "text": "Hybrid", "value": null },
+              { "id": "opt_3", "text": "Office only", "value": null }
+            ]
+          }
         ]
       }
     ]
@@ -526,7 +543,9 @@ curl http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000/survey \
 }
 ```
 
-`survey` is `null` if no draft has been created yet.
+`survey` is `null` if no draft has been created yet. The full schema (Survey →
+Section → Question → AnswerOption, with field-level constraints) is exposed in
+the auto-generated OpenAPI docs at `/docs` and `/openapi.json`.
 
 ---
 
@@ -594,7 +613,7 @@ curl -X PUT http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000/surv
 ```
 
 **Errors:**
-- `422` if the survey JSON does not match the required schema (missing fields, invalid question type, etc.)
+- `422` if the survey JSON does not match the required schema (missing fields, invalid question type, etc.). The response body follows FastAPI's standard validation-error format: `{"detail": [{"type": "...", "loc": [...], "msg": "...", "input": ...}, ...]}`.
 - `403` if the session does not exist or belongs to another user
 
 **Typical workflow for external editor integration:**
