@@ -3,7 +3,12 @@
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import PlainTextResponse
 
-from cue_api.models import SessionDeleteResponse, SessionStatsResponse
+from cue_api.models import (
+    SessionDeleteResponse,
+    SessionStatsResponse,
+    WebConsentRequest,
+    WebConsentResponse,
+)
 
 router = APIRouter()
 
@@ -53,7 +58,20 @@ async def get_session_stats(request: Request):
     if not stats:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
+    stats["web_ingest_enabled"] = bool(getattr(request.app.state, "web_ingest_enabled", False))
+    stats["web_consent"] = bool(session.metadata.get("web_consent", False))
+
     return SessionStatsResponse(**stats)
+
+
+@router.put("/session/web-consent", response_model=WebConsentResponse)
+async def set_web_consent(request: Request, body: WebConsentRequest):
+    """Grant or revoke per-session consent for server-side URL fetches."""
+    session = request.state.session
+    manager = request.state.session_manager
+    session.metadata["web_consent"] = bool(body.enabled)
+    manager._save_session_metadata(session)
+    return WebConsentResponse(web_consent=bool(session.metadata["web_consent"]))
 
 
 @router.delete("/session", response_model=SessionDeleteResponse)

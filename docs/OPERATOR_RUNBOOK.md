@@ -81,6 +81,32 @@ directory (`data/sessions/{user_hash}/`), which removes all sessions at once.
 If internet-facing: set up TLS termination (nginx, Caddy, Traefik) and update OIDC redirect URIs.
 See [DEPLOYMENT.md — Security Considerations](DEPLOYMENT.md#security-considerations).
 
+### 1.5 Web URL Ingestion (off by default)
+
+Cue can let respondents add a web URL as a source — preview the extracted
+content, then commit it to the session. Disabled by default
+(`CUE_WEB_INGEST_ENABLED=false`). Before flipping it on, weigh:
+
+- [ ] **Outbound fetches**: enabling this means the Cue API performs HTTP GETs
+      against URLs respondents paste. Your deployment's IP and the URL contents
+      become visible to third-party origins (and any intermediaries).
+- [ ] **Audit logging**: every fetch — preview or ingest — is recorded as a
+      `WEB_FETCH` event in the session audit log (URL, final URL after
+      redirects, content-type, extracted character count). Surfaced in the
+      audit report the respondent can download.
+- [ ] **Per-session opt-in**: even when the operator flag is on, the respondent
+      must explicitly toggle "Allow web sources" inside their session. Default
+      is off. The toggle and its privacy implications are visible in the UI.
+- [ ] **Fetch hardening**: 10 s timeout, max 5 redirects, no retries, polite
+      `Cue/0.x` User-Agent, response body capped by `MAX_FILE_SIZE_MB`. No
+      JavaScript rendering — SPA-only pages get a "save as PDF" hint.
+- [ ] **Network posture**: if outbound HTTP from the Cue host is restricted
+      (proxy, allowlist), confirm the relevant origins reachable before
+      enabling. Failed fetches are surfaced to the user, not retried.
+
+If unsure, keep `CUE_WEB_INGEST_ENABLED=false` — file and pasted-text uploads
+remain available unchanged.
+
 ---
 
 ## 2. GDPR / DPO Checklist

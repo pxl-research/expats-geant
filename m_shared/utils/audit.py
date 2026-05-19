@@ -29,6 +29,7 @@ class AuditEventType(str, Enum):
     SESSION_START = "SESSION_START"
     SESSION_END = "SESSION_END"
     CONSENT_ACCEPTED = "CONSENT_ACCEPTED"
+    WEB_FETCH = "WEB_FETCH"
 
 
 class AuditLogEntry(BaseModel):
@@ -388,6 +389,45 @@ class AuditLogger:
 
         entry = AuditLogEntry(
             event_type=event_type, session_id=session_id, user_id=user_id, details=details
+        )
+        self._add_entry(entry)
+
+    def log_web_fetch(
+        self,
+        session_id: str,
+        *,
+        url: str,
+        final_url: str,
+        content_type: str,
+        extracted_chars: int,
+        likely_js_rendered: bool,
+        ingested: bool,
+        user_id: str | None = None,
+    ) -> None:
+        """Log a web URL fetch (preview or ingest).
+
+        Args:
+            session_id: Session identifier
+            url: User-supplied URL (before redirect resolution)
+            final_url: URL after following redirects
+            content_type: Response Content-Type header
+            extracted_chars: Length of extracted text in characters
+            likely_js_rendered: Heuristic flag for SPA-style pages
+            ingested: True when chunks were written, False for preview-only fetches
+            user_id: Optional user identifier
+        """
+        entry = AuditLogEntry(
+            event_type=AuditEventType.WEB_FETCH,
+            session_id=session_id,
+            user_id=user_id,
+            details={
+                "url": url,
+                "final_url": final_url,
+                "content_type": content_type,
+                "extracted_chars": extracted_chars,
+                "likely_js_rendered": likely_js_rendered,
+                "ingested": ingested,
+            },
         )
         self._add_entry(entry)
 

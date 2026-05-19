@@ -373,6 +373,7 @@ python3 run_api.py
 | `CUE_QUERY_REWRITE`      | `true`                       | Enable LLM query rewriting before vector search                |
 | `CUE_REWRITE_BATCH_SIZE` | `20`                         | Max questions per rewrite LLM call                             |
 | `CUE_REWRITE_MODEL`      | —                            | Dedicated model for rewriting (e.g. `google/gemini-2.5-flash`) |
+| `CUE_WEB_INGEST_ENABLED` | `false`                      | Enable web URL ingestion (server-side fetches; per-session opt-in still required) |
 | `THINKING_BUDGET_TOKENS` | —                            | Token budget for extended thinking (Claude 3.5+/4.x only)      |
 | `PORT`                   | `8001`                       | API server port                                                |
 | `LOG_LEVEL`              | `INFO`                       | Logging level                                                  |
