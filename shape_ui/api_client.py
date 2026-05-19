@@ -24,13 +24,43 @@ def _auth_headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+def _format_validation_errors(items: list) -> str:
+    """Flatten FastAPI's structured 422 detail list into a readable single line.
+
+    FastAPI emits validation errors as `[{type, loc, msg, input}, ...]`. We join
+    them as `loc.path: msg; loc.path: msg`, stripping the noisy leading `body.`
+    that FastAPI adds to request-body errors.
+    """
+    parts: list[str] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        loc = list(item.get("loc") or [])
+        if loc and loc[0] == "body":
+            loc = loc[1:]
+        loc_str = ".".join(str(p) for p in loc) or "(root)"
+        msg = item.get("msg", "validation error")
+        parts.append(f"{loc_str}: {msg}")
+    return "; ".join(parts) if parts else "validation error"
+
+
 def _raise_for_status(resp: httpx.Response) -> None:
-    """Raise APIError for 4xx/5xx responses."""
+    """Raise APIError for 4xx/5xx responses.
+
+    Handles three `detail` shapes the Shape API may return:
+    - string (legacy 4xx with a hand-rolled detail) → used verbatim
+    - list (FastAPI's typed-Pydantic 422 format) → flattened to a readable string
+    - anything else / missing → falls back to repr or `resp.text`
+    """
     if resp.is_error:
         try:
-            detail = resp.json().get("detail", resp.text)
+            detail: Any = resp.json().get("detail", resp.text)
         except Exception:
             detail = resp.text
+        if isinstance(detail, list):
+            detail = _format_validation_errors(detail)
+        elif not isinstance(detail, str):
+            detail = repr(detail)
         raise APIError(status_code=resp.status_code, detail=detail)
 
 
