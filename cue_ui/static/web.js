@@ -213,18 +213,22 @@ document.addEventListener("DOMContentLoaded", function () {
           }
           clearPreview();
           if (input) input.value = "";
+          // On the documents page, link the user to the Sources card;
+          // on the review page (no #sources-card), just show "Added".
+          var hasSourcesCard = !!document.getElementById("sources-card");
           if (typeof window.refreshSessionStats === "function") {
             var maybe = window.refreshSessionStats();
             if (maybe && typeof maybe.then === "function") {
-              maybe.then(function (data) {
-                if (data && statusEl) {
-                  var count = (data.documents || []).length;
-                  var word = count === 1 ? "source" : "sources";
-                  statusEl.innerHTML =
-                    '<span style="color:var(--success, #16a34a);">✓ Added</span> &mdash; ' +
-                    count + " " + word + " total.";
-                } else {
-                  setStatus("Source added.");
+              maybe.then(function () {
+                if (statusEl) {
+                  if (hasSourcesCard) {
+                    statusEl.innerHTML =
+                      '<span style="color:var(--success, #16a34a);">✓ Added</span> &mdash; ' +
+                      '<a href="#sources-card" data-action="jump-to-sources" style="text-decoration:underline;">[↓ View list]</a>';
+                  } else {
+                    statusEl.innerHTML =
+                      '<span style="color:var(--success, #16a34a);">✓ Added</span>';
+                  }
                 }
               });
               return;

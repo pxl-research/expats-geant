@@ -239,12 +239,9 @@ document.addEventListener("DOMContentLoaded", function () {
     knownDocsList = new Set(documents.map(function (d) { return d.name; }));
   }
 
-  function setAddedStatus(statusEl, count) {
+  function setAddedStatus(statusEl) {
     if (!statusEl) return;
-    var word = count === 1 ? "source" : "sources";
-    statusEl.innerHTML =
-      '<span style="color:var(--success, #16a34a);">✓ Added</span> &mdash; ' +
-      count + " " + word + " total.";
+    statusEl.innerHTML = '<span style="color:var(--success, #16a34a);">✓ Added</span>';
   }
 
   function refreshSessionStats() {
@@ -308,14 +305,12 @@ document.addEventListener("DOMContentLoaded", function () {
       uploadFile(0).then(function () {
         var anySuccess = errors.length < files.length;
         var done = anySuccess ? refreshSessionStats() : Promise.resolve(null);
-        return done.then(function (data) {
+        return done.then(function () {
           if (anySuccess && fileInput) fileInput.value = "";
           if (errors.length) {
             statusEl.textContent = errors.join("; ");
-          } else if (data) {
-            setAddedStatus(statusEl, (data.documents || []).length);
           } else {
-            statusEl.textContent = "Added.";
+            setAddedStatus(statusEl);
           }
           submitBtn.disabled = false;
         });
@@ -350,9 +345,8 @@ document.addEventListener("DOMContentLoaded", function () {
           if (resp.ok) {
             if (textArea) textArea.value = "";
             if (labelInput) labelInput.value = "";
-            return refreshSessionStats().then(function (data) {
-              if (data) setAddedStatus(statusEl, (data.documents || []).length);
-              else statusEl.textContent = "Added.";
+            return refreshSessionStats().then(function () {
+              setAddedStatus(statusEl);
             });
           }
           return resp.json().then(function (data) {

@@ -118,15 +118,11 @@ document.addEventListener("DOMContentLoaded", function () {
   }
   window.refreshSessionStats = refreshSessionStats;
 
-  function setAddedStatus(statusEl, count) {
+  function setAddedStatus(statusEl) {
     if (!statusEl) return;
-    var word = count === 1 ? "source" : "sources";
     statusEl.innerHTML =
       '<span style="color:var(--success, #16a34a);">✓ Added</span> &mdash; ' +
-      count +
-      " " +
-      word +
-      ' total. <a href="#sources-card" data-action="jump-to-sources" style="text-decoration:underline;">[↓ View list]</a>';
+      '<a href="#sources-card" data-action="jump-to-sources" style="text-decoration:underline;">[↓ View list]</a>';
   }
 
   document.addEventListener("click", function (e) {
@@ -183,9 +179,8 @@ document.addEventListener("DOMContentLoaded", function () {
           btn.disabled = false;
           endRequest();
           if (hadSuccess) {
-            refreshSessionStats().then(function (data) {
-              if (data) setAddedStatus(statusEl, (data.documents || []).length);
-              else if (statusEl) statusEl.textContent = "Added.";
+            refreshSessionStats().then(function () {
+              setAddedStatus(statusEl);
             });
           } else if (statusEl) {
             statusEl.textContent = "";
@@ -260,9 +255,8 @@ document.addEventListener("DOMContentLoaded", function () {
           if (resp.ok) {
             if (textArea) textArea.value = "";
             if (labelInput) labelInput.value = "";
-            return refreshSessionStats().then(function (data) {
-              if (data) setAddedStatus(statusEl, (data.documents || []).length);
-              else if (statusEl) statusEl.textContent = "Added.";
+            return refreshSessionStats().then(function () {
+              setAddedStatus(statusEl);
             });
           }
           return resp
