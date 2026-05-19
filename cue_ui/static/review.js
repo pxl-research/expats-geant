@@ -196,24 +196,38 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
+  var knownDocsList = new Set();
+  // Seed from server-rendered rows so the first refresh doesn't flash everything.
+  (function () {
+    var listEl = document.getElementById("docs-list");
+    if (!listEl) return;
+    listEl.querySelectorAll("tr").forEach(function (row) {
+      var first = row.querySelector("td");
+      if (first) knownDocsList.add(first.textContent.trim());
+    });
+  })();
+
   function renderDocsList(documents) {
     var listEl = document.getElementById("docs-list");
     var countEl = document.getElementById("docs-count");
     if (!listEl) return;
     if (countEl) countEl.textContent = documents.length;
     if (documents.length === 0) {
-      listEl.innerHTML = "";
+      knownDocsList = new Set();
+      listEl.innerHTML = '<p style="margin:0; color:var(--text-muted); font-style:italic; font-size:0.75rem;">No sources yet.</p>';
       return;
     }
     var rows = documents.map(function (d) {
       var chunks = d.chunk_count;
       var label = chunks + " chunk" + (chunks === 1 ? "" : "s");
+      var name = (d.name || "").replace(/[<>&]/g, function (c) {
+        return { "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c];
+      });
+      var rowClass = knownDocsList.has(d.name) ? "" : "source-row-new";
       return (
-        '<tr><td style="padding:0.375rem 0.5rem 0.375rem 0;">' +
-        (d.name || "").replace(/[<>&]/g, function (c) {
-          return { "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c];
-        }) +
-        '</td><td style="padding:0.375rem 0; text-align:right; color:var(--text-muted); white-space:nowrap;">' +
+        '<tr class="' + rowClass + '"><td style="padding:0.3rem 0.5rem 0.3rem 0;">' +
+        name +
+        '</td><td style="padding:0.3rem 0; text-align:right; color:var(--text-muted); white-space:nowrap;">' +
         label +
         "</td></tr>"
       );
@@ -221,7 +235,16 @@ document.addEventListener("DOMContentLoaded", function () {
     listEl.innerHTML =
       '<table style="width:100%; border-collapse:collapse;">' +
       rows.join("") +
-      '</table><hr style="margin:0.5rem 0; border:none; border-top:1px solid var(--border);">';
+      "</table>";
+    knownDocsList = new Set(documents.map(function (d) { return d.name; }));
+  }
+
+  function setAddedStatus(statusEl, count) {
+    if (!statusEl) return;
+    var word = count === 1 ? "source" : "sources";
+    statusEl.innerHTML =
+      '<span style="color:var(--success, #16a34a);">✓ Added</span> &mdash; ' +
+      count + " " + word + " total.";
   }
 
   function refreshSessionStats() {
@@ -231,12 +254,13 @@ document.addEventListener("DOMContentLoaded", function () {
         return resp.json();
       })
       .then(function (data) {
-        if (!data) return;
+        if (!data) return null;
         if (data.last_upload_at) lastUploadAt = data.last_upload_at;
         renderDocsList(data.documents || []);
         recomputeRegenerateVisibility();
+        return data;
       })
-      .catch(function () { /* best-effort */ });
+      .catch(function () { /* best-effort */ return null; });
   }
 
   recomputeRegenerateVisibility();
@@ -244,30 +268,24 @@ document.addEventListener("DOMContentLoaded", function () {
 
   window.refreshSessionStats = refreshSessionStats;
 
-  // ---- Mid-review upload form ----
+  // ---- Mid-review upload forms (files + text, parallel) ----
 
-  var uploadForm = document.getElementById("late-upload-form");
-  if (uploadForm) {
-    uploadForm.addEventListener("submit", function (e) {
+  var baseUrl = "/session/" + sessionId;
+
+  var fileForm = document.getElementById("late-file-form");
+  if (fileForm) {
+    fileForm.addEventListener("submit", function (e) {
       e.preventDefault();
-      var statusEl = document.getElementById("late-upload-status");
+      var statusEl = document.getElementById("late-file-status");
       var fileInput = document.getElementById("late-upload-files");
-      var textArea = document.getElementById("late-upload-text");
-      var labelInput = document.getElementById("late-upload-label");
-      var submitBtn = uploadForm.querySelector("button[type='submit']");
-
+      var submitBtn = fileForm.querySelector("button[type='submit']");
       var files = fileInput ? Array.from(fileInput.files) : [];
-      var text = textArea ? textArea.value.trim() : "";
-      var label = labelInput ? labelInput.value.trim() : "";
-
-      if (files.length === 0 && !text) {
-        statusEl.textContent = "Choose a file or paste text first.";
+      if (files.length === 0) {
+        statusEl.textContent = "Choose a file first.";
         return;
       }
-
       submitBtn.disabled = true;
       statusEl.textContent = "Uploading…";
-      var baseUrl = "/session/" + sessionId;
       var errors = [];
 
       function uploadFile(i) {
@@ -280,48 +298,75 @@ document.addEventListener("DOMContentLoaded", function () {
             if (!resp.ok) {
               return resp.json().then(function (data) {
                 errors.push(f.name + ": " + (data.error || "Upload failed"));
-              }, function () {
-                errors.push(f.name + ": Upload failed");
-              });
+              }, function () { errors.push(f.name + ": Upload failed"); });
             }
           })
           .catch(function () { errors.push(f.name + ": Upload failed (network error)"); })
           .then(function () { return uploadFile(i + 1); });
       }
 
-      function uploadText() {
-        if (!text) return Promise.resolve();
-        return fetch(baseUrl + "/upload-text-snippet", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: text, label: label || null }),
-          credentials: "same-origin"
-        })
-          .then(function (resp) {
-            if (!resp.ok) {
-              return resp.json().then(function (data) {
-                errors.push((label || "pasted text") + ": " + (data.error || "Upload failed"));
-              }, function () {
-                errors.push((label || "pasted text") + ": Upload failed");
-              });
-            }
-          })
-          .catch(function () { errors.push((label || "pasted text") + ": Upload failed (network error)"); });
-      }
-
-      uploadFile(0).then(uploadText).then(function () {
-        var anySuccess = errors.length < (files.length + (text ? 1 : 0));
-        var done = anySuccess ? refreshSessionStats() : Promise.resolve();
-        done.then(function () {
-          if (anySuccess) {
-            if (textArea) textArea.value = "";
-            if (labelInput) labelInput.value = "";
-            if (fileInput) fileInput.value = "";
+      uploadFile(0).then(function () {
+        var anySuccess = errors.length < files.length;
+        var done = anySuccess ? refreshSessionStats() : Promise.resolve(null);
+        return done.then(function (data) {
+          if (anySuccess && fileInput) fileInput.value = "";
+          if (errors.length) {
+            statusEl.textContent = errors.join("; ");
+          } else if (data) {
+            setAddedStatus(statusEl, (data.documents || []).length);
+          } else {
+            statusEl.textContent = "Added.";
           }
-          statusEl.textContent = errors.length ? errors.join("; ") : "Added.";
           submitBtn.disabled = false;
         });
       });
+    });
+  }
+
+  var textForm = document.getElementById("late-text-form");
+  if (textForm) {
+    textForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var statusEl = document.getElementById("late-text-status");
+      var textArea = document.getElementById("late-upload-text");
+      var labelInput = document.getElementById("late-upload-label");
+      var submitBtn = textForm.querySelector("button[type='submit']");
+      var text = textArea ? textArea.value.trim() : "";
+      var label = labelInput ? labelInput.value.trim() : "";
+      if (!text) {
+        statusEl.textContent = "Paste some text first.";
+        return;
+      }
+      submitBtn.disabled = true;
+      statusEl.textContent = "Uploading…";
+
+      fetch(baseUrl + "/upload-text-snippet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text, label: label || null }),
+        credentials: "same-origin"
+      })
+        .then(function (resp) {
+          if (resp.ok) {
+            if (textArea) textArea.value = "";
+            if (labelInput) labelInput.value = "";
+            return refreshSessionStats().then(function (data) {
+              if (data) setAddedStatus(statusEl, (data.documents || []).length);
+              else statusEl.textContent = "Added.";
+            });
+          }
+          return resp.json().then(function (data) {
+            statusEl.textContent = (label || "pasted text") + ": " + (data.error || "Upload failed");
+          }, function () {
+            statusEl.textContent = (label || "pasted text") + ": Upload failed";
+          });
+        })
+        .catch(function () {
+          statusEl.textContent = (label || "pasted text") + ": Upload failed (network error)";
+        })
+        .finally(function () {
+          submitBtn.disabled = false;
+        });
     });
   }
 

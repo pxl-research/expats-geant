@@ -69,37 +69,46 @@
     Documents (<span id="docs-count">{{ documents | length }}</span>)
   </summary>
   <div style="margin-top:0.5rem; padding:0.5rem 0.75rem; background:var(--surface-card); border:1px solid var(--border); border-radius:var(--radius); font-size:0.8rem;">
-    <div id="docs-list">
+
+    {# Sources list #}
+    <div style="font-size:0.7rem; font-weight:600; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.05em; margin-bottom:0.25rem;">Sources</div>
+    <div id="docs-list" style="margin-bottom:0.5rem;">
       {% if documents %}
       <table style="width:100%; border-collapse:collapse;">
         {% for doc in documents %}
         <tr>
-          <td style="padding:0.375rem 0.5rem 0.375rem 0;">{{ doc.name }}</td>
-          <td style="padding:0.375rem 0; text-align:right; color:var(--text-muted); white-space:nowrap;">{{ doc.chunk_count }} chunk{{ 's' if doc.chunk_count != 1 }}</td>
+          <td style="padding:0.3rem 0.5rem 0.3rem 0;">{{ doc.name }}</td>
+          <td style="padding:0.3rem 0; text-align:right; color:var(--text-muted); white-space:nowrap;">{{ doc.chunk_count }} chunk{{ 's' if doc.chunk_count != 1 }}</td>
         </tr>
         {% endfor %}
       </table>
-      <hr style="margin:0.5rem 0; border:none; border-top:1px solid var(--border);">
+      {% else %}
+      <p style="margin:0; color:var(--text-muted); font-style:italic; font-size:0.75rem;">No sources yet.</p>
       {% endif %}
     </div>
-    <form id="late-upload-form" style="display:flex; flex-direction:column; gap:0.4rem; margin-top:0.25rem;">
-      <input type="file" id="late-upload-files" multiple>
-      <textarea id="late-upload-text" rows="2" placeholder="Or paste text to ingest…" style="font-size:0.8rem;"></textarea>
-      <input type="text" id="late-upload-label" placeholder="Optional label" style="font-size:0.8rem;">
-      <div style="display:flex; gap:0.4rem; align-items:center; justify-content:flex-end;">
-        <span id="late-upload-status" style="font-size:0.75rem; color:var(--text-muted); margin-right:auto;"></span>
-        <button type="submit" class="btn btn-ghost" style="font-size:0.8rem;">Add source</button>
-      </div>
-    </form>
+
+    {# Files sub-section #}
+    <div style="border-top:1px solid var(--border); padding-top:0.5rem;">
+      <div style="font-size:0.7rem; font-weight:600; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.05em; margin-bottom:0.3rem;">Files</div>
+      <form id="late-file-form" style="display:flex; flex-direction:column; gap:0.35rem;">
+        <input type="file" id="late-upload-files" multiple style="font-size:0.8rem;">
+        <div style="display:flex; gap:0.4rem; align-items:center; justify-content:flex-end;">
+          <span id="late-file-status" style="font-size:0.75rem; color:var(--text-muted); margin-right:auto;"></span>
+          <button type="submit" class="btn btn-ghost" style="font-size:0.8rem;">Add files</button>
+        </div>
+      </form>
+    </div>
 
     {% if web_ingest_enabled %}
+    {# Web sub-section #}
     <div id="web-source-panel" data-session-id="{{ session_id }}"
-         style="margin-top:0.75rem; padding-top:0.5rem; border-top:1px dashed var(--border);">
+         style="border-top:1px solid var(--border); padding-top:0.5rem; margin-top:0.5rem;">
+      <div style="font-size:0.7rem; font-weight:600; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.05em; margin-bottom:0.3rem;">Web</div>
       <label style="display:flex; align-items:center; gap:0.4rem; font-size:0.75rem; color:var(--text-muted); margin-bottom:0.4rem;">
         <input type="checkbox" id="web-consent-toggle" {% if web_consent %}checked{% endif %}>
         <span>Allow web sources — URLs are fetched by the server and recorded in your audit report.</span>
       </label>
-      <form id="web-url-form" style="display:flex; gap:0.4rem; align-items:center;">
+      <form id="web-url-form" style="display:flex; gap:0.4rem; align-items:center; justify-content:flex-end;">
         <input type="url" id="web-url-input" placeholder="Paste a URL to add as source…"
                {% if not web_consent %}disabled{% endif %}
                style="flex:1 1 auto; font-size:0.8rem;">
@@ -111,6 +120,19 @@
       <div id="web-preview-container" hidden style="margin-top:0.5rem;"></div>
     </div>
     {% endif %}
+
+    {# Text sub-section #}
+    <div style="border-top:1px solid var(--border); padding-top:0.5rem; margin-top:0.5rem;">
+      <div style="font-size:0.7rem; font-weight:600; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.05em; margin-bottom:0.3rem;">Text</div>
+      <form id="late-text-form" style="display:flex; flex-direction:column; gap:0.35rem;">
+        <textarea id="late-upload-text" rows="2" placeholder="Paste text to ingest…" style="font-size:0.8rem;"></textarea>
+        <input type="text" id="late-upload-label" placeholder="Label (optional)" style="font-size:0.8rem;">
+        <div style="display:flex; gap:0.4rem; align-items:center; justify-content:flex-end;">
+          <span id="late-text-status" style="font-size:0.75rem; color:var(--text-muted); margin-right:auto;"></span>
+          <button type="submit" class="btn btn-ghost" style="font-size:0.8rem;">Add text</button>
+        </div>
+      </form>
+    </div>
   </div>
 </details>
 <script id="server-last-upload-at" type="application/json">{{ last_upload_at | default(none) | tojson }}</script>

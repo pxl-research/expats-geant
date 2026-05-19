@@ -23,9 +23,9 @@
   <form id="file-card-form" style="display:flex; flex-direction:column; gap:0.75rem;">
     <input type="file" id="files" multiple
            accept=".pdf,.docx,.txt,.md,.pptx,.xlsx,.xls,.jpg,.jpeg,.png,.gif,.webp">
-    <div style="display:flex; gap:0.75rem; align-items:center;">
+    <div style="display:flex; gap:0.75rem; align-items:center; justify-content:flex-end;">
+      <span id="file-add-status" style="font-size:0.85rem; color:var(--text-muted); margin-right:auto;"></span>
       <button type="submit" class="btn btn-primary" id="file-add-btn">Add files</button>
-      <span id="file-add-status" style="font-size:0.85rem; color:var(--text-muted);"></span>
     </div>
   </form>
 </div>
@@ -42,7 +42,7 @@
     <input type="checkbox" id="web-consent-toggle" {% if web_consent %}checked{% endif %}>
     <span>Allow web sources — URLs are fetched by the server and recorded in your audit report.</span>
   </label>
-  <form id="web-url-form" style="display:flex; gap:0.5rem; align-items:center;">
+  <form id="web-url-form" style="display:flex; gap:0.5rem; align-items:center; justify-content:flex-end;">
     <input type="url" id="web-url-input"
            placeholder="https://example.com/article"
            {% if not web_consent %}disabled{% endif %}
@@ -50,7 +50,9 @@
     <button type="submit" class="btn btn-primary" id="web-url-preview-btn"
             {% if not web_consent %}disabled{% endif %}>Preview</button>
   </form>
-  <span id="web-url-status" style="font-size:0.85rem; color:var(--text-muted);"></span>
+  <div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.4rem;">
+    <span id="web-url-status" style="font-size:0.85rem; color:var(--text-muted); margin-right:auto;"></span>
+  </div>
   <div id="web-preview-container" hidden style="margin-top:0.75rem;"></div>
 </div>
 {% endif %}
@@ -67,15 +69,15 @@
               style="width:100%; font-size:0.9rem;"
               placeholder="Paste personal context, CV, or relevant notes here…"></textarea>
     <input type="text" id="text-label" placeholder="Label (optional) — e.g. My CV">
-    <div style="display:flex; gap:0.75rem; align-items:center;">
+    <div style="display:flex; gap:0.75rem; align-items:center; justify-content:flex-end;">
+      <span id="text-add-status" style="font-size:0.85rem; color:var(--text-muted); margin-right:auto;"></span>
       <button type="submit" class="btn btn-primary" id="text-add-btn">Add text</button>
-      <span id="text-add-status" style="font-size:0.85rem; color:var(--text-muted);"></span>
     </div>
   </form>
 </div>
 
 <!-- Card 4: Sources + Continue -->
-<div class="card" data-session-id="{{ session_id }}" style="margin-bottom:1rem;">
+<div class="card" id="sources-card" data-session-id="{{ session_id }}" style="margin-bottom:1rem;">
   <h2>Your Sources (<span id="docs-count">{{ documents | length }}</span>)</h2>
   <div id="docs-list" style="margin-bottom:1rem;">
     {% if documents %}
@@ -93,9 +95,9 @@
     </p>
     {% endif %}
   </div>
-  <div style="display:flex; gap:0.75rem; align-items:center;">
+  <div style="display:flex; gap:0.75rem; align-items:center; justify-content:flex-end;">
+    <span id="continue-hint" hidden style="font-size:0.85rem; color:var(--text-muted); margin-right:auto;">Finishing current upload…</span>
     <a href="/session/{{ session_id }}/review" class="btn btn-primary" id="continue-btn">Continue</a>
-    <span id="continue-hint" hidden style="font-size:0.85rem; color:var(--text-muted);">Finishing current upload…</span>
   </div>
 </div>
 

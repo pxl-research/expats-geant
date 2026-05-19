@@ -94,6 +94,12 @@
     .htmx-indicator { opacity: 0; transition: opacity 0.2s; }
     .htmx-request .htmx-indicator { opacity: 1; }
 
+    @keyframes source-flash {
+      0%   { background-color: rgba(34, 197, 94, 0.28); }
+      100% { background-color: transparent; }
+    }
+    .source-row-new { animation: source-flash 1.5s ease-out; }
+
     footer {
       text-align: center; padding: 1rem;
       font-size: 0.75rem; color: var(--text-muted);

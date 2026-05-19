@@ -211,12 +211,26 @@ document.addEventListener("DOMContentLoaded", function () {
             if (discard) discard.disabled = false;
             return;
           }
-          setStatus("Source added.");
           clearPreview();
           if (input) input.value = "";
           if (typeof window.refreshSessionStats === "function") {
-            window.refreshSessionStats();
+            var maybe = window.refreshSessionStats();
+            if (maybe && typeof maybe.then === "function") {
+              maybe.then(function (data) {
+                if (data && statusEl) {
+                  var count = (data.documents || []).length;
+                  var word = count === 1 ? "source" : "sources";
+                  statusEl.innerHTML =
+                    '<span style="color:var(--success, #16a34a);">✓ Added</span> &mdash; ' +
+                    count + " " + word + " total.";
+                } else {
+                  setStatus("Source added.");
+                }
+              });
+              return;
+            }
           }
+          setStatus("Source added.");
         })
         .catch(function () {
           setStatus("Network error during ingest.", "error");

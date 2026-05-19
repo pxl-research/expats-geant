@@ -20,6 +20,16 @@ document.addEventListener("DOMContentLoaded", function () {
   var errorsContainer = document.getElementById("add-source-errors");
 
   var inFlight = 0;
+  var knownSourceNames = new Set();
+
+  // Seed knownSourceNames from the server-rendered list so the first refresh
+  // doesn't flash everything as "new".
+  if (docsList) {
+    docsList.querySelectorAll("tr").forEach(function (row) {
+      var first = row.querySelector("td");
+      if (first) knownSourceNames.add(first.textContent.trim());
+    });
+  }
 
   function escapeHtml(s) {
     if (s == null) return "";
@@ -62,6 +72,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (docsCount) docsCount.textContent = documents.length;
     if (!docsList) return;
     if (documents.length === 0) {
+      knownSourceNames = new Set();
       docsList.innerHTML =
         '<p style="margin:0; color:var(--text-muted); font-size:0.9rem; font-style:italic;">' +
         "No sources yet. Add files, a URL, or paste text above — or continue without any.</p>";
@@ -70,8 +81,10 @@ document.addEventListener("DOMContentLoaded", function () {
     var rows = documents
       .map(function (doc) {
         var chunkLabel = (doc.chunk_count || 0) + " chunk" + (doc.chunk_count === 1 ? "" : "s");
+        var isNew = !knownSourceNames.has(doc.name);
+        var rowClass = isNew ? "source-row-new" : "";
         return (
-          "<tr>" +
+          '<tr class="' + rowClass + '">' +
           '<td style="padding:0.4rem 0.5rem 0.4rem 0;">' +
           escapeHtml(doc.name) +
           "</td>" +
@@ -84,6 +97,7 @@ document.addEventListener("DOMContentLoaded", function () {
       .join("");
     docsList.innerHTML =
       '<table style="width:100%; border-collapse:collapse; font-size:0.9rem;">' + rows + "</table>";
+    knownSourceNames = new Set(documents.map(function (d) { return d.name; }));
   }
 
   function refreshSessionStats() {
@@ -93,14 +107,35 @@ document.addEventListener("DOMContentLoaded", function () {
         return resp.json();
       })
       .then(function (data) {
-        if (!data) return;
+        if (!data) return null;
         renderDocs(data.documents || []);
+        return data;
       })
       .catch(function () {
         /* best-effort */
+        return null;
       });
   }
   window.refreshSessionStats = refreshSessionStats;
+
+  function setAddedStatus(statusEl, count) {
+    if (!statusEl) return;
+    var word = count === 1 ? "source" : "sources";
+    statusEl.innerHTML =
+      '<span style="color:var(--success, #16a34a);">✓ Added</span> &mdash; ' +
+      count +
+      " " +
+      word +
+      ' total. <a href="#sources-card" data-action="jump-to-sources" style="text-decoration:underline;">[↓ View list]</a>';
+  }
+
+  document.addEventListener("click", function (e) {
+    var link = e.target.closest("[data-action='jump-to-sources']");
+    if (!link) return;
+    e.preventDefault();
+    var card = document.getElementById("sources-card");
+    if (card) card.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 
   function showError(message) {
     if (!errorsContainer) return;
@@ -144,11 +179,17 @@ document.addEventListener("DOMContentLoaded", function () {
 
       function uploadNext() {
         if (index >= total) {
-          if (statusEl) statusEl.textContent = hadSuccess ? "Added." : "";
           fileInput.value = "";
           btn.disabled = false;
           endRequest();
-          if (hadSuccess) refreshSessionStats();
+          if (hadSuccess) {
+            refreshSessionStats().then(function (data) {
+              if (data) setAddedStatus(statusEl, (data.documents || []).length);
+              else if (statusEl) statusEl.textContent = "Added.";
+            });
+          } else if (statusEl) {
+            statusEl.textContent = "";
+          }
           return;
         }
         var file = files[index];
@@ -219,8 +260,10 @@ document.addEventListener("DOMContentLoaded", function () {
           if (resp.ok) {
             if (textArea) textArea.value = "";
             if (labelInput) labelInput.value = "";
-            if (statusEl) statusEl.textContent = "Added.";
-            return refreshSessionStats();
+            return refreshSessionStats().then(function (data) {
+              if (data) setAddedStatus(statusEl, (data.documents || []).length);
+              else if (statusEl) statusEl.textContent = "Added.";
+            });
           }
           return resp
             .json()
