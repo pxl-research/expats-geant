@@ -38,20 +38,23 @@ Cue is a RAG (Retrieval-Augmented Generation) module that helps respondents comp
 cue_api/
 ├── __init__.py
 ├── api.py                   # FastAPI app factory (create_app) — thin orchestrator
-├── ingest.py                # Document upload and ingestion pipeline
+├── ingest.py                # Document upload and ingestion pipeline (incl. URL-extracted text)
 ├── models.py                # Pydantic request/response models
 ├── rag_pipeline.py          # RAG orchestration: retrieval, generation, citations
 ├── rag_tools.py             # RAG tool wrappers for LLM tool calling
 ├── validation.py            # Re-exports from m_shared.utils.file_validation
+├── web_fetch.py             # HTTP fetch + content-type routing (Trafilatura / MarkItDown)
 └── routes/
     ├── __init__.py
     ├── auth.py              # /auth/token, /auth/login, /auth/callback
-    ├── session.py           # /session/stats, DELETE /session, /privacy
+    ├── session.py           # /session/stats, DELETE /session, /privacy,
+                             #   PUT /session/web-consent
     ├── documents.py         # /upload, /upload-text
     ├── suggestions.py       # /suggest/batch, /suggest/stream
     ├── audit.py             # /audit-report (GET/DELETE), /answer-report/download
-    └── surveys.py           # /surveys/import, /surveys/import-from-api, /surveys/{id},
+    ├── surveys.py           # /surveys/import, /surveys/import-from-api, /surveys/{id},
                              #   /adapters/{format}/capabilities, /sessions/{id}/submit
+    └── web.py               # /web/preview, /web/ingest
 ```
 
 Routes access shared dependencies (session manager, LLM client, audit logger, RAG pipeline)
@@ -152,12 +155,23 @@ Session identity is carried in the JWT token (Authorization header). All endpoin
 | Method | Path | Description |
 |--------|------|-------------|
 | `POST` | `/upload` | Upload a document into the session |
+| `POST` | `/upload-text` | Ingest a pasted text snippet |
+| `POST` | `/web/preview` | Fetch a URL and return extracted preview (no chunks written) |
+| `POST` | `/web/ingest` | Fetch + ingest a URL into the session vector store |
+| `PUT` | `/session/web-consent` | Toggle the per-session web-source consent flag |
 | `POST` | `/suggest/batch` | Answer suggestions (single or multi-question, QTI-inspired input) |
 | `POST` | `/suggest/stream` | Same as batch, streamed via Server-Sent Events |
-| `GET` | `/session/stats` | Session status, TTL, document count |
+| `GET` | `/session/stats` | Session status, TTL, document count, web flags |
 | `DELETE` | `/session` | End session and delete all data |
 | `GET` | `/audit-report` | Download session audit report (JSON or plaintext) |
 | `GET` | `/privacy` | Data handling transparency statement |
+
+Web ingestion is gated by two layers: the `CUE_WEB_INGEST_ENABLED` env flag
+(operator) **and** a per-session `web_consent` toggle (respondent). Both
+endpoints return HTTP 403 unless both are on. See [`docs/CUE_API.md`](../docs/CUE_API.md#add-a-web-source-url)
+for the full preview/ingest payload shapes and the
+[`OPERATOR_RUNBOOK.md`](../docs/OPERATOR_RUNBOOK.md#15-web-url-ingestion-off-by-default)
+privacy decision checklist.
 
 ### POST /suggest/batch
 

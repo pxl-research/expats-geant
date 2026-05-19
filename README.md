@@ -34,6 +34,7 @@ All code is open-source for non-commercial use only.
 - Citation system with precise source tracking (line numbers, timestamps, highlights)
 - Transparent reasoning: understand where suggestions come from
 - Quality metrics: citation accuracy, response completeness, edit/acceptance rates
+- Multiple source modes: file upload, pasted text, and (optional, opt-in) URL ingestion with preview-before-store
 
 ## Project Structure
 
