@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Stre
 
 from cue_ui import api_client
 from cue_ui.api_client import APIError, auth_headers
-from cue_ui.auth import CUE_API_URL, get_token
+from cue_ui.auth import CUE_API_URL, get_token, set_token_cookie
 from cue_ui.router import _render_error, templates
 
 logger = logging.getLogger(__name__)
@@ -536,6 +536,31 @@ async def delete_session(request: Request):
     except APIError as exc:
         return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
     return JSONResponse({"status": "deleted"}, status_code=200)
+
+
+@router.delete("/session/{session_id}")
+async def delete_session_by_id(request: Request, session_id: str):
+    """Delete a specific user-owned session.
+
+    Rotates the auth cookie to a fresh session-less JWT iff the upstream
+    response carries a `token` — i.e. the deleted session was the cookie's
+    currently-bound one. Without this rotation, the stale `session_id` claim
+    would resurrect the deleted session via the auth middleware on the next
+    request.
+    """
+    token = get_token(request)
+    if not token:
+        return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+    try:
+        data = await api_client.delete_session_by_id(token, session_id)
+    except APIError as exc:
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+
+    response = JSONResponse({"status": "deleted"}, status_code=200)
+    new_token = data.get("token")
+    if new_token:
+        set_token_cookie(response, new_token)
+    return response
 
 
 # ---------------------------------------------------------------------------

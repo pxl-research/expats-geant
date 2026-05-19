@@ -48,10 +48,13 @@
         <td>{{ s.created_at[:16].replace('T', ' ') }}</td>
         <td class="time-remaining">{{ "%.1f"|format(s.remaining_hours) }}h</td>
         <td>{% if s.has_survey %}Loaded{% else %}&mdash;{% endif %}</td>
-        <td style="text-align:right;">
+        <td style="text-align:right; white-space:nowrap;">
           <form method="post" action="/sessions/{{ s.session_id }}/select" style="display:inline;">
             <button type="submit" class="btn btn-ghost" style="padding:0.35rem 0.75rem;">Resume</button>
           </form>
+          <button type="button" class="btn btn-ghost"
+                  data-action="delete-session" data-session-id="{{ s.session_id }}"
+                  style="padding:0.35rem 0.75rem; color:var(--danger, #c0392b);">Delete</button>
         </td>
       </tr>
       {% endfor %}
@@ -63,4 +66,5 @@
   </div>
   {% endif %}
 </div>
+<script src="/static/sessions.js"></script>
 {% endblock %}

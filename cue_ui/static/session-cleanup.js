@@ -24,7 +24,10 @@ document.addEventListener("DOMContentLoaded", function () {
   var deleteBtn = document.getElementById("cleanup-delete-btn");
   if (deleteBtn) {
     deleteBtn.addEventListener("click", function () {
-      fetch("/session", { method: "DELETE", credentials: "same-origin" })
+      var idEl = document.querySelector("[data-session-id]");
+      var sessionId = idEl ? idEl.dataset.sessionId : "";
+      var url = sessionId ? "/session/" + encodeURIComponent(sessionId) : "/session";
+      fetch(url, { method: "DELETE", credentials: "same-origin" })
         .then(function (resp) {
           if (resp.ok) {
             // Clear all review state from localStorage

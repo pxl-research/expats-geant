@@ -33,6 +33,7 @@ async def list_user_sessions(request: Request):
             )
         )
 
+    items.sort(key=lambda it: it.created_at, reverse=True)
     return SessionListResponse(sessions=items)
 
 
@@ -72,6 +73,42 @@ async def select_session(request: Request, session_id: str):
         roles=claims.get("roles", ["respondent"]),
     )
     return {"token": token, "session_id": session_id}
+
+
+@router.delete("/sessions/{session_id}", tags=["Sessions"])
+async def delete_user_session(request: Request, session_id: str):
+    """Delete a session owned by the authenticated user.
+
+    Returns a fresh session-less JWT (`token`) iff the caller's current JWT was
+    bound to the deleted session. The client must replace its cookie with this
+    token; otherwise the next request would carry a stale `session_id` claim
+    that the auth middleware would lazy-resurrect into an empty session shell.
+    """
+    claims = request.state.claims
+    user_id = claims["user_id"]
+    manager = request.state.session_manager
+
+    session = manager.get_session(session_id, user_id=user_id)
+    if not session or session.user_id != user_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+    manager.delete_session(session_id, reason="user_request")
+
+    token: str | None = None
+    if claims.get("session_id") == session_id:
+        token = create_token(
+            user_id=user_id,
+            session_id=None,
+            org=claims.get("org", "default"),
+            roles=claims.get("roles", ["respondent"]),
+        )
+
+    return {
+        "session_id": session_id,
+        "deleted": True,
+        "message": "Session and all data successfully deleted",
+        "token": token,
+    }
 
 
 @router.post("/sessions/{session_id}/transfer", tags=["Sessions"])

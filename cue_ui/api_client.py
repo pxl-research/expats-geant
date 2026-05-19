@@ -97,6 +97,25 @@ async def delete_session(token: str) -> None:
     _raise_for_status(resp)
 
 
+async def delete_session_by_id(token: str, session_id: str) -> dict[str, Any]:
+    """Delete one of the authenticated user's sessions by id.
+
+    DELETE /sessions/{session_id}
+
+    Response may include `token` — a fresh session-less JWT when the deleted
+    session was the caller's currently-bound one. The caller is responsible
+    for replacing the cookie with this token to avoid the stale-JWT
+    resurrection branch in the auth middleware.
+    """
+    async with httpx.AsyncClient() as client:
+        resp = await client.delete(
+            f"{CUE_API_URL}/sessions/{session_id}",
+            headers=auth_headers(token),
+        )
+    _raise_for_status(resp)
+    return resp.json()
+
+
 async def import_survey_file(
     token: str, file_bytes: bytes, filename: str, format: str
 ) -> tuple[str, str | None]:

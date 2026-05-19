@@ -221,6 +221,94 @@ class TestSessionEndpoints:
         assert data["deleted"] is True
 
 
+class TestDeleteSessionById:
+    """Tests for DELETE /sessions/{session_id} — user-scoped delete with JWT rotation."""
+
+    def _session_less_token(self, user_id: str) -> str:
+        return create_token(user_id=user_id, session_id=None, org="test_org", roles=["respondent"])
+
+    def _bound_token(self, user_id: str, session_id: str) -> str:
+        return create_token(
+            user_id=user_id, session_id=session_id, org="test_org", roles=["respondent"]
+        )
+
+    def test_delete_succeeds_for_owner(self, client, jwt_secret, session_manager):
+        token = self._session_less_token("user_A")
+        created = client.post("/sessions/new", headers={"Authorization": f"Bearer {token}"})
+        assert created.status_code == 201
+        sid = created.json()["session_id"]
+
+        resp = client.delete(f"/sessions/{sid}", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["session_id"] == sid
+        assert body["deleted"] is True
+        assert session_manager.get_session(sid) is None
+
+    def test_delete_returns_session_less_token_when_jwt_bound(
+        self, client, jwt_secret, session_manager
+    ):
+        creator_token = self._session_less_token("user_B")
+        created = client.post("/sessions/new", headers={"Authorization": f"Bearer {creator_token}"})
+        sid = created.json()["session_id"]
+        bound = self._bound_token("user_B", sid)
+
+        resp = client.delete(f"/sessions/{sid}", headers={"Authorization": f"Bearer {bound}"})
+        assert resp.status_code == 200
+        new_token = resp.json()["token"]
+        assert new_token and new_token != bound
+
+        from m_shared.auth.jwt_handler import validate_token
+
+        claims = validate_token(new_token)
+        assert claims["user_id"] == "user_B"
+        assert claims.get("session_id") is None
+
+    def test_delete_no_token_when_jwt_unbound(self, client, jwt_secret, session_manager):
+        token = self._session_less_token("user_C")
+        created = client.post("/sessions/new", headers={"Authorization": f"Bearer {token}"})
+        sid = created.json()["session_id"]
+        # Delete using a session-less token (no rotation needed)
+        resp = client.delete(f"/sessions/{sid}", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 200
+        assert resp.json()["token"] is None
+
+    def test_delete_other_users_session_returns_404(self, client, jwt_secret):
+        token_a = self._session_less_token("user_A2")
+        token_b = self._session_less_token("user_B2")
+        created = client.post("/sessions/new", headers={"Authorization": f"Bearer {token_a}"})
+        sid = created.json()["session_id"]
+
+        resp = client.delete(f"/sessions/{sid}", headers={"Authorization": f"Bearer {token_b}"})
+        assert resp.status_code == 404
+
+    def test_delete_nonexistent_session_returns_404(self, client, jwt_secret):
+        token = self._session_less_token("user_X")
+        resp = client.delete(
+            "/sessions/does-not-exist", headers={"Authorization": f"Bearer {token}"}
+        )
+        assert resp.status_code == 404
+
+
+class TestListSessionsSorted:
+    """Tests for GET /sessions returning newest-first."""
+
+    def test_list_sessions_sorted_by_created_at_desc(self, client, jwt_secret, session_manager):
+        # Three sessions for one user, distinct created_at timestamps.
+        base = datetime.now(UTC).replace(microsecond=0)
+        for i, delta in enumerate([2, 0, 1]):  # mid, oldest, newest order of creation
+            s = session_manager.create_session(user_id="user_sort", ttl_hours=24)
+            s.created_at = base + timedelta(minutes=delta * 10)
+            session_manager._save_session_metadata(s)
+
+        token = create_token(user_id="user_sort", session_id=None, org="test_org")
+        resp = client.get("/sessions", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 200
+        items = resp.json()["sessions"]
+        timestamps = [it["created_at"] for it in items]
+        assert timestamps == sorted(timestamps, reverse=True)
+
+
 class TestSessionIsolation:
     """Tests for session isolation between users."""
 

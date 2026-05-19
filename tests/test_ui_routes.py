@@ -198,6 +198,62 @@ class TestSuggestStream:
         assert resp.status_code == 404
 
 
+class TestDeleteSessionByIdProxy:
+    """Tests for the cue_ui proxy at DELETE /session/{id}."""
+
+    def test_unauthenticated_returns_401(self):
+        client = TestClient(app, follow_redirects=False)
+        resp = client.delete("/session/survey-abc")
+        assert resp.status_code == 401
+
+    @respx.mock
+    def test_swaps_cookie_when_upstream_returns_token(self):
+        respx.delete(f"{BASE}/sessions/survey-abc").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "session_id": "survey-abc",
+                    "deleted": True,
+                    "message": "ok",
+                    "token": "new-session-less-token",
+                },
+            )
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.delete("/session/survey-abc", cookies=TOKEN_COOKIE)
+        assert resp.status_code == 200
+        set_cookie = resp.headers.get("set-cookie", "")
+        assert "autofill_token=new-session-less-token" in set_cookie
+
+    @respx.mock
+    def test_no_cookie_swap_when_no_token(self):
+        respx.delete(f"{BASE}/sessions/survey-abc").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "session_id": "survey-abc",
+                    "deleted": True,
+                    "message": "ok",
+                    "token": None,
+                },
+            )
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.delete("/session/survey-abc", cookies=TOKEN_COOKIE)
+        assert resp.status_code == 200
+        assert "autofill_token=" not in resp.headers.get("set-cookie", "")
+
+    @respx.mock
+    def test_propagates_upstream_404(self):
+        respx.delete(f"{BASE}/sessions/missing").mock(
+            return_value=httpx.Response(404, json={"detail": "Session not found"})
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.delete("/session/missing", cookies=TOKEN_COOKIE)
+        assert resp.status_code == 404
+        assert resp.json()["detail"] == "Session not found"
+
+
 class TestReviewPage:
     @respx.mock
     def test_render_survey_page(self):
