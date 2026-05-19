@@ -170,7 +170,12 @@ def extract_html(body: bytes) -> ExtractedContent:
         output_format="markdown",
         include_links=False,
         include_images=False,
-        deduplicate=True,
+        # NOTE: deduplicate=False on purpose. Trafilatura's deduplicate flag uses
+        # a process-global LRU cache of paragraph fingerprints; after the same
+        # URL is extracted a few times in our long-running API process (preview
+        # + ingest re-extract + preview again) every paragraph would be filtered
+        # as "already seen" and the result becomes empty.
+        deduplicate=False,
     )
     text = text or ""
 

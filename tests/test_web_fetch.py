@@ -178,6 +178,25 @@ class TestExtractHtml:
         assert isinstance(result, ExtractedContent)
         assert result.extracted_chars == len(result.text)
 
+    def test_repeated_extraction_stays_non_empty(self):
+        # Regression: trafilatura's deduplicate=True uses a process-global LRU
+        # paragraph cache; repeated extractions of the same body in a long-
+        # running API process would drop to 0 chars after a few calls.
+        html = (
+            b"<html><body><article>"
+            b"<h1>Title</h1>"
+            b"<p>This is a substantive paragraph that should survive extraction. "
+            b"It contains several sentences so it qualifies as content.</p>"
+            b"<p>A second paragraph adds enough body for the extractor to find "
+            b"meaningful text without falling back on JS-rendering heuristics.</p>"
+            b"</article></body></html>"
+        )
+        first = extract_html(html).extracted_chars
+        assert first > 0
+        for _ in range(5):
+            again = extract_html(html).extracted_chars
+            assert again == first
+
 
 class TestPreviewCache:
     def test_round_trip(self):

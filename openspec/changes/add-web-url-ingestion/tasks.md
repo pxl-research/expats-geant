@@ -104,10 +104,10 @@
 
 - [x] 7.1 `pytest` — full suite green, including the new fixtures
 - [x] 7.2 `openspec validate add-web-url-ingestion --strict`
-- [ ] 7.3 Manual smoke: enable env flag, opt in per session, paste 3 URLs
+- [x] 7.3 Manual smoke: enable env flag, opt in per session, paste 3 URLs
   (an HTML article, a PDF, an SPA-only page); verify preview accuracy,
   ingest behaviour, audit-log entries, and the JS-rendered warning
-- [ ] 7.4 Manual smoke: re-ingest the same URL; verify the preview warning,
+- [x] 7.4 Manual smoke: re-ingest the same URL; verify the preview warning,
   the prior-chunks deletion, and the audit log retaining both fetches
-- [ ] 7.5 Manual smoke: with operator flag off, confirm the panel is absent
+- [x] 7.5 Manual smoke: with operator flag off, confirm the panel is absent
   and the API endpoints return 403
