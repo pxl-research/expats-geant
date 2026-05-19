@@ -67,28 +67,28 @@
 
 ## 5. Cue UI — paste/preview/ingest flow
 
-- [ ] 5.1 Create `cue_ui/routes/web.py` proxying to `/web/preview` and
+- [x] 5.1 Create `cue_ui/routes/web.py` proxying to `/web/preview` and
   `/web/ingest`
-- [ ] 5.2 Create `cue_ui/templates/partials/web_preview.html` rendering the
+- [x] 5.2 Create `cue_ui/templates/partials/web_preview.html` rendering the
   preview block: title, final URL, content-type pill, first 500 chars
   (collapsed `<details>`), warnings, **Add as source** / **Discard** buttons
-- [ ] 5.3 Add the "Add web source" panel to `cue_ui/templates/documents.html`
+- [x] 5.3 Add the "Add web source" panel to `cue_ui/templates/documents.html`
   with a URL input and submit button → fetches preview, swaps in the partial
-- [ ] 5.4 Add the same panel to the mid-review upload widget in
+- [x] 5.4 Add the same panel to the mid-review upload widget in
   `cue_ui/templates/survey.html` (the widget introduced by
   `add-late-document-uploads`)
-- [ ] 5.5 Create `cue_ui/static/web.js` to wire the URL input → preview
+- [x] 5.5 Create `cue_ui/static/web.js` to wire the URL input → preview
   (fetch + render partial), and **Add as source** → ingest (fetch + close
   preview + refresh document list)
-- [ ] 5.6 Hide the panel entirely when the operator flag is off (server-side
+- [x] 5.6 Hide the panel entirely when the operator flag is off (server-side
   template guard, no client-side conditional)
-- [ ] 5.7 Render the per-session "Allow web sources" toggle below the panel
+- [x] 5.7 Render the per-session "Allow web sources" toggle below the panel
   when the operator flag is on; toggle off by default; one-line explanation
   ("URLs are fetched by the server and recorded in your audit report.")
-- [ ] 5.8 Re-ingest UX: preview shows
+- [x] 5.8 Re-ingest UX: preview shows
   "You ingested this URL on [date]. Confirming will replace the previous
   version." when `already_ingested_at` is present
-- [ ] 5.9 Error states: render an inline error block for each failure type
+- [x] 5.9 Error states: render an inline error block for each failure type
   listed in `design.md` § Decision 8
 
 ## 6. Documentation
@@ -102,8 +102,8 @@
 
 ## 7. Validation
 
-- [ ] 7.1 `pytest` — full suite green, including the new fixtures
-- [ ] 7.2 `openspec validate add-web-url-ingestion --strict`
+- [x] 7.1 `pytest` — full suite green, including the new fixtures
+- [x] 7.2 `openspec validate add-web-url-ingestion --strict`
 - [ ] 7.3 Manual smoke: enable env flag, opt in per session, paste 3 URLs
   (an HTML article, a PDF, an SPA-only page); verify preview accuracy,
   ingest behaviour, audit-log entries, and the JS-rendered warning

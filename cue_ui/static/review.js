@@ -242,6 +242,8 @@ document.addEventListener("DOMContentLoaded", function () {
   recomputeRegenerateVisibility();
   document.body.addEventListener("htmx:oobAfterSwap", recomputeRegenerateVisibility);
 
+  window.refreshSessionStats = refreshSessionStats;
+
   // ---- Mid-review upload form ----
 
   var uploadForm = document.getElementById("late-upload-form");

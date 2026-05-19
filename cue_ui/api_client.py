@@ -194,6 +194,42 @@ async def ingest_text_snippet(token: str, session_id: str, text: str, label: str
     _raise_for_status(resp)
 
 
+async def web_preview(token: str, url: str) -> dict[str, Any]:
+    """POST /web/preview → preview payload."""
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.post(
+            f"{CUE_API_URL}/web/preview",
+            headers=auth_headers(token),
+            json={"url": url},
+        )
+    _raise_for_status(resp)
+    return resp.json()
+
+
+async def web_ingest(token: str, url: str) -> dict[str, Any]:
+    """POST /web/ingest → {status, source, source_url}."""
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            f"{CUE_API_URL}/web/ingest",
+            headers=auth_headers(token),
+            json={"url": url},
+        )
+    _raise_for_status(resp)
+    return resp.json()
+
+
+async def set_web_consent(token: str, enabled: bool) -> dict[str, Any]:
+    """PUT /session/web-consent → {web_consent: <bool>}."""
+    async with httpx.AsyncClient() as client:
+        resp = await client.put(
+            f"{CUE_API_URL}/session/web-consent",
+            headers=auth_headers(token),
+            json={"enabled": enabled},
+        )
+    _raise_for_status(resp)
+    return resp.json()
+
+
 async def fetch_answer_report(token: str) -> list[dict] | None:
     """Fetch the session answer report.
 

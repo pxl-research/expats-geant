@@ -53,6 +53,31 @@
   </form>
 </div>
 
+{% if web_ingest_enabled %}
+<div class="card" id="web-source-panel" data-session-id="{{ session_id }}" style="margin-top:1.5rem;">
+  <h2>Add a Web Source</h2>
+  <p style="margin-bottom:0.75rem; font-size:0.9rem; color:var(--text-muted);">
+    Paste a URL to a public page (article, regulation, policy doc, online PDF). The
+    server fetches it once and shows you what was extracted before any content is stored.
+  </p>
+  <label style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.75rem; font-size:0.85rem;">
+    <input type="checkbox" id="web-consent-toggle" {% if web_consent %}checked{% endif %}>
+    <span>Allow web sources — URLs are fetched by the server and recorded in your audit report.</span>
+  </label>
+  <form id="web-url-form" style="display:flex; gap:0.5rem; align-items:center;">
+    <input type="url" id="web-url-input"
+           placeholder="https://example.com/article"
+           {% if not web_consent %}disabled{% endif %}
+           style="flex:1 1 auto;">
+    <button type="submit" class="btn btn-primary" id="web-url-preview-btn"
+            {% if not web_consent %}disabled{% endif %}>Preview</button>
+  </form>
+  <span id="web-url-status" style="font-size:0.85rem; color:var(--text-muted);"></span>
+  <div id="web-preview-container" hidden style="margin-top:0.75rem;"></div>
+</div>
+{% endif %}
+
 <script src="/static/documents.js"></script>
+{% if web_ingest_enabled %}<script src="/static/web.js"></script>{% endif %}
 
 {% endblock %}

@@ -28,10 +28,23 @@ async def documents_page(request: Request, session_id: str, warning: str | None 
     token = get_token(request)
     if not token:
         return RedirectResponse(url="/auth/login", status_code=302)
+    web_ingest_enabled = False
+    web_consent = False
+    try:
+        stats = await api_client.get_session_stats(token)
+        web_ingest_enabled = bool(stats.get("web_ingest_enabled", False))
+        web_consent = bool(stats.get("web_consent", False))
+    except APIError:
+        pass
     return templates.TemplateResponse(
         request,
         "documents.html",
-        {"session_id": session_id, "warning": warning},
+        {
+            "session_id": session_id,
+            "warning": warning,
+            "web_ingest_enabled": web_ingest_enabled,
+            "web_consent": web_consent,
+        },
     )
 
 
@@ -51,6 +64,8 @@ async def session_stats_proxy(request: Request, session_id: str):
         {
             "documents": stats.get("documents", []),
             "last_upload_at": stats.get("last_upload_at"),
+            "web_ingest_enabled": bool(stats.get("web_ingest_enabled", False)),
+            "web_consent": bool(stats.get("web_consent", False)),
         }
     )
 
@@ -72,6 +87,64 @@ async def upload_single_doc(request: Request, session_id: str, file: UploadFile 
     except APIError as exc:
         return JSONResponse({"error": exc.detail}, status_code=exc.status_code)
     return JSONResponse({"status": "ok"})
+
+
+@router.post("/session/{session_id}/web/preview")
+async def web_preview_proxy(request: Request, session_id: str):  # noqa: ARG001 - session_id matches review.js path
+    """Forward a URL preview request to the Cue API."""
+    token = get_token(request)
+    if not token:
+        return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"detail": "Invalid or missing JSON body"}, status_code=400)
+    url = (body.get("url") or "").strip()
+    if not url:
+        return JSONResponse({"detail": "Empty url"}, status_code=400)
+    try:
+        data = await api_client.web_preview(token, url)
+    except APIError as exc:
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    return JSONResponse(data)
+
+
+@router.post("/session/{session_id}/web/ingest")
+async def web_ingest_proxy(request: Request, session_id: str):  # noqa: ARG001
+    """Forward a URL ingest request to the Cue API."""
+    token = get_token(request)
+    if not token:
+        return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"detail": "Invalid or missing JSON body"}, status_code=400)
+    url = (body.get("url") or "").strip()
+    if not url:
+        return JSONResponse({"detail": "Empty url"}, status_code=400)
+    try:
+        data = await api_client.web_ingest(token, url)
+    except APIError as exc:
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    return JSONResponse(data)
+
+
+@router.put("/session/{session_id}/web-consent")
+async def web_consent_proxy(request: Request, session_id: str):  # noqa: ARG001
+    """Toggle the session-level web-consent flag via the Cue API."""
+    token = get_token(request)
+    if not token:
+        return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"detail": "Invalid or missing JSON body"}, status_code=400)
+    enabled = bool(body.get("enabled"))
+    try:
+        data = await api_client.set_web_consent(token, enabled)
+    except APIError as exc:
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    return JSONResponse(data)
 
 
 @router.post("/session/{session_id}/upload-text-snippet")
@@ -201,10 +274,14 @@ async def review_page(request: Request, session_id: str):
     # Fetch document info for the session panel
     documents = []
     last_upload_at: str | None = None
+    web_ingest_enabled = False
+    web_consent = False
     try:
         stats = await api_client.get_session_stats(token)
         documents = stats.get("documents", [])
         last_upload_at = stats.get("last_upload_at")
+        web_ingest_enabled = bool(stats.get("web_ingest_enabled", False))
+        web_consent = bool(stats.get("web_consent", False))
     except APIError:
         pass
 
@@ -234,6 +311,8 @@ async def review_page(request: Request, session_id: str):
             "last_upload_at": last_upload_at,
             "review_state": review_state,
             "cached_suggestions": cached_suggestions,
+            "web_ingest_enabled": web_ingest_enabled,
+            "web_consent": web_consent,
         },
     )
 

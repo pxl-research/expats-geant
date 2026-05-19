@@ -567,3 +567,131 @@ class TestReviewPageWithCachedSuggestions:
         assert resp.status_code == 200
         assert "Generating suggestion" in resp.text
         assert "sse-connect" in resp.text
+
+
+class TestWebProxyRoutes:
+    @respx.mock
+    def test_preview_proxy_forwards_payload_and_propagates_body(self):
+        respx.post(f"{BASE}/web/preview").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "initial_url": "https://example.com/a",
+                    "final_url": "https://example.com/a",
+                    "hostname": "example.com",
+                    "title": "Hello",
+                    "content_type": "text/html",
+                    "extracted_chars": 120,
+                    "preview_text": "Hello world",
+                    "warnings": [],
+                    "already_ingested_at": None,
+                    "source_label": "Hello",
+                },
+            )
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.post(
+            "/session/sess_a/web/preview",
+            json={"url": "https://example.com/a"},
+            cookies=TOKEN_COOKIE,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["final_url"] == "https://example.com/a"
+        assert body["title"] == "Hello"
+
+    @respx.mock
+    def test_preview_proxy_propagates_415(self):
+        respx.post(f"{BASE}/web/preview").mock(
+            return_value=httpx.Response(415, json={"detail": "Unsupported"})
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.post(
+            "/session/sess_a/web/preview",
+            json={"url": "https://example.com/x.png"},
+            cookies=TOKEN_COOKIE,
+        )
+        assert resp.status_code == 415
+        assert resp.json()["detail"] == "Unsupported"
+
+    @respx.mock
+    def test_ingest_proxy_forwards_and_returns_ok(self):
+        respx.post(f"{BASE}/web/ingest").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "status": "success",
+                    "source": "hello",
+                    "source_url": "https://example.com/a",
+                },
+            )
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.post(
+            "/session/sess_a/web/ingest",
+            json={"url": "https://example.com/a"},
+            cookies=TOKEN_COOKIE,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "success"
+
+    @respx.mock
+    def test_consent_proxy_forwards_toggle(self):
+        respx.put(f"{BASE}/session/web-consent").mock(
+            return_value=httpx.Response(200, json={"web_consent": True})
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.put(
+            "/session/sess_a/web-consent",
+            json={"enabled": True},
+            cookies=TOKEN_COOKIE,
+        )
+        assert resp.status_code == 200
+        assert resp.json() == {"web_consent": True}
+
+    def test_preview_proxy_requires_url(self):
+        client = TestClient(app, follow_redirects=False)
+        resp = client.post(
+            "/session/sess_a/web/preview",
+            json={"url": ""},
+            cookies=TOKEN_COOKIE,
+        )
+        assert resp.status_code == 400
+
+    def test_preview_proxy_requires_auth(self):
+        client = TestClient(app, follow_redirects=False)
+        resp = client.post(
+            "/session/sess_a/web/preview",
+            json={"url": "https://example.com/a"},
+        )
+        assert resp.status_code == 401
+
+
+class TestSessionStatsProxyWebFields:
+    @respx.mock
+    def test_stats_proxy_propagates_web_flags(self):
+        respx.get(f"{BASE}/session/stats").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "session_id": "sess_a",
+                    "user_id": "user_a",
+                    "created_at": "2026-01-01T00:00:00Z",
+                    "expires_at": "2026-01-02T00:00:00Z",
+                    "remaining_hours": 24.0,
+                    "is_expired": False,
+                    "document_count": 0,
+                    "documents": [],
+                    "isolation_scope": "user",
+                    "last_upload_at": None,
+                    "web_ingest_enabled": True,
+                    "web_consent": True,
+                },
+            )
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.get("/session/sess_a/stats", cookies=TOKEN_COOKIE)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["web_ingest_enabled"] is True
+        assert body["web_consent"] is True

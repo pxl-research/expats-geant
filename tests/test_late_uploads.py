@@ -165,10 +165,10 @@ class TestStatsProxy:
         resp = client.get("/session/survey-abc/stats", cookies=TOKEN_COOKIE)
         assert resp.status_code == 200
         body = resp.json()
-        assert body == {
-            "documents": [{"name": "doc.txt", "chunk_count": 3}],
-            "last_upload_at": "2026-01-01T12:00:00+00:00",
-        }
+        assert body["documents"] == [{"name": "doc.txt", "chunk_count": 3}]
+        assert body["last_upload_at"] == "2026-01-01T12:00:00+00:00"
+        assert body["web_ingest_enabled"] is False
+        assert body["web_consent"] is False
 
     @respx.mock
     def test_propagates_upstream_error(self):
