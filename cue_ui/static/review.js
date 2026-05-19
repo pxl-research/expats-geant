@@ -324,17 +324,44 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // ---- Regenerate buttons (per-question + bulk) ----
+  //
+  // While a regenerate stream is in flight, each affected block hides its
+  // Regenerate button and shows an inline spinner. On `suggestion` arrival the
+  // whole block is replaced (the new partial's spinner is hidden by default).
+  // On close, any leftover spinners (ids that didn't get a response) are
+  // cleared, and `recomputeRegenerateVisibility()` re-evaluates which buttons
+  // should be visible.
+
+  function setRegeneratePending(ids, pending) {
+    (ids || []).forEach(function (id) {
+      var block = document.getElementById("sug-" + id);
+      if (!block) return;
+      var btn = block.querySelector("[data-action='regenerate']");
+      var spinner = block.querySelector("[data-role='regenerate-spinner']");
+      if (pending) {
+        if (btn) btn.hidden = true;
+        if (spinner) spinner.hidden = false;
+      } else {
+        if (spinner) spinner.hidden = true;
+      }
+    });
+  }
 
   function openRegenerateStream(ids, onComplete) {
+    var idList = Array.isArray(ids) ? ids.slice() : (ids ? [ids] : []);
     var url = "/session/" + sessionId + "/regenerate-stream";
-    if (ids) url += "?ids=" + encodeURIComponent(ids);
+    if (idList.length) url += "?ids=" + encodeURIComponent(idList.join(","));
+    var pending = new Set(idList);
+    setRegeneratePending(idList, true);
     var src = new EventSource(url);
-    function close() { try { src.close(); } catch (_) {} if (onComplete) onComplete(); }
+    function close() {
+      try { src.close(); } catch (_) {}
+      setRegeneratePending(Array.from(pending), false);
+      recomputeRegenerateVisibility();
+      if (onComplete) onComplete();
+    }
     src.addEventListener("done", close);
     src.addEventListener("error", close);
-    // Note: 'suggestion' events are handled by the existing HTMX OOB-swap
-    // pipeline because htmx is already listening on the global event stream.
-    // For programmatic EventSource we instead patch the DOM manually:
     src.addEventListener("suggestion", function (e) {
       var html = e.data;
       var tmp = document.createElement("div");
@@ -343,6 +370,7 @@ document.addEventListener("DOMContentLoaded", function () {
       if (!fresh || !fresh.id) return;
       var existing = document.getElementById(fresh.id);
       if (existing) existing.replaceWith(fresh);
+      pending.delete(fresh.id.replace(/^sug-/, ""));
       reviewState.restoreAll();
       recomputeRegenerateVisibility();
       enableAcceptAllIfReady();
@@ -355,23 +383,22 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!regenBtn) return;
     var block = regenBtn.closest("[data-suggestion-block]");
     if (!block) return;
-    var qid = block.dataset.questionId;
-    regenBtn.disabled = true;
-    openRegenerateStream(qid, function () { regenBtn.disabled = false; });
+    openRegenerateStream([block.dataset.questionId]);
   });
 
   function wireBulkButton(btn, confirmTemplate) {
     if (!btn) return;
     btn.addEventListener("click", function () {
       var idsCsv = btn.dataset.targetIds || "";
-      var n = idsCsv ? idsCsv.split(",").length : 0;
-      if (n === 0) return;
+      var idList = idsCsv ? idsCsv.split(",") : [];
+      if (idList.length === 0) return;
+      var n = idList.length;
       var msg = confirmTemplate
         .replace("{n}", n)
         .replace("{s}", n === 1 ? "" : "s");
       if (!window.confirm(msg)) return;
       btn.disabled = true;
-      openRegenerateStream(idsCsv, function () { btn.disabled = false; });
+      openRegenerateStream(idList, function () { btn.disabled = false; });
     });
   }
 

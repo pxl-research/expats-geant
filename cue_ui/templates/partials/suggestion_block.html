@@ -3,8 +3,8 @@
      hx-swap-oob="true"
      data-suggestion-block
      data-question-id="{{ sug.item_id }}"
-     data-suggestion="{{ sug.suggestion | default('') | e }}"
-     data-selected-id="{{ sug.selected_id | default('') }}"
+     data-suggestion="{{ (sug.suggestion or '') | e }}"
+     data-selected-id="{{ sug.selected_id or '' }}"
      data-generated-at="{{ sug.generated_at or '' }}"
      style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:0.875rem; margin-top:1rem; padding-top:1rem; border-top:1px solid var(--border, #e2e8f0);">
 
@@ -14,7 +14,7 @@
         AI Suggestion
       </span>
       <p style="margin:0.35rem 0 0; font-size:0.9rem; color:{% if sug.suggestion %}#1e293b{% else %}#64748b{% endif %};">
-        {{ sug.suggestion | default("No suggestion available — not enough information found in your documents.") }}
+        {{ sug.suggestion or "No suggestion available — not enough information found in your documents." }}
       </p>
       {% if sug.reasoning %}
       <p style="margin:0.35rem 0 0; font-size:0.8rem; color:#64748b; font-style:italic;">
@@ -38,6 +38,9 @@
               style="font-size:0.75rem; padding:0.3rem 0.7rem;"
               data-action="regenerate"
               hidden>Regenerate</button>
+      <span class="spinner" data-role="regenerate-spinner" hidden
+            style="align-self:center;"
+            aria-label="Regenerating"></span>
     </div>
   </div>
 
