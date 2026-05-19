@@ -144,4 +144,243 @@ document.addEventListener("DOMContentLoaded", function () {
       });
     });
   }
+
+  // ---------------------------------------------------------------
+  // Late-document-uploads: mid-review upload + regenerate buttons
+  //
+  // Staleness rule: a cached suggestion with `data-generated-at` set
+  // is "stale" if its timestamp predates `lastUploadAt`. Missing
+  // timestamps are treated as "never stale" (legacy entries from
+  // before this feature shipped).
+  // ---------------------------------------------------------------
+
+  var lastUploadAt = null;
+  var luaEl = document.getElementById("server-last-upload-at");
+  if (luaEl) {
+    try { lastUploadAt = JSON.parse(luaEl.textContent); } catch (_) { /* keep null */ }
+  }
+
+  function isStale(block) {
+    var ts = block.dataset.generatedAt;
+    return !!(ts && lastUploadAt && ts < lastUploadAt);
+  }
+
+  function recomputeRegenerateVisibility() {
+    var staleUntouchedIds = [];
+    var emptyUntouchedIds = [];
+    document.querySelectorAll("[data-suggestion-block]").forEach(function (block) {
+      var qid = block.dataset.questionId;
+      var btn = block.querySelector("[data-action='regenerate']");
+      var stale = isStale(block);
+      var untouched = !reviewState.get(qid);
+      var hasNoAnswer = !(block.dataset.suggestion || block.dataset.selectedId);
+      if (btn) btn.hidden = !stale;
+      if (stale && untouched) staleUntouchedIds.push(qid);
+      if (hasNoAnswer && untouched) emptyUntouchedIds.push(qid);
+    });
+
+    var bulkBtn = document.getElementById("regenerate-untouched-btn");
+    if (bulkBtn) {
+      bulkBtn.hidden = staleUntouchedIds.length === 0;
+      var countEl = bulkBtn.querySelector("[data-count]");
+      if (countEl) countEl.textContent = staleUntouchedIds.length;
+      bulkBtn.dataset.targetIds = staleUntouchedIds.join(",");
+    }
+
+    var emptyBtn = document.getElementById("regenerate-empty-btn");
+    if (emptyBtn) {
+      emptyBtn.hidden = emptyUntouchedIds.length === 0;
+      var emptyCountEl = emptyBtn.querySelector("[data-count]");
+      if (emptyCountEl) emptyCountEl.textContent = emptyUntouchedIds.length;
+      emptyBtn.dataset.targetIds = emptyUntouchedIds.join(",");
+    }
+  }
+
+  function renderDocsList(documents) {
+    var listEl = document.getElementById("docs-list");
+    var countEl = document.getElementById("docs-count");
+    if (!listEl) return;
+    if (countEl) countEl.textContent = documents.length;
+    if (documents.length === 0) {
+      listEl.innerHTML = "";
+      return;
+    }
+    var rows = documents.map(function (d) {
+      var chunks = d.chunk_count;
+      var label = chunks + " chunk" + (chunks === 1 ? "" : "s");
+      return (
+        '<tr><td style="padding:0.375rem 0.5rem 0.375rem 0;">' +
+        (d.name || "").replace(/[<>&]/g, function (c) {
+          return { "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c];
+        }) +
+        '</td><td style="padding:0.375rem 0; text-align:right; color:var(--text-muted); white-space:nowrap;">' +
+        label +
+        "</td></tr>"
+      );
+    });
+    listEl.innerHTML =
+      '<table style="width:100%; border-collapse:collapse;">' +
+      rows.join("") +
+      '</table><hr style="margin:0.5rem 0; border:none; border-top:1px solid var(--border);">';
+  }
+
+  function refreshSessionStats() {
+    return fetch("/session/" + sessionId + "/stats", { credentials: "same-origin" })
+      .then(function (resp) {
+        if (!resp.ok) return null;
+        return resp.json();
+      })
+      .then(function (data) {
+        if (!data) return;
+        if (data.last_upload_at) lastUploadAt = data.last_upload_at;
+        renderDocsList(data.documents || []);
+        recomputeRegenerateVisibility();
+      })
+      .catch(function () { /* best-effort */ });
+  }
+
+  recomputeRegenerateVisibility();
+  document.body.addEventListener("htmx:oobAfterSwap", recomputeRegenerateVisibility);
+
+  // ---- Mid-review upload form ----
+
+  var uploadForm = document.getElementById("late-upload-form");
+  if (uploadForm) {
+    uploadForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var statusEl = document.getElementById("late-upload-status");
+      var fileInput = document.getElementById("late-upload-files");
+      var textArea = document.getElementById("late-upload-text");
+      var labelInput = document.getElementById("late-upload-label");
+      var submitBtn = uploadForm.querySelector("button[type='submit']");
+
+      var files = fileInput ? Array.from(fileInput.files) : [];
+      var text = textArea ? textArea.value.trim() : "";
+      var label = labelInput ? labelInput.value.trim() : "";
+
+      if (files.length === 0 && !text) {
+        statusEl.textContent = "Choose a file or paste text first.";
+        return;
+      }
+
+      submitBtn.disabled = true;
+      statusEl.textContent = "Uploading…";
+      var baseUrl = "/session/" + sessionId;
+      var errors = [];
+
+      function uploadFile(i) {
+        if (i >= files.length) return Promise.resolve();
+        var f = files[i];
+        var fd = new FormData();
+        fd.append("file", f);
+        return fetch(baseUrl + "/upload-doc", { method: "POST", body: fd, credentials: "same-origin" })
+          .then(function (resp) {
+            if (!resp.ok) {
+              return resp.json().then(function (data) {
+                errors.push(f.name + ": " + (data.error || "Upload failed"));
+              }, function () {
+                errors.push(f.name + ": Upload failed");
+              });
+            }
+          })
+          .catch(function () { errors.push(f.name + ": Upload failed (network error)"); })
+          .then(function () { return uploadFile(i + 1); });
+      }
+
+      function uploadText() {
+        if (!text) return Promise.resolve();
+        return fetch(baseUrl + "/upload-text-snippet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: text, label: label || null }),
+          credentials: "same-origin"
+        })
+          .then(function (resp) {
+            if (!resp.ok) {
+              return resp.json().then(function (data) {
+                errors.push((label || "pasted text") + ": " + (data.error || "Upload failed"));
+              }, function () {
+                errors.push((label || "pasted text") + ": Upload failed");
+              });
+            }
+          })
+          .catch(function () { errors.push((label || "pasted text") + ": Upload failed (network error)"); });
+      }
+
+      uploadFile(0).then(uploadText).then(function () {
+        var anySuccess = errors.length < (files.length + (text ? 1 : 0));
+        var done = anySuccess ? refreshSessionStats() : Promise.resolve();
+        done.then(function () {
+          if (anySuccess) {
+            if (textArea) textArea.value = "";
+            if (labelInput) labelInput.value = "";
+            if (fileInput) fileInput.value = "";
+          }
+          statusEl.textContent = errors.length ? errors.join("; ") : "Added.";
+          submitBtn.disabled = false;
+        });
+      });
+    });
+  }
+
+  // ---- Regenerate buttons (per-question + bulk) ----
+
+  function openRegenerateStream(ids, onComplete) {
+    var url = "/session/" + sessionId + "/regenerate-stream";
+    if (ids) url += "?ids=" + encodeURIComponent(ids);
+    var src = new EventSource(url);
+    function close() { try { src.close(); } catch (_) {} if (onComplete) onComplete(); }
+    src.addEventListener("done", close);
+    src.addEventListener("error", close);
+    // Note: 'suggestion' events are handled by the existing HTMX OOB-swap
+    // pipeline because htmx is already listening on the global event stream.
+    // For programmatic EventSource we instead patch the DOM manually:
+    src.addEventListener("suggestion", function (e) {
+      var html = e.data;
+      var tmp = document.createElement("div");
+      tmp.innerHTML = html;
+      var fresh = tmp.firstElementChild;
+      if (!fresh || !fresh.id) return;
+      var existing = document.getElementById(fresh.id);
+      if (existing) existing.replaceWith(fresh);
+      reviewState.restoreAll();
+      recomputeRegenerateVisibility();
+      enableAcceptAllIfReady();
+    });
+    return src;
+  }
+
+  document.addEventListener("click", function (e) {
+    var regenBtn = e.target.closest("[data-action='regenerate']");
+    if (!regenBtn) return;
+    var block = regenBtn.closest("[data-suggestion-block]");
+    if (!block) return;
+    var qid = block.dataset.questionId;
+    regenBtn.disabled = true;
+    openRegenerateStream(qid, function () { regenBtn.disabled = false; });
+  });
+
+  function wireBulkButton(btn, confirmTemplate) {
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      var idsCsv = btn.dataset.targetIds || "";
+      var n = idsCsv ? idsCsv.split(",").length : 0;
+      if (n === 0) return;
+      var msg = confirmTemplate
+        .replace("{n}", n)
+        .replace("{s}", n === 1 ? "" : "s");
+      if (!window.confirm(msg)) return;
+      btn.disabled = true;
+      openRegenerateStream(idsCsv, function () { btn.disabled = false; });
+    });
+  }
+
+  wireBulkButton(
+    document.getElementById("regenerate-untouched-btn"),
+    "Regenerate {n} suggestion{s}? This may take a while."
+  );
+  wireBulkButton(
+    document.getElementById("regenerate-empty-btn"),
+    "Re-try {n} empty answer{s}? This may take a while."
+  );
 });

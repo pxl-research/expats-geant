@@ -131,6 +131,10 @@ class ItemSuggestion(BaseModel):
     citations: list[CitationResult] = Field(
         default_factory=list, description="Source citations for this suggestion"
     )
+    generated_at: str | None = Field(
+        default=None,
+        description="ISO 8601 timestamp when this item was generated. None on legacy cached entries.",
+    )
 
 
 class BatchSuggestResponse(BaseModel):
@@ -179,6 +183,10 @@ class SessionStatsResponse(BaseModel):
     document_count: int
     documents: list[DocumentInfo] = Field(default_factory=list)
     isolation_scope: str
+    last_upload_at: str | None = Field(
+        default=None,
+        description="ISO 8601 timestamp of the most recent document or text-snippet ingestion (null if none).",
+    )
 
 
 class SessionDeleteResponse(BaseModel):

@@ -35,6 +35,26 @@ async def documents_page(request: Request, session_id: str, warning: str | None 
     )
 
 
+@router.get("/session/{session_id}/stats")
+async def session_stats_proxy(request: Request, session_id: str):
+    """Minimal proxy for /session/stats so review.js can refresh the docs list
+    and `last_upload_at` after a mid-review upload without reloading the page.
+    """
+    token = get_token(request)
+    if not token:
+        return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+    try:
+        stats = await api_client.get_session_stats(token)
+    except APIError as exc:
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    return JSONResponse(
+        {
+            "documents": stats.get("documents", []),
+            "last_upload_at": stats.get("last_upload_at"),
+        }
+    )
+
+
 @router.post("/session/{session_id}/upload-doc")
 async def upload_single_doc(request: Request, session_id: str, file: UploadFile = File(...)):
     """Upload a single document (called via fetch from documents.js)."""
@@ -180,9 +200,11 @@ async def review_page(request: Request, session_id: str):
 
     # Fetch document info for the session panel
     documents = []
+    last_upload_at: str | None = None
     try:
         stats = await api_client.get_session_stats(token)
         documents = stats.get("documents", [])
+        last_upload_at = stats.get("last_upload_at")
     except APIError:
         pass
 
@@ -209,6 +231,7 @@ async def review_page(request: Request, session_id: str):
             "can_submit": can_submit,
             "form_values": {},
             "documents": documents,
+            "last_upload_at": last_upload_at,
             "review_state": review_state,
             "cached_suggestions": cached_suggestions,
         },
@@ -241,9 +264,59 @@ def _survey_to_batch_items(survey: dict) -> list[dict]:
     return items
 
 
+_SSE_HEADERS = {"X-Accel-Buffering": "no", "Cache-Control": "no-cache"}
+
+
+async def _stream_suggestions_proxy(token: str, session_id: str, items: list[dict]):
+    """Pump SSE 'suggestion' events from POST /suggest/stream upstream, rendering each
+    payload through the suggestion_block partial. Shared by suggest-stream and
+    regenerate-stream — they differ only in how `items` is built.
+    """
+    body = {"assessment_id": session_id, "items": items}
+    try:
+        async with httpx.AsyncClient() as client:
+            async with client.stream(
+                "POST",
+                f"{CUE_API_URL}/suggest/stream",
+                json=body,
+                headers=auth_headers(token),
+                timeout=None,
+            ) as resp:
+                if resp.status_code >= 400:
+                    logger.error("Autofill API returned %s", resp.status_code)
+                    yield f'event: error\ndata: {{"detail": "Autofill service error ({resp.status_code})"}}\n\n'
+                    return
+                content_type = resp.headers.get("content-type", "")
+                if "text/event-stream" not in content_type:
+                    logger.error("Unexpected content-type from autofill API: %s", content_type)
+                    yield 'event: error\ndata: {"detail": "Autofill service returned an unexpected response."}\n\n'
+                    return
+                event_type = None
+                async for line in resp.aiter_lines():
+                    if line.startswith("event:"):
+                        event_type = line[len("event:") :].strip()
+                    elif line.startswith("data:") and event_type == "suggestion":
+                        data = json.loads(line[len("data:") :].strip())
+                        html = templates.get_template("partials/suggestion_block.html").render(
+                            sug=data
+                        )
+                        data_lines = "\n".join(f"data: {line}" for line in html.splitlines())
+                        yield f"event: suggestion\n{data_lines}\n\n"
+                        event_type = None
+                    elif line.startswith("data:") and event_type == "done":
+                        yield "event: done\ndata: {}\n\n"
+                        return
+                    elif line.startswith("data:") and event_type == "error":
+                        yield f"event: error\ndata: {line[len('data:') :].strip()}\n\n"
+                        return
+    except Exception as e:
+        logger.error("SSE proxy error: %s", e)
+        yield 'event: error\ndata: {"message": "Suggestion stream failed."}\n\n'
+
+
 @router.get("/session/{session_id}/suggest-stream")
 async def suggest_stream(session_id: str, request: Request):
-    """SSE proxy: streams suggestion HTML blocks from the autofill API."""
+    """SSE proxy: streams suggestion HTML blocks for items that have no cached suggestion yet."""
     token = get_token(request)
     if not token:
         return HTMLResponse("Unauthorized", status_code=401)
@@ -269,58 +342,50 @@ async def suggest_stream(session_id: str, request: Request):
             yield "event: done\ndata: {}\n\n"
 
         return StreamingResponse(
-            all_cached_generator(),
-            media_type="text/event-stream",
-            headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+            all_cached_generator(), media_type="text/event-stream", headers=_SSE_HEADERS
         )
 
-    body = {"assessment_id": session_id, "items": items}
+    return StreamingResponse(
+        _stream_suggestions_proxy(token, session_id, items),
+        media_type="text/event-stream",
+        headers=_SSE_HEADERS,
+    )
 
-    async def proxy_generator():
-        try:
-            async with httpx.AsyncClient() as client:
-                async with client.stream(
-                    "POST",
-                    f"{CUE_API_URL}/suggest/stream",
-                    json=body,
-                    headers=auth_headers(token),
-                    timeout=None,
-                ) as resp:
-                    if resp.status_code >= 400:
-                        logger.error("Autofill API returned %s", resp.status_code)
-                        yield f'event: error\ndata: {{"detail": "Autofill service error ({resp.status_code})"}}\n\n'
-                        return
-                    content_type = resp.headers.get("content-type", "")
-                    if "text/event-stream" not in content_type:
-                        logger.error("Unexpected content-type from autofill API: %s", content_type)
-                        yield 'event: error\ndata: {"detail": "Autofill service returned an unexpected response."}\n\n'
-                        return
-                    event_type = None
-                    async for line in resp.aiter_lines():
-                        if line.startswith("event:"):
-                            event_type = line[len("event:") :].strip()
-                        elif line.startswith("data:") and event_type == "suggestion":
-                            data = json.loads(line[len("data:") :].strip())
-                            html = templates.get_template("partials/suggestion_block.html").render(
-                                sug=data
-                            )
-                            data_lines = "\n".join(f"data: {line}" for line in html.splitlines())
-                            yield f"event: suggestion\n{data_lines}\n\n"
-                            event_type = None
-                        elif line.startswith("data:") and event_type == "done":
-                            yield "event: done\ndata: {}\n\n"
-                            return
-                        elif line.startswith("data:") and event_type == "error":
-                            yield f"event: error\ndata: {line[len('data:'):].strip()}\n\n"
-                            return
-        except Exception as e:
-            logger.error("SSE proxy error: %s", e)
-            yield 'event: error\ndata: {"message": "Suggestion stream failed."}\n\n'
+
+@router.get("/session/{session_id}/regenerate-stream")
+async def regenerate_stream(session_id: str, request: Request, ids: str | None = None):
+    """SSE proxy that re-runs suggestion generation regardless of cache state.
+
+    Mirrors `/suggest-stream` but skips the cached-IDs filter; the upstream
+    `_cache_suggestion` is an upsert so re-running an item overwrites its entry.
+    """
+    token = get_token(request)
+    if not token:
+        return HTMLResponse("Unauthorized", status_code=401)
+
+    try:
+        survey = await api_client.get_survey(token, session_id)
+    except APIError as exc:
+        return HTMLResponse(f"Error: {exc.detail}", status_code=exc.status_code)
+
+    items = _survey_to_batch_items(survey)
+    if ids:
+        wanted = {i.strip() for i in ids.split(",") if i.strip()}
+        items = [item for item in items if item["id"] in wanted]
+
+    if not items:
+
+        async def empty_generator():
+            yield "event: done\ndata: {}\n\n"
+
+        return StreamingResponse(
+            empty_generator(), media_type="text/event-stream", headers=_SSE_HEADERS
+        )
 
     return StreamingResponse(
-        proxy_generator(),
+        _stream_suggestions_proxy(token, session_id, items),
         media_type="text/event-stream",
-        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+        headers=_SSE_HEADERS,
     )
 
 

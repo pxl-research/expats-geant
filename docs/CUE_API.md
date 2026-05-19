@@ -566,6 +566,11 @@ A flat `items` list (no `sections`) is also accepted — items are treated as a 
 | `selected_ids` | list \| null | Matched choice ids for `multiple_choice`; null if uncertain |
 | `reasoning` | string \| null | LLM explanation of confidence or uncertainty; null if straightforward |
 | `citations[].position` | float | Normalised document position (0.0–1.0) |
+| `generated_at` | string \| null | ISO 8601 timestamp of when this item was generated. Null on cached entries that predate this field. |
+
+> Re-POSTing `/suggest/stream` (or `/suggest/batch`) for an item ID overwrites its
+> entry in `cached_suggestions.json` — the server-side cache is an upsert keyed by
+> item ID. The UI relies on this to refresh a single suggestion after a late upload.
 
 > **Input format** is inspired by [QTI 3.0](https://www.imsglobal.org/spec/qti/v3p0/impl) (IMS Global). Supported types: `open_ended`, `single_choice`, `multiple_choice`, `ranking`, `slider`. See `openspec/specs/interchange-formats/` for full standards alignment documentation.
 
@@ -731,9 +736,16 @@ Authorization: Bearer <token>
   "remaining_hours": 22.5,
   "is_expired": false,
   "document_count": 3,
-  "isolation_scope": "user"
+  "isolation_scope": "user",
+  "last_upload_at": "2026-01-13T11:42:18+00:00"
 }
 ```
+
+`last_upload_at` is the ISO 8601 timestamp of the most recent document or
+text-snippet ingestion in the session, derived from chunk metadata. It is
+`null` when no document has been ingested yet. Clients can compare it against
+`ItemSuggestion.generated_at` to decide whether a cached suggestion is stale
+relative to the latest evidence.
 
 #### Download Audit Report
 

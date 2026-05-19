@@ -4,7 +4,7 @@ import hashlib
 import json
 import shutil
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from m_shared.models.session import Session
@@ -461,12 +461,26 @@ class SessionManager:
 
         # Count documents from vector store (raw files are deleted after ingestion)
         documents: list[dict] = []
+        max_ingested_at: float | None = None
         try:
             store = self.get_vector_store(session_id)
             for col in store.cdb_client.list_collections():
                 documents.append({"name": col.name, "chunk_count": col.count()})
+                metadatas = col.get(include=["metadatas"]).get("metadatas") or []
+                for m in metadatas:
+                    ts = (m or {}).get("ingested_at")
+                    if isinstance(ts, int | float) and (
+                        max_ingested_at is None or ts > max_ingested_at
+                    ):
+                        max_ingested_at = float(ts)
         except FileNotFoundError:
             pass
+
+        last_upload_at = (
+            datetime.fromtimestamp(max_ingested_at, tz=UTC).isoformat()
+            if max_ingested_at is not None
+            else None
+        )
 
         return {
             "session_id": session.session_id,
@@ -478,4 +492,5 @@ class SessionManager:
             "document_count": len(documents),
             "documents": documents,
             "isolation_scope": session.isolation_scope,
+            "last_upload_at": last_upload_at,
         }

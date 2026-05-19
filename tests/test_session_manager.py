@@ -432,6 +432,39 @@ class TestSessionStats:
 
         assert stats["document_count"] == 2
 
+    def test_last_upload_at_none_for_empty_session(self, tmp_path):
+        manager = SessionManager(base_path=str(tmp_path))
+        session = manager.create_session(user_id="user_123")
+        stats = manager.get_session_stats(session.session_id)
+        assert stats["last_upload_at"] is None
+
+    def test_last_upload_at_reflects_ingested_chunk(self, tmp_path):
+        from datetime import UTC, datetime
+
+        manager = SessionManager(base_path=str(tmp_path))
+        session = manager.create_session(user_id="user_123")
+        store = manager.get_vector_store(session.session_id)
+        ts = 1_700_000_000.5
+        store.add_document("doc1", ["chunk1"], [{"source": "doc1", "ingested_at": ts}])
+
+        stats = manager.get_session_stats(session.session_id)
+
+        assert stats["last_upload_at"] == datetime.fromtimestamp(ts, tz=UTC).isoformat()
+
+    def test_last_upload_at_returns_maximum_across_documents(self, tmp_path):
+        from datetime import UTC, datetime
+
+        manager = SessionManager(base_path=str(tmp_path))
+        session = manager.create_session(user_id="user_123")
+        store = manager.get_vector_store(session.session_id)
+        earlier, later = 1_700_000_000.0, 1_700_001_000.0
+        store.add_document("doc1", ["c1"], [{"source": "doc1", "ingested_at": earlier}])
+        store.add_document("doc2", ["c2"], [{"source": "doc2", "ingested_at": later}])
+
+        stats = manager.get_session_stats(session.session_id)
+
+        assert stats["last_upload_at"] == datetime.fromtimestamp(later, tz=UTC).isoformat()
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

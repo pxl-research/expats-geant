@@ -49,6 +49,32 @@ pytest tests/test_ui_*.py -v
 
 All cue_ui tests mock external HTTP calls (respx) — no running server required.
 
+## Late document uploads (mid-review)
+
+The review page includes a compact upload widget under the "Documents" panel
+so respondents can add a source after suggestions have already streamed —
+without losing their review state.
+
+Each cached suggestion carries a `generated_at` timestamp; the page also
+receives a `last_upload_at` snapshot from `GET /session/stats`. When an upload
+succeeds, `lastUploadAt` is bumped client-side and `recomputeRegenerateVisibility()`
+reveals:
+
+- a per-question **Regenerate** button on any cached suggestion older than
+  `lastUploadAt`,
+- a bulk **Regenerate untouched (N)** button next to "Accept all" that targets
+  questions that are both stale and not yet accepted/dismissed/edited, and
+- a bulk **Regenerate empty answers (N)** button for questions where the
+  cached suggestion is empty (no answer found) and the user hasn't acted on
+  it yet — this one stays visible whenever such questions exist, independent
+  of upload staleness.
+
+Both buttons stream from `/session/{id}/regenerate-stream` (a UI proxy that
+mirrors `/suggest-stream` minus the cached-IDs filter); the Cue API itself is
+unchanged. Re-suggesting an item overwrites its `cached_suggestions.json`
+entry — accepted/dismissed answers, by contrast, are excluded from the bulk
+flow to avoid clobbering deliberate review decisions.
+
 ## Architecture
 
 ```

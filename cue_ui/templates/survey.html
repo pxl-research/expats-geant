@@ -64,23 +64,36 @@
 <div class="alert alert-error">Submission failed: {{ submit_error }}</div>
 {% endif %}
 
-{% if documents %}
-<details style="margin-bottom:1.25rem;">
+<details style="margin-bottom:1.25rem;" data-mid-review-upload>
   <summary style="cursor:pointer; font-size:0.85rem; font-weight:600; color:var(--text-muted);">
-    Uploaded documents ({{ documents | length }})
+    Documents (<span id="docs-count">{{ documents | length }}</span>)
   </summary>
   <div style="margin-top:0.5rem; padding:0.5rem 0.75rem; background:var(--surface-card); border:1px solid var(--border); border-radius:var(--radius); font-size:0.8rem;">
-    <table style="width:100%; border-collapse:collapse;">
-      {% for doc in documents %}
-      <tr>
-        <td style="padding:0.375rem 0.5rem 0.375rem 0;">{{ doc.name }}</td>
-        <td style="padding:0.375rem 0; text-align:right; color:var(--text-muted); white-space:nowrap;">{{ doc.chunk_count }} chunk{{ 's' if doc.chunk_count != 1 }}</td>
-      </tr>
-      {% endfor %}
-    </table>
+    <div id="docs-list">
+      {% if documents %}
+      <table style="width:100%; border-collapse:collapse;">
+        {% for doc in documents %}
+        <tr>
+          <td style="padding:0.375rem 0.5rem 0.375rem 0;">{{ doc.name }}</td>
+          <td style="padding:0.375rem 0; text-align:right; color:var(--text-muted); white-space:nowrap;">{{ doc.chunk_count }} chunk{{ 's' if doc.chunk_count != 1 }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      <hr style="margin:0.5rem 0; border:none; border-top:1px solid var(--border);">
+      {% endif %}
+    </div>
+    <form id="late-upload-form" style="display:flex; flex-direction:column; gap:0.4rem; margin-top:0.25rem;">
+      <input type="file" id="late-upload-files" multiple>
+      <textarea id="late-upload-text" rows="2" placeholder="Or paste text to ingest…" style="font-size:0.8rem;"></textarea>
+      <input type="text" id="late-upload-label" placeholder="Optional label" style="font-size:0.8rem;">
+      <div style="display:flex; gap:0.4rem; align-items:center; justify-content:flex-end;">
+        <span id="late-upload-status" style="font-size:0.75rem; color:var(--text-muted); margin-right:auto;"></span>
+        <button type="submit" class="btn btn-ghost" style="font-size:0.8rem;">Add source</button>
+      </div>
+    </form>
   </div>
 </details>
-{% endif %}
+<script id="server-last-upload-at" type="application/json">{{ last_upload_at | default(none) | tojson }}</script>
 
 <!-- SSE connection: streams only uncached suggestions (skipped if all cached) -->
 <div id="stream-error-banner" class="alert alert-error" style="display:none;" role="alert"></div>
@@ -188,7 +201,11 @@
 {% endif %}
 </form>
 
-<div style="margin-top:1rem; text-align:right;">
+<div style="margin-top:1rem; text-align:right; display:flex; gap:0.5rem; justify-content:flex-end;">
+  <button type="button" class="btn btn-ghost" id="regenerate-empty-btn" hidden
+          style="font-size:0.8rem;">Regenerate empty answers (<span data-count>0</span>)</button>
+  <button type="button" class="btn btn-ghost" id="regenerate-untouched-btn" hidden
+          style="font-size:0.8rem;">Regenerate untouched (<span data-count>0</span>)</button>
   <button type="button" class="btn btn-ghost" id="accept-all-btn" disabled
           style="font-size:0.8rem;">Accept all suggestions</button>
 </div>

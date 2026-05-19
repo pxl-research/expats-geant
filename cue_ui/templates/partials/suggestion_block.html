@@ -1,9 +1,11 @@
 <div class="suggestion-block"
      id="sug-{{ sug.item_id }}"
      hx-swap-oob="true"
+     data-suggestion-block
      data-question-id="{{ sug.item_id }}"
      data-suggestion="{{ sug.suggestion | default('') | e }}"
      data-selected-id="{{ sug.selected_id | default('') }}"
+     data-generated-at="{{ sug.generated_at or '' }}"
      style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:0.875rem; margin-top:1rem; padding-top:1rem; border-top:1px solid var(--border, #e2e8f0);">
 
   <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:0.5rem;">
@@ -31,6 +33,11 @@
               class="btn btn-ghost"
               style="font-size:0.75rem; padding:0.3rem 0.7rem;"
               data-action="dismiss">Dismiss</button>
+      <button type="button"
+              class="btn btn-ghost"
+              style="font-size:0.75rem; padding:0.3rem 0.7rem;"
+              data-action="regenerate"
+              hidden>Regenerate</button>
     </div>
   </div>
 
