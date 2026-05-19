@@ -97,7 +97,7 @@
   shapes, error codes, and the operator flag
 - [x] 6.2 Update `docs/OPERATOR_RUNBOOK.md` with a "Should I enable web
   ingestion?" decision checklist (privacy, audit, third-party fetch posture)
-- [ ] 6.3 Update `openspec/specs/document-ingestion/spec.md` purpose paragraph
+- [x] 6.3 Update `openspec/specs/document-ingestion/spec.md` purpose paragraph
   reference (done via spec deltas, just confirm during archive)
 
 ## 7. Validation
