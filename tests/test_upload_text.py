@@ -78,6 +78,8 @@ class TestIngestTextIntoStore:
         assert len(results) > 0
         assert all(r["metadata"]["source"] == "My CV" for r in results)
         assert all("chunk_index" in r["metadata"] for r in results)
+        assert all(r["metadata"].get("source_kind") == "text" for r in results)
+        assert all(r["metadata"].get("source_mime") == "text/plain" for r in results)
 
     def test_duplicate_label_skipped(self, vector_store):
         """Submitting the same label twice → second call returns empty list."""

@@ -169,6 +169,14 @@ class DocumentInfo(BaseModel):
 
     name: str
     chunk_count: int
+    source_kind: str | None = Field(
+        default=None,
+        description='Origin of the source: "file", "web", or "text". Null for chunks ingested before this field was tracked.',
+    )
+    source_mime: str | None = Field(
+        default=None,
+        description="MIME type of the original content (e.g. application/pdf, text/html). Null for chunks ingested before this field was tracked.",
+    )
 
 
 class SessionStatsResponse(BaseModel):

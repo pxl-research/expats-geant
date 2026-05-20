@@ -65,6 +65,19 @@ class TestMetadataPreservation:
         metadata = results[0]["metadata"]
         assert "sample" in metadata["source"].lower()
 
+    def test_metadata_source_kind_and_mime_for_file_ingest(self, vector_store):
+        """Files ingested via ingest_files_into_store carry source_kind/source_mime."""
+        store = vector_store
+        file_path = str(TEST_DATA_DIR / "sample.txt")
+
+        ingest_files_into_store(file_paths=[file_path], store=store, max_chunk_size=512)
+
+        results = store.query(query_text="document", n_results=1)
+        assert len(results) > 0
+        metadata = results[0]["metadata"]
+        assert metadata.get("source_kind") == "file"
+        assert metadata.get("source_mime") == "text/plain"
+
     def test_metadata_chunk_index(self, vector_store):
         """Test that chunk indices are sequential."""
         store = vector_store

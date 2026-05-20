@@ -174,6 +174,12 @@ class TestPreviewAndIngestHappyPath:
         store = session_manager.get_vector_store("sess_a")
         assert store.list_documents() == ["my-article"]
 
+        col = store.cdb_client.get_collection("my-article")
+        metadatas = col.get(include=["metadatas"]).get("metadatas") or []
+        assert metadatas, "expected at least one chunk metadata entry"
+        assert metadatas[0].get("source_kind") == "web"
+        assert metadatas[0].get("source_mime") == "text/html"
+
         web_fetches = [
             e
             for e in session_manager.audit_logger.get_entries("sess_a")

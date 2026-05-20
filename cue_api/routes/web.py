@@ -147,6 +147,7 @@ async def ingest_web_url(request: Request, body: WebPreviewRequest):
         text=extracted.text,
         source_label=source_label,
         source_url=fetch_result.final_url,
+        content_type=fetch_result.content_type,
         store=store,
     )
 

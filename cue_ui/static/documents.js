@@ -26,9 +26,15 @@ document.addEventListener("DOMContentLoaded", function () {
   // doesn't flash everything as "new".
   if (docsList) {
     docsList.querySelectorAll("tr").forEach(function (row) {
-      var first = row.querySelector("td");
-      if (first) knownSourceNames.add(first.textContent.trim());
+      var nameEl = row.querySelector("td .source-name") || row.querySelector("td");
+      if (nameEl) knownSourceNames.add(nameEl.textContent.trim());
     });
+  }
+
+  function iconForKind(kind) {
+    if (kind === "web") return "🌐";
+    if (kind === "text") return "✍";
+    return "📄";
   }
 
   function escapeHtml(s) {
@@ -86,8 +92,10 @@ document.addEventListener("DOMContentLoaded", function () {
         return (
           '<tr class="' + rowClass + '">' +
           '<td style="padding:0.4rem 0.5rem 0.4rem 0;">' +
+          iconForKind(doc.source_kind) +
+          ' <span class="source-name">' +
           escapeHtml(doc.name) +
-          "</td>" +
+          "</span></td>" +
           '<td style="padding:0.4rem 0; text-align:right; color:var(--text-muted); white-space:nowrap;">' +
           escapeHtml(chunkLabel) +
           "</td>" +

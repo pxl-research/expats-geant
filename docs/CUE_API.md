@@ -806,6 +806,26 @@ Authorization: Bearer <token>
   "remaining_hours": 22.5,
   "is_expired": false,
   "document_count": 3,
+  "documents": [
+    {
+      "name": "regulation_2024.pdf",
+      "chunk_count": 12,
+      "source_kind": "file",
+      "source_mime": "application/pdf"
+    },
+    {
+      "name": "EU AI Act overview",
+      "chunk_count": 4,
+      "source_kind": "web",
+      "source_mime": "text/html"
+    },
+    {
+      "name": "Notes",
+      "chunk_count": 1,
+      "source_kind": "text",
+      "source_mime": "text/plain"
+    }
+  ],
   "isolation_scope": "user",
   "last_upload_at": "2026-01-13T11:42:18+00:00"
 }
@@ -816,6 +836,11 @@ text-snippet ingestion in the session, derived from chunk metadata. It is
 `null` when no document has been ingested yet. Clients can compare it against
 `ItemSuggestion.generated_at` to decide whether a cached suggestion is stale
 relative to the latest evidence.
+
+Each item in `documents` carries `source_kind` (`"file"`, `"web"`, or `"text"`)
+and `source_mime` (the original MIME type, e.g. `application/pdf`,
+`text/html`). Both fields are optional and round-trip as `null` for chunks
+ingested before this metadata was tracked.
 
 #### Download Audit Report
 

@@ -465,8 +465,16 @@ class SessionManager:
         try:
             store = self.get_vector_store(session_id)
             for col in store.cdb_client.list_collections():
-                documents.append({"name": col.name, "chunk_count": col.count()})
                 metadatas = col.get(include=["metadatas"]).get("metadatas") or []
+                first_meta = next((m for m in metadatas if m), {}) or {}
+                documents.append(
+                    {
+                        "name": col.name,
+                        "chunk_count": col.count(),
+                        "source_kind": first_meta.get("source_kind"),
+                        "source_mime": first_meta.get("source_mime"),
+                    }
+                )
                 for m in metadatas:
                     ts = (m or {}).get("ingested_at")
                     if isinstance(ts, int | float) and (

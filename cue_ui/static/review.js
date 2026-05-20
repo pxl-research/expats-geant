@@ -202,10 +202,16 @@ document.addEventListener("DOMContentLoaded", function () {
     var listEl = document.getElementById("docs-list");
     if (!listEl) return;
     listEl.querySelectorAll("tr").forEach(function (row) {
-      var first = row.querySelector("td");
-      if (first) knownDocsList.add(first.textContent.trim());
+      var nameEl = row.querySelector("td .source-name") || row.querySelector("td");
+      if (nameEl) knownDocsList.add(nameEl.textContent.trim());
     });
   })();
+
+  function iconForKind(kind) {
+    if (kind === "web") return "🌐";
+    if (kind === "text") return "✍";
+    return "📄";
+  }
 
   function renderDocsList(documents) {
     var listEl = document.getElementById("docs-list");
@@ -226,7 +232,7 @@ document.addEventListener("DOMContentLoaded", function () {
       var rowClass = knownDocsList.has(d.name) ? "" : "source-row-new";
       return (
         '<tr class="' + rowClass + '"><td style="padding:0.3rem 0.5rem 0.3rem 0;">' +
-        name +
+        iconForKind(d.source_kind) + ' <span class="source-name">' + name + '</span>' +
         '</td><td style="padding:0.3rem 0; text-align:right; color:var(--text-muted); white-space:nowrap;">' +
         label +
         "</td></tr>"

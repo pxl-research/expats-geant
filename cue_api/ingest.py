@@ -30,6 +30,22 @@ logger = logging.getLogger(__name__)
 
 _IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 
+_EXT_TO_MIME = {
+    ".pdf": "application/pdf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".txt": "text/plain",
+    ".md": "text/markdown",
+    ".html": "text/html",
+    ".htm": "text/html",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+}
+
 
 def ingest_files_into_store(
     *,
@@ -83,6 +99,7 @@ def ingest_files_into_store(
             chunks = iterative_chunking(md_text, max_size=max_chunk_size)
         ingested_at = datetime.utcnow().timestamp()  # Unix timestamp for ChromaDB range filtering
         total_chunks = len(chunks)
+        source_mime = _EXT_TO_MIME.get(suffix, "application/octet-stream")
         meta_info = [
             {
                 "source": os.path.basename(file_path),
@@ -90,6 +107,8 @@ def ingest_files_into_store(
                 "chunk_index": i,
                 "total_chunks": total_chunks,
                 "ingested_at": ingested_at,
+                "source_kind": "file",
+                "source_mime": source_mime,
             }
             for i in range(total_chunks)
         ]
@@ -158,6 +177,8 @@ def ingest_text_into_store(
             "id": f"chunk_{i}",
             "chunk_index": i,
             "ingested_at": ingested_at,
+            "source_kind": "text",
+            "source_mime": "text/plain",
         }
         for i in range(len(chunks))
     ]
@@ -186,6 +207,7 @@ def ingest_extracted_text_into_store(
     text: str,
     source_label: str,
     source_url: str,
+    content_type: str,
     store: ChromaDocumentStore,
     max_chunk_size: int = 1024,
 ) -> str:
@@ -201,6 +223,8 @@ def ingest_extracted_text_into_store(
         text: Extracted text content
         source_label: Human-readable source label (used as collection name + display)
         source_url: Canonical URL after redirect resolution; stored on each chunk
+        content_type: Origin Content-Type (e.g. ``"text/html"``, ``"application/pdf"``);
+            stored on each chunk as ``source_mime``.
         store: ChromaDocumentStore instance
         max_chunk_size: Chunk size in characters
 
@@ -210,7 +234,7 @@ def ingest_extracted_text_into_store(
     collection_name = sanitize_filename(source_label)
     if not collection_name:
         raise ValueError(
-            f"source_label {source_label!r} produces an empty collection name " "after sanitization"
+            f"source_label {source_label!r} produces an empty collection name after sanitization"
         )
     if collection_name in set(store.list_documents()):
         store.remove_document(collection_name)
@@ -224,6 +248,8 @@ def ingest_extracted_text_into_store(
             "id": f"chunk_{i}",
             "chunk_index": i,
             "ingested_at": ingested_at,
+            "source_kind": "web",
+            "source_mime": content_type,
         }
         for i in range(len(chunks))
     ]
