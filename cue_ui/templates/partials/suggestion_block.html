@@ -5,6 +5,7 @@
      data-question-id="{{ sug.item_id }}"
      data-suggestion="{{ (sug.suggestion or '') | e }}"
      data-selected-id="{{ sug.selected_id or '' }}"
+     data-has-answer="{{ 'true' if (sug.suggestion or sug.selected_id or sug.selected_ids) else 'false' }}"
      data-generated-at="{{ sug.generated_at or '' }}"
      style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:0.875rem; margin-top:1rem; padding-top:1rem; border-top:1px solid var(--border, #e2e8f0);">
 

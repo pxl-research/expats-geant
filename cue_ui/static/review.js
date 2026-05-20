@@ -173,7 +173,7 @@ document.addEventListener("DOMContentLoaded", function () {
       var btn = block.querySelector("[data-action='regenerate']");
       var stale = isStale(block);
       var untouched = !reviewState.get(qid);
-      var hasNoAnswer = !(block.dataset.suggestion || block.dataset.selectedId);
+      var hasNoAnswer = block.dataset.hasAnswer === "false";
       if (btn) btn.hidden = !stale;
       if (stale && untouched) staleUntouchedIds.push(qid);
       if (hasNoAnswer && untouched) emptyUntouchedIds.push(qid);

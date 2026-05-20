@@ -236,8 +236,12 @@ def ingest_extracted_text_into_store(
         raise ValueError(
             f"source_label {source_label!r} produces an empty collection name after sanitization"
         )
-    if collection_name in set(store.list_documents()):
-        store.remove_document(collection_name)
+
+    for col in list(store.cdb_client.list_collections()):
+        metadatas = col.get(include=["metadatas"]).get("metadatas") or []
+        first_meta = next((m for m in metadatas if m), {}) or {}
+        if first_meta.get("source_url") == source_url or col.name == collection_name:
+            store.remove_document(col.name)
 
     chunks = iterative_chunking(text, max_size=max_chunk_size)
     ingested_at = datetime.utcnow().timestamp()

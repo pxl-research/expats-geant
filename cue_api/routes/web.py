@@ -24,6 +24,7 @@ from cue_api.web_fetch import (
     route_extractor,
 )
 from m_shared.rate_limit import limiter
+from m_shared.utils.url_validation import validate_web_url
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,7 @@ def _gate_check(request: Request) -> None:
 
 async def _fetch_and_extract(request: Request, url: str):
     """Perform fetch + route_extractor, mapping typed errors to HTTPException."""
+    validate_web_url(url)
     max_bytes = request.app.state.max_file_size_mb * 1024 * 1024
     try:
         fetch_result = await fetch_url(url, max_bytes=max_bytes)

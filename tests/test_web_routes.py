@@ -270,6 +270,26 @@ class TestErrorMapping:
         assert resp.status_code == 415
 
 
+class TestSSRFBlocking:
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "http://127.0.0.1/x",
+            "http://localhost/x",
+            "https://10.0.0.1/x",
+            "https://192.168.1.1/x",
+            "http://user:pw@example.com/x",
+            "ftp://example.com/x",
+        ],
+    )
+    def test_preview_rejects_unsafe_url(self, jwt_secret, session_manager, monkeypatch, url):
+        app = _build_app(session_manager, web_enabled=True, monkeypatch=monkeypatch)
+        _seed_session(session_manager, "user_a", "sess_a", web_consent=True)
+        with TestClient(app) as client:
+            resp = client.post("/web/preview", json={"url": url}, headers=_grant_token())
+        assert resp.status_code == 400
+
+
 class TestWebConsentEndpoint:
     def test_put_toggles_and_persists(self, jwt_secret, session_manager, monkeypatch):
         app = _build_app(session_manager, web_enabled=True, monkeypatch=monkeypatch)

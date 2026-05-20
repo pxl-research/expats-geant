@@ -460,6 +460,8 @@ class SessionManager:
         remaining_hours = max(0, remaining.total_seconds() / 3600)
 
         # Count documents from vector store (raw files are deleted after ingestion)
+        # TODO: scan is O(total_chunks); track last_upload_at in session metadata
+        # at ingest time if pilot sessions grow beyond a few hundred chunks.
         documents: list[dict] = []
         max_ingested_at: float | None = None
         try:
