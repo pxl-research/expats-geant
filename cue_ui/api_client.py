@@ -116,6 +116,22 @@ async def delete_session_by_id(token: str, session_id: str) -> dict[str, Any]:
     return resp.json()
 
 
+async def remove_document(token: str, name: str) -> dict[str, Any]:
+    """Remove a single source from the current session.
+
+    DELETE /session/documents/{name}
+    """
+    from urllib.parse import quote
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.delete(
+            f"{CUE_API_URL}/session/documents/{quote(name, safe='')}",
+            headers=auth_headers(token),
+        )
+    _raise_for_status(resp)
+    return resp.json()
+
+
 async def import_survey_file(
     token: str, file_bytes: bytes, filename: str, format: str
 ) -> tuple[str, str | None]:

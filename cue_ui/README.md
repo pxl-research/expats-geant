@@ -66,6 +66,12 @@ renders four cards:
 3. **Paste Text** — textarea + optional label, for leftover snippets.
 4. **Your Sources** — live-refreshing list of everything ingested in the
    session + the **Continue** button (disabled while any add is in flight).
+   Each row carries a kind icon (📄 file / 🌐 web / ✍ text) and a
+   per-row ✕ remove control that DELETEs the source via
+   `/session/{id}/documents/{name}` after a `confirm()` guard. The list
+   refreshes automatically on a successful remove; cached suggestions
+   that already cite the removed source are intentionally left untouched
+   (regenerate manually to refresh).
 
 Each card ingests immediately via fetch (`/session/{id}/upload-doc`,
 `/session/{id}/upload-text-snippet`, `/session/{id}/web/preview` →

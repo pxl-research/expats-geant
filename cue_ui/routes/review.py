@@ -150,6 +150,19 @@ async def web_consent_proxy(request: Request, session_id: str):  # noqa: ARG001
     return JSONResponse(data)
 
 
+@router.delete("/session/{session_id}/documents/{name}")
+async def remove_document_proxy(request: Request, session_id: str, name: str):  # noqa: ARG001
+    """Forward a per-source remove request to the Cue API."""
+    token = get_token(request)
+    if not token:
+        return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+    try:
+        data = await api_client.remove_document(token, name)
+    except APIError as exc:
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    return JSONResponse(data)
+
+
 @router.post("/session/{session_id}/upload-text-snippet")
 async def upload_text_snippet(request: Request, session_id: str):
     """Upload a text snippet (called via fetch from documents.js)."""

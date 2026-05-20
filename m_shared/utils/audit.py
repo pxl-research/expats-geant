@@ -30,6 +30,7 @@ class AuditEventType(str, Enum):
     SESSION_END = "SESSION_END"
     CONSENT_ACCEPTED = "CONSENT_ACCEPTED"
     WEB_FETCH = "WEB_FETCH"
+    SOURCE_REMOVED = "SOURCE_REMOVED"
 
 
 class AuditLogEntry(BaseModel):
@@ -431,6 +432,36 @@ class AuditLogger:
         )
         self._add_entry(entry)
 
+    def log_source_removed(
+        self,
+        session_id: str,
+        *,
+        name: str,
+        source_kind: str | None,
+        source_mime: str | None,
+        user_id: str | None = None,
+    ) -> None:
+        """Log a per-session source (collection) removal.
+
+        Args:
+            session_id: Session identifier
+            name: Sanitised source name (collection name)
+            source_kind: "file" | "web" | "text" | None for legacy chunks
+            source_mime: MIME type (e.g. application/pdf) or None for legacy chunks
+            user_id: Optional user identifier
+        """
+        entry = AuditLogEntry(
+            event_type=AuditEventType.SOURCE_REMOVED,
+            session_id=session_id,
+            user_id=user_id,
+            details={
+                "name": name,
+                "source_kind": source_kind,
+                "source_mime": source_mime,
+            },
+        )
+        self._add_entry(entry)
+
     def log_consent(self, session_id: str, consent: Consent, user_id: str | None = None) -> None:
         """Log consent acceptance.
 
@@ -505,6 +536,9 @@ class AuditLogger:
             ),
             "suggestions_edited": sum(
                 1 for e in entries if e.event_type == AuditEventType.EDIT_SUGGESTION
+            ),
+            "sources_removed": sum(
+                1 for e in entries if e.event_type == AuditEventType.SOURCE_REMOVED
             ),
         }
 

@@ -213,6 +213,13 @@ class SessionDeleteResponse(BaseModel):
     message: str
 
 
+class RemoveSourceResponse(BaseModel):
+    """Response for DELETE /session/documents/{name}."""
+
+    status: str = Field(..., description='Always "ok" on success.')
+    name: str = Field(..., description="Sanitised source name that was removed.")
+
+
 class AuditDeleteResponse(BaseModel):
     """Audit report deletion response."""
 

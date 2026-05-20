@@ -856,6 +856,43 @@ DELETE /session
 Authorization: Bearer <token>
 ```
 
+#### Remove a Single Source
+
+```bash
+DELETE /session/documents/{name}
+Authorization: Bearer <token>
+```
+
+Removes one ingested source (file, web URL, or pasted snippet) from the
+current session's vector store. The path parameter is the source's
+display name as returned by `GET /session/stats` under `documents[].name`;
+it is re-sanitised server-side before lookup.
+
+**Response (200):**
+
+```json
+{"status": "ok", "name": "regulation-2024"}
+```
+
+**Response (404):** the named source does not exist in the session.
+The operation is idempotent — repeating the call returns 404 again with
+no side effects.
+
+A `SOURCE_REMOVED` audit event is emitted on success (see audit event
+types below). **Cached suggestions citing the removed source are
+intentionally left untouched** so review state (edits, accepts,
+dismissals) and citation footers remain truthful about the evidence
+available at suggestion-generation time. Use the existing per-question
+**Regenerate** or bulk **Regenerate untouched** buttons to refresh
+suggestions against the trimmed source set.
+
+#### Audit Event Types
+
+`UPLOAD`, `SUGGEST`, `EDIT_SUGGESTION`, `SESSION_START`, `SESSION_END`,
+`CONSENT_ACCEPTED`, `WEB_FETCH`, `SOURCE_REMOVED`. The `SOURCE_REMOVED`
+event records `name`, `source_kind`, and `source_mime` for the removed
+collection.
+
 ---
 
 ## Troubleshooting

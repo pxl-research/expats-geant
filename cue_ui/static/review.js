@@ -235,7 +235,11 @@ document.addEventListener("DOMContentLoaded", function () {
         iconForKind(d.source_kind) + ' <span class="source-name">' + name + '</span>' +
         '</td><td style="padding:0.3rem 0; text-align:right; color:var(--text-muted); white-space:nowrap;">' +
         label +
-        "</td></tr>"
+        '</td><td style="padding:0.3rem 0 0.3rem 0.5rem; text-align:right;">' +
+        '<button type="button" class="source-remove-btn" data-source-name="' + name + '" ' +
+        'aria-label="Remove ' + name + '" title="Remove" ' +
+        'style="background:none; border:0; cursor:pointer; color:var(--text-muted); font-size:0.85rem; padding:0 0.25rem;">' +
+        '✕</button></td></tr>'
       );
     });
     listEl.innerHTML =
@@ -270,6 +274,33 @@ document.addEventListener("DOMContentLoaded", function () {
   document.body.addEventListener("htmx:oobAfterSwap", recomputeRegenerateVisibility);
 
   window.refreshSessionStats = refreshSessionStats;
+
+  // ---- Per-row source remove ----
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest(".source-remove-btn");
+    if (!btn) return;
+    e.preventDefault();
+    var name = btn.dataset.sourceName;
+    if (!name) return;
+    if (!window.confirm("Remove «" + name + "» from your sources?")) return;
+    btn.disabled = true;
+    fetch("/session/" + sessionId + "/documents/" + encodeURIComponent(name), {
+      method: "DELETE",
+      credentials: "same-origin",
+    })
+      .then(function (resp) {
+        if (resp.ok || resp.status === 404) {
+          refreshSessionStats();
+        } else {
+          btn.disabled = false;
+          alert("Could not remove source (HTTP " + resp.status + ")");
+        }
+      })
+      .catch(function () {
+        btn.disabled = false;
+        alert("Network error while removing source");
+      });
+  });
 
   // ---- Mid-review upload forms (files + text, parallel) ----
 

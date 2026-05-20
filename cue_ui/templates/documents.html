@@ -86,6 +86,7 @@
       <tr>
         <td style="padding:0.4rem 0.5rem 0.4rem 0;">{% if doc.source_kind == 'web' %}🌐{% elif doc.source_kind == 'text' %}✍{% else %}📄{% endif %} <span class="source-name">{{ doc.name }}</span></td>
         <td style="padding:0.4rem 0; text-align:right; color:var(--text-muted); white-space:nowrap;">{{ doc.chunk_count }} chunk{{ 's' if doc.chunk_count != 1 }}</td>
+        <td style="padding:0.4rem 0 0.4rem 0.5rem; text-align:right;"><button type="button" class="source-remove-btn" data-source-name="{{ doc.name }}" aria-label="Remove {{ doc.name }}" title="Remove" style="background:none; border:0; cursor:pointer; color:var(--text-muted); font-size:0.9rem; padding:0 0.25rem;">✕</button></td>
       </tr>
       {% endfor %}
     </table>

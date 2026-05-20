@@ -89,16 +89,22 @@ document.addEventListener("DOMContentLoaded", function () {
         var chunkLabel = (doc.chunk_count || 0) + " chunk" + (doc.chunk_count === 1 ? "" : "s");
         var isNew = !knownSourceNames.has(doc.name);
         var rowClass = isNew ? "source-row-new" : "";
+        var safeName = escapeHtml(doc.name);
         return (
           '<tr class="' + rowClass + '">' +
           '<td style="padding:0.4rem 0.5rem 0.4rem 0;">' +
           iconForKind(doc.source_kind) +
           ' <span class="source-name">' +
-          escapeHtml(doc.name) +
+          safeName +
           "</span></td>" +
           '<td style="padding:0.4rem 0; text-align:right; color:var(--text-muted); white-space:nowrap;">' +
           escapeHtml(chunkLabel) +
           "</td>" +
+          '<td style="padding:0.4rem 0 0.4rem 0.5rem; text-align:right;">' +
+          '<button type="button" class="source-remove-btn" data-source-name="' + safeName + '" ' +
+          'aria-label="Remove ' + safeName + '" title="Remove" ' +
+          'style="background:none; border:0; cursor:pointer; color:var(--text-muted); font-size:0.9rem; padding:0 0.25rem;">' +
+          '✕</button></td>' +
           "</tr>"
         );
       })
@@ -139,6 +145,32 @@ document.addEventListener("DOMContentLoaded", function () {
     e.preventDefault();
     var card = document.getElementById("sources-card");
     if (card) card.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest(".source-remove-btn");
+    if (!btn) return;
+    e.preventDefault();
+    var name = btn.dataset.sourceName;
+    if (!name) return;
+    if (!window.confirm("Remove «" + name + "» from your sources?")) return;
+    btn.disabled = true;
+    fetch(baseUrl + "/documents/" + encodeURIComponent(name), {
+      method: "DELETE",
+      credentials: "same-origin",
+    })
+      .then(function (resp) {
+        if (resp.ok || resp.status === 404) {
+          refreshSessionStats();
+        } else {
+          btn.disabled = false;
+          alert("Could not remove source (HTTP " + resp.status + ")");
+        }
+      })
+      .catch(function () {
+        btn.disabled = false;
+        alert("Network error while removing source");
+      });
   });
 
   function showError(message) {

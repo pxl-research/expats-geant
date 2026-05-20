@@ -695,3 +695,30 @@ class TestSessionStatsProxyWebFields:
         body = resp.json()
         assert body["web_ingest_enabled"] is True
         assert body["web_consent"] is True
+
+
+class TestRemoveDocumentProxy:
+    @respx.mock
+    def test_proxy_forwards_and_returns_ok(self):
+        respx.delete(f"{BASE}/session/documents/notes-txt").mock(
+            return_value=httpx.Response(200, json={"status": "ok", "name": "notes-txt"})
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.delete("/session/sess_a/documents/notes-txt", cookies=TOKEN_COOKIE)
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "ok", "name": "notes-txt"}
+
+    @respx.mock
+    def test_proxy_propagates_404(self):
+        respx.delete(f"{BASE}/session/documents/missing").mock(
+            return_value=httpx.Response(404, json={"detail": "Source 'missing' not found"})
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.delete("/session/sess_a/documents/missing", cookies=TOKEN_COOKIE)
+        assert resp.status_code == 404
+        assert "not found" in resp.json()["detail"].lower()
+
+    def test_proxy_requires_auth(self):
+        client = TestClient(app, follow_redirects=False)
+        resp = client.delete("/session/sess_a/documents/anything")
+        assert resp.status_code == 401
