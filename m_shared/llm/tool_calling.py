@@ -37,10 +37,13 @@ class CompletionResult:
 
     `content` is None when the model emitted only tool calls.
     `tool_calls` is an empty list when the model emitted text only.
+    `finish_reason` mirrors the provider's stop reason (e.g. "stop",
+    "length", "tool_calls"); None if the SDK did not surface one.
     """
 
     content: str | None
     tool_calls: list[ToolCall]
+    finish_reason: str | None = None
 
 
 ToolFn = Callable[..., Any]
