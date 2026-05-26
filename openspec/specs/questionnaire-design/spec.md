@@ -419,11 +419,13 @@ These checks complement the existing `double_barreled`, `leading_language`,
 
 ### Requirement: Survey Mutation Tools
 
-The chat-turn pipeline SHALL expose eight LLM tools that together cover
-read access and granular mutation of the session draft survey. The
+The chat-turn pipeline SHALL expose eight core edit tools that together
+cover read access and granular mutation of the session draft survey. The
 tools are: `get_full_survey`, `init_survey`, `add_section`,
 `update_section`, `delete_section`, `add_question`, `update_question`,
-`delete_question`.
+`delete_question`. Reordering is handled by the separate `move_section`
+and `move_question` tools defined under **Question and Section
+Reordering**.
 
 `get_full_survey` SHALL take no parameters and return the full JSON of
 the current draft, or a documented sentinel value when no draft exists.
@@ -438,8 +440,8 @@ inserting the new section after the named section or appending it when
 `after_id` is omitted. The supplied section id SHALL be preserved.
 
 `update_section` SHALL take a `section_id` and a partial `SectionPatch`
-covering section-level fields (title, description, order, metadata)
-only. It SHALL reject a patch containing a `questions` field.
+covering section-level fields (title, description, metadata) only. It
+SHALL reject a patch containing a `questions` field.
 
 `delete_section` SHALL take a `section_id` and remove the section and
 all of its questions.

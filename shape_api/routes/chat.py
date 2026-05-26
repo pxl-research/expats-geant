@@ -382,7 +382,8 @@ def _run_mutation(request: Request, session_id: str, mutate) -> SurveyUpdateResp
     try:
         new_survey = mutate(survey)
     except MutationError as exc:
-        raise HTTPException(status_code=_MUTATION_HTTP_STATUS[type(exc)], detail=str(exc)) from exc
+        http_status = _MUTATION_HTTP_STATUS.get(type(exc), status.HTTP_400_BAD_REQUEST)
+        raise HTTPException(status_code=http_status, detail=str(exc)) from exc
     save_draft_survey(base_path, session_id, new_survey)
     return SurveyUpdateResponse(status="saved", validation_issues=validate_survey(new_survey))
 
@@ -403,7 +404,7 @@ async def add_survey_section(request: Request, session_id: str, body: AddSection
 async def update_survey_section(
     request: Request, session_id: str, section_id: str, body: SectionPatch
 ):
-    """Patch a section's title/description/order/metadata."""
+    """Patch a section's title/description/metadata."""
     return _run_mutation(request, session_id, lambda s: apply_update_section(s, section_id, body))
 
 
