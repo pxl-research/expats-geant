@@ -205,6 +205,11 @@ class SessionMiddleware(BaseHTTPMiddleware):
             return True
         if path.startswith("/chat/sessions/") and path.endswith(("/select", "/transfer")):
             return True
+        # DELETE /sessions/{id}: path-scoped delete, resolved by claims+path.
+        # The only handler on this exact path is DELETE; POST/GET would 405.
+        parts = path.strip("/").split("/")
+        if len(parts) == 2 and parts[0] == "sessions":
+            return True
         return False
 
     def _is_public_endpoint(self, path: str) -> bool:

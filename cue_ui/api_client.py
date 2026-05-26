@@ -97,6 +97,41 @@ async def delete_session(token: str) -> None:
     _raise_for_status(resp)
 
 
+async def delete_session_by_id(token: str, session_id: str) -> dict[str, Any]:
+    """Delete one of the authenticated user's sessions by id.
+
+    DELETE /sessions/{session_id}
+
+    Response may include `token` — a fresh session-less JWT when the deleted
+    session was the caller's currently-bound one. The caller is responsible
+    for replacing the cookie with this token to avoid the stale-JWT
+    resurrection branch in the auth middleware.
+    """
+    async with httpx.AsyncClient() as client:
+        resp = await client.delete(
+            f"{CUE_API_URL}/sessions/{session_id}",
+            headers=auth_headers(token),
+        )
+    _raise_for_status(resp)
+    return resp.json()
+
+
+async def remove_document(token: str, name: str) -> dict[str, Any]:
+    """Remove a single source from the current session.
+
+    DELETE /session/documents/{name}
+    """
+    from urllib.parse import quote
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.delete(
+            f"{CUE_API_URL}/session/documents/{quote(name, safe='')}",
+            headers=auth_headers(token),
+        )
+    _raise_for_status(resp)
+    return resp.json()
+
+
 async def import_survey_file(
     token: str, file_bytes: bytes, filename: str, format: str
 ) -> tuple[str, str | None]:
@@ -173,6 +208,42 @@ async def ingest_text_snippet(token: str, session_id: str, text: str, label: str
             json={"text": text, "label": label},
         )
     _raise_for_status(resp)
+
+
+async def web_preview(token: str, url: str) -> dict[str, Any]:
+    """POST /web/preview → preview payload."""
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.post(
+            f"{CUE_API_URL}/web/preview",
+            headers=auth_headers(token),
+            json={"url": url},
+        )
+    _raise_for_status(resp)
+    return resp.json()
+
+
+async def web_ingest(token: str, url: str) -> dict[str, Any]:
+    """POST /web/ingest → {status, source, source_url}."""
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            f"{CUE_API_URL}/web/ingest",
+            headers=auth_headers(token),
+            json={"url": url},
+        )
+    _raise_for_status(resp)
+    return resp.json()
+
+
+async def set_web_consent(token: str, enabled: bool) -> dict[str, Any]:
+    """PUT /session/web-consent → {web_consent: <bool>}."""
+    async with httpx.AsyncClient() as client:
+        resp = await client.put(
+            f"{CUE_API_URL}/session/web-consent",
+            headers=auth_headers(token),
+            json={"enabled": enabled},
+        )
+    _raise_for_status(resp)
+    return resp.json()
 
 
 async def fetch_answer_report(token: str) -> list[dict] | None:

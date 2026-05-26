@@ -30,6 +30,22 @@ logger = logging.getLogger(__name__)
 
 _IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 
+_EXT_TO_MIME = {
+    ".pdf": "application/pdf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".txt": "text/plain",
+    ".md": "text/markdown",
+    ".html": "text/html",
+    ".htm": "text/html",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+}
+
 
 def ingest_files_into_store(
     *,
@@ -83,6 +99,7 @@ def ingest_files_into_store(
             chunks = iterative_chunking(md_text, max_size=max_chunk_size)
         ingested_at = datetime.utcnow().timestamp()  # Unix timestamp for ChromaDB range filtering
         total_chunks = len(chunks)
+        source_mime = _EXT_TO_MIME.get(suffix, "application/octet-stream")
         meta_info = [
             {
                 "source": os.path.basename(file_path),
@@ -90,6 +107,8 @@ def ingest_files_into_store(
                 "chunk_index": i,
                 "total_chunks": total_chunks,
                 "ingested_at": ingested_at,
+                "source_kind": "file",
+                "source_mime": source_mime,
             }
             for i in range(total_chunks)
         ]
@@ -158,6 +177,8 @@ def ingest_text_into_store(
             "id": f"chunk_{i}",
             "chunk_index": i,
             "ingested_at": ingested_at,
+            "source_kind": "text",
+            "source_mime": "text/plain",
         }
         for i in range(len(chunks))
     ]
@@ -179,3 +200,88 @@ def ingest_text_into_store(
         )
 
     return [collection_name]
+
+
+def ingest_extracted_text_into_store(
+    *,
+    text: str,
+    source_label: str,
+    source_url: str,
+    content_type: str,
+    store: ChromaDocumentStore,
+    max_chunk_size: int = 1024,
+) -> str:
+    """Ingest pre-extracted text from a web URL (overwrite-by-source semantics).
+
+    Unlike :func:`ingest_text_into_store`, this helper does NOT silently skip
+    duplicates: a URL identifies a remote document whose content may have
+    changed, so re-ingesting deletes the prior chunks first and writes the
+    fresh ones. The caller is responsible for emitting the WEB_FETCH audit
+    event (so preview-only fetches are also recorded).
+
+    Args:
+        text: Extracted text content
+        source_label: Human-readable source label (used as collection name + display)
+        source_url: Canonical URL after redirect resolution; stored on each chunk
+        content_type: Origin Content-Type (e.g. ``"text/html"``, ``"application/pdf"``);
+            stored on each chunk as ``source_mime``.
+        store: ChromaDocumentStore instance
+        max_chunk_size: Chunk size in characters
+
+    Returns:
+        Collection name written
+    """
+    collection_name = sanitize_filename(source_label)
+    if not collection_name:
+        raise ValueError(
+            f"source_label {source_label!r} produces an empty collection name after sanitization"
+        )
+
+    for col in list(store.cdb_client.list_collections()):
+        metadatas = col.get(include=["metadatas"]).get("metadatas") or []
+        first_meta = next((m for m in metadatas if m), {}) or {}
+        if first_meta.get("source_url") == source_url or col.name == collection_name:
+            store.remove_document(col.name)
+
+    chunks = iterative_chunking(text, max_size=max_chunk_size)
+    ingested_at = datetime.utcnow().timestamp()
+    meta_info = [
+        {
+            "source": source_label,
+            "source_url": source_url,
+            "id": f"chunk_{i}",
+            "chunk_index": i,
+            "ingested_at": ingested_at,
+            "source_kind": "web",
+            "source_mime": content_type,
+        }
+        for i in range(len(chunks))
+    ]
+
+    store.add_document(
+        document_name=collection_name,
+        chunks=chunks,
+        meta_infos=meta_info,
+        tqdm_func=tqdm,
+    )
+
+    return collection_name
+
+
+def find_source_url_ingest_time(store: ChromaDocumentStore, source_url: str) -> float | None:
+    """Return the most-recent ``ingested_at`` timestamp for the given source_url.
+
+    Scans all collections and inspects their chunk metadata. Returns ``None``
+    if the URL has never been ingested in this session. Used by
+    ``POST /web/preview`` to populate the ``already_ingested_at`` field.
+    """
+    latest: float | None = None
+    for col in store.cdb_client.list_collections():
+        metadatas = col.get(include=["metadatas"]).get("metadatas") or []
+        for m in metadatas:
+            if (m or {}).get("source_url") != source_url:
+                continue
+            ts = (m or {}).get("ingested_at")
+            if isinstance(ts, int | float) and (latest is None or ts > latest):
+                latest = float(ts)
+    return latest

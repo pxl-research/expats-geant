@@ -144,4 +144,348 @@ document.addEventListener("DOMContentLoaded", function () {
       });
     });
   }
+
+  // ---------------------------------------------------------------
+  // Late-document-uploads: mid-review upload + regenerate buttons
+  //
+  // Staleness rule: a cached suggestion with `data-generated-at` set
+  // is "stale" if its timestamp predates `lastUploadAt`. Missing
+  // timestamps are treated as "never stale" (legacy entries from
+  // before this feature shipped).
+  // ---------------------------------------------------------------
+
+  var lastUploadAt = null;
+  var luaEl = document.getElementById("server-last-upload-at");
+  if (luaEl) {
+    try { lastUploadAt = JSON.parse(luaEl.textContent); } catch (_) { /* keep null */ }
+  }
+
+  function isStale(block) {
+    var ts = block.dataset.generatedAt;
+    return !!(ts && lastUploadAt && ts < lastUploadAt);
+  }
+
+  function recomputeRegenerateVisibility() {
+    var staleUntouchedIds = [];
+    var emptyUntouchedIds = [];
+    document.querySelectorAll("[data-suggestion-block]").forEach(function (block) {
+      var qid = block.dataset.questionId;
+      var btn = block.querySelector("[data-action='regenerate']");
+      var stale = isStale(block);
+      var untouched = !reviewState.get(qid);
+      var hasNoAnswer = block.dataset.hasAnswer === "false";
+      if (btn) btn.hidden = !stale;
+      if (stale && untouched) staleUntouchedIds.push(qid);
+      if (hasNoAnswer && untouched) emptyUntouchedIds.push(qid);
+    });
+
+    var bulkBtn = document.getElementById("regenerate-untouched-btn");
+    if (bulkBtn) {
+      bulkBtn.hidden = staleUntouchedIds.length === 0;
+      var countEl = bulkBtn.querySelector("[data-count]");
+      if (countEl) countEl.textContent = staleUntouchedIds.length;
+      bulkBtn.dataset.targetIds = staleUntouchedIds.join(",");
+    }
+
+    var emptyBtn = document.getElementById("regenerate-empty-btn");
+    if (emptyBtn) {
+      emptyBtn.hidden = emptyUntouchedIds.length === 0;
+      var emptyCountEl = emptyBtn.querySelector("[data-count]");
+      if (emptyCountEl) emptyCountEl.textContent = emptyUntouchedIds.length;
+      emptyBtn.dataset.targetIds = emptyUntouchedIds.join(",");
+    }
+  }
+
+  var knownDocsList = new Set();
+  // Seed from server-rendered rows so the first refresh doesn't flash everything.
+  (function () {
+    var listEl = document.getElementById("docs-list");
+    if (!listEl) return;
+    listEl.querySelectorAll("tr").forEach(function (row) {
+      var nameEl = row.querySelector("td .source-name") || row.querySelector("td");
+      if (nameEl) knownDocsList.add(nameEl.textContent.trim());
+    });
+  })();
+
+  function iconForKind(kind) {
+    if (kind === "web") return "🌐";
+    if (kind === "text") return "✍";
+    return "📄";
+  }
+
+  function renderDocsList(documents) {
+    var listEl = document.getElementById("docs-list");
+    var countEl = document.getElementById("docs-count");
+    if (!listEl) return;
+    if (countEl) countEl.textContent = documents.length;
+    if (documents.length === 0) {
+      knownDocsList = new Set();
+      listEl.innerHTML = '<p style="margin:0; color:var(--text-muted); font-style:italic; font-size:0.75rem;">No sources yet.</p>';
+      return;
+    }
+    var rows = documents.map(function (d) {
+      var chunks = d.chunk_count;
+      var label = chunks + " chunk" + (chunks === 1 ? "" : "s");
+      var name = (d.name || "").replace(/[<>&]/g, function (c) {
+        return { "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c];
+      });
+      var rowClass = knownDocsList.has(d.name) ? "" : "source-row-new";
+      return (
+        '<tr class="' + rowClass + '"><td style="padding:0.3rem 0.5rem 0.3rem 0;">' +
+        iconForKind(d.source_kind) + ' <span class="source-name">' + name + '</span>' +
+        '</td><td style="padding:0.3rem 0; text-align:right; color:var(--text-muted); white-space:nowrap;">' +
+        label +
+        '</td><td style="padding:0.3rem 0 0.3rem 0.5rem; text-align:right;">' +
+        '<button type="button" class="source-remove-btn" data-source-name="' + name + '" ' +
+        'aria-label="Remove ' + name + '" title="Remove" ' +
+        'style="background:none; border:0; cursor:pointer; color:var(--text-muted); font-size:0.85rem; padding:0 0.25rem;">' +
+        '✕</button></td></tr>'
+      );
+    });
+    listEl.innerHTML =
+      '<table style="width:100%; border-collapse:collapse;">' +
+      rows.join("") +
+      "</table>";
+    knownDocsList = new Set(documents.map(function (d) { return d.name; }));
+  }
+
+  function setAddedStatus(statusEl) {
+    if (!statusEl) return;
+    statusEl.innerHTML = '<span style="color:var(--success, #16a34a);">✓ Added</span>';
+  }
+
+  function refreshSessionStats() {
+    return fetch("/session/" + sessionId + "/stats", { credentials: "same-origin" })
+      .then(function (resp) {
+        if (!resp.ok) return null;
+        return resp.json();
+      })
+      .then(function (data) {
+        if (!data) return null;
+        if (data.last_upload_at) lastUploadAt = data.last_upload_at;
+        renderDocsList(data.documents || []);
+        recomputeRegenerateVisibility();
+        return data;
+      })
+      .catch(function () { /* best-effort */ return null; });
+  }
+
+  recomputeRegenerateVisibility();
+  document.body.addEventListener("htmx:oobAfterSwap", recomputeRegenerateVisibility);
+
+  window.refreshSessionStats = refreshSessionStats;
+
+  // ---- Per-row source remove ----
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest(".source-remove-btn");
+    if (!btn) return;
+    e.preventDefault();
+    var name = btn.dataset.sourceName;
+    if (!name) return;
+    if (!window.confirm("Remove «" + name + "» from your sources?")) return;
+    btn.disabled = true;
+    fetch("/session/" + sessionId + "/documents/" + encodeURIComponent(name), {
+      method: "DELETE",
+      credentials: "same-origin",
+    })
+      .then(function (resp) {
+        if (resp.ok || resp.status === 404) {
+          refreshSessionStats();
+        } else {
+          btn.disabled = false;
+          alert("Could not remove source (HTTP " + resp.status + ")");
+        }
+      })
+      .catch(function () {
+        btn.disabled = false;
+        alert("Network error while removing source");
+      });
+  });
+
+  // ---- Mid-review upload forms (files + text, parallel) ----
+
+  var baseUrl = "/session/" + sessionId;
+
+  var fileForm = document.getElementById("late-file-form");
+  if (fileForm) {
+    fileForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var statusEl = document.getElementById("late-file-status");
+      var fileInput = document.getElementById("late-upload-files");
+      var submitBtn = fileForm.querySelector("button[type='submit']");
+      var files = fileInput ? Array.from(fileInput.files) : [];
+      if (files.length === 0) {
+        statusEl.textContent = "Choose a file first.";
+        return;
+      }
+      submitBtn.disabled = true;
+      statusEl.textContent = "Uploading…";
+      var errors = [];
+
+      function uploadFile(i) {
+        if (i >= files.length) return Promise.resolve();
+        var f = files[i];
+        var fd = new FormData();
+        fd.append("file", f);
+        return fetch(baseUrl + "/upload-doc", { method: "POST", body: fd, credentials: "same-origin" })
+          .then(function (resp) {
+            if (!resp.ok) {
+              return resp.json().then(function (data) {
+                errors.push(f.name + ": " + (data.error || "Upload failed"));
+              }, function () { errors.push(f.name + ": Upload failed"); });
+            }
+          })
+          .catch(function () { errors.push(f.name + ": Upload failed (network error)"); })
+          .then(function () { return uploadFile(i + 1); });
+      }
+
+      uploadFile(0).then(function () {
+        var anySuccess = errors.length < files.length;
+        var done = anySuccess ? refreshSessionStats() : Promise.resolve(null);
+        return done.then(function () {
+          if (anySuccess && fileInput) fileInput.value = "";
+          if (errors.length) {
+            statusEl.textContent = errors.join("; ");
+          } else {
+            setAddedStatus(statusEl);
+          }
+          submitBtn.disabled = false;
+        });
+      });
+    });
+  }
+
+  var textForm = document.getElementById("late-text-form");
+  if (textForm) {
+    textForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var statusEl = document.getElementById("late-text-status");
+      var textArea = document.getElementById("late-upload-text");
+      var labelInput = document.getElementById("late-upload-label");
+      var submitBtn = textForm.querySelector("button[type='submit']");
+      var text = textArea ? textArea.value.trim() : "";
+      var label = labelInput ? labelInput.value.trim() : "";
+      if (!text) {
+        statusEl.textContent = "Paste some text first.";
+        return;
+      }
+      submitBtn.disabled = true;
+      statusEl.textContent = "Uploading…";
+
+      fetch(baseUrl + "/upload-text-snippet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text, label: label || null }),
+        credentials: "same-origin"
+      })
+        .then(function (resp) {
+          if (resp.ok) {
+            if (textArea) textArea.value = "";
+            if (labelInput) labelInput.value = "";
+            return refreshSessionStats().then(function () {
+              setAddedStatus(statusEl);
+            });
+          }
+          return resp.json().then(function (data) {
+            statusEl.textContent = (label || "pasted text") + ": " + (data.error || "Upload failed");
+          }, function () {
+            statusEl.textContent = (label || "pasted text") + ": Upload failed";
+          });
+        })
+        .catch(function () {
+          statusEl.textContent = (label || "pasted text") + ": Upload failed (network error)";
+        })
+        .finally(function () {
+          submitBtn.disabled = false;
+        });
+    });
+  }
+
+  // ---- Regenerate buttons (per-question + bulk) ----
+  //
+  // While a regenerate stream is in flight, each affected block hides its
+  // Regenerate button and shows an inline spinner. On `suggestion` arrival the
+  // whole block is replaced (the new partial's spinner is hidden by default).
+  // On close, any leftover spinners (ids that didn't get a response) are
+  // cleared, and `recomputeRegenerateVisibility()` re-evaluates which buttons
+  // should be visible.
+
+  function setRegeneratePending(ids, pending) {
+    (ids || []).forEach(function (id) {
+      var block = document.getElementById("sug-" + id);
+      if (!block) return;
+      var btn = block.querySelector("[data-action='regenerate']");
+      var spinner = block.querySelector("[data-role='regenerate-spinner']");
+      if (pending) {
+        if (btn) btn.hidden = true;
+        if (spinner) spinner.hidden = false;
+      } else {
+        if (spinner) spinner.hidden = true;
+      }
+    });
+  }
+
+  function openRegenerateStream(ids, onComplete) {
+    var idList = Array.isArray(ids) ? ids.slice() : (ids ? [ids] : []);
+    var url = "/session/" + sessionId + "/regenerate-stream";
+    if (idList.length) url += "?ids=" + encodeURIComponent(idList.join(","));
+    var pending = new Set(idList);
+    setRegeneratePending(idList, true);
+    var src = new EventSource(url);
+    function close() {
+      try { src.close(); } catch (_) {}
+      setRegeneratePending(Array.from(pending), false);
+      recomputeRegenerateVisibility();
+      if (onComplete) onComplete();
+    }
+    src.addEventListener("done", close);
+    src.addEventListener("error", close);
+    src.addEventListener("suggestion", function (e) {
+      var html = e.data;
+      var tmp = document.createElement("div");
+      tmp.innerHTML = html;
+      var fresh = tmp.firstElementChild;
+      if (!fresh || !fresh.id) return;
+      var existing = document.getElementById(fresh.id);
+      if (existing) existing.replaceWith(fresh);
+      pending.delete(fresh.id.replace(/^sug-/, ""));
+      reviewState.restoreAll();
+      recomputeRegenerateVisibility();
+      enableAcceptAllIfReady();
+    });
+    return src;
+  }
+
+  document.addEventListener("click", function (e) {
+    var regenBtn = e.target.closest("[data-action='regenerate']");
+    if (!regenBtn) return;
+    var block = regenBtn.closest("[data-suggestion-block]");
+    if (!block) return;
+    openRegenerateStream([block.dataset.questionId]);
+  });
+
+  function wireBulkButton(btn, confirmTemplate) {
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      var idsCsv = btn.dataset.targetIds || "";
+      var idList = idsCsv ? idsCsv.split(",") : [];
+      if (idList.length === 0) return;
+      var n = idList.length;
+      var msg = confirmTemplate
+        .replace("{n}", n)
+        .replace("{s}", n === 1 ? "" : "s");
+      if (!window.confirm(msg)) return;
+      btn.disabled = true;
+      openRegenerateStream(idList, function () { btn.disabled = false; });
+    });
+  }
+
+  wireBulkButton(
+    document.getElementById("regenerate-untouched-btn"),
+    "Regenerate {n} suggestion{s}? This may take a while."
+  );
+  wireBulkButton(
+    document.getElementById("regenerate-empty-btn"),
+    "Re-try {n} empty answer{s}? This may take a while."
+  );
 });

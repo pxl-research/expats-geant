@@ -1,6 +1,7 @@
 """Tests for per-session answer_report.json persistence and download endpoint."""
 
 import json
+from datetime import datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -282,6 +283,64 @@ class TestSuggestionCacheCreated:
         assert sug["suggestion"] == "Yes."
         assert sug["reasoning"] == "Found evidence."
         assert isinstance(sug["citations"], list)
+
+    def test_cache_round_trips_generated_at(
+        self, client, auth_token, tmp_path, session_manager, mock_llm
+    ):
+        session = _seed_doc(tmp_path, session_manager, auth_token)
+        mock_llm.create_completion.return_value = '{"answer": "A.", "reasoning": "R."}'
+
+        resp = client.post(
+            "/suggest/batch",
+            json={
+                "assessment_id": "test",
+                "items": [{"id": "q1", "type": "open_ended", "prompt": "Q?", "choices": []}],
+            },
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+        assert resp.status_code == 200
+
+        cache_path = (
+            session_manager._get_session_path(session.session_id) / "cached_suggestions.json"
+        )
+        cache = json.loads(cache_path.read_text())
+        generated_at = cache["q1"]["generated_at"]
+        assert isinstance(generated_at, str) and generated_at
+        datetime.fromisoformat(generated_at)
+
+        resp2 = client.get("/cached-suggestions", headers={"Authorization": f"Bearer {auth_token}"})
+        assert resp2.json()["suggestions"]["q1"]["generated_at"] == generated_at
+
+    def test_upload_leaves_cache_file_untouched(
+        self, client, auth_token, tmp_path, session_manager, mock_llm
+    ):
+        """Document uploads must NOT invalidate the cache — that's the explicit
+        user action of clicking Regenerate. Uploads only add chunks to the store.
+        """
+        session = _seed_doc(tmp_path, session_manager, auth_token)
+        mock_llm.create_completion.return_value = '{"answer": "A.", "reasoning": "R."}'
+        client.post(
+            "/suggest/batch",
+            json={
+                "assessment_id": "t",
+                "items": [{"id": "q1", "type": "open_ended", "prompt": "Q?", "choices": []}],
+            },
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+        cache_path = (
+            session_manager._get_session_path(session.session_id) / "cached_suggestions.json"
+        )
+        snapshot = cache_path.read_bytes()
+
+        new_doc = tmp_path / "extra.txt"
+        new_doc.write_text("New evidence after the user had already started review.")
+        resp = client.post(
+            "/upload",
+            files={"file": ("extra.txt", new_doc.read_bytes(), "text/plain")},
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+        assert resp.status_code == 200
+        assert cache_path.read_bytes() == snapshot
 
     def test_cache_accumulates_across_batches(
         self, client, auth_token, tmp_path, session_manager, mock_llm

@@ -432,6 +432,71 @@ class TestSessionStats:
 
         assert stats["document_count"] == 2
 
+    def test_documents_include_source_kind_and_mime_when_present(self, tmp_path):
+        """source_kind / source_mime flow through from chunk metadata."""
+        manager = SessionManager(base_path=str(tmp_path))
+        session = manager.create_session(user_id="user_123")
+        store = manager.get_vector_store(session.session_id)
+        store.add_document(
+            "doc_pdf",
+            ["chunk"],
+            [{"source": "doc.pdf", "source_kind": "file", "source_mime": "application/pdf"}],
+        )
+
+        stats = manager.get_session_stats(session.session_id)
+
+        assert len(stats["documents"]) == 1
+        doc = stats["documents"][0]
+        assert doc["source_kind"] == "file"
+        assert doc["source_mime"] == "application/pdf"
+
+    def test_documents_default_to_none_for_legacy_chunks(self, tmp_path):
+        """Chunks ingested without source_kind / source_mime round-trip as None."""
+        manager = SessionManager(base_path=str(tmp_path))
+        session = manager.create_session(user_id="user_123")
+        store = manager.get_vector_store(session.session_id)
+        store.add_document("legacy", ["chunk"], [{"source": "legacy"}])
+
+        stats = manager.get_session_stats(session.session_id)
+
+        assert len(stats["documents"]) == 1
+        doc = stats["documents"][0]
+        assert doc["source_kind"] is None
+        assert doc["source_mime"] is None
+
+    def test_last_upload_at_none_for_empty_session(self, tmp_path):
+        manager = SessionManager(base_path=str(tmp_path))
+        session = manager.create_session(user_id="user_123")
+        stats = manager.get_session_stats(session.session_id)
+        assert stats["last_upload_at"] is None
+
+    def test_last_upload_at_reflects_ingested_chunk(self, tmp_path):
+        from datetime import UTC, datetime
+
+        manager = SessionManager(base_path=str(tmp_path))
+        session = manager.create_session(user_id="user_123")
+        store = manager.get_vector_store(session.session_id)
+        ts = 1_700_000_000.5
+        store.add_document("doc1", ["chunk1"], [{"source": "doc1", "ingested_at": ts}])
+
+        stats = manager.get_session_stats(session.session_id)
+
+        assert stats["last_upload_at"] == datetime.fromtimestamp(ts, tz=UTC).isoformat()
+
+    def test_last_upload_at_returns_maximum_across_documents(self, tmp_path):
+        from datetime import UTC, datetime
+
+        manager = SessionManager(base_path=str(tmp_path))
+        session = manager.create_session(user_id="user_123")
+        store = manager.get_vector_store(session.session_id)
+        earlier, later = 1_700_000_000.0, 1_700_001_000.0
+        store.add_document("doc1", ["c1"], [{"source": "doc1", "ingested_at": earlier}])
+        store.add_document("doc2", ["c2"], [{"source": "doc2", "ingested_at": later}])
+
+        stats = manager.get_session_stats(session.session_id)
+
+        assert stats["last_upload_at"] == datetime.fromtimestamp(later, tz=UTC).isoformat()
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

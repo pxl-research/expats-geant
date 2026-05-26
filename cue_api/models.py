@@ -131,6 +131,10 @@ class ItemSuggestion(BaseModel):
     citations: list[CitationResult] = Field(
         default_factory=list, description="Source citations for this suggestion"
     )
+    generated_at: str | None = Field(
+        default=None,
+        description="ISO 8601 timestamp when this item was generated. None on legacy cached entries.",
+    )
 
 
 class BatchSuggestResponse(BaseModel):
@@ -165,6 +169,14 @@ class DocumentInfo(BaseModel):
 
     name: str
     chunk_count: int
+    source_kind: str | None = Field(
+        default=None,
+        description='Origin of the source: "file", "web", or "text". Null for chunks ingested before this field was tracked.',
+    )
+    source_mime: str | None = Field(
+        default=None,
+        description="MIME type of the original content (e.g. application/pdf, text/html). Null for chunks ingested before this field was tracked.",
+    )
 
 
 class SessionStatsResponse(BaseModel):
@@ -179,6 +191,18 @@ class SessionStatsResponse(BaseModel):
     document_count: int
     documents: list[DocumentInfo] = Field(default_factory=list)
     isolation_scope: str
+    last_upload_at: str | None = Field(
+        default=None,
+        description="ISO 8601 timestamp of the most recent document or text-snippet ingestion (null if none).",
+    )
+    web_ingest_enabled: bool = Field(
+        default=False,
+        description="Whether the deployment has enabled URL-based ingestion (operator gate).",
+    )
+    web_consent: bool = Field(
+        default=False,
+        description="Whether the session has granted consent for server-side URL fetches.",
+    )
 
 
 class SessionDeleteResponse(BaseModel):
@@ -187,6 +211,13 @@ class SessionDeleteResponse(BaseModel):
     session_id: str
     deleted: bool
     message: str
+
+
+class RemoveSourceResponse(BaseModel):
+    """Response for DELETE /session/documents/{name}."""
+
+    status: str = Field(..., description='Always "ok" on success.')
+    name: str = Field(..., description="Sanitised source name that was removed.")
 
 
 class AuditDeleteResponse(BaseModel):
@@ -233,6 +264,50 @@ class ReviewStateResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Session management
 # ---------------------------------------------------------------------------
+
+
+class WebPreviewRequest(BaseModel):
+    """Request body for /web/preview and /web/ingest."""
+
+    url: str = Field(..., min_length=1, max_length=4096, description="URL to fetch")
+
+
+class WebPreviewResponse(BaseModel):
+    """Result of fetching a URL without committing chunks."""
+
+    initial_url: str = Field(..., description="URL the user submitted")
+    final_url: str = Field(..., description="URL after redirects")
+    hostname: str = Field(..., description="Hostname of the final URL")
+    title: str | None = Field(default=None, description="Page title (HTML only)")
+    content_type: str = Field(..., description="Response Content-Type, lowercased")
+    extracted_chars: int = Field(..., description="Length of extracted text")
+    preview_text: str = Field(..., description="First 500 characters of extracted text")
+    warnings: list[str] = Field(default_factory=list, description="Warning flags")
+    already_ingested_at: str | None = Field(
+        default=None,
+        description="ISO 8601 timestamp of a prior ingest of this URL in the session.",
+    )
+    source_label: str = Field(..., description="Display label derived for the source")
+
+
+class WebIngestResponse(BaseModel):
+    """Result of ingesting a previously-previewed URL."""
+
+    status: str = Field(default="success")
+    source: str = Field(..., description="Collection / source name written")
+    source_url: str = Field(..., description="Canonical URL after redirect resolution")
+
+
+class WebConsentRequest(BaseModel):
+    """Request body for PUT /session/web-consent."""
+
+    enabled: bool = Field(..., description="Grant or revoke web-source consent for the session")
+
+
+class WebConsentResponse(BaseModel):
+    """Response carrying the current web-consent flag."""
+
+    web_consent: bool
 
 
 class SessionListItem(BaseModel):

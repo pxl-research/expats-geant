@@ -3,7 +3,14 @@
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import PlainTextResponse
 
-from cue_api.models import SessionDeleteResponse, SessionStatsResponse
+from cue_api.models import (
+    RemoveSourceResponse,
+    SessionDeleteResponse,
+    SessionStatsResponse,
+    WebConsentRequest,
+    WebConsentResponse,
+)
+from m_shared.vectordb.utils import clean_up_string
 
 router = APIRouter()
 
@@ -53,7 +60,20 @@ async def get_session_stats(request: Request):
     if not stats:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
+    stats["web_ingest_enabled"] = bool(getattr(request.app.state, "web_ingest_enabled", False))
+    stats["web_consent"] = bool(session.metadata.get("web_consent", False))
+
     return SessionStatsResponse(**stats)
+
+
+@router.put("/session/web-consent", response_model=WebConsentResponse)
+async def set_web_consent(request: Request, body: WebConsentRequest):
+    """Grant or revoke per-session consent for server-side URL fetches."""
+    session = request.state.session
+    manager = request.state.session_manager
+    session.metadata["web_consent"] = bool(body.enabled)
+    manager._save_session_metadata(session)
+    return WebConsentResponse(web_consent=bool(session.metadata["web_consent"]))
 
 
 @router.delete("/session", response_model=SessionDeleteResponse)
@@ -76,6 +96,68 @@ async def delete_session(request: Request):
             deleted=False,
             message="Session does not exist or was already deleted",
         )
+
+
+@router.delete("/session/documents/{name}", response_model=RemoveSourceResponse)
+async def remove_session_document(request: Request, name: str):
+    """Remove a single source (collection) from the current session.
+
+    The path parameter is sanitised through the same helper used at ingest time;
+    the resulting collection name is looked up in the session's vector store and
+    deleted entirely. Idempotent: a second call for the same name returns 404.
+    Cached suggestions citing the removed source are left untouched by design —
+    users refresh via the existing Regenerate path if they want suggestions
+    recomputed against the trimmed source set.
+    """
+    session = request.state.session
+    claims = getattr(request.state, "claims", {}) or {}
+    manager = request.state.session_manager
+    audit_logger = getattr(request.app.state, "audit_logger", None)
+
+    collection_name = clean_up_string(name)
+    if not collection_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Empty or invalid source name",
+        )
+
+    try:
+        store = manager.get_vector_store(session.session_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found or expired",
+        ) from exc
+
+    if collection_name not in set(store.list_documents()):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Source {name!r} not found in this session",
+        )
+
+    source_kind: str | None = None
+    source_mime: str | None = None
+    try:
+        col = store.cdb_client.get_collection(collection_name)
+        metadatas = col.get(include=["metadatas"]).get("metadatas") or []
+        first_meta = next((m for m in metadatas if m), {}) or {}
+        source_kind = first_meta.get("source_kind")
+        source_mime = first_meta.get("source_mime")
+    except Exception:  # noqa: S110 - best-effort provenance capture
+        pass
+
+    store.remove_document(collection_name)
+
+    if audit_logger:
+        audit_logger.log_source_removed(
+            session_id=session.session_id,
+            name=collection_name,
+            source_kind=source_kind,
+            source_mime=source_mime,
+            user_id=claims.get("user_id"),
+        )
+
+    return RemoveSourceResponse(status="ok", name=collection_name)
 
 
 @router.get("/privacy", response_class=PlainTextResponse)

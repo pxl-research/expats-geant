@@ -2,57 +2,107 @@
 {% block title %}Upload Documents — Cue{% endblock %}
 {% block content %}
 
-<h1>Upload Source Documents</h1>
+<h1>Add Source Documents</h1>
 <p style="margin-bottom:1.5rem;">
-  Optionally upload PDFs, Word files, or text documents to improve suggestion quality.
-  The files are forwarded directly to the AI pipeline — no content is stored in this interface.
+  Optionally add sources to improve suggestion quality. Files and URLs are
+  forwarded directly to the AI pipeline — no content is stored in this interface.
 </p>
 
 {% if warning %}
 <div class="alert alert-warning">⚠️ {{ warning }}</div>
 {% endif %}
 
-{% if file_errors %}
-<div class="alert alert-error">
-  <strong>Some files could not be uploaded:</strong>
-  <ul style="margin-top:0.5rem; padding-left:1.25rem;">
-    {% for err in file_errors %}
-    <li><strong>{{ err.filename }}</strong>: {{ err.error }}</li>
-    {% endfor %}
-  </ul>
-</div>
-{% endif %}
+<div id="add-source-errors" hidden></div>
 
-<div class="card">
-  <h2>Select Documents</h2>
-  <form method="post" action="/session/{{ session_id }}/documents" enctype="multipart/form-data"
-        data-session-id="{{ session_id }}">
-    <div style="margin-bottom:1rem;">
-      <label for="files">Documents (PDF, DOCX, PPTX, TXT, MD, XLS/XLSX, images)</label>
-      <input type="file" id="files" name="files" multiple
-             accept=".pdf,.docx,.txt,.md,.pptx,.xlsx,.xls,.jpg,.jpeg,.png,.gif,.webp">
-    </div>
-    <div style="margin-bottom:1rem;">
-      <label for="text-snippet">Paste text (optional)</label>
-      <textarea id="text-snippet" name="text" rows="5"
-                style="width:100%; font-size:0.9rem;"
-                placeholder="Paste personal context, CV, or relevant notes here…"></textarea>
-    </div>
-    <div style="margin-bottom:1rem;">
-      <label for="text-label">Label (optional)</label>
-      <input type="text" id="text-label" name="text_label"
-             placeholder="e.g. My CV, Project notes">
-    </div>
-    <div style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center;">
-      <button type="submit" class="btn btn-primary" id="upload-btn">Upload &amp; Continue</button>
-      <a href="/session/{{ session_id }}/review" class="btn btn-ghost" id="skip-btn">Skip</a>
-      <span id="upload-progress" style="display:none; font-size:0.875rem; color:var(--text-muted); font-style:italic;">
-        Uploading and indexing documents…
-      </span>
+<!-- Card 1: Files -->
+<div class="card" data-session-id="{{ session_id }}" style="margin-bottom:1rem;">
+  <h2>Files</h2>
+  <p style="margin-bottom:0.75rem; color:var(--text-muted); font-size:0.9rem;">
+    PDF, DOCX, PPTX, TXT, MD, XLS/XLSX, or images.
+  </p>
+  <form id="file-card-form" style="display:flex; flex-direction:column; gap:0.75rem;">
+    <input type="file" id="files" multiple
+           accept=".pdf,.docx,.txt,.md,.pptx,.xlsx,.xls,.jpg,.jpeg,.png,.gif,.webp">
+    <div style="display:flex; gap:0.75rem; align-items:center; justify-content:flex-end;">
+      <span id="file-add-status" style="font-size:0.85rem; color:var(--text-muted); margin-right:auto;"></span>
+      <button type="submit" class="btn btn-primary" id="file-add-btn">Add files</button>
     </div>
   </form>
 </div>
 
+{% if web_ingest_enabled %}
+<!-- Card 2: Web source -->
+<div class="card" id="web-source-panel" data-session-id="{{ session_id }}" style="margin-bottom:1rem;">
+  <h2>Add a Web Source</h2>
+  <p style="margin-bottom:0.75rem; font-size:0.9rem; color:var(--text-muted);">
+    Paste a URL to a public page (article, regulation, policy doc, online PDF). The
+    server fetches it once and shows you what was extracted before any content is stored.
+  </p>
+  <label style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.75rem; font-size:0.85rem;">
+    <input type="checkbox" id="web-consent-toggle" {% if web_consent %}checked{% endif %}>
+    <span>Allow web sources — URLs are fetched by the server and recorded in your audit report.</span>
+  </label>
+  <form id="web-url-form" style="display:flex; gap:0.5rem; align-items:center; justify-content:flex-end;">
+    <input type="url" id="web-url-input"
+           placeholder="https://example.com/article"
+           {% if not web_consent %}disabled{% endif %}
+           style="flex:1 1 auto;">
+    <button type="submit" class="btn btn-primary" id="web-url-preview-btn"
+            {% if not web_consent %}disabled{% endif %}>Preview</button>
+  </form>
+  <div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.4rem;">
+    <span id="web-url-status" style="font-size:0.85rem; color:var(--text-muted); margin-right:auto;"></span>
+  </div>
+  <div id="web-preview-container" hidden style="margin-top:0.75rem;"></div>
+</div>
+{% endif %}
+
+<!-- Card 3: Paste text -->
+<div class="card" data-session-id="{{ session_id }}" style="margin-bottom:1rem;">
+  <h2>Paste Text</h2>
+  <p style="margin-bottom:0.75rem; color:var(--text-muted); font-size:0.9rem;">
+    For leftovers — anything that doesn't fit the formats above. Personal context,
+    CV excerpts, notes pasted from email.
+  </p>
+  <form id="text-card-form" style="display:flex; flex-direction:column; gap:0.75rem;">
+    <textarea id="text-snippet" rows="5"
+              style="width:100%; font-size:0.9rem;"
+              placeholder="Paste personal context, CV, or relevant notes here…"></textarea>
+    <input type="text" id="text-label" placeholder="Label (optional) — e.g. My CV">
+    <div style="display:flex; gap:0.75rem; align-items:center; justify-content:flex-end;">
+      <span id="text-add-status" style="font-size:0.85rem; color:var(--text-muted); margin-right:auto;"></span>
+      <button type="submit" class="btn btn-primary" id="text-add-btn">Add text</button>
+    </div>
+  </form>
+</div>
+
+<!-- Card 4: Sources + Continue -->
+<div class="card" id="sources-card" data-session-id="{{ session_id }}" style="margin-bottom:1rem;">
+  <h2>Your Sources (<span id="docs-count">{{ documents | length }}</span>)</h2>
+  <div id="docs-list" style="margin-bottom:1rem;">
+    {% if documents %}
+    <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+      {% for doc in documents %}
+      <tr>
+        <td style="padding:0.4rem 0.5rem 0.4rem 0;">{% if doc.source_kind == 'web' %}🌐{% elif doc.source_kind == 'text' %}✍{% else %}📄{% endif %} <span class="source-name">{{ doc.name }}</span></td>
+        <td style="padding:0.4rem 0; text-align:right; color:var(--text-muted); white-space:nowrap;">{{ doc.chunk_count }} chunk{{ 's' if doc.chunk_count != 1 }}</td>
+        <td style="padding:0.4rem 0 0.4rem 0.5rem; text-align:right;"><button type="button" class="source-remove-btn" data-source-name="{{ doc.name }}" aria-label="Remove {{ doc.name }}" title="Remove" style="background:none; border:0; cursor:pointer; color:var(--text-muted); font-size:0.9rem; padding:0 0.25rem;">✕</button></td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <p style="margin:0; color:var(--text-muted); font-size:0.9rem; font-style:italic;">
+      No sources yet. Add files, a URL, or paste text above — or continue without any.
+    </p>
+    {% endif %}
+  </div>
+  <div style="display:flex; gap:0.75rem; align-items:center; justify-content:flex-end;">
+    <span id="continue-hint" hidden style="font-size:0.85rem; color:var(--text-muted); margin-right:auto;">Finishing current upload…</span>
+    <a href="/session/{{ session_id }}/review" class="btn btn-primary" id="continue-btn">Continue</a>
+  </div>
+</div>
+
 <script src="/static/documents.js"></script>
+{% if web_ingest_enabled %}<script src="/static/web.js"></script>{% endif %}
 
 {% endblock %}

@@ -49,6 +49,8 @@ Coverage threshold: `--cov-fail-under=80` (configured in `pyproject.toml` / `set
 | `test_answer_report.py` | Per-session `answer_report.json` persistence, download endpoint, and suggestion caching |
 | `test_autofill_suggest_stream.py` | `POST /suggest/stream` SSE endpoint: event format, done sentinel, mid-stream error handling |
 | `test_review_state.py` | Server-side review state: PUT/GET endpoints, overwrite, cleanup, auth, answer report enrichment, cached suggestions |
+| `test_web_fetch.py` | URL fetch + content-type routing: Trafilatura HTML extraction, MarkItDown fallbacks, redirect/timeout/oversize handling, normalisation, preview cache |
+| `test_web_routes.py` | `/web/preview` + `/web/ingest` + `PUT /session/web-consent`: two-layer gate, preview→ingest, overwrite-on-re-ingest, `WEB_FETCH` audit emission |
 
 ### Shape (`shape_api/`)
 

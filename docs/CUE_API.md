@@ -463,6 +463,76 @@ Content-Type: multipart/form-data
 file: <document.pdf>
 ```
 
+#### Add Web Source (URL)
+
+Two-step preview/ingest flow. Disabled by default — operator must set
+`CUE_WEB_INGEST_ENABLED=true` AND the respondent must grant per-session consent
+via `PUT /session/web-consent` first. Both endpoints return HTTP 403 otherwise.
+
+```bash
+POST /web/preview
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{ "url": "https://example.com/article" }
+```
+
+Response:
+
+```json
+{
+  "initial_url": "https://example.com/article",
+  "final_url": "https://example.com/article",
+  "hostname": "example.com",
+  "title": "Article Title",
+  "content_type": "text/html",
+  "extracted_chars": 1820,
+  "preview_text": "First 500 characters of the extracted content...",
+  "warnings": [],
+  "already_ingested_at": null,
+  "source_label": "Article Title"
+}
+```
+
+The fetched content is **not** stored yet. Confirm with:
+
+```bash
+POST /web/ingest
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{ "url": "https://example.com/article" }
+```
+
+Behaviour:
+
+- `text/html` → extracted with Trafilatura (precision-favouring, markdown).
+- `application/pdf`, `.docx`, `.pptx`, `.xlsx`, `text/plain`, `text/markdown`
+  → routed through the same MarkItDown path used for file uploads.
+- Other content types → HTTP 415 with the list of accepted types.
+- Re-ingesting the same URL **overwrites** prior chunks for that source
+  (audit log retains both fetch events).
+- Fetch is hardened: 10 s timeout, max 5 redirects, no retries, polite
+  `User-Agent`, response body size capped by `MAX_FILE_SIZE_MB`.
+- Audit log records one `WEB_FETCH` event per call (`ingested=false` for
+  preview, `true` for ingest), including `final_url`, `content_type`,
+  `extracted_chars`, and a `likely_js_rendered` heuristic flag.
+
+#### Per-Session Web Consent
+
+```bash
+PUT /session/web-consent
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{ "enabled": true }
+```
+
+Toggles the session-level `web_consent` flag. While `false`, `POST /web/preview`
+and `POST /web/ingest` return HTTP 403 even if `CUE_WEB_INGEST_ENABLED=true`.
+The current value is also returned in `GET /session/stats` as `web_consent`,
+alongside `web_ingest_enabled` (the deployment-wide operator flag).
+
 #### Get Answer Suggestions
 
 Submit one or more questions in a single request. Use a flat `items` list for a single question, or group related questions into `sections` to share context. Questions in the same section share LLM context, improving suggestion quality.
@@ -566,6 +636,11 @@ A flat `items` list (no `sections`) is also accepted — items are treated as a 
 | `selected_ids` | list \| null | Matched choice ids for `multiple_choice`; null if uncertain |
 | `reasoning` | string \| null | LLM explanation of confidence or uncertainty; null if straightforward |
 | `citations[].position` | float | Normalised document position (0.0–1.0) |
+| `generated_at` | string \| null | ISO 8601 timestamp of when this item was generated. Null on cached entries that predate this field. |
+
+> Re-POSTing `/suggest/stream` (or `/suggest/batch`) for an item ID overwrites its
+> entry in `cached_suggestions.json` — the server-side cache is an upsert keyed by
+> item ID. The UI relies on this to refresh a single suggestion after a late upload.
 
 > **Input format** is inspired by [QTI 3.0](https://www.imsglobal.org/spec/qti/v3p0/impl) (IMS Global). Supported types: `open_ended`, `single_choice`, `multiple_choice`, `ranking`, `slider`. See `openspec/specs/interchange-formats/` for full standards alignment documentation.
 
@@ -731,9 +806,41 @@ Authorization: Bearer <token>
   "remaining_hours": 22.5,
   "is_expired": false,
   "document_count": 3,
-  "isolation_scope": "user"
+  "documents": [
+    {
+      "name": "regulation_2024.pdf",
+      "chunk_count": 12,
+      "source_kind": "file",
+      "source_mime": "application/pdf"
+    },
+    {
+      "name": "EU AI Act overview",
+      "chunk_count": 4,
+      "source_kind": "web",
+      "source_mime": "text/html"
+    },
+    {
+      "name": "Notes",
+      "chunk_count": 1,
+      "source_kind": "text",
+      "source_mime": "text/plain"
+    }
+  ],
+  "isolation_scope": "user",
+  "last_upload_at": "2026-01-13T11:42:18+00:00"
 }
 ```
+
+`last_upload_at` is the ISO 8601 timestamp of the most recent document or
+text-snippet ingestion in the session, derived from chunk metadata. It is
+`null` when no document has been ingested yet. Clients can compare it against
+`ItemSuggestion.generated_at` to decide whether a cached suggestion is stale
+relative to the latest evidence.
+
+Each item in `documents` carries `source_kind` (`"file"`, `"web"`, or `"text"`)
+and `source_mime` (the original MIME type, e.g. `application/pdf`,
+`text/html`). Both fields are optional and round-trip as `null` for chunks
+ingested before this metadata was tracked.
 
 #### Download Audit Report
 
@@ -748,6 +855,43 @@ Authorization: Bearer <token>
 DELETE /session
 Authorization: Bearer <token>
 ```
+
+#### Remove a Single Source
+
+```bash
+DELETE /session/documents/{name}
+Authorization: Bearer <token>
+```
+
+Removes one ingested source (file, web URL, or pasted snippet) from the
+current session's vector store. The path parameter is the source's
+display name as returned by `GET /session/stats` under `documents[].name`;
+it is re-sanitised server-side before lookup.
+
+**Response (200):**
+
+```json
+{"status": "ok", "name": "regulation-2024"}
+```
+
+**Response (404):** the named source does not exist in the session.
+The operation is idempotent — repeating the call returns 404 again with
+no side effects.
+
+A `SOURCE_REMOVED` audit event is emitted on success (see audit event
+types below). **Cached suggestions citing the removed source are
+intentionally left untouched** so review state (edits, accepts,
+dismissals) and citation footers remain truthful about the evidence
+available at suggestion-generation time. Use the existing per-question
+**Regenerate** or bulk **Regenerate untouched** buttons to refresh
+suggestions against the trimmed source set.
+
+#### Audit Event Types
+
+`UPLOAD`, `SUGGEST`, `EDIT_SUGGESTION`, `SESSION_START`, `SESSION_END`,
+`CONSENT_ACCEPTED`, `WEB_FETCH`, `SOURCE_REMOVED`. The `SOURCE_REMOVED`
+event records `name`, `source_kind`, and `source_mime` for the removed
+collection.
 
 ---
 

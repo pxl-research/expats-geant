@@ -182,6 +182,7 @@ def execute_chat_turn(
 
     loaded_via_tool = False
     final_content = ""
+    final_finish_reason: str | None = None
     hit_cap = False
 
     for iteration in range(1, MAX_TOOL_CALL_ITERATIONS + 1):
@@ -191,6 +192,7 @@ def execute_chat_turn(
         )
         if not result.tool_calls:
             final_content = result.content or ""
+            final_finish_reason = result.finish_reason
             break
 
         _append_assistant_tool_call_message(messages, result)
@@ -209,6 +211,7 @@ def execute_chat_turn(
     else:
         hit_cap = True
         final_content = result.content or ""
+        final_finish_reason = result.finish_reason
         _LOGGER.warning(
             "tool_loop_cap_hit session_id=%s iterations=%d",
             session_id,
@@ -220,6 +223,17 @@ def execute_chat_turn(
         text = (
             "I wasn't able to complete that within the allowed tool-call budget. "
             "Could you try rephrasing or breaking the change into smaller steps?"
+        )
+
+    if survey_dict is None and final_finish_reason == "length":
+        _LOGGER.warning(
+            "chat_turn_output_truncated session_id=%s has_open_tag=%s",
+            session_id,
+            "<survey_update>" in final_content,
+        )
+        text = (
+            "The updated survey was too large to fit in a single response. "
+            "Please ask for the change in smaller steps, or split the survey into more sections."
         )
 
     survey_updated = False

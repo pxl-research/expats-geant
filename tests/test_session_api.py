@@ -221,6 +221,215 @@ class TestSessionEndpoints:
         assert data["deleted"] is True
 
 
+class TestRemoveSessionDocument:
+    """Tests for DELETE /session/documents/{name}."""
+
+    @pytest.fixture
+    def audit_client(self, session_manager):
+        """Test client whose app has an audit_logger wired through so we can verify events."""
+        app = create_app(session_manager, audit_logger=session_manager.audit_logger)
+        app.add_middleware(SessionMiddleware, session_manager=session_manager, ttl_hours=24)
+        return TestClient(app, raise_server_exceptions=True)
+
+    def _upload_text_file(self, client, token, tmp_path, name="notes.txt", content="Hello world."):
+        """Seed a session with a text file source."""
+        test_file = tmp_path / name
+        test_file.write_text(content)
+        with open(test_file, "rb") as f:
+            resp = client.post(
+                "/upload",
+                headers={"Authorization": f"Bearer {token}"},
+                files={"file": (name, f, "text/plain")},
+            )
+        assert resp.status_code == 200, resp.text
+
+    def test_remove_existing_source_returns_ok(
+        self, audit_client, valid_token, session_manager, tmp_path
+    ):
+        """Happy path: upload, then DELETE removes the collection and emits audit."""
+        self._upload_text_file(audit_client, valid_token, tmp_path, name="notes.txt")
+        stats = audit_client.get(
+            "/session/stats", headers={"Authorization": f"Bearer {valid_token}"}
+        ).json()
+        assert len(stats["documents"]) == 1
+        name = stats["documents"][0]["name"]
+
+        resp = audit_client.delete(
+            f"/session/documents/{name}",
+            headers={"Authorization": f"Bearer {valid_token}"},
+        )
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["status"] == "ok"
+        assert body["name"] == name
+
+        stats_after = audit_client.get(
+            "/session/stats", headers={"Authorization": f"Bearer {valid_token}"}
+        ).json()
+        assert stats_after["documents"] == []
+
+        # One SOURCE_REMOVED audit entry with file-kind provenance
+        from m_shared.utils import AuditEventType
+
+        sid = stats["session_id"]
+        entries = session_manager.audit_logger.get_entries(sid)
+        removed = [e for e in entries if e.event_type == AuditEventType.SOURCE_REMOVED]
+        assert len(removed) == 1
+        assert removed[0].details["name"] == name
+        assert removed[0].details["source_kind"] == "file"
+        assert removed[0].details["source_mime"] == "text/plain"
+
+    def test_remove_unknown_source_returns_404(self, audit_client, valid_token):
+        """DELETE on a name that does not exist in the session returns 404 and no audit."""
+        resp = audit_client.delete(
+            "/session/documents/never-ingested",
+            headers={"Authorization": f"Bearer {valid_token}"},
+        )
+        assert resp.status_code == 404
+
+    def test_remove_is_idempotent(self, audit_client, valid_token, tmp_path):
+        """Second DELETE for the same name returns 404."""
+        self._upload_text_file(audit_client, valid_token, tmp_path, name="dup.txt")
+        stats = audit_client.get(
+            "/session/stats", headers={"Authorization": f"Bearer {valid_token}"}
+        ).json()
+        name = stats["documents"][0]["name"]
+
+        first = audit_client.delete(
+            f"/session/documents/{name}",
+            headers={"Authorization": f"Bearer {valid_token}"},
+        )
+        assert first.status_code == 200
+        second = audit_client.delete(
+            f"/session/documents/{name}",
+            headers={"Authorization": f"Bearer {valid_token}"},
+        )
+        assert second.status_code == 404
+
+    def test_remove_respects_session_isolation(
+        self, audit_client, jwt_secret, session_manager, tmp_path
+    ):
+        """Removing a source from session A leaves an identically-named source in session B intact."""
+        token_a = create_token(
+            user_id="user_a", session_id="sess_a", org="test_org", roles=["respondent"]
+        )
+        token_b = create_token(
+            user_id="user_b", session_id="sess_b", org="test_org", roles=["respondent"]
+        )
+        self._upload_text_file(audit_client, token_a, tmp_path, name="shared.txt", content="A")
+        self._upload_text_file(audit_client, token_b, tmp_path, name="shared.txt", content="B")
+
+        stats_a = audit_client.get(
+            "/session/stats", headers={"Authorization": f"Bearer {token_a}"}
+        ).json()
+        name = stats_a["documents"][0]["name"]
+
+        resp = audit_client.delete(
+            f"/session/documents/{name}",
+            headers={"Authorization": f"Bearer {token_a}"},
+        )
+        assert resp.status_code == 200
+
+        # Session B's source survives
+        stats_b = audit_client.get(
+            "/session/stats", headers={"Authorization": f"Bearer {token_b}"}
+        ).json()
+        assert any(d["name"] == name for d in stats_b["documents"])
+
+    def test_remove_requires_authentication(self, audit_client):
+        """DELETE without a JWT returns 401."""
+        resp = audit_client.delete("/session/documents/anything")
+        assert resp.status_code == 401
+
+
+class TestDeleteSessionById:
+    """Tests for DELETE /sessions/{session_id} — user-scoped delete with JWT rotation."""
+
+    def _session_less_token(self, user_id: str) -> str:
+        return create_token(user_id=user_id, session_id=None, org="test_org", roles=["respondent"])
+
+    def _bound_token(self, user_id: str, session_id: str) -> str:
+        return create_token(
+            user_id=user_id, session_id=session_id, org="test_org", roles=["respondent"]
+        )
+
+    def test_delete_succeeds_for_owner(self, client, jwt_secret, session_manager):
+        token = self._session_less_token("user_A")
+        created = client.post("/sessions/new", headers={"Authorization": f"Bearer {token}"})
+        assert created.status_code == 201
+        sid = created.json()["session_id"]
+
+        resp = client.delete(f"/sessions/{sid}", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["session_id"] == sid
+        assert body["deleted"] is True
+        assert session_manager.get_session(sid) is None
+
+    def test_delete_returns_session_less_token_when_jwt_bound(
+        self, client, jwt_secret, session_manager
+    ):
+        creator_token = self._session_less_token("user_B")
+        created = client.post("/sessions/new", headers={"Authorization": f"Bearer {creator_token}"})
+        sid = created.json()["session_id"]
+        bound = self._bound_token("user_B", sid)
+
+        resp = client.delete(f"/sessions/{sid}", headers={"Authorization": f"Bearer {bound}"})
+        assert resp.status_code == 200
+        new_token = resp.json()["token"]
+        assert new_token and new_token != bound
+
+        from m_shared.auth.jwt_handler import validate_token
+
+        claims = validate_token(new_token)
+        assert claims["user_id"] == "user_B"
+        assert claims.get("session_id") is None
+
+    def test_delete_no_token_when_jwt_unbound(self, client, jwt_secret, session_manager):
+        token = self._session_less_token("user_C")
+        created = client.post("/sessions/new", headers={"Authorization": f"Bearer {token}"})
+        sid = created.json()["session_id"]
+        # Delete using a session-less token (no rotation needed)
+        resp = client.delete(f"/sessions/{sid}", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 200
+        assert resp.json()["token"] is None
+
+    def test_delete_other_users_session_returns_404(self, client, jwt_secret):
+        token_a = self._session_less_token("user_A2")
+        token_b = self._session_less_token("user_B2")
+        created = client.post("/sessions/new", headers={"Authorization": f"Bearer {token_a}"})
+        sid = created.json()["session_id"]
+
+        resp = client.delete(f"/sessions/{sid}", headers={"Authorization": f"Bearer {token_b}"})
+        assert resp.status_code == 404
+
+    def test_delete_nonexistent_session_returns_404(self, client, jwt_secret):
+        token = self._session_less_token("user_X")
+        resp = client.delete(
+            "/sessions/does-not-exist", headers={"Authorization": f"Bearer {token}"}
+        )
+        assert resp.status_code == 404
+
+
+class TestListSessionsSorted:
+    """Tests for GET /sessions returning newest-first."""
+
+    def test_list_sessions_sorted_by_created_at_desc(self, client, jwt_secret, session_manager):
+        # Three sessions for one user, distinct created_at timestamps.
+        base = datetime.now(UTC).replace(microsecond=0)
+        for i, delta in enumerate([2, 0, 1]):  # mid, oldest, newest order of creation
+            s = session_manager.create_session(user_id="user_sort", ttl_hours=24)
+            s.created_at = base + timedelta(minutes=delta * 10)
+            session_manager._save_session_metadata(s)
+
+        token = create_token(user_id="user_sort", session_id=None, org="test_org")
+        resp = client.get("/sessions", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 200
+        items = resp.json()["sessions"]
+        timestamps = [it["created_at"] for it in items]
+        assert timestamps == sorted(timestamps, reverse=True)
+
+
 class TestSessionIsolation:
     """Tests for session isolation between users."""
 

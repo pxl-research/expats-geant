@@ -15,6 +15,7 @@ from cue_api.routes.session import router as session_router
 from cue_api.routes.sessions import router as sessions_router
 from cue_api.routes.suggestions import router as suggestions_router
 from cue_api.routes.surveys import router as surveys_router
+from cue_api.routes.web import router as web_router
 from m_shared.llm.client import LLMClient
 from m_shared.rate_limit import apply_rate_limiting
 from m_shared.routes.admin import router as admin_router
@@ -104,6 +105,7 @@ def create_app(
     app.state.audit_logger = audit_logger
     app.state.rag_pipeline = rag_pipeline
     app.state.max_file_size_mb = max_file_size_mb
+    app.state.web_ingest_enabled = os.getenv("CUE_WEB_INGEST_ENABLED", "false").lower() == "true"
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
@@ -127,6 +129,7 @@ def create_app(
     app.include_router(audit_router)
     app.include_router(review_state_router)
     app.include_router(surveys_router)
+    app.include_router(web_router)
     app.include_router(admin_router)
 
     return app

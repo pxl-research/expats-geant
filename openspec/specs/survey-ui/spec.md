@@ -375,3 +375,354 @@ as a PDF via the browser's native print dialog.
 - **WHEN** the user is on the answer report page or submission confirmation page
 - **THEN** a link to the audit report page is visible
 
+### Requirement: Mid-Review Document Upload
+
+The survey review page SHALL provide an in-page upload widget that lets respondents
+add one or more documents or a text snippet without leaving the page. Uploads SHALL
+be forwarded to the existing Cue document ingestion API via the UI proxy routes
+already in place (`/session/{id}/upload-doc` and
+`/session/{id}/upload-text-snippet`). On success, the UI SHALL refresh its view of
+session state (document list and `last_upload_at`) without discarding the
+respondent's in-progress form input, cached suggestions, or review state.
+
+#### Scenario: Document uploaded from review page
+
+- **WHEN** a respondent uploads a document via the in-page widget on the review page
+- **THEN** the file is posted to the Cue ingestion API
+- **AND** on success the document list on the review page updates
+- **AND** the respondent's current form values, accepted/dismissed states, and
+  cached suggestions are preserved
+
+#### Scenario: Text snippet uploaded from review page
+
+- **WHEN** a respondent submits a text snippet via the in-page widget on the review
+  page
+- **THEN** the text is posted to `/session/{id}/upload-text-snippet`
+- **AND** the same preservation guarantees apply as for file uploads
+
+#### Scenario: Upload failure shown inline
+
+- **WHEN** the ingestion API returns an error for a mid-review upload
+- **THEN** an inline error message is displayed next to the upload widget
+- **AND** the page state is otherwise unchanged
+
+### Requirement: Per-Question Suggestion Regenerate Button
+
+Each suggestion block SHALL render a **Regenerate** button when the cached suggestion's
+`generated_at` is earlier than the session's `last_upload_at`. When `last_upload_at`
+is absent (no documents) or the cached suggestion has no `generated_at`, the button
+SHALL NOT be shown. Clicking the button SHALL request a fresh suggestion for that
+single question via the regenerate stream proxy and SHALL disable itself until the
+matching new suggestion arrives.
+
+#### Scenario: Button visible after new upload
+
+- **WHEN** a new document has been ingested after a cached suggestion was generated
+- **THEN** the Regenerate button is visible inside that question's suggestion block
+
+#### Scenario: Button hidden when up-to-date
+
+- **WHEN** the cached suggestion's `generated_at` is greater than or equal to the
+  session's `last_upload_at`
+- **THEN** the Regenerate button is not rendered for that question
+
+#### Scenario: Click triggers single-question regenerate
+
+- **WHEN** the respondent clicks Regenerate on a question
+- **THEN** the UI opens an SSE connection to the regenerate-stream proxy scoped to
+  that question's id
+- **AND** the button is disabled while the request is in flight
+
+#### Scenario: Button hides after new suggestion arrives
+
+- **WHEN** the regenerated suggestion is received and rendered into the block
+- **THEN** the new cached `generated_at` is at least `last_upload_at`
+- **AND** the Regenerate button is no longer rendered
+
+#### Scenario: Button reappears on further upload
+
+- **WHEN** another document is uploaded after a question has been regenerated
+- **THEN** the Regenerate button reappears on that question
+
+### Requirement: Bulk Regenerate Untouched Suggestions
+
+The review page SHALL provide a **Regenerate untouched suggestions** action,
+positioned alongside "Accept all suggestions". The action SHALL be enabled iff at
+least one question in the survey satisfies *both*:
+
+1. No entry exists for the question in server-side review state (the question is
+   neither accepted nor dismissed nor explicitly edited).
+2. The cached suggestion's `generated_at` is earlier than the session's
+   `last_upload_at`.
+
+Triggering the action SHALL display a confirmation dialog stating how many
+questions will be regenerated and noting that the operation may take a while. On
+confirmation, the UI SHALL open an SSE connection to the regenerate-stream proxy
+with the matching question ids. The action SHALL remain disabled until the stream
+closes (via `event: done`, `event: error`, or transport termination), preventing
+overlapping regeneration streams.
+
+#### Scenario: Action disabled when no candidates exist
+
+- **WHEN** every question either has a review state set or its cached suggestion
+  is at least as recent as `last_upload_at`
+- **THEN** the bulk action is disabled (and visually marked as such)
+
+#### Scenario: Confirm dialog states the count
+
+- **WHEN** the respondent triggers the bulk action
+- **THEN** a confirmation dialog appears stating the number of questions that will
+  be regenerated
+- **AND** the dialog uses user-friendly wording ("This may take a while") without
+  referencing implementation details
+
+#### Scenario: Action regenerates only matching questions
+
+- **WHEN** the respondent confirms the bulk action
+- **THEN** the regenerate stream is opened with exactly the ids that satisfied the
+  untouched-and-stale predicate at click time
+- **AND** questions with an existing review state (accepted/dismissed/edited) are
+  not included
+
+#### Scenario: Action disabled during stream
+
+- **WHEN** the bulk regenerate stream is in flight
+- **THEN** the action button is disabled
+- **AND** clicking it has no effect until the stream completes or fails
+
+#### Scenario: Action re-enables after stream ends
+
+- **WHEN** the regenerate stream emits `event: done`, emits `event: error`, or the
+  transport closes
+- **THEN** the bulk action button returns to its computed enabled/disabled state
+  based on the latest cache and `last_upload_at`
+
+### Requirement: Regenerate Stream Proxy
+
+The UI SHALL expose `GET /session/{id}/regenerate-stream` as a sibling of
+`/suggest-stream`. The route SHALL forward to `POST /suggest/stream` on the Cue API
+**without** filtering against the per-session cached suggestions, so that questions
+whose cached entry already exists are re-generated. The route SHALL accept an
+optional `ids` query parameter listing the question ids to regenerate; when present,
+only those ids are sent upstream. When the parameter is absent, the route SHALL send
+the full set of survey items eligible for suggestion (all non-descriptive
+questions).
+
+#### Scenario: Regenerate stream bypasses cache filter
+
+- **WHEN** the UI opens `/session/{id}/regenerate-stream?ids=q1,q2`
+- **THEN** the upstream `POST /suggest/stream` request includes `q1` and `q2` as
+  items
+- **AND** the proxy does not remove them on the basis of existing cached entries
+
+#### Scenario: Regenerate stream emits standard suggestion events
+
+- **WHEN** the upstream emits `event: suggestion` for a regenerated item
+- **THEN** the proxy re-renders the suggestion block HTML using the same partial as
+  the initial stream
+- **AND** clients can reuse their existing SSE handlers without modification
+
+### Requirement: Web URL Source Panel
+
+When web ingestion is enabled at the deployment level, the survey UI SHALL render
+an **Add web source** panel on both the documents upload page and the mid-review
+upload widget. The panel SHALL contain a URL input, a **Preview** action that
+calls the preview endpoint and renders the result in place, and an inline
+preview area showing the extracted title, final URL, content type, character
+count, the first 500 characters of extracted text, and any warnings returned by
+the server. From the preview view, the user SHALL be able to commit the source
+via **Add as source** or discard it via **Discard**. Only **Add as source**
+SHALL trigger the ingest endpoint.
+
+When web ingestion is disabled at the deployment level, the panel SHALL NOT be
+rendered at all; the page SHALL look as it does today.
+
+#### Scenario: Panel hidden when operator flag is off
+
+- **WHEN** the Cue API reports that web ingestion is disabled
+- **THEN** neither the documents page nor the mid-review widget renders the
+  Add web source panel
+
+#### Scenario: Preview rendered inline
+
+- **WHEN** the user submits a URL via the panel
+- **THEN** the UI fetches the preview from the API and replaces the panel
+  body with the preview partial (title, final URL, content-type pill,
+  500-character preview, warnings, **Add as source** / **Discard** buttons)
+- **AND** no chunks are written to the session vector store at this stage
+
+#### Scenario: Add as source commits the ingest
+
+- **WHEN** the user clicks **Add as source** in the preview view
+- **THEN** the UI calls the ingest endpoint for the URL
+- **AND** on success, the document list updates to include the new web source
+- **AND** the panel resets to accept a new URL
+
+#### Scenario: Discard clears the preview without ingesting
+
+- **WHEN** the user clicks **Discard** in the preview view
+- **THEN** the preview is cleared and the panel returns to its empty URL-input
+  state
+- **AND** no ingest request is made
+
+### Requirement: Per-Session Web Source Consent Toggle
+
+When web ingestion is enabled at the deployment level, the UI SHALL render a
+**Allow web sources** toggle alongside the Add web source panel. The toggle
+SHALL default to off, persist via the per-session consent endpoint, and gate
+the panel's interactivity: while the toggle is off, the URL input and Preview
+action SHALL be disabled and a one-line explanation SHALL be visible
+("URLs are fetched by the server and recorded in your audit report.").
+
+#### Scenario: Toggle defaults to off
+
+- **WHEN** the documents or review page loads for a new session
+- **THEN** the **Allow web sources** toggle is rendered in the off position
+- **AND** the URL input is disabled
+
+#### Scenario: Toggle on enables the panel
+
+- **WHEN** the user toggles **Allow web sources** to on
+- **THEN** the UI calls the consent endpoint to persist the choice
+- **AND** the URL input becomes interactive
+
+#### Scenario: Toggle off after granting consent
+
+- **WHEN** the user toggles **Allow web sources** off after previously
+  granting consent
+- **THEN** the UI calls the consent endpoint to revoke the flag
+- **AND** the URL input is disabled
+- **AND** previously ingested web sources remain in the session and continue
+  to inform suggestions
+
+### Requirement: Web Source Preview Warnings and Errors
+
+The preview view SHALL surface server-returned warnings (notably
+`likely_js_rendered`) as inline messages with concrete next-step advice, and
+SHALL render server-returned errors in a clearly differentiated error block.
+Errors SHALL NOT close the preview view automatically — the user can re-enter
+the URL or paste a different one.
+
+#### Scenario: JavaScript-rendered page warning shown
+
+- **WHEN** the preview response includes a `likely_js_rendered` warning
+- **THEN** the preview view shows an inline warning recommending that the
+  user save the page as a PDF and upload it instead
+- **AND** the **Add as source** button remains enabled (the user can choose
+  to ingest the sparse content anyway)
+
+#### Scenario: Network or HTTP error rendered inline
+
+- **WHEN** the preview request fails (timeout, network error, HTTP 4xx/5xx
+  from the origin)
+- **THEN** the UI renders an inline error block describing the failure
+- **AND** the URL input retains its value so the user can correct it or
+  retry
+
+#### Scenario: Unsupported media type error
+
+- **WHEN** the API returns HTTP 415 for an unsupported content type
+- **THEN** the UI renders a clear message stating which type was returned
+  and which types are accepted
+- **AND** suggests downloading and uploading the file directly
+
+### Requirement: Re-Ingest Confirmation UX
+
+The preview view SHALL display a prior-ingest notice when the preview response
+includes a non-null `already_ingested_at` timestamp. The notice SHALL be of the
+form "You ingested this URL on [date]. Confirming will replace the previous
+version." The user SHALL still be able to confirm via **Add as source** or
+back out via **Discard**.
+
+#### Scenario: Prior-ingest message shown
+
+- **WHEN** the preview response includes a non-null `already_ingested_at`
+  field
+- **THEN** the preview view displays a clearly visible notice stating the
+  prior ingest date and that confirming will replace the previous version
+
+#### Scenario: Confirm triggers overwrite
+
+- **WHEN** the user clicks **Add as source** on a re-ingest preview
+- **THEN** the ingest endpoint is called as for a first-time ingest
+- **AND** the document list reflects one entry for the URL after success
+
+### Requirement: Per-Row Source Remove Control
+
+The survey UI SHALL render a remove (✕) control on every row of the
+sources list, on both the pre-review documents page and the mid-review
+upload widget. Clicking the control SHALL prompt the user for
+confirmation via a browser-native `confirm()` dialog naming the source.
+On confirmation, the UI SHALL send `DELETE /session/{id}/documents/{name}`
+(URL-encoding the name) and, on a 200 response, refresh the sources list
+and document count via the existing `window.refreshSessionStats()` flow.
+
+The control SHALL be present in both the server-side initial render and
+the JavaScript-rendered re-render so the layout is consistent before
+and after hydration.
+
+#### Scenario: Remove control on every row
+
+- **WHEN** the documents page or the mid-review widget renders a
+  non-empty sources list
+- **THEN** each row includes a ✕ remove control next to (or after) the
+  source name
+
+#### Scenario: Confirmation guard before removal
+
+- **WHEN** the user clicks ✕ on a source row
+- **THEN** a `confirm()` dialog appears naming the source
+- **AND** if the user cancels, no request is sent and the list is unchanged
+
+#### Scenario: Successful removal refreshes the list
+
+- **WHEN** the user confirms the removal and the API returns HTTP 200
+- **THEN** the UI calls `window.refreshSessionStats()` and the removed
+  row disappears from the list
+- **AND** the document count decrements accordingly
+
+### Requirement: Source Removal Error Surfacing
+
+The UI SHALL surface remove-request failures inline near the affected
+row, while leaving the row in place so the user can retry. A 404
+response (the source is already gone) SHALL be treated as success: the
+UI refreshes the list and no error is shown. Other errors (network
+failures, HTTP 4xx/5xx other than 404, unexpected server responses)
+SHALL render an inline error block describing the failure.
+
+#### Scenario: 404 treated as already-removed
+
+- **WHEN** the DELETE request returns HTTP 404 (the source is no longer
+  present, e.g. because another tab removed it first)
+- **THEN** the UI refreshes the sources list without showing an error
+- **AND** the row disappears on refresh
+
+#### Scenario: Network or server error rendered inline
+
+- **WHEN** the DELETE request fails with a non-404 error
+- **THEN** the UI renders an inline error block near the row describing
+  the failure
+- **AND** the row remains in the list so the user can retry
+
+### Requirement: Removal Does Not Affect Existing Review State
+
+Removing a source SHALL NOT modify any cached suggestions, accepted
+answers, dismissed answers, or edits in the user's review state. The
+sources list reflects the current evidence set; the review state
+continues to reflect the user's decisions about suggestions that were
+generated previously.
+
+#### Scenario: Cached suggestions unchanged after removal
+
+- **WHEN** the user removes a source while in the mid-review widget
+- **THEN** all previously rendered suggestions on the page remain
+  exactly as they were
+- **AND** no automatic regeneration is triggered
+
+#### Scenario: Accepted answers preserved
+
+- **WHEN** the user has accepted a suggestion citing source S
+- **AND** the user removes source S
+- **THEN** the accepted answer remains accepted with its original text
+  and citation
+

@@ -285,6 +285,27 @@ class TestChatTurnEndpoint:
         assert data["survey_updated"] is True
         assert "Here is the updated survey." in data["message"]
 
+    def test_chat_turn_truncated_output_returns_clean_message(
+        self, client_with_llm, jwt_secret, mock_llm
+    ):
+        headers = _make_auth_headers("user1")
+        sid = _create_chat_session(client_with_llm, headers)
+        truncated = 'Here you go.<survey_update>{"id": "survey_1", "title": "T", "sec'
+        mock_llm.create_completion_full.side_effect = lambda messages=None, tools=None, **kw: (
+            CompletionResult(content=truncated, tool_calls=[], finish_reason="length")
+        )
+
+        resp = client_with_llm.post(
+            f"/chat/{sid}",
+            json={"message": "Add 200 questions to the demographics section."},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["survey_updated"] is False
+        assert "<survey_update>" not in data["message"]
+        assert "too large" in data["message"].lower()
+
     def test_chat_turn_no_llm_returns_500(self, client, jwt_secret):
         headers = _make_auth_headers("user1")
         sid = _create_chat_session(client, headers)

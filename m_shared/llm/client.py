@@ -179,10 +179,11 @@ class LLMClient(OpenAI):
             extra_headers=self.extra_headers,
             **kwargs,
         )
-        message = response.choices[0].message
+        choice = response.choices[0]
         return CompletionResult(
-            content=message.content,
-            tool_calls=tool_calls_from_sdk_message(message),
+            content=choice.message.content,
+            tool_calls=tool_calls_from_sdk_message(choice.message),
+            finish_reason=getattr(choice, "finish_reason", None),
         )
 
     def set_model(self, model_name: str) -> None:

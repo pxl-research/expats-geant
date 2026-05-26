@@ -198,6 +198,62 @@ class TestSuggestStream:
         assert resp.status_code == 404
 
 
+class TestDeleteSessionByIdProxy:
+    """Tests for the cue_ui proxy at DELETE /session/{id}."""
+
+    def test_unauthenticated_returns_401(self):
+        client = TestClient(app, follow_redirects=False)
+        resp = client.delete("/session/survey-abc")
+        assert resp.status_code == 401
+
+    @respx.mock
+    def test_swaps_cookie_when_upstream_returns_token(self):
+        respx.delete(f"{BASE}/sessions/survey-abc").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "session_id": "survey-abc",
+                    "deleted": True,
+                    "message": "ok",
+                    "token": "new-session-less-token",
+                },
+            )
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.delete("/session/survey-abc", cookies=TOKEN_COOKIE)
+        assert resp.status_code == 200
+        set_cookie = resp.headers.get("set-cookie", "")
+        assert "autofill_token=new-session-less-token" in set_cookie
+
+    @respx.mock
+    def test_no_cookie_swap_when_no_token(self):
+        respx.delete(f"{BASE}/sessions/survey-abc").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "session_id": "survey-abc",
+                    "deleted": True,
+                    "message": "ok",
+                    "token": None,
+                },
+            )
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.delete("/session/survey-abc", cookies=TOKEN_COOKIE)
+        assert resp.status_code == 200
+        assert "autofill_token=" not in resp.headers.get("set-cookie", "")
+
+    @respx.mock
+    def test_propagates_upstream_404(self):
+        respx.delete(f"{BASE}/sessions/missing").mock(
+            return_value=httpx.Response(404, json={"detail": "Session not found"})
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.delete("/session/missing", cookies=TOKEN_COOKIE)
+        assert resp.status_code == 404
+        assert resp.json()["detail"] == "Session not found"
+
+
 class TestReviewPage:
     @respx.mock
     def test_render_survey_page(self):
@@ -511,3 +567,158 @@ class TestReviewPageWithCachedSuggestions:
         assert resp.status_code == 200
         assert "Generating suggestion" in resp.text
         assert "sse-connect" in resp.text
+
+
+class TestWebProxyRoutes:
+    @respx.mock
+    def test_preview_proxy_forwards_payload_and_propagates_body(self):
+        respx.post(f"{BASE}/web/preview").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "initial_url": "https://example.com/a",
+                    "final_url": "https://example.com/a",
+                    "hostname": "example.com",
+                    "title": "Hello",
+                    "content_type": "text/html",
+                    "extracted_chars": 120,
+                    "preview_text": "Hello world",
+                    "warnings": [],
+                    "already_ingested_at": None,
+                    "source_label": "Hello",
+                },
+            )
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.post(
+            "/session/sess_a/web/preview",
+            json={"url": "https://example.com/a"},
+            cookies=TOKEN_COOKIE,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["final_url"] == "https://example.com/a"
+        assert body["title"] == "Hello"
+
+    @respx.mock
+    def test_preview_proxy_propagates_415(self):
+        respx.post(f"{BASE}/web/preview").mock(
+            return_value=httpx.Response(415, json={"detail": "Unsupported"})
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.post(
+            "/session/sess_a/web/preview",
+            json={"url": "https://example.com/x.png"},
+            cookies=TOKEN_COOKIE,
+        )
+        assert resp.status_code == 415
+        assert resp.json()["detail"] == "Unsupported"
+
+    @respx.mock
+    def test_ingest_proxy_forwards_and_returns_ok(self):
+        respx.post(f"{BASE}/web/ingest").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "status": "success",
+                    "source": "hello",
+                    "source_url": "https://example.com/a",
+                },
+            )
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.post(
+            "/session/sess_a/web/ingest",
+            json={"url": "https://example.com/a"},
+            cookies=TOKEN_COOKIE,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "success"
+
+    @respx.mock
+    def test_consent_proxy_forwards_toggle(self):
+        respx.put(f"{BASE}/session/web-consent").mock(
+            return_value=httpx.Response(200, json={"web_consent": True})
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.put(
+            "/session/sess_a/web-consent",
+            json={"enabled": True},
+            cookies=TOKEN_COOKIE,
+        )
+        assert resp.status_code == 200
+        assert resp.json() == {"web_consent": True}
+
+    def test_preview_proxy_requires_url(self):
+        client = TestClient(app, follow_redirects=False)
+        resp = client.post(
+            "/session/sess_a/web/preview",
+            json={"url": ""},
+            cookies=TOKEN_COOKIE,
+        )
+        assert resp.status_code == 400
+
+    def test_preview_proxy_requires_auth(self):
+        client = TestClient(app, follow_redirects=False)
+        resp = client.post(
+            "/session/sess_a/web/preview",
+            json={"url": "https://example.com/a"},
+        )
+        assert resp.status_code == 401
+
+
+class TestSessionStatsProxyWebFields:
+    @respx.mock
+    def test_stats_proxy_propagates_web_flags(self):
+        respx.get(f"{BASE}/session/stats").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "session_id": "sess_a",
+                    "user_id": "user_a",
+                    "created_at": "2026-01-01T00:00:00Z",
+                    "expires_at": "2026-01-02T00:00:00Z",
+                    "remaining_hours": 24.0,
+                    "is_expired": False,
+                    "document_count": 0,
+                    "documents": [],
+                    "isolation_scope": "user",
+                    "last_upload_at": None,
+                    "web_ingest_enabled": True,
+                    "web_consent": True,
+                },
+            )
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.get("/session/sess_a/stats", cookies=TOKEN_COOKIE)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["web_ingest_enabled"] is True
+        assert body["web_consent"] is True
+
+
+class TestRemoveDocumentProxy:
+    @respx.mock
+    def test_proxy_forwards_and_returns_ok(self):
+        respx.delete(f"{BASE}/session/documents/notes-txt").mock(
+            return_value=httpx.Response(200, json={"status": "ok", "name": "notes-txt"})
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.delete("/session/sess_a/documents/notes-txt", cookies=TOKEN_COOKIE)
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "ok", "name": "notes-txt"}
+
+    @respx.mock
+    def test_proxy_propagates_404(self):
+        respx.delete(f"{BASE}/session/documents/missing").mock(
+            return_value=httpx.Response(404, json={"detail": "Source 'missing' not found"})
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.delete("/session/sess_a/documents/missing", cookies=TOKEN_COOKIE)
+        assert resp.status_code == 404
+        assert "not found" in resp.json()["detail"].lower()
+
+    def test_proxy_requires_auth(self):
+        client = TestClient(app, follow_redirects=False)
+        resp = client.delete("/session/sess_a/documents/anything")
+        assert resp.status_code == 401

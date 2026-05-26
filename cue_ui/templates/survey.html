@@ -64,23 +64,79 @@
 <div class="alert alert-error">Submission failed: {{ submit_error }}</div>
 {% endif %}
 
-{% if documents %}
-<details style="margin-bottom:1.25rem;">
+<details style="margin-bottom:1.25rem;" data-mid-review-upload>
   <summary style="cursor:pointer; font-size:0.85rem; font-weight:600; color:var(--text-muted);">
-    Uploaded documents ({{ documents | length }})
+    Documents (<span id="docs-count">{{ documents | length }}</span>)
   </summary>
   <div style="margin-top:0.5rem; padding:0.5rem 0.75rem; background:var(--surface-card); border:1px solid var(--border); border-radius:var(--radius); font-size:0.8rem;">
-    <table style="width:100%; border-collapse:collapse;">
-      {% for doc in documents %}
-      <tr>
-        <td style="padding:0.375rem 0.5rem 0.375rem 0;">{{ doc.name }}</td>
-        <td style="padding:0.375rem 0; text-align:right; color:var(--text-muted); white-space:nowrap;">{{ doc.chunk_count }} chunk{{ 's' if doc.chunk_count != 1 }}</td>
-      </tr>
-      {% endfor %}
-    </table>
+
+    {# Sources list #}
+    <div style="font-size:0.7rem; font-weight:600; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.05em; margin-bottom:0.25rem;">Sources</div>
+    <div id="docs-list" style="margin-bottom:0.5rem;">
+      {% if documents %}
+      <table style="width:100%; border-collapse:collapse;">
+        {% for doc in documents %}
+        <tr>
+          <td style="padding:0.3rem 0.5rem 0.3rem 0;">{% if doc.source_kind == 'web' %}🌐{% elif doc.source_kind == 'text' %}✍{% else %}📄{% endif %} <span class="source-name">{{ doc.name }}</span></td>
+          <td style="padding:0.3rem 0; text-align:right; color:var(--text-muted); white-space:nowrap;">{{ doc.chunk_count }} chunk{{ 's' if doc.chunk_count != 1 }}</td>
+          <td style="padding:0.3rem 0 0.3rem 0.5rem; text-align:right;"><button type="button" class="source-remove-btn" data-source-name="{{ doc.name }}" aria-label="Remove {{ doc.name }}" title="Remove" style="background:none; border:0; cursor:pointer; color:var(--text-muted); font-size:0.85rem; padding:0 0.25rem;">✕</button></td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}
+      <p style="margin:0; color:var(--text-muted); font-style:italic; font-size:0.75rem;">No sources yet.</p>
+      {% endif %}
+    </div>
+
+    {# Files sub-section #}
+    <div style="border-top:1px solid var(--border); padding-top:0.5rem;">
+      <div style="font-size:0.7rem; font-weight:600; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.05em; margin-bottom:0.3rem;">Files</div>
+      <form id="late-file-form" style="display:flex; flex-direction:column; gap:0.35rem;">
+        <input type="file" id="late-upload-files" multiple style="font-size:0.8rem;">
+        <div style="display:flex; gap:0.4rem; align-items:center; justify-content:flex-end;">
+          <span id="late-file-status" style="font-size:0.75rem; color:var(--text-muted); margin-right:auto;"></span>
+          <button type="submit" class="btn btn-ghost" style="font-size:0.8rem;">Add files</button>
+        </div>
+      </form>
+    </div>
+
+    {% if web_ingest_enabled %}
+    {# Web sub-section #}
+    <div id="web-source-panel" data-session-id="{{ session_id }}"
+         style="border-top:1px solid var(--border); padding-top:0.5rem; margin-top:0.5rem;">
+      <div style="font-size:0.7rem; font-weight:600; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.05em; margin-bottom:0.3rem;">Web</div>
+      <label style="display:flex; align-items:center; gap:0.4rem; font-size:0.75rem; color:var(--text-muted); margin-bottom:0.4rem;">
+        <input type="checkbox" id="web-consent-toggle" {% if web_consent %}checked{% endif %}>
+        <span>Allow web sources — URLs are fetched by the server and recorded in your audit report.</span>
+      </label>
+      <form id="web-url-form" style="display:flex; gap:0.4rem; align-items:center; justify-content:flex-end;">
+        <input type="url" id="web-url-input" placeholder="Paste a URL to add as source…"
+               {% if not web_consent %}disabled{% endif %}
+               style="flex:1 1 auto; font-size:0.8rem;">
+        <button type="submit" class="btn btn-ghost" id="web-url-preview-btn"
+                {% if not web_consent %}disabled{% endif %}
+                style="font-size:0.8rem;">Preview</button>
+      </form>
+      <span id="web-url-status" style="font-size:0.75rem; color:var(--text-muted);"></span>
+      <div id="web-preview-container" hidden style="margin-top:0.5rem;"></div>
+    </div>
+    {% endif %}
+
+    {# Text sub-section #}
+    <div style="border-top:1px solid var(--border); padding-top:0.5rem; margin-top:0.5rem;">
+      <div style="font-size:0.7rem; font-weight:600; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.05em; margin-bottom:0.3rem;">Text</div>
+      <form id="late-text-form" style="display:flex; flex-direction:column; gap:0.35rem;">
+        <textarea id="late-upload-text" rows="2" placeholder="Paste text to ingest…" style="font-size:0.8rem;"></textarea>
+        <input type="text" id="late-upload-label" placeholder="Label (optional)" style="font-size:0.8rem;">
+        <div style="display:flex; gap:0.4rem; align-items:center; justify-content:flex-end;">
+          <span id="late-text-status" style="font-size:0.75rem; color:var(--text-muted); margin-right:auto;"></span>
+          <button type="submit" class="btn btn-ghost" style="font-size:0.8rem;">Add text</button>
+        </div>
+      </form>
+    </div>
   </div>
 </details>
-{% endif %}
+<script id="server-last-upload-at" type="application/json">{{ last_upload_at | default(none) | tojson }}</script>
 
 <!-- SSE connection: streams only uncached suggestions (skipped if all cached) -->
 <div id="stream-error-banner" class="alert alert-error" style="display:none;" role="alert"></div>
@@ -188,11 +244,16 @@
 {% endif %}
 </form>
 
-<div style="margin-top:1rem; text-align:right;">
+<div style="margin-top:1rem; text-align:right; display:flex; gap:0.5rem; justify-content:flex-end;">
+  <button type="button" class="btn btn-ghost" id="regenerate-empty-btn" hidden
+          style="font-size:0.8rem;">Regenerate empty answers (<span data-count>0</span>)</button>
+  <button type="button" class="btn btn-ghost" id="regenerate-untouched-btn" hidden
+          style="font-size:0.8rem;">Regenerate untouched (<span data-count>0</span>)</button>
   <button type="button" class="btn btn-ghost" id="accept-all-btn" disabled
           style="font-size:0.8rem;">Accept all suggestions</button>
 </div>
 
 <script src="/static/review-state.js"></script>
 <script src="/static/review.js"></script>
+{% if web_ingest_enabled %}<script src="/static/web.js"></script>{% endif %}
 {% endblock %}

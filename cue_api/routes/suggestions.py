@@ -127,6 +127,7 @@ def _to_item_suggestion(r: dict) -> ItemSuggestion:
         selected_ids=r.get("selected_ids"),
         reasoning=r.get("reasoning"),
         citations=citations,
+        generated_at=datetime.now(UTC).isoformat(),
     )
 
 

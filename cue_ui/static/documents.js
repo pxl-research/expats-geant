@@ -1,133 +1,327 @@
 /**
- * documents.js — Document upload page logic.
+ * documents.js — Document upload page logic (in-card ingest).
  *
- * Uploads files one at a time via fetch so the progress indicator
- * can update between each file ("Processing document 1 of 3…").
+ * Three independent cards (files, web, paste text) each ingest immediately
+ * via fetch. A shared in-flight counter disables the Continue button while
+ * any upload is in progress. The sources list (card 4) refreshes after each
+ * successful add via window.refreshSessionStats, which web.js also reuses.
  */
 
 document.addEventListener("DOMContentLoaded", function () {
-  var form = document.querySelector("form[data-session-id]");
-  if (!form) return;
-
-  var sessionId = form.dataset.sessionId;
+  var firstCard = document.querySelector(".card[data-session-id]");
+  if (!firstCard) return;
+  var sessionId = firstCard.dataset.sessionId;
   var baseUrl = "/session/" + sessionId;
 
-  form.addEventListener("submit", function (e) {
-    e.preventDefault();
+  var continueBtn = document.getElementById("continue-btn");
+  var continueHint = document.getElementById("continue-hint");
+  var docsList = document.getElementById("docs-list");
+  var docsCount = document.getElementById("docs-count");
+  var errorsContainer = document.getElementById("add-source-errors");
 
-    var btn = document.getElementById("upload-btn");
-    var progress = document.getElementById("upload-progress");
-    var fileInput = document.getElementById("files");
-    var textArea = document.getElementById("text-snippet");
-    var labelInput = document.getElementById("text-label");
+  var inFlight = 0;
+  var knownSourceNames = new Set();
 
-    var files = fileInput ? Array.from(fileInput.files) : [];
-    var text = textArea ? textArea.value.trim() : "";
-    var label = labelInput ? labelInput.value.trim() : "";
+  // Seed knownSourceNames from the server-rendered list so the first refresh
+  // doesn't flash everything as "new".
+  if (docsList) {
+    docsList.querySelectorAll("tr").forEach(function (row) {
+      var nameEl = row.querySelector("td .source-name") || row.querySelector("td");
+      if (nameEl) knownSourceNames.add(nameEl.textContent.trim());
+    });
+  }
 
-    if (files.length === 0 && !text) {
-      window.location.href = baseUrl + "/review";
+  function iconForKind(kind) {
+    if (kind === "web") return "🌐";
+    if (kind === "text") return "✍";
+    return "📄";
+  }
+
+  function escapeHtml(s) {
+    if (s == null) return "";
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function setBusy(busy) {
+    if (!continueBtn) return;
+    if (busy) {
+      continueBtn.classList.add("disabled");
+      continueBtn.setAttribute("aria-disabled", "true");
+      continueBtn.style.pointerEvents = "none";
+      continueBtn.style.opacity = "0.5";
+      if (continueHint) continueHint.hidden = false;
+    } else {
+      continueBtn.classList.remove("disabled");
+      continueBtn.removeAttribute("aria-disabled");
+      continueBtn.style.pointerEvents = "";
+      continueBtn.style.opacity = "";
+      if (continueHint) continueHint.hidden = true;
+    }
+  }
+
+  function beginRequest() {
+    inFlight++;
+    setBusy(true);
+  }
+
+  function endRequest() {
+    if (inFlight > 0) inFlight--;
+    if (inFlight === 0) setBusy(false);
+  }
+
+  function renderDocs(documents) {
+    if (docsCount) docsCount.textContent = documents.length;
+    if (!docsList) return;
+    if (documents.length === 0) {
+      knownSourceNames = new Set();
+      docsList.innerHTML =
+        '<p style="margin:0; color:var(--text-muted); font-size:0.9rem; font-style:italic;">' +
+        "No sources yet. Add files, a URL, or paste text above — or continue without any.</p>";
       return;
     }
+    var rows = documents
+      .map(function (doc) {
+        var chunkLabel = (doc.chunk_count || 0) + " chunk" + (doc.chunk_count === 1 ? "" : "s");
+        var isNew = !knownSourceNames.has(doc.name);
+        var rowClass = isNew ? "source-row-new" : "";
+        var safeName = escapeHtml(doc.name);
+        return (
+          '<tr class="' + rowClass + '">' +
+          '<td style="padding:0.4rem 0.5rem 0.4rem 0;">' +
+          iconForKind(doc.source_kind) +
+          ' <span class="source-name">' +
+          safeName +
+          "</span></td>" +
+          '<td style="padding:0.4rem 0; text-align:right; color:var(--text-muted); white-space:nowrap;">' +
+          escapeHtml(chunkLabel) +
+          "</td>" +
+          '<td style="padding:0.4rem 0 0.4rem 0.5rem; text-align:right;">' +
+          '<button type="button" class="source-remove-btn" data-source-name="' + safeName + '" ' +
+          'aria-label="Remove ' + safeName + '" title="Remove" ' +
+          'style="background:none; border:0; cursor:pointer; color:var(--text-muted); font-size:0.9rem; padding:0 0.25rem;">' +
+          '✕</button></td>' +
+          "</tr>"
+        );
+      })
+      .join("");
+    docsList.innerHTML =
+      '<table style="width:100%; border-collapse:collapse; font-size:0.9rem;">' + rows + "</table>";
+    knownSourceNames = new Set(documents.map(function (d) { return d.name; }));
+  }
 
+  function refreshSessionStats() {
+    return fetch(baseUrl + "/stats", { credentials: "same-origin" })
+      .then(function (resp) {
+        if (!resp.ok) return null;
+        return resp.json();
+      })
+      .then(function (data) {
+        if (!data) return null;
+        renderDocs(data.documents || []);
+        return data;
+      })
+      .catch(function () {
+        /* best-effort */
+        return null;
+      });
+  }
+  window.refreshSessionStats = refreshSessionStats;
+
+  function setAddedStatus(statusEl) {
+    if (!statusEl) return;
+    statusEl.innerHTML =
+      '<span style="color:var(--success, #16a34a);">✓ Added</span> &mdash; ' +
+      '<a href="#sources-card" data-action="jump-to-sources" style="text-decoration:underline;">[↓ View list]</a>';
+  }
+
+  document.addEventListener("click", function (e) {
+    var link = e.target.closest("[data-action='jump-to-sources']");
+    if (!link) return;
+    e.preventDefault();
+    var card = document.getElementById("sources-card");
+    if (card) card.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest(".source-remove-btn");
+    if (!btn) return;
+    e.preventDefault();
+    var name = btn.dataset.sourceName;
+    if (!name) return;
+    if (!window.confirm("Remove «" + name + "» from your sources?")) return;
     btn.disabled = true;
-    var skipBtn = document.getElementById("skip-btn");
-    if (skipBtn) skipBtn.classList.add("disabled");
-    progress.style.display = "inline";
+    fetch(baseUrl + "/documents/" + encodeURIComponent(name), {
+      method: "DELETE",
+      credentials: "same-origin",
+    })
+      .then(function (resp) {
+        if (resp.ok || resp.status === 404) {
+          refreshSessionStats();
+        } else {
+          btn.disabled = false;
+          alert("Could not remove source (HTTP " + resp.status + ")");
+        }
+      })
+      .catch(function () {
+        btn.disabled = false;
+        alert("Network error while removing source");
+      });
+  });
 
-    var totalSteps = files.length + (text ? 1 : 0);
-    var currentStep = 0;
-    var errors = [];
-
-    function updateProgress(message) {
-      progress.textContent = message;
+  function showError(message) {
+    if (!errorsContainer) return;
+    errorsContainer.hidden = false;
+    var existing = errorsContainer.querySelector(".alert");
+    if (!existing) {
+      errorsContainer.innerHTML =
+        '<div class="alert alert-error" style="margin-bottom:1rem;"><strong>Some sources could not be added:</strong><ul style="margin-top:0.5rem; padding-left:1.25rem;"></ul></div>';
     }
+    var list = errorsContainer.querySelector("ul");
+    if (!list) return;
+    var li = document.createElement("li");
+    li.textContent = message;
+    list.appendChild(li);
+  }
 
-    function uploadNextFile() {
-      if (currentStep < files.length) {
-        var file = files[currentStep];
-        currentStep++;
-        updateProgress("Processing document " + currentStep + " of " + totalSteps + " (" + file.name + ")\u2026");
+  function clearErrors() {
+    if (!errorsContainer) return;
+    errorsContainer.innerHTML = "";
+    errorsContainer.hidden = true;
+  }
 
+  // ---- File card ----
+
+  var fileForm = document.getElementById("file-card-form");
+  if (fileForm) {
+    fileForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var fileInput = document.getElementById("files");
+      var btn = document.getElementById("file-add-btn");
+      var statusEl = document.getElementById("file-add-status");
+      var files = fileInput ? Array.from(fileInput.files) : [];
+      if (files.length === 0) {
+        if (statusEl) statusEl.textContent = "Choose at least one file.";
+        return;
+      }
+      btn.disabled = true;
+      var total = files.length;
+      var index = 0;
+      var hadSuccess = false;
+
+      function uploadNext() {
+        if (index >= total) {
+          fileInput.value = "";
+          btn.disabled = false;
+          endRequest();
+          if (hadSuccess) {
+            refreshSessionStats().then(function () {
+              setAddedStatus(statusEl);
+            });
+          } else if (statusEl) {
+            statusEl.textContent = "";
+          }
+          return;
+        }
+        var file = files[index];
+        index++;
+        if (statusEl) {
+          statusEl.textContent = "Adding " + index + " of " + total + " (" + file.name + ")…";
+        }
         var formData = new FormData();
         formData.append("file", file);
-
         fetch(baseUrl + "/upload-doc", {
           method: "POST",
           body: formData,
-          credentials: "same-origin"
+          credentials: "same-origin",
         })
           .then(function (resp) {
-            if (!resp.ok) {
-              return resp.json().then(function (data) {
-                errors.push(file.name + ": " + (data.error || "Upload failed"));
-              });
+            if (resp.ok) {
+              hadSuccess = true;
+              return;
             }
+            return resp
+              .json()
+              .catch(function () {
+                return {};
+              })
+              .then(function (data) {
+                showError(file.name + ": " + (data.error || "Upload failed"));
+              });
           })
           .catch(function () {
-            errors.push(file.name + ": Upload failed (network error)");
+            showError(file.name + ": Upload failed (network error)");
           })
-          .then(uploadNextFile);
-      } else if (text) {
-        currentStep++;
-        updateProgress("Processing text snippet (" + currentStep + " of " + totalSteps + ")\u2026");
-
-        fetch(baseUrl + "/upload-text-snippet", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: text, label: label || null }),
-          credentials: "same-origin"
-        })
-          .then(function (resp) {
-            if (!resp.ok) {
-              return resp.json().then(function (data) {
-                errors.push((label || "pasted text") + ": " + (data.error || "Upload failed"));
-              });
-            }
-          })
-          .catch(function () {
-            errors.push((label || "pasted text") + ": Upload failed (network error)");
-          })
-          .then(finish);
-      } else {
-        finish();
+          .then(uploadNext);
       }
-    }
 
-    function finish() {
-      if (errors.length > 0) {
-        updateProgress("");
-        progress.style.display = "none";
-        btn.disabled = false;
-        if (skipBtn) skipBtn.classList.remove("disabled");
+      clearErrors();
+      beginRequest();
+      uploadNext();
+    });
+  }
 
-        var existing = document.getElementById("upload-errors");
-        if (existing) existing.remove();
+  // ---- Paste text card ----
 
-        var errorDiv = document.createElement("div");
-        errorDiv.id = "upload-errors";
-        errorDiv.className = "alert alert-error";
-        var errorTitle = document.createElement("strong");
-        errorTitle.textContent = "Some files could not be uploaded:";
-        errorDiv.appendChild(errorTitle);
-
-        var errorList = document.createElement("ul");
-        errorList.style.marginTop = "0.5rem";
-        errorList.style.paddingLeft = "1.25rem";
-        errors.forEach(function (err) {
-          var item = document.createElement("li");
-          item.textContent = err;
-          errorList.appendChild(item);
+  var textForm = document.getElementById("text-card-form");
+  if (textForm) {
+    textForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var textArea = document.getElementById("text-snippet");
+      var labelInput = document.getElementById("text-label");
+      var btn = document.getElementById("text-add-btn");
+      var statusEl = document.getElementById("text-add-status");
+      var text = textArea ? textArea.value.trim() : "";
+      var label = labelInput ? labelInput.value.trim() : "";
+      if (!text) {
+        if (statusEl) statusEl.textContent = "Paste some text first.";
+        return;
+      }
+      btn.disabled = true;
+      if (statusEl) statusEl.textContent = "Adding…";
+      clearErrors();
+      beginRequest();
+      fetch(baseUrl + "/upload-text-snippet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text, label: label || null }),
+        credentials: "same-origin",
+      })
+        .then(function (resp) {
+          if (resp.ok) {
+            if (textArea) textArea.value = "";
+            if (labelInput) labelInput.value = "";
+            return refreshSessionStats().then(function () {
+              setAddedStatus(statusEl);
+            });
+          }
+          return resp
+            .json()
+            .catch(function () {
+              return {};
+            })
+            .then(function (data) {
+              showError((label || "pasted text") + ": " + (data.error || "Upload failed"));
+              if (statusEl) statusEl.textContent = "";
+            });
+        })
+        .catch(function () {
+          showError((label || "pasted text") + ": Upload failed (network error)");
+          if (statusEl) statusEl.textContent = "";
+        })
+        .finally(function () {
+          btn.disabled = false;
+          endRequest();
         });
-        errorDiv.appendChild(errorList);
-        form.parentElement.insertBefore(errorDiv, form);
-      }
+    });
+  }
 
-      if (errors.length < totalSteps) {
-        window.location.href = baseUrl + "/review";
-      }
-    }
-
-    uploadNextFile();
-  });
+  // web.js emits custom events around its ingest call so the Continue button
+  // stays disabled until the server has actually committed the chunks.
+  document.addEventListener("web-ingest-start", beginRequest);
+  document.addEventListener("web-ingest-end", endRequest);
 });
