@@ -482,20 +482,14 @@ class TestChatTurnEndpoint:
             ],
         }
         client_with_llm.put(f"/chat/{sid}/survey", json={"survey": base}, headers=headers)
-        moved_q = SAMPLE_SURVEY_DICT["sections"][0]["questions"][0]
         mock_llm.create_completion_full.side_effect = [
             CompletionResult(
                 content=None,
                 tool_calls=[
                     ToolCall(
                         tool_call_id="c1",
-                        name="delete_question",
-                        arguments_json=json.dumps({"question_id": "q1"}),
-                    ),
-                    ToolCall(
-                        tool_call_id="c2",
-                        name="add_question",
-                        arguments_json=json.dumps({"section_id": "sec2", "question": moved_q}),
+                        name="move_question",
+                        arguments_json=json.dumps({"question_id": "q1", "section_id": "sec2"}),
                     ),
                 ],
             ),

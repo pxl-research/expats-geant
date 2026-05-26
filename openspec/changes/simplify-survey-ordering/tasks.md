@@ -61,9 +61,12 @@
 
 - [x] 7.1 Replace the delete+add "move" instruction with `move_question` /
   `move_section` guidance.
-- [ ] 7.2 Test that a reorder request drives `move_question` (LLM-behaviour test;
-  deferred — the deterministic dispatch/endpoint paths are covered, but driving
-  the model's tool choice is verified via manual smoke 10.5).
+- [x] 7.2 Chat-turn test drives `move_question` end-to-end with a mocked LLM
+  (`test_chat_turn_move_preserves_question_id`) and a cross-adapter test confirms
+  QTI and SurveyMonkey exports agree on list order
+  (`test_export_order_agrees_across_qti_and_surveymonkey`). Whether the *live*
+  model picks `move_question` for a phrased request remains a manual/spot-check
+  item (10.5).
 
 ## 8. UI verification
 

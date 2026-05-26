@@ -1929,6 +1929,35 @@ class TestCrossPlatformRoundTrip:
     """
 
     # ------------------------------------------------------------------
+    # Ordering agreement (guards the list-position-as-source-of-truth fix)
+    # ------------------------------------------------------------------
+
+    def test_export_order_agrees_across_qti_and_surveymonkey(self):
+        """QTI and SurveyMonkey must encode the same list order — the original
+        bug was SurveyMonkey following a stale order field while QTI followed
+        list position."""
+        survey = Survey(
+            id="s",
+            title="T",
+            sections=[
+                Section(
+                    id="sec",
+                    title="S",
+                    questions=[
+                        Question(id="qa", text="Alpha", type=QuestionType.OPEN_ENDED),
+                        Question(id="qb", text="Bravo", type=QuestionType.OPEN_ENDED),
+                        Question(id="qc", text="Charlie", type=QuestionType.OPEN_ENDED),
+                    ],
+                )
+            ],
+        )
+        qti_rt = QTIAdapter().import_survey(QTIAdapter().export_survey(survey))
+        sm_rt = SurveyMonkeyAdapter().import_survey(SurveyMonkeyAdapter().export_survey(survey))
+        expected = ["Alpha", "Bravo", "Charlie"]
+        assert [q.text for q in _all_questions(qti_rt)] == expected
+        assert [q.text for q in _all_questions(sm_rt)] == expected
+
+    # ------------------------------------------------------------------
     # LimeSurvey → Qualtrics
     # ------------------------------------------------------------------
 
