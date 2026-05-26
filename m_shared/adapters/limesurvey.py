@@ -128,7 +128,7 @@ class LimeSurveyAdapter(SurveyAdapter):
         answers_by_qid = self._parse_answers(root)
 
         sections: list[Section] = []
-        for order, (gid, group_meta) in enumerate(groups.items()):
+        for gid, group_meta in groups.items():
             raw_questions = questions_by_qid_in_group(questions_by_gid, gid)
             questions: list[Question] = []
             for q_meta in raw_questions:
@@ -142,7 +142,6 @@ class LimeSurveyAdapter(SurveyAdapter):
                     title=group_meta["title"],
                     description=group_meta["description"],
                     questions=questions,
-                    order=order,
                     metadata={"ls_gid": gid},
                 )
             )
@@ -288,7 +287,6 @@ class LimeSurveyAdapter(SurveyAdapter):
             id=f"q_{qid}",
             text=q_meta["text"],
             type=q_type,
-            order=max(0, q_meta["order"] - 1),
             answer_options=answer_options,
             required=q_meta["mandatory"],
             min_value=min_val,
@@ -331,15 +329,15 @@ class LimeSurveyAdapter(SurveyAdapter):
         # Answers
         answers_rows = ET.SubElement(ET.SubElement(root, "answers"), "rows")
 
-        for section in survey.sections:
+        for group_order, section in enumerate(survey.sections):
             gid = section.metadata.get("ls_gid", section.id)
             grow = ET.SubElement(groups_rows, "row")
             _sub(grow, "gid", str(gid))
             _sub(grow, "group_name", section.title)
             _sub(grow, "description", section.description)
-            _sub(grow, "group_order", str(section.order))
+            _sub(grow, "group_order", str(group_order))
 
-            for question in section.questions:
+            for question_order, question in enumerate(section.questions, start=1):
                 qid = question.metadata.get("ls_qid", question.id)
                 ls_type = question.metadata.get("ls_type") or _INTERNAL_TO_LS_TYPE.get(
                     question.type, "T"
@@ -351,7 +349,7 @@ class LimeSurveyAdapter(SurveyAdapter):
                 _sub(qrow, "type", ls_type)
                 _sub(qrow, "question", question.text)
                 _sub(qrow, "mandatory", "Y" if question.required else "N")
-                _sub(qrow, "question_order", str(question.order + 1))
+                _sub(qrow, "question_order", str(question_order))
 
                 for opt in question.answer_options:
                     arow = ET.SubElement(answers_rows, "row")

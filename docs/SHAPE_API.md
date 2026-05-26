@@ -354,6 +354,7 @@ POST /chat/sessions          ← create session
   ├─ POST/PATCH/DELETE /chat/{id}/survey/sections[/{section_id}]              ← granular section edits
   ├─ POST/PATCH/DELETE /chat/{id}/survey/sections/{section_id}/questions      ← granular question edits
   │    and /chat/{id}/survey/questions/{question_id}                             (see "Granular survey mutations")
+  ├─ PATCH /chat/{id}/survey/{sections|questions}/{id}/position               ← reorder / move by list position
   │
   ├─ POST /export            ← export draft to target platform
   │
@@ -525,14 +526,12 @@ curl http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000/survey \
         "id": "sec_1",
         "title": "Work Preferences",
         "description": "",
-        "order": 0,
         "metadata": {},
         "questions": [
           {
             "id": "q_1",
             "text": "What is your preferred work arrangement?",
             "type": "single_choice",
-            "order": 0,
             "required": true,
             "min_value": null,
             "max_value": null,
@@ -577,14 +576,12 @@ curl -X PUT http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000/surv
           "id": "sec_1",
           "title": "Work Preferences",
           "description": "",
-          "order": 0,
           "metadata": {},
           "questions": [
             {
               "id": "q_1",
               "text": "What is your preferred work arrangement?",
               "type": "single_choice",
-              "order": 0,
               "required": true,
               "answer_options": [
                 {"id": "opt_1", "text": "Remote"},
@@ -633,7 +630,7 @@ curl -X PUT http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000/surv
 
 ### Granular survey mutations
 
-For surgical edits — without re-sending the whole survey — six endpoints apply a
+For surgical edits — without re-sending the whole survey — eight endpoints apply a
 single change to the draft. Each shares the same mutation logic the chat AI uses,
 and each returns the standard `{"status": "saved", "validation_issues": [...]}`
 body (the same shape as `PUT /chat/{session_id}/survey`).
@@ -641,17 +638,24 @@ body (the same shape as `PUT /chat/{session_id}/survey`).
 | Method | Path | Body |
 |--------|------|------|
 | `POST` | `/chat/{session_id}/survey/sections` | `{"section": {...}, "after_id": "sec_1"}` |
-| `PATCH` | `/chat/{session_id}/survey/sections/{section_id}` | `{"title": "...", "description": "...", "order": 1, "metadata": {}}` |
+| `PATCH` | `/chat/{session_id}/survey/sections/{section_id}` | `{"title": "...", "description": "...", "metadata": {}}` |
 | `DELETE` | `/chat/{session_id}/survey/sections/{section_id}` | — |
+| `PATCH` | `/chat/{session_id}/survey/sections/{section_id}/position` | `{"after_id": "sec_2"}` |
 | `POST` | `/chat/{session_id}/survey/sections/{section_id}/questions` | `{"question": {...}, "after_id": "q_1"}` |
 | `PATCH` | `/chat/{session_id}/survey/questions/{question_id}` | `{"text": "...", "type": "...", "answer_options": [...], ...}` |
 | `DELETE` | `/chat/{session_id}/survey/questions/{question_id}` | — |
+| `PATCH` | `/chat/{session_id}/survey/questions/{question_id}/position` | `{"after_id": "q_2", "section_id": "sec_2"}` |
 
 `after_id` is optional on the add endpoints: the new section/question is inserted
 after the named sibling, or appended when omitted. PATCH bodies are partial — only
 the fields you include are changed (a `section` PATCH cannot contain `questions`;
-manage questions through the question endpoints). To move a question between
-sections, `DELETE` it then `POST` it into the target section with the same `id`.
+manage questions through the question endpoints).
+
+Ordering is determined solely by list position — there is no `order` field. Use the
+`/position` endpoints to reorder: `after_id` places the element immediately after the
+named sibling, or moves it to the front when omitted. On the question `/position`
+endpoint, an optional `section_id` moves the question into a different section,
+preserving its id and all other fields.
 
 ```bash
 curl -X PATCH http://localhost:8003/chat/$SID/survey/questions/q_1 \

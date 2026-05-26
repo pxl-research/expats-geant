@@ -729,6 +729,71 @@ class TestSurveyMutationEndpoints:
         sec2 = next(s for s in survey["sections"] if s["id"] == "sec2")
         assert sec2["questions"][0]["text"] == "Final?"
 
+    def test_move_section(self, client, jwt_secret):
+        headers = _make_auth_headers("user1")
+        sid = self._seed(client, headers)
+        client.post(f"/chat/{sid}/survey/sections", json={"section": _NEW_SECTION}, headers=headers)
+        resp = client.patch(
+            f"/chat/{sid}/survey/sections/sec1/position",
+            json={"after_id": "sec2"},
+            headers=headers,
+        )
+        assert resp.status_code == 200, resp.text
+        survey = client.get(f"/chat/{sid}/survey", headers=headers).json()["survey"]
+        assert [s["id"] for s in survey["sections"]] == ["sec2", "sec1"]
+
+    def test_move_question_within_section(self, client, jwt_secret):
+        headers = _make_auth_headers("user1")
+        sid = self._seed(client, headers)
+        client.post(
+            f"/chat/{sid}/survey/sections/sec1/questions",
+            json={"question": _NEW_QUESTION},
+            headers=headers,
+        )
+        resp = client.patch(
+            f"/chat/{sid}/survey/questions/q1/position", json={"after_id": "q2"}, headers=headers
+        )
+        assert resp.status_code == 200
+        survey = client.get(f"/chat/{sid}/survey", headers=headers).json()["survey"]
+        assert [q["id"] for q in survey["sections"][0]["questions"]] == ["q2", "q1"]
+
+    def test_move_question_to_other_section(self, client, jwt_secret):
+        headers = _make_auth_headers("user1")
+        sid = self._seed(client, headers)
+        client.post(f"/chat/{sid}/survey/sections", json={"section": _NEW_SECTION}, headers=headers)
+        resp = client.patch(
+            f"/chat/{sid}/survey/questions/q1/position",
+            json={"section_id": "sec2"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        survey = client.get(f"/chat/{sid}/survey", headers=headers).json()["survey"]
+        assert survey["sections"][0]["questions"] == []
+        assert [q["id"] for q in survey["sections"][1]["questions"]] == ["q1"]
+
+    def test_move_unknown_section_returns_404(self, client, jwt_secret):
+        headers = _make_auth_headers("user1")
+        sid = self._seed(client, headers)
+        resp = client.patch(f"/chat/{sid}/survey/sections/nope/position", json={}, headers=headers)
+        assert resp.status_code == 404
+
+    def test_move_unknown_question_returns_404(self, client, jwt_secret):
+        headers = _make_auth_headers("user1")
+        sid = self._seed(client, headers)
+        resp = client.patch(f"/chat/{sid}/survey/questions/nope/position", json={}, headers=headers)
+        assert resp.status_code == 404
+
+    def test_move_question_unauthenticated_returns_401(self, client, jwt_secret):
+        resp = client.patch("/chat/any_session/survey/questions/q1/position", json={})
+        assert resp.status_code == 401
+
+    def test_move_wrong_session_returns_403(self, client, jwt_secret):
+        headers_a = _make_auth_headers("user_a")
+        headers_b = _make_auth_headers("user_b")
+        sid = self._seed(client, headers_a)
+        resp = client.patch(f"/chat/{sid}/survey/questions/q1/position", json={}, headers=headers_b)
+        assert resp.status_code == 403
+
 
 # ---------------------------------------------------------------------------
 # TestStyleEndpoints

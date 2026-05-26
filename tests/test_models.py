@@ -162,18 +162,16 @@ class TestQuestion:
         assert q2.text == q.text
         assert q2.required is False
 
-    def test_order_defaults_to_zero(self):
+    def test_no_order_field(self):
         q = Question(id="q1", text="Q", type=QuestionType.OPEN_ENDED)
-        assert q.order == 0
+        assert not hasattr(q, "order")
+        assert "order" not in q.model_dump()
 
-    def test_order_is_persisted(self):
-        q = Question(id="q1", text="Q", type=QuestionType.OPEN_ENDED, order=3)
-        assert q.order == 3
-
-    def test_order_included_in_serialization(self):
-        q = Question(id="q1", text="Q", type=QuestionType.OPEN_ENDED, order=2)
-        data = q.model_dump()
-        assert data["order"] == 2
+    def test_stray_order_key_ignored(self):
+        """Legacy drafts carry an order key; it loads cleanly and is dropped."""
+        q = Question.model_validate({"id": "q1", "text": "Q", "type": "open_ended", "order": 5})
+        assert not hasattr(q, "order")
+        assert "order" not in q.model_dump()
 
 
 class TestSection:
@@ -186,12 +184,10 @@ class TestSection:
             title="Demographics",
             description="Tell us about yourself",
             questions=[Question(id="q1", text="What is your age?", type=QuestionType.OPEN_ENDED)],
-            order=1,
         )
         assert section.id == "sec_1"
         assert section.title == "Demographics"
         assert len(section.questions) == 1
-        assert section.order == 1
 
     def test_section_serialization(self):
         """Test section JSON serialization."""
@@ -199,6 +195,19 @@ class TestSection:
         json_data = section.model_dump()
         reconstructed = Section(**json_data)
         assert reconstructed.id == section.id
+
+    def test_no_order_field(self):
+        section = Section(id="sec_1", title="Section One", questions=[])
+        assert not hasattr(section, "order")
+        assert "order" not in section.model_dump()
+
+    def test_stray_order_key_ignored(self):
+        """Legacy drafts carry an order key; it loads cleanly and is dropped."""
+        section = Section.model_validate(
+            {"id": "sec_1", "title": "Section One", "questions": [], "order": 2}
+        )
+        assert not hasattr(section, "order")
+        assert "order" not in section.model_dump()
 
 
 class TestSurvey:

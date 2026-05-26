@@ -17,13 +17,15 @@ from shape_api.mutations import (
     apply_delete_question,
     apply_delete_section,
     apply_init_survey,
+    apply_move_question,
+    apply_move_section,
     apply_update_question,
     apply_update_section,
 )
 
 
-def _question(qid: str, order: int = 0) -> Question:
-    return Question(id=qid, text=f"Question {qid}", type=QuestionType.OPEN_ENDED, order=order)
+def _question(qid: str) -> Question:
+    return Question(id=qid, text=f"Question {qid}", type=QuestionType.OPEN_ENDED)
 
 
 def _section(sid: str, *qids: str) -> Section:
@@ -128,15 +130,58 @@ class TestDeleteQuestion:
             apply_delete_question(_survey(), "nope")
 
 
-class TestMovePreservesId:
-    def test_delete_then_add_keeps_question_id(self):
-        survey = Survey(
-            id="s1",
-            title="T",
-            sections=[_section("a", "q1"), _section("b")],
-        )
-        moved = survey.sections[0].questions[0]
-        after_delete = apply_delete_question(survey, "q1")
-        after_add = apply_add_question(after_delete, "b", moved)
-        assert [q.id for q in after_add.sections[0].questions] == []
-        assert [q.id for q in after_add.sections[1].questions] == ["q1"]
+class TestMoveQuestion:
+    def test_reorder_within_section(self):
+        survey = Survey(id="s1", title="T", sections=[_section("sec1", "q1", "q2", "q3")])
+        result = apply_move_question(survey, "q1", after_id="q2")
+        assert [q.id for q in result.sections[0].questions] == ["q2", "q1", "q3"]
+
+    def test_omitting_after_id_moves_to_front(self):
+        survey = Survey(id="s1", title="T", sections=[_section("sec1", "q1", "q2", "q3")])
+        result = apply_move_question(survey, "q3")
+        assert [q.id for q in result.sections[0].questions] == ["q3", "q1", "q2"]
+
+    def test_cross_section_move_preserves_id_and_fields(self):
+        survey = Survey(id="s1", title="T", sections=[_section("a", "q1"), _section("b", "q2")])
+        result = apply_move_question(survey, "q1", after_id="q2", section_id="b")
+        assert [q.id for q in result.sections[0].questions] == []
+        assert [q.id for q in result.sections[1].questions] == ["q2", "q1"]
+        moved = result.sections[1].questions[1]
+        assert moved.text == "Question q1"
+
+    def test_cross_section_move_to_front(self):
+        survey = Survey(id="s1", title="T", sections=[_section("a", "q1"), _section("b", "q2")])
+        result = apply_move_question(survey, "q1", after_id=None, section_id="b")
+        assert [q.id for q in result.sections[1].questions] == ["q1", "q2"]
+
+    def test_unknown_question_raises(self):
+        with pytest.raises(QuestionNotFound):
+            apply_move_question(_survey(), "nope")
+
+    def test_unknown_target_section_raises(self):
+        with pytest.raises(SectionNotFound):
+            apply_move_question(_survey(), "q1", section_id="nope")
+
+    def test_no_draft_raises(self):
+        with pytest.raises(NoSurveyDraft):
+            apply_move_question(None, "q1")
+
+
+class TestMoveSection:
+    def test_reorder_after_named_section(self):
+        survey = Survey(id="s1", title="T", sections=[_section("a"), _section("b"), _section("c")])
+        result = apply_move_section(survey, "a", after_id="b")
+        assert [s.id for s in result.sections] == ["b", "a", "c"]
+
+    def test_omitting_after_id_moves_to_front(self):
+        survey = Survey(id="s1", title="T", sections=[_section("a"), _section("b"), _section("c")])
+        result = apply_move_section(survey, "c")
+        assert [s.id for s in result.sections] == ["c", "a", "b"]
+
+    def test_unknown_section_raises(self):
+        with pytest.raises(SectionNotFound):
+            apply_move_section(_survey(), "nope")
+
+    def test_no_draft_raises(self):
+        with pytest.raises(NoSurveyDraft):
+            apply_move_section(None, "sec1")

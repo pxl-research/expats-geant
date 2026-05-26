@@ -153,6 +153,34 @@ class TestMutationDispatchHappyPath:
         assert result["status"] == "ok"
         assert load_draft_survey(str(tmp_path), sid).sections[0].questions == []
 
+    def test_move_section(self, tmp_path):
+        sid = _seed(tmp_path)
+        _dispatch(tmp_path, sid, "add_section", {"section": {"id": "sec2", "title": "Two"}})
+        result = _dispatch(
+            tmp_path, sid, "move_section", {"section_id": "sec1", "after_id": "sec2"}
+        )
+        assert result["status"] == "ok"
+        assert [s.id for s in load_draft_survey(str(tmp_path), sid).sections] == ["sec2", "sec1"]
+
+    def test_move_question_within_section(self, tmp_path):
+        sid = _seed(tmp_path)
+        _dispatch(tmp_path, sid, "add_question", {"section_id": "sec1", "question": _NEW_QUESTION})
+        result = _dispatch(tmp_path, sid, "move_question", {"question_id": "q1", "after_id": "q2"})
+        assert result["status"] == "ok"
+        qids = [q.id for q in load_draft_survey(str(tmp_path), sid).sections[0].questions]
+        assert qids == ["q2", "q1"]
+
+    def test_move_question_to_other_section(self, tmp_path):
+        sid = _seed(tmp_path)
+        _dispatch(tmp_path, sid, "add_section", {"section": {"id": "sec2", "title": "Two"}})
+        result = _dispatch(
+            tmp_path, sid, "move_question", {"question_id": "q1", "section_id": "sec2"}
+        )
+        assert result["status"] == "ok"
+        survey = load_draft_survey(str(tmp_path), sid)
+        assert [q.id for q in survey.sections[0].questions] == []
+        assert [q.id for q in survey.sections[1].questions] == ["q1"]
+
 
 class TestMutationDispatchErrors:
     def test_no_draft(self, tmp_path):
@@ -187,6 +215,23 @@ class TestMutationDispatchErrors:
             tmp_path, sid, "update_section", {"section_id": "sec1", "patch": {"questions": []}}
         )
         assert result["code"] == "invalid_patch"
+
+    def test_patch_rejects_order_field(self, tmp_path):
+        sid = _seed(tmp_path)
+        result = _dispatch(
+            tmp_path, sid, "update_question", {"question_id": "q1", "patch": {"order": 5}}
+        )
+        assert result["code"] == "invalid_patch"
+
+    def test_move_question_unknown_id(self, tmp_path):
+        sid = _seed(tmp_path)
+        result = _dispatch(tmp_path, sid, "move_question", {"question_id": "nope"})
+        assert result["code"] == "question_not_found"
+
+    def test_move_section_unknown_id(self, tmp_path):
+        sid = _seed(tmp_path)
+        result = _dispatch(tmp_path, sid, "move_section", {"section_id": "nope"})
+        assert result["code"] == "section_not_found"
 
     def test_unknown_tool_raises(self, tmp_path):
         with pytest.raises(ValueError, match="Unknown tool"):

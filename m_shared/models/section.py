@@ -31,7 +31,6 @@ class Section(BaseModel):
     questions: list[Question] = Field(
         default_factory=list, description="Questions contained in this section"
     )
-    order: int = Field(0, description="Display order of this section within the survey")
     metadata: dict[str, Any] = Field(
         default_factory=dict, description="Additional metadata for this section"
     )
@@ -43,7 +42,6 @@ class Section(BaseModel):
                 "title": "Demographics",
                 "description": "Tell us about yourself",
                 "questions": [],
-                "order": 1,
                 "metadata": {},
             }
         }

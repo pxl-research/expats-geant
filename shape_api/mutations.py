@@ -75,6 +75,20 @@ def _insert_after(items: list, item, after_id: str | None) -> None:
     items.append(item)
 
 
+def _insert_after_or_front(items: list, item, after_id: str | None) -> None:
+    """Insert `item` after the element whose id == after_id, else at the front.
+
+    This is the move semantics: omitting `after_id` means "move to the start",
+    which differs from `_insert_after` (append) used by the add operations.
+    """
+    if after_id is not None:
+        for i, existing in enumerate(items):
+            if existing.id == after_id:
+                items.insert(i + 1, item)
+                return
+    items.insert(0, item)
+
+
 def apply_init_survey(survey: Survey) -> Survey:
     """Set the draft to a complete survey (cold-start or wholesale replace)."""
     return survey
@@ -147,3 +161,39 @@ def apply_delete_question(survey: Survey | None, question_id: str) -> Survey:
     raise QuestionNotFound(
         f"Question {question_id!r} not found. Call get_full_survey to list current question ids."
     )
+
+
+def apply_move_question(
+    survey: Survey | None,
+    question_id: str,
+    after_id: str | None = None,
+    section_id: str | None = None,
+) -> Survey:
+    """Move a question to a new list position, optionally into another section.
+
+    `after_id` omitted moves the question to the front of the target section;
+    `section_id` moves it into a different section, preserving its id. Removing
+    the question before resolving `after_id` keeps same-section indices correct.
+    """
+    new = _require_survey(survey)
+    for source in new.sections:
+        for question in source.questions:
+            if question.id == question_id:
+                source.questions.remove(question)
+                target = _find_section(new, section_id) if section_id is not None else source
+                _insert_after_or_front(target.questions, question, after_id)
+                return new
+    raise QuestionNotFound(
+        f"Question {question_id!r} not found. Call get_full_survey to list current question ids."
+    )
+
+
+def apply_move_section(
+    survey: Survey | None, section_id: str, after_id: str | None = None
+) -> Survey:
+    """Move a section to a new list position (front if `after_id` omitted)."""
+    new = _require_survey(survey)
+    section = _find_section(new, section_id)
+    new.sections.remove(section)
+    _insert_after_or_front(new.sections, section, after_id)
+    return new

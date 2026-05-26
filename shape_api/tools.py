@@ -1,15 +1,17 @@
 """LLM tools available during the Shape chat turn.
 
-Exposes a read tool (`get_full_survey`) plus seven mutation tools that apply
+Exposes a read tool (`get_full_survey`) plus nine mutation tools that apply
 granular changes to the session's draft survey:
 
 - ``init_survey``     — replace the whole draft (cold-start / wholesale restructure)
 - ``add_section``     — insert a new section
-- ``update_section``  — patch a section's title/description/order/metadata
+- ``update_section``  — patch a section's title/description/metadata
 - ``delete_section``  — remove a section and its questions
+- ``move_section``    — change a section's position in the survey
 - ``add_question``    — insert a new question into a section
 - ``update_question`` — patch any field of a question
 - ``delete_question`` — remove a question
+- ``move_question``   — change a question's position, optionally across sections
 
 Every mutation tool returns a JSON envelope: ``{"status": "ok",
 "validation_issues": [...]}`` on success, or ``{"status": "error", "code": ...,
@@ -35,6 +37,8 @@ from shape_api.mutations import (
     apply_delete_question,
     apply_delete_section,
     apply_init_survey,
+    apply_move_question,
+    apply_move_section,
     apply_update_question,
     apply_update_section,
 )
@@ -63,22 +67,24 @@ _SURVEY_PARAM = {
 }
 _SECTION_PARAM = {
     "type": "object",
-    "description": "A section: {id, title, description, order, questions:[...], metadata}.",
+    "description": "A section: {id, title, description, questions:[...], metadata}. "
+    "Order is the section's position in the list, not a field — use move_section to reorder.",
 }
 _QUESTION_PARAM = {
     "type": "object",
     "description": "A question: {id, text, type, answer_options, min_value, max_value, step, "
-    "order, required, metadata}. type is one of open_ended, single_choice, multiple_choice, "
-    "ranking, slider, descriptive.",
+    "required, metadata}. type is one of open_ended, single_choice, multiple_choice, "
+    "ranking, slider, descriptive. Order is the question's position in the list, not a field — "
+    "use move_question to reorder.",
 }
 _SECTION_PATCH_PARAM = {
     "type": "object",
-    "description": "Only the section fields to change: any of {title, description, order, metadata}.",
+    "description": "Only the section fields to change: any of {title, description, metadata}.",
 }
 _QUESTION_PATCH_PARAM = {
     "type": "object",
     "description": "Only the question fields to change: any of {text, type, answer_options, "
-    "min_value, max_value, step, order, required, metadata}.",
+    "min_value, max_value, step, required, metadata}.",
 }
 
 
@@ -113,10 +119,22 @@ ADD_SECTION_TOOL = _tool(
 
 UPDATE_SECTION_TOOL = _tool(
     "update_section",
-    "Patch a section's title, description, order, or metadata. Does NOT change its questions — "
-    "use the question tools for that. If the section id is unknown, call get_full_survey.",
+    "Patch a section's title, description, or metadata. Does NOT change its questions or "
+    "position — use the question tools or move_section for those. If the section id is unknown, "
+    "call get_full_survey.",
     {"section_id": _STR, "patch": _SECTION_PATCH_PARAM},
     ["section_id", "patch"],
+)
+
+MOVE_SECTION_TOOL = _tool(
+    "move_section",
+    "Change a section's position in the survey. Place it after an existing section via after_id; "
+    "omit after_id to move it to the front. If the section id is unknown, call get_full_survey.",
+    {
+        "section_id": _STR,
+        "after_id": {**_STR, "description": "Place after this section id; omit to move to front."},
+    },
+    ["section_id"],
 )
 
 DELETE_SECTION_TOOL = _tool(
@@ -129,8 +147,8 @@ DELETE_SECTION_TOOL = _tool(
 ADD_QUESTION_TOOL = _tool(
     "add_question",
     "Insert a new question into a section. Optionally place it after an existing question via "
-    "after_id; omit to append. To move a question between sections, call delete_question then "
-    "add_question with the SAME question id.",
+    "after_id; omit to append. To reposition an existing question (within or across sections) "
+    "use move_question — do not delete and re-add it.",
     {
         "section_id": _STR,
         "question": _QUESTION_PARAM,
@@ -154,15 +172,34 @@ DELETE_QUESTION_TOOL = _tool(
     ["question_id"],
 )
 
+MOVE_QUESTION_TOOL = _tool(
+    "move_question",
+    "Change a question's position. Place it after an existing question via after_id; omit "
+    "after_id to move it to the front of the target section. Pass section_id to move it into a "
+    "different section (its id and all other fields are preserved). If the question id is "
+    "unknown, call get_full_survey.",
+    {
+        "question_id": _STR,
+        "after_id": {**_STR, "description": "Place after this question id; omit to move to front."},
+        "section_id": {
+            **_STR,
+            "description": "Target section id; omit to stay in the current one.",
+        },
+    },
+    ["question_id"],
+)
+
 ALL_TOOLS: list[dict] = [
     GET_FULL_SURVEY_TOOL,
     INIT_SURVEY_TOOL,
     ADD_SECTION_TOOL,
     UPDATE_SECTION_TOOL,
     DELETE_SECTION_TOOL,
+    MOVE_SECTION_TOOL,
     ADD_QUESTION_TOOL,
     UPDATE_QUESTION_TOOL,
     DELETE_QUESTION_TOOL,
+    MOVE_QUESTION_TOOL,
 ]
 
 NO_DRAFT_SENTINEL = '{"survey": null}'
@@ -191,6 +228,8 @@ def _apply_mutation(name: str, arguments: dict, survey: Survey | None) -> Survey
         )
     if name == "delete_section":
         return apply_delete_section(survey, section_id)
+    if name == "move_section":
+        return apply_move_section(survey, section_id, arguments.get("after_id"))
     if name == "add_question":
         return apply_add_question(
             survey,
@@ -204,6 +243,10 @@ def _apply_mutation(name: str, arguments: dict, survey: Survey | None) -> Survey
         )
     if name == "delete_question":
         return apply_delete_question(survey, question_id)
+    if name == "move_question":
+        return apply_move_question(
+            survey, question_id, arguments.get("after_id"), arguments.get("section_id")
+        )
     raise ValueError(f"Unknown tool: {name}")
 
 

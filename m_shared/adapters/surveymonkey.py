@@ -155,7 +155,7 @@ class SurveyMonkeyAdapter(SurveyAdapter):
             str: SurveyMonkey-format JSON string.
         """
         pages: list[dict[str, Any]] = []
-        for section in survey.sections:
+        for section_index, section in enumerate(survey.sections, start=1):
             page_id = section.metadata.get("sm_page_id", section.id)
             questions: list[dict[str, Any]] = []
 
@@ -167,7 +167,7 @@ class SurveyMonkeyAdapter(SurveyAdapter):
                     "id": str(page_id),
                     "title": section.title,
                     "description": section.description,
-                    "position": section.order + 1,
+                    "position": section_index,
                     "questions": questions,
                 }
             )
@@ -204,8 +204,7 @@ def _parse_page(page: dict[str, Any], order: int) -> Section:
 
     questions: list[Question] = []
     for q_data in raw_questions:
-        position = max(0, q_data.get("position", 1) - 1)  # SM is 1-based; store 0-based
-        parsed = _parse_question(q_data, position)
+        parsed = _parse_question(q_data)
         if parsed is not None:
             if isinstance(parsed, list):
                 questions.extend(parsed)
@@ -217,12 +216,11 @@ def _parse_page(page: dict[str, Any], order: int) -> Section:
         title=title,
         description=description,
         questions=questions,
-        order=order,
         metadata={"sm_page_id": page_id},
     )
 
 
-def _parse_question(q: dict[str, Any], position: int = 0) -> Question | list[Question] | None:
+def _parse_question(q: dict[str, Any]) -> Question | list[Question] | None:
     """Convert a SurveyMonkey question dict into one or more internal Questions.
 
     Matrix questions are expanded: each row becomes a separate Question so the
@@ -248,7 +246,7 @@ def _parse_question(q: dict[str, Any], position: int = 0) -> Question | list[Que
 
     # Matrix: each row is a sub-question with the column choices as options
     if family == "matrix":
-        return _expand_matrix(q, qid, answers, required, position)
+        return _expand_matrix(q, qid, answers, required)
 
     # Slider: extract bounds from answers.ranges or question-level attributes
     min_val = max_val = step = None
@@ -265,7 +263,6 @@ def _parse_question(q: dict[str, Any], position: int = 0) -> Question | list[Que
         id=f"q_{qid}",
         text=heading,
         type=q_type,
-        order=position,
         answer_options=answer_options,
         required=required,
         min_value=min_val,
@@ -320,7 +317,6 @@ def _expand_matrix(
     qid: str,
     answers: dict[str, Any],
     required: bool,
-    position: int = 0,
 ) -> list[Question]:
     """Expand a matrix question into one Question per row."""
     rows: list[dict[str, Any]] = sorted(answers.get("rows", []), key=lambda r: r.get("position", 0))
@@ -345,7 +341,6 @@ def _expand_matrix(
                 id=f"q_{qid}_row_{rid}",
                 text=row_text,
                 type=QuestionType.SINGLE_CHOICE,
-                order=position,
                 answer_options=col_options,
                 required=required,
                 min_value=None,

@@ -25,6 +25,8 @@ from shape_api.models import (
     CreateChatSessionRequest,
     DeleteSessionResponse,
     DocumentUploadResponse,
+    MoveQuestionRequest,
+    MoveSectionRequest,
     QuestionPatch,
     ResetSessionResponse,
     SectionPatch,
@@ -44,6 +46,8 @@ from shape_api.mutations import (
     apply_add_section,
     apply_delete_question,
     apply_delete_section,
+    apply_move_question,
+    apply_move_section,
     apply_update_question,
     apply_update_section,
 )
@@ -412,6 +416,20 @@ async def delete_survey_section(request: Request, session_id: str, section_id: s
     return _run_mutation(request, session_id, lambda s: apply_delete_section(s, section_id))
 
 
+@router.patch(
+    "/chat/{session_id}/survey/sections/{section_id}/position",
+    response_model=SurveyUpdateResponse,
+)
+@limiter.limit("10/minute")
+async def move_survey_section(
+    request: Request, session_id: str, section_id: str, body: MoveSectionRequest
+):
+    """Move a section to a new position (front if after_id is omitted)."""
+    return _run_mutation(
+        request, session_id, lambda s: apply_move_section(s, section_id, body.after_id)
+    )
+
+
 @router.post(
     "/chat/{session_id}/survey/sections/{section_id}/questions",
     response_model=SurveyUpdateResponse,
@@ -446,6 +464,22 @@ async def update_survey_question(
 async def delete_survey_question(request: Request, session_id: str, question_id: str):
     """Remove a question from wherever it currently lives."""
     return _run_mutation(request, session_id, lambda s: apply_delete_question(s, question_id))
+
+
+@router.patch(
+    "/chat/{session_id}/survey/questions/{question_id}/position",
+    response_model=SurveyUpdateResponse,
+)
+@limiter.limit("10/minute")
+async def move_survey_question(
+    request: Request, session_id: str, question_id: str, body: MoveQuestionRequest
+):
+    """Move a question to a new position, optionally into another section."""
+    return _run_mutation(
+        request,
+        session_id,
+        lambda s: apply_move_question(s, question_id, body.after_id, body.section_id),
+    )
 
 
 # ---------------------------------------------------------------------------

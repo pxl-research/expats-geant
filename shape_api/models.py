@@ -177,7 +177,6 @@ class SectionPatch(BaseModel):
 
     title: str | None = None
     description: str | None = None
-    order: int | None = None
     metadata: dict[str, Any] | None = None
 
 
@@ -192,7 +191,6 @@ class QuestionPatch(BaseModel):
     min_value: float | None = None
     max_value: float | None = None
     step: float | None = None
-    order: int | None = None
     required: bool | None = None
     metadata: dict[str, Any] | None = None
 
@@ -208,6 +206,23 @@ class AddQuestionRequest(BaseModel):
     """Body for POST /chat/{session_id}/survey/sections/{section_id}/questions."""
 
     question: Question
+    after_id: str | None = None
+
+
+class MoveQuestionRequest(BaseModel):
+    """Body for PATCH /chat/{session_id}/survey/questions/{question_id}/position.
+
+    `after_id` omitted moves to the front of the target section; `section_id`
+    moves the question into a different section, preserving its id.
+    """
+
+    after_id: str | None = None
+    section_id: str | None = None
+
+
+class MoveSectionRequest(BaseModel):
+    """Body for PATCH /chat/{session_id}/survey/sections/{section_id}/position."""
+
     after_id: str | None = None
 
 
