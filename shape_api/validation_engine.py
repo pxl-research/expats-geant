@@ -82,6 +82,11 @@ _POSITIVE_WORDS = frozenset(
 # 30 items is a common threshold in survey methodology for respondent fatigue
 _SURVEY_FATIGUE_THRESHOLD = 30
 
+# Per-section thresholds: a cohesive block above ~30 items strains respondents;
+# above ~50 it is strongly discouraged. Neither is a hard cap.
+_SECTION_DENSE_THRESHOLD = 30
+_SECTION_OVERLONG_THRESHOLD = 50
+
 
 def _classify_sentiment(text: str) -> str | None:
     """Return 'positive', 'negative', or None for an answer option label."""
@@ -263,6 +268,32 @@ def _check_survey_tier1(survey: Survey) -> list[ValidationIssue]:
     return []
 
 
+def _check_section_sizes(survey: Survey) -> list[ValidationIssue]:
+    """Warn about overly dense sections (soft thresholds, no hard cap)."""
+    issues: list[ValidationIssue] = []
+    for section in survey.sections:
+        n = len(section.questions)
+        if n > _SECTION_OVERLONG_THRESHOLD:
+            issues.append(
+                ValidationIssue(
+                    question_id="survey",
+                    severity="warning",
+                    code="section_overlong",
+                    message=f"Section '{section.title}' has {n} questions; strongly recommend splitting it.",
+                )
+            )
+        elif n > _SECTION_DENSE_THRESHOLD:
+            issues.append(
+                ValidationIssue(
+                    question_id="survey",
+                    severity="warning",
+                    code="section_dense",
+                    message=f"Section '{section.title}' has {n} questions; consider splitting into thematic subsections.",
+                )
+            )
+    return issues
+
+
 # ---------------------------------------------------------------------------
 # Tier 2 — LLM-assisted checks
 # ---------------------------------------------------------------------------
@@ -440,6 +471,7 @@ def validate_survey(
             issues.extend(_check_question_tier1(question))
 
     issues.extend(_check_survey_tier1(survey))
+    issues.extend(_check_section_sizes(survey))
 
     if llm_client is not None:
         issues.extend(_llm_validate_survey_batch(survey, llm_client, style_profile))

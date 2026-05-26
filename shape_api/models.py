@@ -1,8 +1,12 @@
 """Pydantic request/response models for the Shape API."""
 
-from pydantic import BaseModel, Field
+from typing import Any
 
-from m_shared.models.question import Question
+from pydantic import BaseModel, ConfigDict, Field
+
+from m_shared.models.answer_option import AnswerOption
+from m_shared.models.question import Question, QuestionType
+from m_shared.models.section import Section
 from m_shared.models.survey import Survey
 from shape_api.suggestion_engine import SuggestionResult
 from shape_api.validation_engine import ValidationIssue
@@ -160,6 +164,51 @@ class SurveyUpdateRequest(BaseModel):
 class SurveyUpdateResponse(BaseModel):
     status: str
     validation_issues: list[ValidationIssue]
+
+
+class SectionPatch(BaseModel):
+    """Partial update for a section. Only set fields are applied.
+
+    `questions` is deliberately absent: question membership is managed via the
+    add/update/delete-question operations, not by patching a section.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str | None = None
+    description: str | None = None
+    order: int | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class QuestionPatch(BaseModel):
+    """Partial update for a question. Only set fields are applied."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    text: str | None = None
+    type: QuestionType | None = None
+    answer_options: list[AnswerOption] | None = None
+    min_value: float | None = None
+    max_value: float | None = None
+    step: float | None = None
+    order: int | None = None
+    required: bool | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class AddSectionRequest(BaseModel):
+    """Body for POST /chat/{session_id}/survey/sections."""
+
+    section: Section
+    after_id: str | None = None
+
+
+class AddQuestionRequest(BaseModel):
+    """Body for POST /chat/{session_id}/survey/sections/{section_id}/questions."""
+
+    question: Question
+    after_id: str | None = None
 
 
 class StyleUpdateRequest(BaseModel):

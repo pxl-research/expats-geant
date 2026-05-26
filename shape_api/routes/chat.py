@@ -14,6 +14,8 @@ from m_shared.utils.file_validation import validate_file_upload
 from m_shared.vectordb.utils import document_to_markdown, image_description
 from shape_api.conversation import execute_chat_turn
 from shape_api.models import (
+    AddQuestionRequest,
+    AddSectionRequest,
     ChatMessagesResponse,
     ChatSessionListResponse,
     ChatSessionResponse,
@@ -23,11 +25,27 @@ from shape_api.models import (
     CreateChatSessionRequest,
     DeleteSessionResponse,
     DocumentUploadResponse,
+    QuestionPatch,
     ResetSessionResponse,
+    SectionPatch,
     StyleProfileResponse,
     StyleUpdateRequest,
     SurveyUpdateRequest,
     SurveyUpdateResponse,
+)
+from shape_api.mutations import (
+    DuplicateId,
+    InvalidPatch,
+    MutationError,
+    NoSurveyDraft,
+    QuestionNotFound,
+    SectionNotFound,
+    apply_add_question,
+    apply_add_section,
+    apply_delete_question,
+    apply_delete_section,
+    apply_update_question,
+    apply_update_section,
 )
 from shape_api.session import (
     DEFAULT_STYLE_PROFILE,
@@ -327,6 +345,107 @@ async def put_chat_survey(request: Request, session_id: str, body: SurveyUpdateR
     base_path = str(session_manager.base_path)
     save_draft_survey(base_path, session_id, body.survey)
     return SurveyUpdateResponse(status="saved", validation_issues=validate_survey(body.survey))
+
+
+# ---------------------------------------------------------------------------
+# Granular survey mutations (shared mutation layer with the LLM tool surface)
+# ---------------------------------------------------------------------------
+
+_MUTATION_HTTP_STATUS: dict[type[MutationError], int] = {
+    SectionNotFound: status.HTTP_404_NOT_FOUND,
+    QuestionNotFound: status.HTTP_404_NOT_FOUND,
+    DuplicateId: status.HTTP_409_CONFLICT,
+    NoSurveyDraft: status.HTTP_400_BAD_REQUEST,
+    InvalidPatch: status.HTTP_400_BAD_REQUEST,
+}
+
+
+def _run_mutation(request: Request, session_id: str, mutate) -> SurveyUpdateResponse:
+    """Verify ownership, apply a pure mutation, persist, and validate.
+
+    `mutate` is a callable taking the current draft (Survey | None) and
+    returning a new Survey, raising a MutationError on precondition failure.
+    """
+    session_manager = request.app.state.session_manager
+    user_id = request.state.claims["user_id"]
+    session = _verify_session_owner(session_id, user_id, session_manager)
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Session not found or access denied"
+        )
+    base_path = str(session_manager.base_path)
+    survey = load_draft_survey(base_path, session_id)
+    try:
+        new_survey = mutate(survey)
+    except MutationError as exc:
+        raise HTTPException(status_code=_MUTATION_HTTP_STATUS[type(exc)], detail=str(exc)) from exc
+    save_draft_survey(base_path, session_id, new_survey)
+    return SurveyUpdateResponse(status="saved", validation_issues=validate_survey(new_survey))
+
+
+@router.post("/chat/{session_id}/survey/sections", response_model=SurveyUpdateResponse)
+@limiter.limit("10/minute")
+async def add_survey_section(request: Request, session_id: str, body: AddSectionRequest):
+    """Add a section to the draft survey."""
+    return _run_mutation(
+        request, session_id, lambda s: apply_add_section(s, body.section, body.after_id)
+    )
+
+
+@router.patch(
+    "/chat/{session_id}/survey/sections/{section_id}", response_model=SurveyUpdateResponse
+)
+@limiter.limit("10/minute")
+async def update_survey_section(
+    request: Request, session_id: str, section_id: str, body: SectionPatch
+):
+    """Patch a section's title/description/order/metadata."""
+    return _run_mutation(request, session_id, lambda s: apply_update_section(s, section_id, body))
+
+
+@router.delete(
+    "/chat/{session_id}/survey/sections/{section_id}", response_model=SurveyUpdateResponse
+)
+@limiter.limit("10/minute")
+async def delete_survey_section(request: Request, session_id: str, section_id: str):
+    """Remove a section and its questions."""
+    return _run_mutation(request, session_id, lambda s: apply_delete_section(s, section_id))
+
+
+@router.post(
+    "/chat/{session_id}/survey/sections/{section_id}/questions",
+    response_model=SurveyUpdateResponse,
+)
+@limiter.limit("10/minute")
+async def add_survey_question(
+    request: Request, session_id: str, section_id: str, body: AddQuestionRequest
+):
+    """Add a question to a section."""
+    return _run_mutation(
+        request,
+        session_id,
+        lambda s: apply_add_question(s, section_id, body.question, body.after_id),
+    )
+
+
+@router.patch(
+    "/chat/{session_id}/survey/questions/{question_id}", response_model=SurveyUpdateResponse
+)
+@limiter.limit("10/minute")
+async def update_survey_question(
+    request: Request, session_id: str, question_id: str, body: QuestionPatch
+):
+    """Patch any fields of a question."""
+    return _run_mutation(request, session_id, lambda s: apply_update_question(s, question_id, body))
+
+
+@router.delete(
+    "/chat/{session_id}/survey/questions/{question_id}", response_model=SurveyUpdateResponse
+)
+@limiter.limit("10/minute")
+async def delete_survey_question(request: Request, session_id: str, question_id: str):
+    """Remove a question from wherever it currently lives."""
+    return _run_mutation(request, session_id, lambda s: apply_delete_question(s, question_id))
 
 
 # ---------------------------------------------------------------------------

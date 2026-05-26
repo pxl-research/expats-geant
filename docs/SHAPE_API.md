@@ -25,6 +25,7 @@ Shape is the administrator co-pilot for questionnaire design. It provides statel
   - [POST /chat/{session_id}](#post-chatsession_id)
   - [GET /chat/{session_id}/survey](#get-chatsession_idsurvey)
   - [PUT /chat/{session_id}/survey](#put-chatsession_idsurvey)
+  - [Granular survey mutations](#granular-survey-mutations)
   - [GET /chat/{session_id}/messages](#get-chatsession_idmessages)
   - [DELETE /chat/{session_id}](#delete-chatsession_id)
   - [POST /chat/{session_id}/reset](#post-chatsession_idreset)
@@ -348,15 +349,21 @@ POST /chat/sessions          ← create session
   ├─ POST /chat/{id}         ← send message, get AI response
   │    └── survey_updated: true → draft updated in session
   │
-  ├─ GET  /chat/{id}/survey  ← retrieve current draft at any time
-  ├─ PUT  /chat/{id}/survey  ← push external edits to the draft
+  ├─ GET    /chat/{id}/survey            ← retrieve current draft at any time
+  ├─ PUT    /chat/{id}/survey            ← replace the whole draft (external editor)
+  ├─ POST   /chat/{id}/survey/sections   ← granular edits (add/update/delete
+  ├─ PATCH  /chat/{id}/survey/...           sections and questions)
   │
   ├─ POST /export            ← export draft to target platform
   │
   └─ DELETE /chat/{id}       ← clean up when done
 ```
 
-The AI updates `draft_survey.json` when it detects a `<survey_update>` tag in its response. Poll `GET /chat/{session_id}/survey` after any turn where `survey_updated: true`.
+The AI edits the draft by calling internal mutation tools (add/update/delete a
+section or question), so a chat turn touches only the parts that change rather
+than re-emitting the whole survey. Poll `GET /chat/{session_id}/survey` after any
+turn where `survey_updated: true`. The same granular mutations are also available
+as the REST endpoints documented below, for external editors and integrations.
 
 ---
 
@@ -620,6 +627,54 @@ curl -X PUT http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000/surv
 1. `PUT /chat/{id}/survey` to sync your local edits to the server
 2. `POST /chat/{id}` with a short instruction (e.g., "improve question 3") — no need to include the survey JSON
 3. `GET /chat/{id}/survey` to fetch the AI's updated version back
+
+---
+
+### Granular survey mutations
+
+For surgical edits — without re-sending the whole survey — six endpoints apply a
+single change to the draft. Each shares the same mutation logic the chat AI uses,
+and each returns the standard `{"status": "saved", "validation_issues": [...]}`
+body (the same shape as `PUT /chat/{session_id}/survey`).
+
+| Method | Path | Body |
+|--------|------|------|
+| `POST` | `/chat/{session_id}/survey/sections` | `{"section": {...}, "after_id": "sec_1"}` |
+| `PATCH` | `/chat/{session_id}/survey/sections/{section_id}` | `{"title": "...", "description": "...", "order": 1, "metadata": {}}` |
+| `DELETE` | `/chat/{session_id}/survey/sections/{section_id}` | — |
+| `POST` | `/chat/{session_id}/survey/sections/{section_id}/questions` | `{"question": {...}, "after_id": "q_1"}` |
+| `PATCH` | `/chat/{session_id}/survey/questions/{question_id}` | `{"text": "...", "type": "...", "answer_options": [...], ...}` |
+| `DELETE` | `/chat/{session_id}/survey/questions/{question_id}` | — |
+
+`after_id` is optional on the add endpoints: the new section/question is inserted
+after the named sibling, or appended when omitted. PATCH bodies are partial — only
+the fields you include are changed (a `section` PATCH cannot contain `questions`;
+manage questions through the question endpoints). To move a question between
+sections, `DELETE` it then `POST` it into the target section with the same `id`.
+
+```bash
+curl -X PATCH http://localhost:8003/chat/$SID/survey/questions/q_1 \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "What is your preferred working arrangement?"}'
+```
+
+**Response** (`200 OK`):
+
+```json
+{ "status": "saved", "validation_issues": [] }
+```
+
+**Errors:**
+- `404` if the referenced `section_id` / `question_id` does not exist
+- `409` if an added section/question `id` already exists in the draft
+- `400` if no draft exists yet, or the patch is otherwise invalid
+- `422` if the request body does not match the schema (FastAPI validation format)
+- `403` if the session does not exist or belongs to another user
+
+Note on section size: sections beyond ~30 questions surface a `section_dense`
+warning, and beyond ~50 a `section_overlong` warning, in `validation_issues`.
+These are advisory only — no hard cap is enforced.
 
 ---
 
