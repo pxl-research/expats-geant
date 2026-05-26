@@ -86,5 +86,7 @@
   pre-existing, unrelated errors remain in `routes/chat.py` and `qti.py`.
 - [x] 10.3 Full `pytest` suite green (1256 passed).
 - [x] 10.4 `openspec validate simplify-survey-ordering --strict` clean.
-- [ ] 10.5 Manual smoke: reorder via chat → preview reflects the new order; QTI
-  and SurveyMonkey exports agree. (Requires running stack — pending user.)
+- [x] 10.5 Live-stack smoke: `tests/scripts/e2e_reorder_spot_check.py` ran
+  against the running stack — 16/16 checks passed; docker logs confirmed the real
+  model drove `move_question` / `move_section` (`status=ok`). Since ordering is
+  list-position-only, the correct order changes prove the right tool was chosen.
