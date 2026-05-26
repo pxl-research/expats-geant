@@ -168,7 +168,7 @@
 - [x] 8.3 Run `.venv/bin/python -m pytest tests/ --no-cov -q` — green.
 - [x] 8.4 Run `openspec validate add-granular-survey-mutations --strict`
   — clean.
-- [ ] 8.5 Manual smoke (after `docker compose up shape-api shape-ui`):
+- [x] 8.5 Manual smoke (after `docker compose up shape-api shape-ui`):
   open Shape UI, ask "add an email question to the persoonlijke
   gegevens section" on a 150-question pilot survey, verify the chat
   reply is short (one sentence), the survey preview refreshes with
