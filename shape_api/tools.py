@@ -19,6 +19,7 @@ name.
 """
 
 import json
+import logging
 
 from pydantic import ValidationError
 
@@ -39,6 +40,8 @@ from shape_api.mutations import (
 )
 from shape_api.session import load_draft_survey, save_draft_survey
 from shape_api.validation_engine import validate_survey
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _tool(name: str, description: str, properties: dict, required: list[str]) -> dict:
@@ -212,16 +215,25 @@ def dispatch_tool_call(name: str, arguments: dict, base_path: str, session_id: s
     """
     if name == "get_full_survey":
         survey = load_draft_survey(base_path, session_id)
+        _LOGGER.info("tool_call session_id=%s name=%s status=ok", session_id, name)
         return NO_DRAFT_SENTINEL if survey is None else survey.model_dump_json()
 
     survey = load_draft_survey(base_path, session_id)
     try:
         new_survey = _apply_mutation(name, arguments, survey)
     except MutationError as exc:
-        return json.dumps({"status": "error", "code": ERROR_CODES[type(exc)], "message": str(exc)})
+        code = ERROR_CODES[type(exc)]
+        _LOGGER.info("tool_call session_id=%s name=%s status=error code=%s", session_id, name, code)
+        return json.dumps({"status": "error", "code": code, "message": str(exc)})
     except ValidationError as exc:
+        _LOGGER.info(
+            "tool_call session_id=%s name=%s status=error code=invalid_patch", session_id, name
+        )
         return json.dumps({"status": "error", "code": "invalid_patch", "message": str(exc)})
 
     save_draft_survey(base_path, session_id, new_survey)
     issues = validate_survey(new_survey)
+    _LOGGER.info(
+        "tool_call session_id=%s name=%s status=ok issues=%d", session_id, name, len(issues)
+    )
     return json.dumps({"status": "ok", "validation_issues": [i.model_dump() for i in issues]})

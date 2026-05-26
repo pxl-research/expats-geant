@@ -3,12 +3,21 @@
 
 name: expats
 
+# Bounded container logs: rotate at 20 MB, keep 5 files (~100 MB/service max).
+# Applied to every service via `logging: *default-logging`.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
 services:
   cue-api:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: cue-api
+    logging: *default-logging
     deploy:
       resources:
         limits:
@@ -95,6 +104,7 @@ services:
       context: .
       dockerfile: shape_api/Dockerfile
     container_name: shape-api
+    logging: *default-logging
     deploy:
       resources:
         limits:
@@ -147,6 +157,7 @@ services:
       context: .
       dockerfile: cue_ui/Dockerfile
     container_name: cue-ui
+    logging: *default-logging
     deploy:
       resources:
         limits:
@@ -173,6 +184,7 @@ services:
       context: .
       dockerfile: shape_ui/Dockerfile
     container_name: shape-ui
+    logging: *default-logging
     deploy:
       resources:
         limits:
@@ -197,6 +209,7 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
     container_name: keycloak
+    logging: *default-logging
     deploy:
       resources:
         limits:

@@ -19,6 +19,12 @@ from shape_api.api import create_app
 def main():
     """Initialize and run the Shape API."""
 
+    # Honour LOG_LEVEL (plumbed via compose) so app INFO logs reach stdout/docker.
+    logging.basicConfig(
+        level=os.getenv("LOG_LEVEL", "INFO").upper(),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
     check_secrets()
 
     sessions_base_path = os.getenv("SESSIONS_BASE_PATH", "./data/sessions")
@@ -38,6 +44,8 @@ def main():
     )
     logging.getLogger("m_shared.auth").setLevel(logging.INFO)
     logging.getLogger("m_shared.auth").addHandler(_security_handler)
+    # Keep security events in security.log only; don't duplicate them to stdout.
+    logging.getLogger("m_shared.auth").propagate = False
 
     print("Initializing Shape service...")
 
