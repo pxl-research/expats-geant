@@ -95,6 +95,12 @@ curl "http://localhost:8003/chat/$SESSION/survey" \
 | `/chat/{id}` | GET | Yes | Session metadata |
 | `/chat/{id}` | POST | Yes | Send message, get AI response |
 | `/chat/{id}/survey` | GET | Yes | Current draft survey |
+| `/chat/{id}/survey` | PUT | Yes | Replace the whole draft (external-editor sync) |
+| `/chat/{id}/survey/sections[/{section_id}]` | POST/PATCH/DELETE | Yes | Add / edit / remove a section |
+| `/chat/{id}/survey/sections/{section_id}/position` | PATCH | Yes | Reorder a section by list position |
+| `/chat/{id}/survey/sections/{section_id}/questions` | POST | Yes | Add a question to a section |
+| `/chat/{id}/survey/questions/{question_id}` | PATCH/DELETE | Yes | Edit / remove a question |
+| `/chat/{id}/survey/questions/{question_id}/position` | PATCH | Yes | Move a question (within or across sections) |
 | `/chat/{id}/messages` | GET | Yes | Conversation history |
 | `/chat/{id}` | DELETE | Yes | Delete session |
 | `/chat/{id}/reset` | POST | Yes | Clear draft + vocabulary |

@@ -119,7 +119,7 @@ TOKEN=$(curl -s -X POST "$BASE_URL/auth/token" \
 
 ### 3. E2E spot-check scripts
 
-Four automated scripts cover the full deployed stack:
+Automated scripts cover the full deployed stack:
 
 ```bash
 # Cue: upload → suggest → audit → cleanup (52 checks)
@@ -136,6 +136,9 @@ python tests/scripts/e2e_chat_spot_check.py --base-url $CHAT_URL
 
 # Shape: conversational session lifecycle (33 checks)
 python tests/scripts/e2e_chat_conversational_spot_check.py --base-url $CHAT_URL
+
+# Shape: LLM-driven reorder — move_question / move_section (requires an LLM key, 16 checks)
+python tests/scripts/e2e_reorder_spot_check.py --base-url $CHAT_URL
 ```
 
 ### 4. Curl smoke tests

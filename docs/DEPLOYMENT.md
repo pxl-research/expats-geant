@@ -93,6 +93,8 @@ docker-compose logs -f cue-api
 docker-compose logs --tail=50 cue-api
 ```
 
+Container logs are bounded: every service uses the `json-file` driver capped at `max-size: 20m` × `max-file: 5` (~100 MB/service) so logs rotate automatically and cannot fill the disk. Application logs honour `LOG_LEVEL` (default `INFO`); the Shape API additionally logs each chat-turn tool call at `INFO` (e.g. `tool_call ... name=move_question status=ok`) for observability.
+
 ### 6. Stop the Service
 
 ```bash
