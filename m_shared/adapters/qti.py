@@ -253,6 +253,10 @@ def _parse_item(item_el: Element) -> Question | None:
             id=f"q_{item_id}",
             text=body_text,
             type=QuestionType.DESCRIPTIVE,
+            required=False,
+            min_value=None,
+            max_value=None,
+            step=None,
             metadata={"platform": "qti", "qti_identifier": item_id},
         )
 
@@ -301,6 +305,7 @@ def _parse_item(item_el: Element) -> Question | None:
         id=f"q_{item_id}",
         text=text,
         type=q_type,
+        required=True,
         answer_options=answer_options,
         min_value=min_val,
         max_value=max_val,
