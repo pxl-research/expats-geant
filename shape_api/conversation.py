@@ -95,36 +95,44 @@ def _run_tool_call(tc, base_path: str, session_id: str, iteration: int) -> str:
         return json.dumps({"status": "error", "code": "unknown_tool", "message": str(exc)})
 
 
-def _mutation_succeeded(tool_name: str, tool_json: str) -> bool:
-    """True if a non-read tool returned a successful mutation envelope."""
+def _successful_mutation_issues(tool_name: str, tool_json: str) -> list[dict] | None:
+    """Return a successful mutation's validation_issues list, or None.
+
+    None means the call was a read (`get_full_survey`), an error, or unparseable —
+    i.e. it did not change the draft.
+    """
     if tool_name == "get_full_survey":
-        return False
+        return None
     try:
-        return json.loads(tool_json).get("status") == "ok"
+        envelope = json.loads(tool_json)
     except json.JSONDecodeError:
-        return False
+        return None
+    if envelope.get("status") != "ok":
+        return None
+    return envelope.get("validation_issues", [])
 
 
-def _advisory_notes(baseline_draft, base_path: str, session_id: str) -> str:
+def _advisory_notes(baseline_draft, final_issues: list[dict]) -> str:
     """Return up to two '— was this intentional?' notes for newly introduced issues.
 
-    Compares tier-1 validation issues on the draft at turn start against the
-    persisted draft after the turn's mutations. Deterministic; no extra LLM call.
+    Diffs the tier-1 issues on the draft at turn start against `final_issues`
+    (reused from the last successful mutation's envelope, so no reload or
+    re-validation of the final draft is needed). Deterministic; no extra LLM call.
     """
     baseline_keys = (
         {(i.question_id, i.code) for i in validate_survey(baseline_draft)}
         if baseline_draft
         else set()
     )
-    final_draft = load_draft_survey(base_path, session_id)
-    if final_draft is None:
-        return ""
     introduced = [
-        i
-        for i in validate_survey(final_draft)
-        if (i.question_id, i.code) not in baseline_keys and i.severity in ("warning", "error")
+        d
+        for d in final_issues
+        if (d["question_id"], d["code"]) not in baseline_keys
+        and d["severity"] in ("warning", "error")
     ]
-    return "\n".join(f"I also noticed: {i.message} — was this intentional?" for i in introduced[:2])
+    return "\n".join(
+        f"I also noticed: {d['message']} — was this intentional?" for d in introduced[:2]
+    )
 
 
 def execute_chat_turn(
@@ -158,10 +166,10 @@ def execute_chat_turn(
     messages.extend(history_msgs)
     messages.append({"role": "user", "content": message})
 
-    survey_updated = False
     final_content = ""
     final_finish_reason: str | None = None
     hit_cap = False
+    last_mutation_issues: list[dict] | None = None
 
     for iteration in range(1, MAX_TOOL_CALL_ITERATIONS + 1):
         result = llm_client.create_completion_full(messages=messages, tools=ALL_TOOLS)
@@ -173,8 +181,9 @@ def execute_chat_turn(
         _append_assistant_tool_call_message(messages, result)
         for tc in result.tool_calls:
             tool_json = _run_tool_call(tc, base_path, session_id, iteration)
-            if _mutation_succeeded(tc.name, tool_json):
-                survey_updated = True
+            issues = _successful_mutation_issues(tc.name, tool_json)
+            if issues is not None:
+                last_mutation_issues = issues
             messages.append(
                 {
                     "role": "tool",
@@ -193,6 +202,7 @@ def execute_chat_turn(
             MAX_TOOL_CALL_ITERATIONS,
         )
 
+    survey_updated = last_mutation_issues is not None
     text = final_content.strip()
 
     if hit_cap and not text:
@@ -208,8 +218,8 @@ def execute_chat_turn(
             "Please ask for the change in smaller steps, or split the survey into more sections."
         )
 
-    if survey_updated:
-        notes = _advisory_notes(draft, base_path, session_id)
+    if last_mutation_issues is not None:
+        notes = _advisory_notes(draft, last_mutation_issues)
         if notes:
             text = f"{text}\n\n{notes}" if text else notes
 

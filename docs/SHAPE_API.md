@@ -349,10 +349,11 @@ POST /chat/sessions          ← create session
   ├─ POST /chat/{id}         ← send message, get AI response
   │    └── survey_updated: true → draft updated in session
   │
-  ├─ GET    /chat/{id}/survey            ← retrieve current draft at any time
-  ├─ PUT    /chat/{id}/survey            ← replace the whole draft (external editor)
-  ├─ POST   /chat/{id}/survey/sections   ← granular edits (add/update/delete
-  ├─ PATCH  /chat/{id}/survey/...           sections and questions)
+  ├─ GET  /chat/{id}/survey   ← retrieve current draft at any time
+  ├─ PUT  /chat/{id}/survey   ← replace the whole draft (external editor)
+  ├─ POST/PATCH/DELETE /chat/{id}/survey/sections[/{section_id}]              ← granular section edits
+  ├─ POST/PATCH/DELETE /chat/{id}/survey/sections/{section_id}/questions      ← granular question edits
+  │    and /chat/{id}/survey/questions/{question_id}                             (see "Granular survey mutations")
   │
   ├─ POST /export            ← export draft to target platform
   │
