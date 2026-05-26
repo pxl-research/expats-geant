@@ -82,11 +82,11 @@
 
 - [x] 10.1 `ruff check` + `ruff format --check` clean on all changed files
   (one pre-existing, unrelated `UP042` remains on the `QuestionType` enum).
-- [ ] 10.2 `mypy`: introduced zero new errors (verified against baseline). The 5
+- [x] 10.2 `mypy`: introduced zero new errors (verified against baseline). The 5
   pre-existing `qti.py` call-arg errors in code this change touched are now fixed
   (defaults passed explicitly). 7 unrelated, pre-existing errors remain in
-  `routes/chat.py` (dict-vs-typed-model on style/messages responses) — left for a
-  separate type-cleanup change.
+  `routes/chat.py` (dict-vs-typed-model on style/messages responses) — explicitly
+  out of scope, left for a separate type-cleanup change.
 - [x] 10.3 Full `pytest` suite green (1256 passed).
 - [x] 10.4 `openspec validate simplify-survey-ordering --strict` clean.
 - [x] 10.5 Live-stack smoke: `tests/scripts/e2e_reorder_spot_check.py` ran
