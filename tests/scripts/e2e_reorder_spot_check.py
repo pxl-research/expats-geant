@@ -19,9 +19,9 @@ checks are reported as WARN rather than FAIL.
 
 Usage:
     # With the stack running (docker compose up shape-api, or python run_chat_api.py):
-    python tests/scripts/e2e_reorder_spot_check.py [--base-url http://localhost:8003]
+    python tests/scripts/e2e_reorder_spot_check.py [--base-url http://localhost:8802]
 
-Defaults to http://localhost:8003.
+Defaults to http://localhost:8802.
 """
 
 import argparse
@@ -34,7 +34,7 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
-DEFAULT_BASE_URL = "http://localhost:8003"
+DEFAULT_BASE_URL = "http://localhost:8802"
 CHAT_TIMEOUT = 120  # LLM turns can be slow
 
 PASS = "\033[32mPASS\033[0m"

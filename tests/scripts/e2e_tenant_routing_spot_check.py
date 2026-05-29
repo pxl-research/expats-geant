@@ -8,14 +8,14 @@ Covers:
   8.4  Hot reload         — add tenant to registry, reload, verify immediate availability
 
 Prerequisites:
-  - Docker Compose stack running (Cue API on 8001, Shape API on 8003, Keycloak on 8080)
+  - Docker Compose stack running (Cue API on 8801, Shape API on 8802, Keycloak on 8080)
   - .env loaded (API_SECRET, KEYCLOAK_ADMIN_PASSWORD must be set)
   - TENANT_ENCRYPTION_KEY set in .env (generate with: python scripts/manage_tenants.py generate-key)
   - TENANT_REGISTRY_PATH=.secrets/tenants.json in .env
   - docker-compose.yml mounts .secrets/ into the API containers
 
 Usage:
-    python tests/scripts/e2e_tenant_routing_spot_check.py [--base-url http://localhost:8001]
+    python tests/scripts/e2e_tenant_routing_spot_check.py [--base-url http://localhost:8801]
 """
 
 import argparse
@@ -32,7 +32,7 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
-DEFAULT_BASE_URL = "http://localhost:8001"
+DEFAULT_BASE_URL = "http://localhost:8801"
 KEYCLOAK_URL = "http://localhost:8080"
 KEYCLOAK_REALM = "expats"
 

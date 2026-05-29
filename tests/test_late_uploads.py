@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from cue_ui.main import app
 
 TOKEN_COOKIE = {"autofill_token": "test-jwt-token"}
-BASE = "http://localhost:8001"
+BASE = "http://localhost:8801"
 
 SURVEY_FIXTURE = {
     "id": "survey-abc",

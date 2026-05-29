@@ -12,9 +12,9 @@ Usage:
     #   python run_api.py
     #
     # Then in another terminal:
-    #   python tests/scripts/e2e_api_spot_check.py [--base-url http://localhost:8001]
+    #   python tests/scripts/e2e_api_spot_check.py [--base-url http://localhost:8801]
 
-Defaults to http://localhost:8001.
+Defaults to http://localhost:8801.
 """
 
 import argparse
@@ -32,7 +32,7 @@ load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 # Configuration
 # ---------------------------------------------------------------------------
 
-DEFAULT_BASE_URL = "http://localhost:8001"
+DEFAULT_BASE_URL = "http://localhost:8801"
 
 DATA_DIR = Path(__file__).parent.parent.parent / "test_data" / "internship" / "data"
 DATA_FILES = [

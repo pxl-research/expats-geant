@@ -50,7 +50,7 @@ from shape_ui.api_client import (
 )
 from shape_ui.main import create_app
 
-BASE = "http://localhost:8003"
+BASE = "http://localhost:8802"
 TOKEN = "test-jwt-token"
 SESSION_ID = "test-session-uuid-1234"
 

@@ -26,7 +26,7 @@ from m_shared.auth.oauth import (
 ISSUER = "http://localhost:8080/realms/expats"
 CLIENT_ID = "cue-api"
 CLIENT_SECRET = "change-me"
-REDIRECT_URI = "http://localhost:8001/auth/callback"
+REDIRECT_URI = "http://localhost:8801/auth/callback"
 
 OIDC_ENV = {
     "OIDC_ISSUER_URL": ISSUER,
