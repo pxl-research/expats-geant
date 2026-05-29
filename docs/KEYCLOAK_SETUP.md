@@ -113,7 +113,7 @@ Configure TLS termination at your reverse proxy (nginx, Caddy, etc.) and update 
 
 ```
 OIDC_ISSUER_URL=https://keycloak.yourdomain.com/realms/expats
-OIDC_REDIRECT_URI=https://yourdomain.com:8002/auth/callback
+OIDC_REDIRECT_URI=https://yourdomain.com:8811/auth/callback
 ```
 
 Update the client redirect URI using `kcadm.sh` as shown above, or via Keycloak admin → **Clients** → `cue-api` → **Valid redirect URIs**.
@@ -145,7 +145,7 @@ For production use a dedicated PostgreSQL database instead of the embedded H2.
 | `OIDC_ISSUER_URL` | — | Keycloak realm URL, e.g. `http://localhost:8080/realms/expats` |
 | `OIDC_CLIENT_ID` | — | `cue-api` |
 | `OIDC_CLIENT_SECRET` | — | Client secret (regenerate from Keycloak admin) |
-| `OIDC_REDIRECT_URI` | `http://localhost:8002/auth/callback` | Where Keycloak sends the browser after cue login |
-| `SHAPE_OIDC_REDIRECT_URI` | `http://localhost:8004/auth/callback` | Where Keycloak sends the browser after shape login |
+| `OIDC_REDIRECT_URI` | `http://localhost:8811/auth/callback` | Where Keycloak sends the browser after cue login |
+| `SHAPE_OIDC_REDIRECT_URI` | `http://localhost:8812/auth/callback` | Where Keycloak sends the browser after shape login |
 | `KEYCLOAK_PUBLIC_URL` | — | Public browser-accessible base URL of Keycloak (e.g. `http://10.0.0.1:8080`); rewrites the internal hostname in OIDC redirects |
 | `KC_HOSTNAME_ADMIN` | `http://keycloak:8080` | Hostname used for admin console redirects; set to your server URL for external access |

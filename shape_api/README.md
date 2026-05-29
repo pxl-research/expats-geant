@@ -43,7 +43,7 @@ set by `create_app()` in `api.py`.
 ### 1. Generate a token
 
 ```bash
-TOKEN=$(curl -s -X POST "http://localhost:8001/auth/token" \
+TOKEN=$(curl -s -X POST "http://localhost:8801/auth/token" \
   -H "Content-Type: application/json" \
   -d '{"user_id":"dev_user","api_secret":"your-shared-api-secret"}' \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
@@ -52,7 +52,7 @@ TOKEN=$(curl -s -X POST "http://localhost:8001/auth/token" \
 ### 2. Get a question suggestion
 
 ```bash
-curl -X POST http://localhost:8003/suggest \
+curl -X POST http://localhost:8802/suggest \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -65,18 +65,18 @@ curl -X POST http://localhost:8003/suggest \
 
 ```bash
 # Create session
-SESSION=$(curl -s -X POST http://localhost:8003/chat/sessions \
+SESSION=$(curl -s -X POST http://localhost:8802/chat/sessions \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{}' \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['session_id'])")
 
 # Send a design instruction
-curl -X POST "http://localhost:8003/chat/$SESSION" \
+curl -X POST "http://localhost:8802/chat/$SESSION" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"message": "Create a short survey about remote work with 3 questions"}'
 
 # Retrieve the draft
-curl "http://localhost:8003/chat/$SESSION/survey" \
+curl "http://localhost:8802/chat/$SESSION/survey" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -150,7 +150,7 @@ pytest tests/ -v --tb=short
 | `SESSION_TTL_HOURS` | `24` | Chat session lifetime in hours |
 | `MAX_FILE_SIZE_MB` | `50` | Max file size for uploads |
 | `API_SECRET` | — | Shared secret for `POST /auth/token` (omit to disable) |
-| `CHAT_PORT` | `8003` | API server port |
+| `CHAT_PORT` | `8802` | API server port |
 
 ## Links
 

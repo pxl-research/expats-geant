@@ -102,8 +102,8 @@ To smoke-test a running deployment:
 
 ```bash
 export JWT_SECRET=your-deployed-secret
-export BASE_URL=http://localhost:8001   # Cue
-export CHAT_URL=http://localhost:8003   # Shape
+export BASE_URL=http://localhost:8801   # Cue
+export CHAT_URL=http://localhost:8802   # Shape
 ```
 
 ### 2. Generate a token

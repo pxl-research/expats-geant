@@ -18,14 +18,14 @@ This guide explains how to integrate Cue with institutional authentication syste
 
 ## Deployment
 
-Cue API runs on port `8001`. Interactive docs at `http://localhost:8001/docs`.
+Cue API runs on port `8801`. Interactive docs at `http://localhost:8801/docs`.
 
 For setup, Docker Compose instructions, environment variables, and production hardening, see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 **Quick verify:**
 
 ```bash
-curl http://localhost:8001/health
+curl http://localhost:8801/health
 # {"status":"healthy"}
 ```
 
@@ -128,7 +128,7 @@ subsequent requests. See [DEPLOYMENT.md § Multi-Tenant Setup](DEPLOYMENT.md#mul
 #### Generate a Token
 
 ```bash
-curl -X POST http://localhost:8001/auth/token \
+curl -X POST http://localhost:8801/auth/token \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "test_user",
@@ -139,7 +139,7 @@ curl -X POST http://localhost:8001/auth/token \
 To resume an existing session, include the optional `session_id` field:
 
 ```bash
-curl -X POST http://localhost:8001/auth/token \
+curl -X POST http://localhost:8801/auth/token \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "test_user",
@@ -174,12 +174,12 @@ The endpoint is rate-limited to **10 requests per minute**. An incorrect or abse
 TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 
 # Upload document
-curl -X POST http://localhost:8001/upload \
+curl -X POST http://localhost:8801/upload \
   -H "Authorization: Bearer $TOKEN" \
   -F "file=@document.pdf"
 
 # Get session stats
-curl -X GET http://localhost:8001/session/stats \
+curl -X GET http://localhost:8801/session/stats \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -249,10 +249,10 @@ docker-compose up
 OIDC_ISSUER_URL=http://localhost:8080/realms/expats
 OIDC_CLIENT_ID=cue-api
 OIDC_CLIENT_SECRET=change-me
-OIDC_REDIRECT_URI=http://localhost:8001/auth/callback
+OIDC_REDIRECT_URI=http://localhost:8801/auth/callback
 
 # 3. Open login URL in browser
-open http://localhost:8001/auth/login
+open http://localhost:8801/auth/login
 # → redirected to Keycloak login
 # → after login, JWT with session_id=null is issued
 # → UI redirects to session list page
@@ -260,12 +260,12 @@ open http://localhost:8001/auth/login
 # 4. Create a session and use the token
 # (The Cue UI handles this automatically via the session list page)
 # For API usage, create a session explicitly:
-curl -X POST http://localhost:8001/sessions/new \
+curl -X POST http://localhost:8801/sessions/new \
   -H "Authorization: Bearer <login-token>"
 # → returns { "token": "...", "session_id": "..." }
 
 # 5. Use the session-scoped JWT
-curl http://localhost:8001/session/stats \
+curl http://localhost:8801/session/stats \
   -H "Authorization: Bearer <session-token>"
 ```
 
@@ -280,7 +280,7 @@ Set the four env vars to your provider's values:
 | `OIDC_ISSUER_URL` | Issuer URL — discovery doc lives at `<issuer>/.well-known/openid-configuration` |
 | `OIDC_CLIENT_ID` | Client / app ID registered with the provider |
 | `OIDC_CLIENT_SECRET` | Client secret (confidential client) |
-| `OIDC_REDIRECT_URI` | Must match the URI registered with the provider; default: `http://localhost:8001/auth/callback` |
+| `OIDC_REDIRECT_URI` | Must match the URI registered with the provider; default: `http://localhost:8801/auth/callback` |
 
 ### Pre-Issued JWT (Advanced)
 
@@ -918,7 +918,7 @@ curl -H "Authorization: Bearer <token>" ...
 
 ```bash
 # Via API token endpoint (all environments)
-curl -X POST http://localhost:8001/auth/token \
+curl -X POST http://localhost:8801/auth/token \
   -H "Content-Type: application/json" \
   -d '{"user_id": "your_user", "api_secret": "your-shared-api-secret"}'
 

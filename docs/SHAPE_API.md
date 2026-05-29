@@ -42,10 +42,10 @@ Shape is the administrator co-pilot for questionnaire design. It provides statel
 
 ## Overview
 
-- **Base URL**: `http://localhost:8003`
-- **Interactive docs**: `http://localhost:8003/docs`
+- **Base URL**: `http://localhost:8802`
+- **Interactive docs**: `http://localhost:8802/docs`
 - **Service**: `shape-api` (Docker Compose)
-- **Port**: `8003`
+- **Port**: `8802`
 
 All endpoints except `/`, `/health`, `/auth/token`, `/auth/login`, and `/auth/callback` require a valid JWT in the `Authorization: Bearer <token>` header.
 
@@ -59,13 +59,13 @@ Shape uses the same JWT authentication model as Cue. See [CUE_API.md — Authent
 
 ```bash
 # 1. Generate a token via the API token endpoint (set API_SECRET in .env first)
-TOKEN=$(curl -s -X POST "http://localhost:8001/auth/token" \
+TOKEN=$(curl -s -X POST "http://localhost:8801/auth/token" \
   -H "Content-Type: application/json" \
   -d '{"user_id":"dev_user","api_secret":"your-shared-api-secret"}' \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
 
 # 2. Use the token
-curl http://localhost:8003/chat/sessions \
+curl http://localhost:8802/chat/sessions \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -82,7 +82,7 @@ Parse a platform survey file and return the internal `Survey` JSON.
 **Supported formats**: `limesurvey` (or `lss`), `qualtrics` (or `qsf`), `surveymonkey` (or `sm`), `qti`
 
 ```bash
-curl -X POST http://localhost:8003/import \
+curl -X POST http://localhost:8802/import \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -118,7 +118,7 @@ Serialise an internal `Survey` to a platform-specific format.
 
 ```bash
 # Export to QTI
-curl -X POST http://localhost:8003/export \
+curl -X POST http://localhost:8802/export \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -127,7 +127,7 @@ curl -X POST http://localhost:8003/export \
   }'
 
 # Export to Qualtrics QSF
-curl -X POST http://localhost:8003/export \
+curl -X POST http://localhost:8802/export \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -153,7 +153,7 @@ Create a survey on the target platform API, or fall back to file export if crede
 
 ```bash
 # API create on LimeSurvey (requires credentials)
-curl -X POST http://localhost:8003/create \
+curl -X POST http://localhost:8802/create \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -165,7 +165,7 @@ curl -X POST http://localhost:8003/create \
   }'
 
 # File export fallback (no credentials)
-curl -X POST http://localhost:8003/create \
+curl -X POST http://localhost:8802/create \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -212,7 +212,7 @@ Generate improved phrasings for a survey question.
 
 ```bash
 # Without session context
-curl -X POST http://localhost:8003/suggest \
+curl -X POST http://localhost:8802/suggest \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -225,7 +225,7 @@ curl -X POST http://localhost:8003/suggest \
   }'
 
 # With session context (applies style profile)
-curl -X POST http://localhost:8003/suggest \
+curl -X POST http://localhost:8802/suggest \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -262,7 +262,7 @@ Validate a question or full survey for quality issues. Uses Tier 1 deterministic
 
 ```bash
 # Validate a single question
-curl -X POST http://localhost:8003/validate \
+curl -X POST http://localhost:8802/validate \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -274,7 +274,7 @@ curl -X POST http://localhost:8003/validate \
   }'
 
 # Validate the session draft survey
-curl -X POST http://localhost:8003/validate \
+curl -X POST http://localhost:8802/validate \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -308,7 +308,7 @@ Issue severity values: `"error"`, `"warning"`, `"info"`.
 Suggest normalised tags for a survey question. When a `session_id` is provided, new tags are persisted to the session vocabulary.
 
 ```bash
-curl -X POST http://localhost:8003/tag \
+curl -X POST http://localhost:8802/tag \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -374,7 +374,7 @@ as the REST endpoints documented below, for external editors and integrations.
 Create a new conversational chat session.
 
 ```bash
-curl -X POST http://localhost:8003/chat/sessions \
+curl -X POST http://localhost:8802/chat/sessions \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{}'
@@ -406,7 +406,7 @@ The `token` field contains a new JWT scoped to the created session. Use this tok
 List all chat sessions for the authenticated user.
 
 ```bash
-curl http://localhost:8003/chat/sessions \
+curl http://localhost:8802/chat/sessions \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -433,7 +433,7 @@ curl http://localhost:8003/chat/sessions \
 Select (resume) an existing chat session. Returns a new JWT scoped to the selected session.
 
 ```bash
-curl -X POST http://localhost:8003/chat/sessions/550e8400-.../select \
+curl -X POST http://localhost:8802/chat/sessions/550e8400-.../select \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -459,7 +459,7 @@ Use the returned `token` for all subsequent API calls on this session. The initi
 Get metadata for a specific session.
 
 ```bash
-curl http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000 \
+curl http://localhost:8802/chat/550e8400-e29b-41d4-a716-446655440000 \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -472,7 +472,7 @@ Returns a `ChatSessionResponse` (same shape as `POST /chat/sessions` response).
 Send a message and get an AI response. The AI may update the draft survey if the message implies a structural change.
 
 ```bash
-curl -X POST http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000 \
+curl -X POST http://localhost:8802/chat/550e8400-e29b-41d4-a716-446655440000 \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -508,7 +508,7 @@ no tool overhead.
 Retrieve the current draft survey for a session.
 
 ```bash
-curl http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000/survey \
+curl http://localhost:8802/chat/550e8400-e29b-41d4-a716-446655440000/survey \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -564,7 +564,7 @@ in a chat message. The endpoint validates the survey schema and returns any
 methodological quality issues.
 
 ```bash
-curl -X PUT http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000/survey \
+curl -X PUT http://localhost:8802/chat/550e8400-e29b-41d4-a716-446655440000/survey \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -658,7 +658,7 @@ endpoint, an optional `section_id` moves the question into a different section,
 preserving its id and all other fields.
 
 ```bash
-curl -X PATCH http://localhost:8003/chat/$SID/survey/questions/q_1 \
+curl -X PATCH http://localhost:8802/chat/$SID/survey/questions/q_1 \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"text": "What is your preferred working arrangement?"}'
@@ -688,7 +688,7 @@ These are advisory only — no hard cap is enforced.
 Get the full conversation history.
 
 ```bash
-curl http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000/messages \
+curl http://localhost:8802/chat/550e8400-e29b-41d4-a716-446655440000/messages \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -710,7 +710,7 @@ curl http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000/messages \
 Delete a session and all its data (draft, vocabulary, conversation, documents).
 
 ```bash
-curl -X DELETE http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000 \
+curl -X DELETE http://localhost:8802/chat/550e8400-e29b-41d4-a716-446655440000 \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -727,7 +727,7 @@ curl -X DELETE http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000 \
 Clear the draft survey and tag vocabulary while preserving conversation history. Useful for starting a new survey design within an existing conversation.
 
 ```bash
-curl -X POST http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000/reset \
+curl -X POST http://localhost:8802/chat/550e8400-e29b-41d4-a716-446655440000/reset \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -750,7 +750,7 @@ The style profile influences how the AI phrases suggestions and validates questi
 ### GET /chat/{session_id}/style
 
 ```bash
-curl http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000/style \
+curl http://localhost:8802/chat/550e8400-e29b-41d4-a716-446655440000/style \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -774,7 +774,7 @@ curl http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000/style \
 Update language and/or free-text style instructions.
 
 ```bash
-curl -X PUT http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000/style \
+curl -X PUT http://localhost:8802/chat/550e8400-e29b-41d4-a716-446655440000/style \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -792,7 +792,7 @@ Both fields are optional — omit one to leave it unchanged.
 Upload a style guide document. The text is extracted and summarised, then stored in `style_profile.document_summary`. Supported formats: `.pdf`, `.docx`, `.txt`, `.md`, `.pptx`.
 
 ```bash
-curl -X POST http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000/style/upload \
+curl -X POST http://localhost:8802/chat/550e8400-e29b-41d4-a716-446655440000/style/upload \
   -H "Authorization: Bearer $TOKEN" \
   -F "file=@institutional_style_guide.pdf"
 ```
@@ -816,7 +816,7 @@ Upload a content document to give the AI context for chat turns (e.g., an existi
 ### POST /chat/{session_id}/upload
 
 ```bash
-curl -X POST http://localhost:8003/chat/550e8400-e29b-41d4-a716-446655440000/upload \
+curl -X POST http://localhost:8802/chat/550e8400-e29b-41d4-a716-446655440000/upload \
   -H "Authorization: Bearer $TOKEN" \
   -F "file=@existing_survey_draft.docx"
 ```
