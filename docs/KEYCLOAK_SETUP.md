@@ -89,6 +89,8 @@ The default client secret in `keycloak/realm-export.json` is `change-me`. Update
 
 ### Updating Redirect URIs Without Browser Access
 
+> Normally you don't need this. The one-shot `keycloak-init` service registers the `cue-api` client's redirect URIs (for `localhost` and `PUBLIC_HOST`) automatically on every deploy, and re-applies them after a port or host change. Use the steps below only for a manual one-off change.
+
 The Keycloak admin console redirects to `http://keycloak:8080/admin/` (Docker-internal), which is not reachable from an external browser. Use the admin CLI from inside the container instead:
 
 ```bash
@@ -109,23 +111,23 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for the full non-localhost deployment walkthr
 
 ### Use HTTPS
 
-Configure TLS termination at your reverse proxy (nginx, Caddy, etc.) and update the realm redirect URIs:
+This is the one case where the explicit redirect-URI overrides *are* the right tool. `PUBLIC_HOST` derivation always produces `http://<host>:<port>/...`, which can't express `https` or a proxy on the standard port — so behind TLS termination (nginx, Caddy, etc.) set the overrides explicitly:
 
 ```
 OIDC_ISSUER_URL=https://keycloak.yourdomain.com/realms/expats
-OIDC_REDIRECT_URI=https://yourdomain.com:8811/auth/callback
+OIDC_REDIRECT_URI=https://yourdomain.com/auth/callback
+SHAPE_OIDC_REDIRECT_URI=https://yourdomain.com/shape/auth/callback
 ```
 
-Update the client redirect URI using `kcadm.sh` as shown above, or via Keycloak admin → **Clients** → `cue-api` → **Valid redirect URIs**.
+(For plain-HTTP deployments, do **not** set these — use `PUBLIC_HOST` and let them be derived; a stray value here overrides it.) The matching client redirect URIs are registered automatically by `keycloak-init`; to change them by hand use `kcadm.sh` as shown above, or Keycloak admin → **Clients** → `cue-api` → **Valid redirect URIs**.
 
 ### Persistent Keycloak Data
 
-Add a named volume in `docker-compose.yml` to persist realm configuration across container restarts:
+The realm is baked into the Keycloak image (`keycloak/Dockerfile`) and re-imported on a fresh start, so no import bind mount is needed. To also persist runtime changes (users, regenerated secrets) across container recreation, add a named volume for the embedded DB:
 
 ```yaml
 keycloak:
   volumes:
-    - ./keycloak:/opt/keycloak/data/import
     - keycloak_data:/opt/keycloak/data/h2   # persist embedded DB
 
 volumes:
@@ -141,11 +143,12 @@ For production use a dedicated PostgreSQL database instead of the embedded H2.
 
 | Variable | Default | Description |
 |---|---|---|
-| `KEYCLOAK_ADMIN_PASSWORD` | `admin` | Keycloak admin console password |
-| `OIDC_ISSUER_URL` | — | Keycloak realm URL, e.g. `http://localhost:8080/realms/expats` |
-| `OIDC_CLIENT_ID` | — | `cue-api` |
+| `PUBLIC_HOST` | _(unset)_ | Browser-facing host/IP of the server. **Set this** for non-localhost deployments — all public URLs, OIDC redirect URIs, and `KC_HOSTNAME(_ADMIN)` are derived from it. |
+| `KEYCLOAK_ADMIN_PASSWORD` | `admin` | Keycloak admin console password (also used by the `keycloak-init` service) |
+| `OIDC_ISSUER_URL` | `http://keycloak:8080/realms/expats` _(set by compose)_ | Internal URL the API uses to reach Keycloak. Leave as the `keycloak` service name under compose; the `localhost` form is only for bare-metal runs. |
+| `OIDC_CLIENT_ID` | `cue-api` | OIDC client id |
 | `OIDC_CLIENT_SECRET` | — | Client secret (regenerate from Keycloak admin) |
-| `OIDC_REDIRECT_URI` | `http://localhost:8811/auth/callback` | Where Keycloak sends the browser after cue login |
-| `SHAPE_OIDC_REDIRECT_URI` | `http://localhost:8812/auth/callback` | Where Keycloak sends the browser after shape login |
-| `KEYCLOAK_PUBLIC_URL` | — | Public browser-accessible base URL of Keycloak (e.g. `http://10.0.0.1:8080`); rewrites the internal hostname in OIDC redirects |
-| `KC_HOSTNAME_ADMIN` | `http://keycloak:8080` | Hostname used for admin console redirects; set to your server URL for external access |
+| `OIDC_REDIRECT_URI` | _(derived from `PUBLIC_HOST`)_ | **Optional override** — normally leave unset; takes precedence over `PUBLIC_HOST`, so a stray value pins logins to it. Set only for HTTPS / reverse-proxy URLs. |
+| `SHAPE_OIDC_REDIRECT_URI` | _(derived from `PUBLIC_HOST`)_ | **Optional override** for the Shape callback. Same caveat as above. |
+| `KEYCLOAK_PUBLIC_URL` | _(derived from `PUBLIC_HOST`)_ | Optional override for the browser-facing Keycloak base URL. |
+| `KC_HOSTNAME_ADMIN` | `http://${PUBLIC_HOST}:8080` | Admin-console redirect hostname; derived from `PUBLIC_HOST`. |

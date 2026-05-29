@@ -158,7 +158,7 @@ Cue UI is the browser-based survey review frontend for respondents.
 | Variable | Default | Description |
 |---|---|---|
 | `CUE_API_URL` | `http://cue-api:8801` | Internal (Docker) URL for Cue |
-| `CUE_PUBLIC_URL` | `http://localhost:8801` | Browser-accessible URL for Cue |
+| `CUE_PUBLIC_URL` | `http://localhost:8801` | Browser-accessible URL for Cue. Normally leave unset — derived from `PUBLIC_HOST`. |
 | `ALLOW_DEV_TOKEN_LOGIN` | _(unset)_ | Set to `1` or `true` to allow direct JWT login via `?token=` query parameter. **Do not enable in production.** |
 
 ### Verify Cue UI is running
@@ -182,7 +182,7 @@ Shape UI is the browser-based frontend for the questionnaire design co-pilot.
 | Variable | Default | Description |
 |---|---|---|
 | `SHAPE_API_URL` | `http://shape-api:8802` | Internal (Docker) URL for Shape |
-| `SHAPE_PUBLIC_URL` | `http://localhost:8802` | Browser-accessible URL for Shape |
+| `SHAPE_PUBLIC_URL` | `http://localhost:8802` | Browser-accessible URL for Shape. Normally leave unset — derived from `PUBLIC_HOST`. |
 | `ALLOW_DEV_TOKEN_LOGIN` | _(unset)_ | Set to `1` or `true` to allow direct JWT login via `?token=` query parameter. **Do not enable in production.** |
 
 ### Verify Shape UI is running
@@ -201,7 +201,7 @@ Keycloak is the bundled identity provider, pre-configured with the `expats` real
 - **Port**: `8080`
 - **Admin console**: `http://localhost:8080` (user: `admin`, password from `KEYCLOAK_ADMIN_PASSWORD`)
 
-The realm import in `keycloak/` is loaded automatically on first start. OIDC redirect flows are handled by Cue UI (`/auth/callback` on port 8811), which proxies the token back to the browser.
+The `expats` realm is baked into the Keycloak image (`keycloak/Dockerfile`) and imported on first start; the one-shot `keycloak-init` service then registers the `cue-api` client's redirect URIs on every deploy (see below). OIDC redirect flows are handled by Cue UI (`/auth/callback` on port 8811), which proxies the token back to the browser.
 
 **Local dev note**: The Keycloak *master* realm defaults to `sslRequired: external`, which blocks the admin console over plain HTTP in Docker. The imported *expats* realm is unaffected. To access the admin console locally, run this one-time command (resets when the container is recreated):
 
@@ -223,44 +223,46 @@ docker-compose logs -f keycloak
 
 ## Non-Localhost Deployment
 
-When users access the platform from an external machine (not `localhost`), several additional environment variables must be set. Replace `<HOST>` with your server's IP or domain.
+When users access the platform from an external machine (not `localhost`), set **one** variable — `PUBLIC_HOST` — to the address browsers use to reach the server (its IP or domain). Everything else is derived from it.
 
-### Required additional variables
+### The only required variable
 
 ```bash
-# Browser-accessible URLs for each service
-CUE_PUBLIC_URL=http://<HOST>:8801
-OIDC_REDIRECT_URI=http://<HOST>:8811/auth/callback
-CUE_UI_PUBLIC_URL=http://<HOST>:8811
-SHAPE_PUBLIC_URL=http://<HOST>:8802
-SHAPE_OIDC_REDIRECT_URI=http://<HOST>:8812/auth/callback
-SHAPE_UI_PUBLIC_URL=http://<HOST>:8812
-
-# Public URL of Keycloak as seen by the browser
-# Without this, the OIDC login redirect sends users to http://keycloak:8080/... (Docker-internal, unreachable)
-KEYCLOAK_PUBLIC_URL=http://<HOST>:8080
-
-# Makes the Keycloak admin console redirect to your host instead of http://keycloak:8080/admin/
-KC_HOSTNAME_ADMIN=http://<HOST>:8080
+PUBLIC_HOST=<HOST>   # e.g. 10.50.70.28  or  surveys.example.org
 ```
 
-### Register deployed redirect URIs in Keycloak
+From `PUBLIC_HOST` the stack derives, automatically, for every service:
 
-The `realm-export.json` only contains localhost redirect URIs. After first startup you must add your deployed URIs. The Keycloak admin console itself redirects to `http://keycloak:8080` in the browser (Docker-internal), so use the admin CLI inside the container:
+- the browser-facing base URLs (Cue, Cue UI, Shape, Shape UI),
+- the OIDC redirect URIs (`http://<HOST>:8811/auth/callback`, `:8812/auth/callback`),
+- Keycloak's public hostname (`KC_HOSTNAME` and `KC_HOSTNAME_ADMIN`).
+
+> ⚠️ **Do not also set** `OIDC_REDIRECT_URI`, `SHAPE_OIDC_REDIRECT_URI`, or the `*_PUBLIC_URL` variables. They are optional overrides that take **precedence** over `PUBLIC_HOST` — a leftover `localhost` value will pin logins to `localhost` even with `PUBLIC_HOST` set correctly. Leave them unset. (The exception is TLS behind a reverse proxy — see [KEYCLOAK_SETUP.md](KEYCLOAK_SETUP.md#use-https).)
+>
+> `HOST` stays `0.0.0.0` — that is the internal **bind** address, a different setting from `PUBLIC_HOST`.
+
+### Redirect URIs are registered automatically
+
+The one-shot `keycloak-init` service runs on every deploy, waits for Keycloak, and registers the `cue-api` client's redirect URIs and web origins for both `localhost` and `PUBLIC_HOST`. No manual step is required, and it self-heals after a port or host change. Check its log; it should end with:
+
+```
+[keycloak-init] registering redirect URIs for localhost and <HOST>
+[keycloak-init] done. cue-api redirect URIs updated; Keycloak applies changes immediately.
+```
+
+<details>
+<summary>Manual registration (fallback — rarely needed)</summary>
+
+If you ever need to set them by hand, use the admin CLI inside the container (the admin console itself redirects to the Docker-internal `http://keycloak:8080`, so it isn't browser-reachable):
 
 ```bash
-# Authenticate
 docker compose exec keycloak /opt/keycloak/bin/kcadm.sh config credentials \
-  --server http://localhost:8080 \
-  --realm master \
-  --user admin \
+  --server http://localhost:8080 --realm master --user admin \
   --password <KEYCLOAK_ADMIN_PASSWORD>
 
-# Find the cue-api client ID
 docker compose exec keycloak /opt/keycloak/bin/kcadm.sh get clients -r expats \
-  --fields id,clientId
+  --fields id,clientId   # note the cue-api client id
 
-# Update redirect URIs and web origins (replace <CLIENT_ID> and <HOST>)
 docker compose exec keycloak /opt/keycloak/bin/kcadm.sh update clients/<CLIENT_ID> \
   -r expats \
   -s 'redirectUris=["http://localhost:8811/auth/callback","http://localhost:8812/auth/callback","http://<HOST>:8811/auth/callback","http://<HOST>:8812/auth/callback"]' \
@@ -269,6 +271,8 @@ docker compose exec keycloak /opt/keycloak/bin/kcadm.sh update clients/<CLIENT_I
 ```
 
 No restart needed — Keycloak applies client config changes immediately.
+
+</details>
 
 ### Rebuild API services after changing oauth config
 
