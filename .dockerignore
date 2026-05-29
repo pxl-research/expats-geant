@@ -19,6 +19,7 @@ test_data/
 docs/
 openspec/
 keycloak/
+!keycloak/realm-export.json
 logs/
 data/
 sessions/

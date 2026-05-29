@@ -207,7 +207,13 @@ services:
       - cue-api-network
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.0
+    # Custom image bakes in realm-export.json + keycloak-init.sh, so no host
+    # bind mounts are required (works when only the pushed image is present,
+    # e.g. Portainer stacks from prebuilt images). Build/push like the others.
+    image: expats-keycloak:latest
+    build:
+      context: .
+      dockerfile: keycloak/Dockerfile
     container_name: keycloak
     logging: *default-logging
     deploy:
@@ -227,17 +233,16 @@ services:
       - KC_HOSTNAME_ADMIN=http://${PUBLIC_HOST:-keycloak}:8080
     ports:
       - "8080:8080"
-    volumes:
-      - ./keycloak:/opt/keycloak/data/import
     networks:
       - cue-api-network
 
   # One-shot: waits for Keycloak, then sets the cue-api client redirect URIs /
   # web origins for the current ports (localhost + PUBLIC_HOST). Idempotent, so
   # it self-heals port changes on an existing Keycloak volume — no manual
-  # setup_keycloak.sh run needed. Exits 0 when done.
+  # setup_keycloak.sh run needed. Exits 0 when done. Reuses the custom Keycloak
+  # image (which has kcadm + the baked-in init script); no bind mount needed.
   keycloak-init:
-    image: quay.io/keycloak/keycloak:26.0
+    image: expats-keycloak:latest
     container_name: keycloak-init
     logging: *default-logging
     depends_on:
@@ -246,9 +251,7 @@ services:
       - KEYCLOAK_ADMIN=admin
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-admin}
       - PUBLIC_HOST=${PUBLIC_HOST:-}
-    volumes:
-      - ./scripts:/scripts:ro
-    entrypoint: ["/bin/bash", "/scripts/keycloak-init.sh"]
+    entrypoint: ["/bin/bash", "/opt/keycloak/bin/keycloak-init.sh"]
     restart: "no"
     networks:
       - cue-api-network
