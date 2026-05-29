@@ -56,7 +56,7 @@ def _get_env(name: str) -> str:
 
 def _get_oidc_settings() -> tuple[str, str, str, str]:
     """Return (issuer_url, client_id, client_secret, redirect_uri)."""
-    redirect_port = int(os.getenv("OIDC_REDIRECT_PORT", "8002"))
+    redirect_port = int(os.getenv("OIDC_REDIRECT_PORT", "8811"))
     localhost_default = f"http://localhost:{redirect_port}/auth/callback"
     redirect_uri = (
         get_public_url(

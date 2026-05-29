@@ -8,7 +8,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-SHAPE_API_URL = os.getenv("SHAPE_API_URL", "http://localhost:8003")
+SHAPE_API_URL = os.getenv("SHAPE_API_URL", "http://localhost:8802")
 
 
 class APIError(Exception):

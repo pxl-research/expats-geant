@@ -45,11 +45,11 @@ COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Expose port
-EXPOSE 8001
+EXPOSE 8801
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"
+    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8801/health')"
 
 # Run application
 ENTRYPOINT ["/entrypoint.sh"]

@@ -53,22 +53,22 @@ echo "Registering redirect URIs for host: $HOST"
 $KCADM update "clients/$CUE_CLIENT_ID" \
   -r expats \
   -s "redirectUris=[
-    \"http://localhost:8002/auth/callback\",
-    \"http://localhost:8004/auth/callback\",
-    \"http://${HOST}:8002/auth/callback\",
-    \"http://${HOST}:8004/auth/callback\"
+    \"http://localhost:8811/auth/callback\",
+    \"http://localhost:8812/auth/callback\",
+    \"http://${HOST}:8811/auth/callback\",
+    \"http://${HOST}:8812/auth/callback\"
   ]" \
   -s "webOrigins=[
-    \"http://localhost:8001\",
-    \"http://localhost:8002\",
-    \"http://localhost:8003\",
-    \"http://localhost:8004\",
-    \"http://${HOST}:8001\",
-    \"http://${HOST}:8002\",
-    \"http://${HOST}:8003\",
-    \"http://${HOST}:8004\"
+    \"http://localhost:8801\",
+    \"http://localhost:8811\",
+    \"http://localhost:8802\",
+    \"http://localhost:8812\",
+    \"http://${HOST}:8801\",
+    \"http://${HOST}:8811\",
+    \"http://${HOST}:8802\",
+    \"http://${HOST}:8812\"
   ]" \
-  -s "attributes.\"post.logout.redirect.uris\"=\"http://localhost:8002##http://localhost:8004##http://${HOST}:8002##http://${HOST}:8004\""
+  -s "attributes.\"post.logout.redirect.uris\"=\"http://localhost:8811##http://localhost:8812##http://${HOST}:8811##http://${HOST}:8812\""
 
 echo "Done. Redirect URIs registered for localhost and $HOST."
 echo "No restart needed - Keycloak applies changes immediately."

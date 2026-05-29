@@ -8,7 +8,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-CUE_API_URL = os.getenv("CUE_API_URL", "http://localhost:8001")
+CUE_API_URL = os.getenv("CUE_API_URL", "http://localhost:8801")
 
 
 class APIError(Exception):

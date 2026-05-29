@@ -28,7 +28,7 @@ def main():
     check_secrets()
 
     sessions_base_path = os.getenv("SESSIONS_BASE_PATH", "./data/sessions")
-    port = int(os.getenv("CHAT_PORT", "8003"))
+    port = int(os.getenv("CHAT_PORT", "8802"))
     host = os.getenv("HOST", "0.0.0.0")  # noqa: S104
 
     Path(sessions_base_path).mkdir(parents=True, exist_ok=True)
