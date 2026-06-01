@@ -114,18 +114,18 @@ Full API reference: [docs/SHAPE_API.md](../docs/SHAPE_API.md)
 
 ```bash
 # Run all Shape tests (from repo root)
-pytest tests/test_chat*.py -v
+pytest tests/test_chat*.py tests/test_shape*.py -v
 
 # Run with coverage
-pytest tests/test_chat*.py -v --cov=shape_api --cov-report=term-missing
+pytest tests/test_chat*.py tests/test_shape*.py -v --cov=shape_api --cov-report=term-missing
 ```
 
-There are 9 Shape test files covering ~234 tests:
+There are 11 Shape test files covering ~360 tests:
 
 | File | Coverage |
 |---|---|
 | `test_chat_api.py` | Stateless endpoints (import/export/create/suggest/validate/tag) |
-| `test_chat_conversational_api.py` | Chat session lifecycle, turns, survey retrieval |
+| `test_chat_conversational_api.py` | Chat session lifecycle, turns, survey retrieval, granular mutation endpoints |
 | `test_chat_adapters.py` | Adapter create_survey for all four platforms |
 | `test_chat_suggestion.py` | Suggestion engine unit tests |
 | `test_chat_validation.py` | Validation engine unit tests |
@@ -133,6 +133,8 @@ There are 9 Shape test files covering ~234 tests:
 | `test_chat_session.py` | Session I/O helpers |
 | `test_chat_style.py` | Style extraction and summarisation |
 | `test_chat_ui.py` | Shape UI integration |
+| `test_shape_mutations.py` | Pure survey mutation functions (add/update/delete/move, reorder error handling) |
+| `test_shape_tools.py` | LLM tool dispatch over the mutation layer |
 
 Run the full suite for accurate coverage (single-file runs will fail `--cov-fail-under=80`):
 

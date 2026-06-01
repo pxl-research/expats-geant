@@ -653,9 +653,12 @@ manage questions through the question endpoints).
 
 Ordering is determined solely by list position — there is no `order` field. Use the
 `/position` endpoints to reorder: `after_id` places the element immediately after the
-named sibling, or moves it to the front when omitted. On the question `/position`
-endpoint, an optional `section_id` moves the question into a different section,
-preserving its id and all other fields.
+named sibling, or moves it to the front when omitted. A non-empty `after_id` that
+does not match an existing sibling returns `404` and leaves the draft unchanged — it
+is not silently moved to the front. (On the add endpoints an unknown `after_id`
+appends instead; only the move endpoints treat it as an error.) On the question
+`/position` endpoint, an optional `section_id` moves the question into a different
+section, preserving its id and all other fields.
 
 ```bash
 curl -X PATCH http://localhost:8802/chat/$SID/survey/questions/q_1 \
@@ -671,7 +674,7 @@ curl -X PATCH http://localhost:8802/chat/$SID/survey/questions/q_1 \
 ```
 
 **Errors:**
-- `404` if the referenced `section_id` / `question_id` does not exist
+- `404` if a referenced `section_id` / `question_id` does not exist, or if an `after_id` on a `/position` endpoint does not match an existing sibling
 - `409` if an added section/question `id` already exists in the draft
 - `400` if no draft exists yet, or the patch is otherwise invalid
 - `422` if the request body does not match the schema (FastAPI validation format)
