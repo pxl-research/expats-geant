@@ -162,6 +162,12 @@ class TestMoveQuestion:
         with pytest.raises(SectionNotFound):
             apply_move_question(_survey(), "q1", section_id="nope")
 
+    def test_unknown_after_id_raises_and_leaves_draft_unchanged(self):
+        survey = Survey(id="s1", title="T", sections=[_section("sec1", "q1", "q2", "q3")])
+        with pytest.raises(QuestionNotFound):
+            apply_move_question(survey, "q1", after_id="nope")
+        assert [q.id for q in survey.sections[0].questions] == ["q1", "q2", "q3"]
+
     def test_no_draft_raises(self):
         with pytest.raises(NoSurveyDraft):
             apply_move_question(None, "q1")
@@ -181,6 +187,12 @@ class TestMoveSection:
     def test_unknown_section_raises(self):
         with pytest.raises(SectionNotFound):
             apply_move_section(_survey(), "nope")
+
+    def test_unknown_after_id_raises_and_leaves_draft_unchanged(self):
+        survey = Survey(id="s1", title="T", sections=[_section("a"), _section("b"), _section("c")])
+        with pytest.raises(SectionNotFound):
+            apply_move_section(survey, "a", after_id="nope")
+        assert [s.id for s in survey.sections] == ["a", "b", "c"]
 
     def test_no_draft_raises(self):
         with pytest.raises(NoSurveyDraft):

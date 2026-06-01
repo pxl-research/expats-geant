@@ -181,6 +181,11 @@ def apply_move_question(
             if question.id == question_id:
                 source.questions.remove(question)
                 target = _find_section(new, section_id) if section_id is not None else source
+                if after_id is not None and not any(q.id == after_id for q in target.questions):
+                    raise QuestionNotFound(
+                        f"Question {after_id!r} not found in the target section. "
+                        "Call get_full_survey to list current question ids."
+                    )
                 _insert_after_or_front(target.questions, question, after_id)
                 return new
     raise QuestionNotFound(
@@ -195,5 +200,9 @@ def apply_move_section(
     new = _require_survey(survey)
     section = _find_section(new, section_id)
     new.sections.remove(section)
+    if after_id is not None and not any(s.id == after_id for s in new.sections):
+        raise SectionNotFound(
+            f"Section {after_id!r} not found. Call get_full_survey to list current section ids."
+        )
     _insert_after_or_front(new.sections, section, after_id)
     return new

@@ -119,7 +119,9 @@ services:
       - JWT_EXPIRATION_HOURS=24
       - API_SECRET=${API_SECRET}
       - OIDC_ISSUER_URL=http://keycloak:8080/realms/expats
-      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-shape-api}
+      # Shares the single bundled realm client with the other services; the
+      # realm export and keycloak-init script only configure 'cue-api'.
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-cue-api}
       - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-change-me}
       - OIDC_REDIRECT_URI=${SHAPE_OIDC_REDIRECT_URI:-}
       - OIDC_REDIRECT_PORT=8812
