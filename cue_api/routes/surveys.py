@@ -1,5 +1,6 @@
 """Cue API: survey import, retrieval, and response submission routes."""
 
+import asyncio
 import json
 import logging
 import os
@@ -139,7 +140,8 @@ async def import_survey_from_api(request: Request, body: LiveApiImportRequest):
 
     if body.format == "lss":
         if body.api_url:
-            validate_api_url(body.api_url)
+            # validate_api_url does a blocking DNS lookup; keep it off the event loop.
+            await asyncio.to_thread(validate_api_url, body.api_url)
         adapter_kwargs = {
             "api_url": body.api_url,
             "username": body.username,
