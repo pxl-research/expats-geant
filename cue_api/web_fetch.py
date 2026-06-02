@@ -23,7 +23,9 @@ from urllib.parse import urlparse, urlunparse
 
 import httpx
 import trafilatura
+from fastapi import HTTPException
 
+from m_shared.utils.url_validation import validate_web_url
 from m_shared.vectordb import document_to_markdown
 
 logger = logging.getLogger(__name__)
@@ -68,6 +70,10 @@ class WebFetchHTTPError(WebFetchError):
 
 class WebFetchTooLarge(WebFetchError):
     """Response body exceeded the configured byte cap."""
+
+
+class WebFetchBlocked(WebFetchError):
+    """A redirect pointed at an unsafe (internal/private) target — SSRF guard."""
 
 
 class UnsupportedMediaType(WebFetchError):
@@ -119,36 +125,56 @@ async def fetch_url(url: str, *, max_bytes: int) -> FetchResult:
     :class:`FetchResult` on success.
     """
     headers = {"User-Agent": USER_AGENT}
+    # Redirects are followed manually (follow_redirects=False) so that every hop
+    # is re-validated against the SSRF allow-list. httpx's automatic redirects
+    # would otherwise bypass the caller's initial validate_web_url() check — an
+    # origin could 302 us to http://169.254.169.254/ or an internal host.
     try:
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(FETCH_TIMEOUT_SECONDS),
             headers=headers,
-            follow_redirects=True,
-            max_redirects=MAX_REDIRECTS,
+            follow_redirects=False,
         ) as client:
-            async with client.stream("GET", url) as resp:
-                if resp.status_code >= 400:
-                    raise WebFetchHTTPError(
-                        f"Origin returned HTTP {resp.status_code}",
-                        status_code=resp.status_code,
-                    )
-                chunks: list[bytes] = []
-                total = 0
-                async for chunk in resp.aiter_bytes():
-                    total += len(chunk)
-                    if total > max_bytes:
-                        raise WebFetchTooLarge(
-                            f"Response body exceeds maximum allowed size " f"({max_bytes} bytes)"
+            current_url = url
+            for _ in range(MAX_REDIRECTS + 1):
+                async with client.stream("GET", current_url) as resp:
+                    if resp.is_redirect:
+                        location = resp.headers.get("location")
+                        if not location:
+                            raise WebFetchNetworkError("Redirect response had no Location header")
+                        current_url = str(resp.url.join(location))
+                        try:
+                            validate_web_url(current_url)
+                        except HTTPException as exc:
+                            raise WebFetchBlocked(f"Unsafe redirect target: {exc.detail}") from exc
+                        continue
+
+                    if resp.status_code >= 400:
+                        raise WebFetchHTTPError(
+                            f"Origin returned HTTP {resp.status_code}",
+                            status_code=resp.status_code,
                         )
-                    chunks.append(chunk)
-                body = b"".join(chunks)
-                content_type = resp.headers.get("content-type", "").split(";")[0].strip().lower()
-                return FetchResult(
-                    initial_url=url,
-                    final_url=str(resp.url),
-                    content_type=content_type,
-                    body=body,
-                )
+                    chunks: list[bytes] = []
+                    total = 0
+                    async for chunk in resp.aiter_bytes():
+                        total += len(chunk)
+                        if total > max_bytes:
+                            raise WebFetchTooLarge(
+                                f"Response body exceeds maximum allowed size "
+                                f"({max_bytes} bytes)"
+                            )
+                        chunks.append(chunk)
+                    body = b"".join(chunks)
+                    content_type = (
+                        resp.headers.get("content-type", "").split(";")[0].strip().lower()
+                    )
+                    return FetchResult(
+                        initial_url=url,
+                        final_url=str(resp.url),
+                        content_type=content_type,
+                        body=body,
+                    )
+            raise WebFetchNetworkError(f"Exceeded maximum of {MAX_REDIRECTS} redirects")
     except httpx.TimeoutException as exc:
         raise WebFetchTimeout(f"Fetch timed out after {FETCH_TIMEOUT_SECONDS}s") from exc
     except WebFetchError:

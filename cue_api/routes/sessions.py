@@ -2,7 +2,7 @@
 
 import os
 import shutil
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Request, status
 
@@ -22,7 +22,7 @@ async def list_user_sessions(request: Request):
     items = []
     for s in sessions:
         session_path = manager._get_session_path(s.session_id, user_id=user_id)
-        remaining = s.expires_at - datetime.utcnow()
+        remaining = s.expires_at - datetime.now(UTC)
         items.append(
             SessionListItem(
                 session_id=s.session_id,
