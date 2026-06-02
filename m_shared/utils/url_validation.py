@@ -51,7 +51,10 @@ def _assert_safe_host(hostname: str, detail: str) -> None:
     # let the subsequent fetch fail naturally — this avoids coupling validation to
     # live DNS for unresolvable/offline hosts.
     try:
-        infos = socket.getaddrinfo(hostname, None)
+        # type=SOCK_STREAM collapses the result to one row per address instead of
+        # the cartesian product over socket types. This call is blocking; async
+        # callers must offload it (see fetch_url / the web route).
+        infos = socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM)
     except socket.gaierror:
         return
     for info in infos:

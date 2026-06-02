@@ -146,10 +146,7 @@ class SessionManager:
         with open(metadata_path) as f:
             data = json.load(f)
 
-        # Parse datetime strings
-        data["created_at"] = datetime.fromisoformat(data["created_at"])
-        data["expires_at"] = datetime.fromisoformat(data["expires_at"])
-
+        # Session coerces ISO strings / naive datetimes to aware UTC itself.
         return Session(**data)
 
     def create_session(

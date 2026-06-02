@@ -13,6 +13,7 @@ Plus a small in-process :class:`PreviewCache` keyed by (session_id, url) so
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import tempfile
 import time
@@ -144,7 +145,9 @@ async def fetch_url(url: str, *, max_bytes: int) -> FetchResult:
                             raise WebFetchNetworkError("Redirect response had no Location header")
                         current_url = str(resp.url.join(location))
                         try:
-                            validate_web_url(current_url)
+                            # validate_web_url does a blocking DNS lookup; keep it
+                            # off the event loop.
+                            await asyncio.to_thread(validate_web_url, current_url)
                         except HTTPException as exc:
                             raise WebFetchBlocked(f"Unsafe redirect target: {exc.detail}") from exc
                         continue

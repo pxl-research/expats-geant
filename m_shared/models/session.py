@@ -3,7 +3,21 @@
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+def _coerce_utc(value: datetime | str | None) -> datetime | None:
+    """Coerce an ISO string or naive datetime to timezone-aware UTC.
+
+    Session timestamps are always UTC-aware so expiry/retention comparisons never
+    mix naive and aware datetimes (which raises TypeError). Naive inputs — legacy
+    metadata.json or callers passing datetime.utcnow() — are assumed to be UTC.
+    """
+    if isinstance(value, str):
+        value = datetime.fromisoformat(value)
+    if isinstance(value, datetime) and value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    return value
 
 
 class Session(BaseModel):
@@ -34,38 +48,30 @@ class Session(BaseModel):
         default_factory=dict, description="Additional session metadata"
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def _default_expiration(cls, data: Any) -> Any:
+        """Derive expires_at from created_at + metadata.ttl_hours when not provided.
+
+        Single source of truth for expiry. Runs before field validation so it can
+        read created_at and metadata together (a field validator cannot, due to
+        field ordering). Default TTL is 24h.
+        """
+        if isinstance(data, dict) and data.get("expires_at") is None:
+            created_at = _coerce_utc(data.get("created_at")) or datetime.now(UTC)
+            ttl_hours = (data.get("metadata") or {}).get("ttl_hours", 24)
+            data = {
+                **data,
+                "created_at": created_at,
+                "expires_at": created_at + timedelta(hours=ttl_hours),
+            }
+        return data
+
     @field_validator("created_at", "expires_at", mode="before")
     @classmethod
     def _ensure_utc(cls, v: datetime | str | None) -> datetime | None:
-        """Coerce ISO strings and naive datetimes to timezone-aware UTC.
-
-        All session timestamps are UTC-aware so expiry/retention comparisons never
-        mix naive and aware datetimes (which raises TypeError). Naive inputs — e.g.
-        legacy metadata.json or callers passing datetime.utcnow() — are assumed UTC.
-        """
-        if isinstance(v, str):
-            v = datetime.fromisoformat(v)
-        if isinstance(v, datetime) and v.tzinfo is None:
-            v = v.replace(tzinfo=UTC)
-        return v
-
-    def __init__(self, **data):
-        """Initialize session, computing TTL-based expiration if not provided.
-
-        This is the single source of truth for expires_at: it reads ttl_hours from
-        metadata (default 24h). Used on both fresh creation and metadata reload
-        (SessionManager constructs via ``Session(**data)``).
-        """
-        if data.get("expires_at") is None:
-            ttl_hours = data.get("metadata", {}).get("ttl_hours", 24)
-            created_at = data.get("created_at") or datetime.now(UTC)
-            if isinstance(created_at, str):
-                created_at = datetime.fromisoformat(created_at)
-            if created_at.tzinfo is None:
-                created_at = created_at.replace(tzinfo=UTC)
-            data["created_at"] = created_at
-            data["expires_at"] = created_at + timedelta(hours=ttl_hours)
-        super().__init__(**data)
+        """Normalise each timestamp to timezone-aware UTC (see _coerce_utc)."""
+        return _coerce_utc(v)
 
     def is_expired(self) -> bool:
         """Check if this session has expired."""
