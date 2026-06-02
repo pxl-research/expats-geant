@@ -15,6 +15,7 @@ from cue_api.web_fetch import (
     FetchResult,
     PreviewCache,
     UnsupportedMediaType,
+    WebFetchBlocked,
     WebFetchHTTPError,
     WebFetchTimeout,
     WebFetchTooLarge,
@@ -84,6 +85,19 @@ class TestFetchUrl:
         result = await fetch_url("https://example.com/old", max_bytes=1_000_000)
         assert result.initial_url == "https://example.com/old"
         assert result.final_url == "https://example.com/new"
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_redirect_to_internal_blocked(self):
+        # A 302 pointing at an internal address must be rejected (SSRF guard)
+        # before the redirect target is fetched.
+        respx.get("https://example.com/start").mock(
+            return_value=httpx.Response(
+                302, headers={"location": "http://169.254.169.254/latest/meta-data/"}
+            )
+        )
+        with pytest.raises(WebFetchBlocked):
+            await fetch_url("https://example.com/start", max_bytes=1_000_000)
 
     @pytest.mark.asyncio
     @respx.mock
