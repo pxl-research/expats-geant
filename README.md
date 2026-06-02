@@ -94,6 +94,7 @@ See [Deployment Guide](docs/DEPLOYMENT.md) for full configuration options, manua
 
 - [Project Context](openspec/project.md) — Detailed specifications, tech stack, conventions, and constraints
 - [Deployment Guide](docs/DEPLOYMENT.md) — Docker & local setup, environment variables, testing
+- [Operator Runbook](docs/OPERATOR_RUNBOOK.md) — Operator decisions, GDPR checklist, onboarding
 - [Cue API](docs/CUE_API.md) — JWT/auth setup, institutional SSO, Cue endpoint reference
 - [Shape API](docs/SHAPE_API.md) — Shape endpoint reference, conversational session API
 - [Testing Guide](docs/TESTING.md) — Conformance test suite, coverage, smoke tests
@@ -102,6 +103,12 @@ See [Deployment Guide](docs/DEPLOYMENT.md) for full configuration options, manua
 - [Cue Module](cue_api/README.md) — Answer suggestion assistant
 - [Shape Module](shape_api/README.md) — Questionnaire design assistant
 - [Shared Utilities](m_shared/README.md) — Common infrastructure
+
+### Governance
+
+- [Contributing](CONTRIBUTING.md) — How to report issues and request institutional reuse
+- [Security Policy](SECURITY.md) — Vulnerability reporting and security posture
+- [Privacy Notice](PRIVACY.md) — GDPR rights, retention, third-party processors
 
 ## Contributing
 
@@ -171,8 +178,10 @@ For inquiries regarding commercial licensing, integration partnerships, or deplo
 
 ## Contact & Support
 
-Project lead: PXL University College (contact details TBD)  
-Questions or contributions: See [Contributing](#contributing) section
+- **Bug reports, feature requests, documentation issues:** file a [GitHub issue](https://github.com/pxl-research/expats-geant/issues). See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+- **Security vulnerabilities:** follow [SECURITY.md](SECURITY.md) — do not file a public issue.
+- **Privacy / GDPR enquiries:** see [PRIVACY.md](PRIVACY.md). For the PXL-hosted demo/pilot, contact <dpo@pxl.be>.
+- **Institutional reuse, integration, commercial licensing:** Servaas Tilkin, PXL University College — <servaas.tilkin@pxl.be>.
 
 ---
 
