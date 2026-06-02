@@ -1,6 +1,6 @@
 """Unit tests for core domain models."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from pydantic import ValidationError
@@ -305,7 +305,7 @@ class TestSession:
         session = Session(
             session_id="sess_abc123",
             user_id="user_456",
-            expires_at=datetime.utcnow() + timedelta(hours=24),
+            expires_at=datetime.now(UTC) + timedelta(hours=24),
         )
         assert session.session_id == "sess_abc123"
         assert session.user_id == "user_456"
@@ -318,7 +318,7 @@ class TestSession:
         session = Session(
             session_id="sess_expired",
             user_id="user_789",
-            expires_at=datetime.utcnow() - timedelta(hours=1),
+            expires_at=datetime.now(UTC) - timedelta(hours=1),
         )
         assert session.is_expired()
 
@@ -327,7 +327,7 @@ class TestSession:
         session = Session(
             session_id="sess_active",
             user_id="user_101",
-            expires_at=datetime.utcnow() + timedelta(hours=12),
+            expires_at=datetime.now(UTC) + timedelta(hours=12),
         )
         remaining = session.time_remaining()
         assert remaining.total_seconds() > 0
