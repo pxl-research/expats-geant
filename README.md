@@ -110,6 +110,12 @@ See [Deployment Guide](docs/DEPLOYMENT.md) for full configuration options, manua
 - [Security Policy](SECURITY.md) — Vulnerability reporting and security posture
 - [Privacy Notice](PRIVACY.md) — GDPR rights, retention, third-party processors
 
+### Pilot Templates
+
+- [Participant Information Sheet (template)](docs/PARTICIPANT_INFORMATION_SHEET_TEMPLATE.md) — Horizon Europe-based, for institutions running pilots
+- [Informed Consent Form (template)](docs/INFORMED_CONSENT_TEMPLATE.md) — companion to the Participant Information Sheet
+- [Style Guide (template)](docs/STYLE_GUIDE_TEMPLATE.md) — institutional style profile for Shape
+
 ## Contributing
 
 **Local Development**

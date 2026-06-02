@@ -69,6 +69,13 @@ Briefly:
   institution. Consent is the expected default; legitimate interest may apply
   for internal administrative use cases, subject to a balancing test
 
+Pilot operators may use the
+[Participant Information Sheet template](docs/PARTICIPANT_INFORMATION_SHEET_TEMPLATE.md)
+and [Informed Consent Form template](docs/INFORMED_CONSENT_TEMPLATE.md)
+as a starting point. Both are based on the European Commission's Horizon
+Europe model and should be reviewed by your DPO and ethics committee before
+use.
+
 ## Data Subject Rights
 
 Under GDPR you have the right to:
