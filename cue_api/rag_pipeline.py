@@ -12,7 +12,7 @@ import asyncio
 import json
 import logging
 from collections.abc import AsyncGenerator
-from datetime import datetime
+from datetime import UTC, datetime
 
 from m_shared.llm import LLMClient
 from m_shared.models.citation import Citation
@@ -544,7 +544,7 @@ class RAGPipeline:
                 position_start=position_start,
                 position_end=position_end,
                 position_percentage=position_percentage,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(UTC),
                 highlights=[excerpt],
                 metadata={
                     "chunk_index": chunk_index,

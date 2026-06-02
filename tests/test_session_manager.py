@@ -140,6 +140,34 @@ class TestSessionRetrieval:
 
         assert result is None
 
+    def test_get_session_malformed_id_returns_none(self, tmp_path):
+        """A traversal/malformed session_id reads back as not-found, not an error.
+
+        Regression: _get_session_path raises ValueError on such ids (the
+        filesystem guard); get_session must surface that as None so callers
+        return 404 rather than an unhandled 500.
+        """
+        manager = SessionManager(base_path=str(tmp_path))
+
+        for bad_id in ("../etc/passwd", "has spaces", "a" * 100, "id.with.dots"):
+            assert manager.get_session(bad_id) is None
+
+    def test_get_session_ownership_mismatch_returns_none(self, tmp_path):
+        """A session whose stored owner differs from the requester reads as None.
+
+        Guards against binding a token to another user's session even if the
+        session_id resolves to a directory whose metadata names a different owner.
+        """
+        manager = SessionManager(base_path=str(tmp_path))
+        created = manager.create_session(user_id="alice")
+
+        meta_path = manager._get_session_path(created.session_id, user_id="alice") / "metadata.json"
+        data = json.loads(meta_path.read_text())
+        data["user_id"] = "bob"
+        meta_path.write_text(json.dumps(data))
+
+        assert manager.get_session(created.session_id, user_id="alice") is None
+
     def test_get_session_expired_returns_none(self, tmp_path):
         """Test that expired session returns None."""
         manager = SessionManager(base_path=str(tmp_path))

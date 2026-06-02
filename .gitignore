@@ -10,7 +10,9 @@ CLINE.md
 .idea/
 
 # project specific
-.env
+.env*
+!.env.example
+*env copy*
 .secrets/
 data/
 logs/

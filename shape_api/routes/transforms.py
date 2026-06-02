@@ -1,5 +1,7 @@
 """Shape API: survey import, export, and create routes."""
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException, status
 
 from m_shared.adapters.base import SurveyAdapter
@@ -77,7 +79,10 @@ async def export_survey(body: ExportRequest):
 @router.post("/create", response_model=CreateResponse)
 async def create_survey_endpoint(body: CreateRequest):
     """Create a survey on the target platform or fall back to file export."""
-    adapter = _get_adapter(body.format, body.api_url, body.token, body.username, body.password)
+    # _get_adapter calls validate_api_url, which does a blocking DNS lookup.
+    adapter = await asyncio.to_thread(
+        _get_adapter, body.format, body.api_url, body.token, body.username, body.password
+    )
     survey = body.survey
 
     credentials_present = any([body.api_url, body.token, body.username, body.password])

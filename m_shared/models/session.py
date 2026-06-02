@@ -1,9 +1,23 @@
 """Session model representing user session context with TTL."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+def _coerce_utc(value: datetime | str | None) -> datetime | None:
+    """Coerce an ISO string or naive datetime to timezone-aware UTC.
+
+    Session timestamps are always UTC-aware so expiry/retention comparisons never
+    mix naive and aware datetimes (which raises TypeError). Naive inputs — legacy
+    metadata.json or callers passing datetime.utcnow() — are assumed to be UTC.
+    """
+    if isinstance(value, str):
+        value = datetime.fromisoformat(value)
+    if isinstance(value, datetime) and value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    return value
 
 
 class Session(BaseModel):
@@ -24,7 +38,7 @@ class Session(BaseModel):
     session_id: str = Field(..., description="Unique session identifier")
     user_id: str = Field(..., description="ID of the user who owns this session")
     created_at: datetime = Field(
-        default_factory=datetime.utcnow, description="When this session was created"
+        default_factory=lambda: datetime.now(UTC), description="When this session was created"
     )
     expires_at: datetime = Field(
         ..., description="When this session expires and data should be deleted"
@@ -34,32 +48,38 @@ class Session(BaseModel):
         default_factory=dict, description="Additional session metadata"
     )
 
-    @field_validator("expires_at", mode="before")
+    @model_validator(mode="before")
     @classmethod
-    def set_expiration(cls, v: datetime | None, info) -> datetime:
-        """Set expiration time based on TTL if not explicitly provided."""
-        if v is not None:
-            return v
-        # Get TTL from context - metadata may not be available yet during validation
-        # Default TTL: 24 hours
-        created_at = info.data.get("created_at", datetime.utcnow())
-        return created_at + timedelta(hours=24)
+    def _default_expiration(cls, data: Any) -> Any:
+        """Derive expires_at from created_at + metadata.ttl_hours when not provided.
 
-    def __init__(self, **data):
-        """Initialize session with TTL-based expiration if not provided."""
-        if "expires_at" not in data or data["expires_at"] is None:
-            ttl_hours = data.get("metadata", {}).get("ttl_hours", 24)
-            created_at = data.get("created_at", datetime.utcnow())
-            data["expires_at"] = created_at + timedelta(hours=ttl_hours)
-        super().__init__(**data)
+        Single source of truth for expiry. Runs before field validation so it can
+        read created_at and metadata together (a field validator cannot, due to
+        field ordering). Default TTL is 24h.
+        """
+        if isinstance(data, dict) and data.get("expires_at") is None:
+            created_at = _coerce_utc(data.get("created_at")) or datetime.now(UTC)
+            ttl_hours = (data.get("metadata") or {}).get("ttl_hours", 24)
+            data = {
+                **data,
+                "created_at": created_at,
+                "expires_at": created_at + timedelta(hours=ttl_hours),
+            }
+        return data
+
+    @field_validator("created_at", "expires_at", mode="before")
+    @classmethod
+    def _ensure_utc(cls, v: datetime | str | None) -> datetime | None:
+        """Normalise each timestamp to timezone-aware UTC (see _coerce_utc)."""
+        return _coerce_utc(v)
 
     def is_expired(self) -> bool:
         """Check if this session has expired."""
-        return datetime.utcnow() >= self.expires_at
+        return datetime.now(UTC) >= self.expires_at
 
     def time_remaining(self) -> timedelta:
         """Calculate time remaining until expiration."""
-        return self.expires_at - datetime.utcnow()
+        return self.expires_at - datetime.now(UTC)
 
     model_config = ConfigDict(
         json_schema_extra={

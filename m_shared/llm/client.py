@@ -143,7 +143,7 @@ class LLMClient(OpenAI):
             extra_headers=self.extra_headers,
             **kwargs,
         )
-        return response.choices[0].message.content
+        return response.choices[0].message.content or ""
 
     def create_completion_full(
         self,

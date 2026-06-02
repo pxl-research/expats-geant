@@ -135,6 +135,16 @@ class TestSplitOnThreshold:
         assert len(result) == 1
         assert result[0] == text
 
+    def test_long_unbroken_token_after_space(self):
+        """Regression: a token longer than max_chars preceded by a space must not
+        hang the loop or drop text (previously caused an infinite loop)."""
+        text = "aaaa " + "b" * 55
+        result = split_on_threshold(text, max_chars=10, overlap_pct=0.1)
+
+        joined = "".join(result)
+        assert joined.count("b") == 55  # no text dropped
+        assert any("aaaa" in chunk for chunk in result)
+
 
 class TestMergeSmallChunks:
     """Tests for merging small chunks."""

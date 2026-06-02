@@ -50,7 +50,8 @@ def _gate_check(request: Request) -> None:
 
 async def _fetch_and_extract(request: Request, url: str):
     """Perform fetch + route_extractor, mapping typed errors to HTTPException."""
-    validate_web_url(url)
+    # validate_web_url does a blocking DNS lookup; keep it off the event loop.
+    await asyncio.to_thread(validate_web_url, url)
     max_bytes = request.app.state.max_file_size_mb * 1024 * 1024
     try:
         fetch_result = await fetch_url(url, max_bytes=max_bytes)
