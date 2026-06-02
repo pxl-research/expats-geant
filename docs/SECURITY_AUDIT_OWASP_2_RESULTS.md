@@ -19,7 +19,27 @@ All 17 ASVS 5.0.0 chapters assessed. **129 of 140 applicable requirements PASS**
 | **V3-F4:** Security headers middleware (CSP, nosniff, frame-ancestors, referrer-policy) | V3 | MEDIUM | `cue_ui/main.py`, `shape_ui/main.py` |
 | **V10-F1:** PKCE (S256) and nonce added to OIDC flow | V10 | MEDIUM | `m_shared/auth/oauth.py`, `tests/test_oauth.py` |
 
+### Fixes Applied Since Audit (as of 2026-06-02)
+
+Eight findings have been closed in the seven weeks after the audit. The
+first six were addressed as part of routine pre-release hardening; V11-F1
+and V15-F1 were addressed when refreshing the audit picture ahead of the
+public-release flip.
+
+| Fix | Chapter | Severity | Files Changed |
+|-----|---------|----------|---------------|
+| **V13-F1:** Placeholder-secret startup guard (`JWT_SECRET` / `OIDC_CLIENT_SECRET`); production hard-exits, dev warns | V13 | MEDIUM | `m_shared/utils/startup_checks.py`, `run_api.py`, `run_chat_api.py` |
+| **V13-F2:** Added `.dockerignore` | V13 | LOW | `.dockerignore` |
+| **V13-F3:** `/docs`, `/redoc`, `/openapi.json` disabled in `ENVIRONMENT=production` | V13 | LOW | `cue_api/api.py`, `shape_api/api.py` |
+| **V14-F1:** `Cache-Control: no-store` middleware on both UI services | V14 | LOW | `cue_ui/main.py`, `shape_ui/main.py` |
+| **V16-F1:** Shape API security log added (parallel to `cue_api`'s `logs/security.log`) | V16 | LOW | `run_chat_api.py` |
+| **V16-F2:** Containers drop to non-root: `USER appuser` (UIs) and `gosu` entrypoint (APIs) | V16 | LOW | `cue_ui/Dockerfile`, `shape_ui/Dockerfile`, `cue_api/Dockerfile`, `shape_api/Dockerfile`, entrypoints |
+| **V11-F1:** Cryptography inventory published | V11 | LOW | `docs/CRYPTO_INVENTORY.md` |
+| **V15-F1:** Direct dependencies pinned via `~=` compatible-release operator (partial — transitive deps and hash pinning out of scope for PoC) | V15 | LOW | `requirements.txt` |
+
 ### Outstanding Findings (not fixed, recommended for production)
+
+Reduced from 21 to 13 (see "Fixes Applied Since Audit" above).
 
 | Finding | Chapter | Severity | Type |
 |---------|---------|----------|------|
@@ -28,22 +48,14 @@ All 17 ASVS 5.0.0 chapters assessed. **129 of 140 applicable requirements PASS**
 | V6-F2: MFA not enabled | V6 | MEDIUM | Keycloak config |
 | V7-F2: No JWT revocation mechanism | V7 | MEDIUM | Architecture |
 | V10-F2: In-memory OIDC state store (multi-worker) | V10 | MEDIUM | Architecture |
-| V13-F1: Placeholder secrets with no startup guard | V13 | MEDIUM | Deployment config |
 | V5-F1: No magic-byte file validation | V5 | LOW | Defense-in-depth |
 | V5-F2: No zip-bomb protection | V5 | LOW | Defense-in-depth |
 | V5-F3: No antivirus scanning | V5 | LOW | Defense-in-depth |
 | V6-F3: No acr/amr claim validation | V6 | LOW | Future-proofing |
 | V8-F1: JWT roles claim unused | V8 | LOW | Future-proofing |
 | V9-F1: Platform JWTs lack aud/type claims | V9 | LOW | Future-proofing |
-| V13-F2: No .dockerignore | V13 | LOW | Deployment hygiene |
-| V13-F3: API docs exposed in production | V13 | LOW | Deployment config |
-| V14-F1: No anti-caching headers | V14 | LOW | Defense-in-depth |
-| V16-F1: Shape API missing security log | V16 | LOW | Operational |
-| V16-F2: Docker containers run as root | V16 | LOW | Deployment hardening |
-| V16-F3: No centralized log shipping | V16 | LOW | Operational |
-| V11-F1: No crypto inventory document | V11 | LOW | Documentation |
 | V12-F1: Internal Docker communication unencrypted | V12 | LOW | Deployment |
-| V15-F1: No SBOM / dependency hash pinning | V15 | LOW | Supply chain |
+| V16-F3: No centralized log shipping | V16 | LOW | Operational |
 
 ### Per-Chapter Results
 

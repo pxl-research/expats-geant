@@ -58,9 +58,14 @@ us know so we can pin or patch as appropriate.
 
 Expats was audited against **OWASP ASVS 5.0.0 (May 2025) L1+L2** in April 2026.
 Result: **129 of 140 applicable requirements PASS (92%), no critical
-vulnerabilities found**. Full audit results, including remaining
-production-hardening recommendations, are in
-[`docs/SECURITY_AUDIT_OWASP_2_RESULTS.md`](docs/SECURITY_AUDIT_OWASP_2_RESULTS.md).
+vulnerabilities found**. Eight further findings have been closed since the
+audit (see "Fixes Applied Since Audit" in the linked doc). Full results,
+remaining outstanding items, and production-hardening recommendations are
+in [`docs/SECURITY_AUDIT_OWASP_2_RESULTS.md`](docs/SECURITY_AUDIT_OWASP_2_RESULTS.md).
+
+A cryptography inventory (algorithms, libraries, key material, operator
+hardening notes) is in
+[`docs/CRYPTO_INVENTORY.md`](docs/CRYPTO_INVENTORY.md).
 
 Known items that deployers should address as part of operational hardening
 (documented in the audit, intentionally not blocking the PoC):

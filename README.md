@@ -109,6 +109,7 @@ See [Deployment Guide](docs/DEPLOYMENT.md) for full configuration options, manua
 - [Contributing](CONTRIBUTING.md) — How to report issues and request institutional reuse
 - [Security Policy](SECURITY.md) — Vulnerability reporting and security posture
 - [Privacy Notice](PRIVACY.md) — GDPR rights, retention, third-party processors
+- [Cryptography Inventory](docs/CRYPTO_INVENTORY.md) — Algorithms, libraries, and operator hardening notes
 
 ### Pilot Templates
 
