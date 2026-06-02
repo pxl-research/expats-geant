@@ -43,7 +43,7 @@ set by `create_app()` in `api.py`.
 ### 1. Generate a token
 
 ```bash
-TOKEN=$(curl -s -X POST "http://localhost:8001/auth/token" \
+TOKEN=$(curl -s -X POST "http://localhost:8801/auth/token" \
   -H "Content-Type: application/json" \
   -d '{"user_id":"dev_user","api_secret":"your-shared-api-secret"}' \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
@@ -52,7 +52,7 @@ TOKEN=$(curl -s -X POST "http://localhost:8001/auth/token" \
 ### 2. Get a question suggestion
 
 ```bash
-curl -X POST http://localhost:8003/suggest \
+curl -X POST http://localhost:8802/suggest \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -65,18 +65,18 @@ curl -X POST http://localhost:8003/suggest \
 
 ```bash
 # Create session
-SESSION=$(curl -s -X POST http://localhost:8003/chat/sessions \
+SESSION=$(curl -s -X POST http://localhost:8802/chat/sessions \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{}' \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['session_id'])")
 
 # Send a design instruction
-curl -X POST "http://localhost:8003/chat/$SESSION" \
+curl -X POST "http://localhost:8802/chat/$SESSION" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"message": "Create a short survey about remote work with 3 questions"}'
 
 # Retrieve the draft
-curl "http://localhost:8003/chat/$SESSION/survey" \
+curl "http://localhost:8802/chat/$SESSION/survey" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -95,6 +95,12 @@ curl "http://localhost:8003/chat/$SESSION/survey" \
 | `/chat/{id}` | GET | Yes | Session metadata |
 | `/chat/{id}` | POST | Yes | Send message, get AI response |
 | `/chat/{id}/survey` | GET | Yes | Current draft survey |
+| `/chat/{id}/survey` | PUT | Yes | Replace the whole draft (external-editor sync) |
+| `/chat/{id}/survey/sections[/{section_id}]` | POST/PATCH/DELETE | Yes | Add / edit / remove a section |
+| `/chat/{id}/survey/sections/{section_id}/position` | PATCH | Yes | Reorder a section by list position |
+| `/chat/{id}/survey/sections/{section_id}/questions` | POST | Yes | Add a question to a section |
+| `/chat/{id}/survey/questions/{question_id}` | PATCH/DELETE | Yes | Edit / remove a question |
+| `/chat/{id}/survey/questions/{question_id}/position` | PATCH | Yes | Move a question (within or across sections) |
 | `/chat/{id}/messages` | GET | Yes | Conversation history |
 | `/chat/{id}` | DELETE | Yes | Delete session |
 | `/chat/{id}/reset` | POST | Yes | Clear draft + vocabulary |
@@ -108,18 +114,18 @@ Full API reference: [docs/SHAPE_API.md](../docs/SHAPE_API.md)
 
 ```bash
 # Run all Shape tests (from repo root)
-pytest tests/test_chat*.py -v
+pytest tests/test_chat*.py tests/test_shape*.py -v
 
 # Run with coverage
-pytest tests/test_chat*.py -v --cov=shape_api --cov-report=term-missing
+pytest tests/test_chat*.py tests/test_shape*.py -v --cov=shape_api --cov-report=term-missing
 ```
 
-There are 9 Shape test files covering ~234 tests:
+There are 11 Shape test files covering ~360 tests:
 
 | File | Coverage |
 |---|---|
 | `test_chat_api.py` | Stateless endpoints (import/export/create/suggest/validate/tag) |
-| `test_chat_conversational_api.py` | Chat session lifecycle, turns, survey retrieval |
+| `test_chat_conversational_api.py` | Chat session lifecycle, turns, survey retrieval, granular mutation endpoints |
 | `test_chat_adapters.py` | Adapter create_survey for all four platforms |
 | `test_chat_suggestion.py` | Suggestion engine unit tests |
 | `test_chat_validation.py` | Validation engine unit tests |
@@ -127,6 +133,8 @@ There are 9 Shape test files covering ~234 tests:
 | `test_chat_session.py` | Session I/O helpers |
 | `test_chat_style.py` | Style extraction and summarisation |
 | `test_chat_ui.py` | Shape UI integration |
+| `test_shape_mutations.py` | Pure survey mutation functions (add/update/delete/move, reorder error handling) |
+| `test_shape_tools.py` | LLM tool dispatch over the mutation layer |
 
 Run the full suite for accurate coverage (single-file runs will fail `--cov-fail-under=80`):
 
@@ -144,7 +152,7 @@ pytest tests/ -v --tb=short
 | `SESSION_TTL_HOURS` | `24` | Chat session lifetime in hours |
 | `MAX_FILE_SIZE_MB` | `50` | Max file size for uploads |
 | `API_SECRET` | — | Shared secret for `POST /auth/token` (omit to disable) |
-| `CHAT_PORT` | `8003` | API server port |
+| `CHAT_PORT` | `8802` | API server port |
 
 ## Links
 

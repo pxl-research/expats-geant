@@ -191,10 +191,10 @@ docker-compose up -d --build
 ### Step 7 — Verify
 
 ```bash
-curl http://localhost:8001/health   # Cue API
-curl http://localhost:8003/health   # Shape API
-open http://localhost:8002          # Cue UI (redirects to Keycloak login)
-open http://localhost:8004          # Shape UI
+curl http://localhost:8801/health   # Cue API
+curl http://localhost:8802/health   # Shape API
+open http://localhost:8811          # Cue UI (redirects to Keycloak login)
+open http://localhost:8812          # Shape UI
 open http://localhost:8080/admin    # Keycloak admin console
 ```
 
@@ -205,14 +205,14 @@ open http://localhost:8080/admin    # Keycloak admin console
 ### For administrators using Shape (questionnaire design)
 
 1. Create a Keycloak account for each administrator (or configure SSO federation)
-2. Share the Shape UI URL: `http(s)://your-host:8004`
+2. Share the Shape UI URL: `http(s)://your-host:8812`
 3. Provide the [STYLE_GUIDE_TEMPLATE.md](STYLE_GUIDE_TEMPLATE.md) — ask them to fill it in and upload it in the Style setup step when starting a new session
 4. Recommend they start with a small existing questionnaire to get familiar with the suggestion, validation, and tagging features
 
 ### For respondents using Cue (answer suggestions)
 
 1. Create Keycloak accounts or enable self-registration in the Keycloak admin console
-2. Share the Cue UI URL: `http(s)://your-host:8002`
+2. Share the Cue UI URL: `http(s)://your-host:8811`
 3. Brief users on the flow: after logging in, they see a **session list** where they can start a new session or resume an existing one. Within a session, they upload documents and use AI suggestions when filling out the form
 4. Users can work on multiple surveys by creating separate sessions
 5. Remind users: uploaded documents are automatically deleted after the session expires; they can also delete immediately via the UI
@@ -225,8 +225,8 @@ open http://localhost:8080/admin    # Keycloak admin console
 
 All services expose `/health` endpoints. For automated monitoring:
 ```bash
-curl -f http://localhost:8001/health || alert "Cue API down"
-curl -f http://localhost:8003/health || alert "Shape API down"
+curl -f http://localhost:8801/health || alert "Cue API down"
+curl -f http://localhost:8802/health || alert "Shape API down"
 ```
 
 ### Logs
@@ -272,7 +272,7 @@ Shape can be configured with your institution's questionnaire writing style. Thi
 **Option B — API-level default (for institutional admins)**
 Use the Style Update endpoint to set a persistent style profile for a session:
 ```bash
-curl -X POST http://localhost:8003/chat/{session_id}/style \
+curl -X POST http://localhost:8802/chat/{session_id}/style \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{

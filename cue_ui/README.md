@@ -14,8 +14,8 @@ Communicates with Cue exclusively via HTTP — imports nothing from `cue_api/` o
 docker compose up --build
 ```
 
-- Cue API: http://localhost:8001
-- Cue UI frontend:  http://localhost:8002
+- Cue API: http://localhost:8801
+- Cue UI frontend:  http://localhost:8811
 
 ### Standalone (dev)
 
@@ -23,16 +23,16 @@ docker compose up --build
 pip install -r cue_ui/requirements.txt
 
 # Point at a running Cue instance
-export CUE_API_URL=http://localhost:8001
+export CUE_API_URL=http://localhost:8801
 
-python -m uvicorn cue_ui.main:app --host 127.0.0.1 --port 8002 --reload
+python -m uvicorn cue_ui.main:app --host 127.0.0.1 --port 8811 --reload
 ```
 
 ## Manual E2E Test Flow
 
 With the full stack running (`docker compose up`):
 
-1. Visit http://localhost:8002 → redirected to Keycloak login
+1. Visit http://localhost:8811 → redirected to Keycloak login
 2. Upload a QSF/LSS survey file → lands on the **Add Source Documents** page
 3. (Optional) add sources via any of the four cards (Files / Web / Paste text /
    review the running list at the bottom), then click **Continue** —
@@ -108,12 +108,12 @@ flow to avoid clobbering deliberate review decisions.
 ## Architecture
 
 ```
-Browser ──► cue_ui (FastAPI, port 8002)
+Browser ──► cue_ui (FastAPI, port 8811)
                 │  Jinja2 + HTMX, server-rendered
                 │  HttpOnly cookie stores JWT
                 │
                 ▼ httpx + Bearer JWT
-            cue_api API (port 8001)
+            cue_api API (port 8801)
 ```
 
 ## Key Files

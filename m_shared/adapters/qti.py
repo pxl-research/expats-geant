@@ -206,8 +206,8 @@ def _parse_section(section_el: Element, order: int) -> Section | None:
     title = section_el.get("title") or f"Section {order + 1}"
 
     questions: list[Question] = []
-    for q_order, item_el in enumerate(_iter_children(section_el, "assessmentItem")):
-        q = _parse_item(item_el, q_order)
+    for item_el in _iter_children(section_el, "assessmentItem"):
+        q = _parse_item(item_el)
         if q is not None:
             questions.append(q)
 
@@ -216,12 +216,11 @@ def _parse_section(section_el: Element, order: int) -> Section | None:
         title=title,
         description="",
         questions=questions,
-        order=order,
         metadata={"qti_identifier": sec_id},
     )
 
 
-def _parse_item(item_el: Element, order: int = 0) -> Question | None:
+def _parse_item(item_el: Element) -> Question | None:
     """Parse an <assessmentItem> element into a Question."""
     item_id = item_el.get("identifier") or str(uuid.uuid4())
     title = item_el.get("title") or f"Item {item_id}"
@@ -254,7 +253,10 @@ def _parse_item(item_el: Element, order: int = 0) -> Question | None:
             id=f"q_{item_id}",
             text=body_text,
             type=QuestionType.DESCRIPTIVE,
-            order=order,
+            required=False,
+            min_value=None,
+            max_value=None,
+            step=None,
             metadata={"platform": "qti", "qti_identifier": item_id},
         )
 
@@ -303,7 +305,7 @@ def _parse_item(item_el: Element, order: int = 0) -> Question | None:
         id=f"q_{item_id}",
         text=text,
         type=q_type,
-        order=order,
+        required=True,
         answer_options=answer_options,
         min_value=min_val,
         max_value=max_val,

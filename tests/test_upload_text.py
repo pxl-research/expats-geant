@@ -199,7 +199,7 @@ class TestUploadTextEndpoint:
 # UI router tests: documents page text snippet
 # ---------------------------------------------------------------------------
 
-BASE = "http://localhost:8001"
+BASE = "http://localhost:8801"
 SESSION_ID = "session-text-test"
 TOKEN_COOKIE = {"autofill_token": "test-jwt-token"}
 

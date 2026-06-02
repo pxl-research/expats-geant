@@ -11,11 +11,11 @@ from m_shared.utils.public_url import get_public_url as _public_url
 COOKIE_NAME = "chat_token"
 
 # Server-to-server URL (Docker-internal or localhost)
-SHAPE_API_URL = os.getenv("SHAPE_API_URL", "http://localhost:8003")
+SHAPE_API_URL = os.getenv("SHAPE_API_URL", "http://localhost:8802")
 
 # Browser-accessible URLs (derived from PUBLIC_HOST when not set explicitly)
-SHAPE_PUBLIC_URL = _public_url("SHAPE_PUBLIC_URL", 8003, default="http://localhost:8003")
-SHAPE_UI_PUBLIC_URL = _public_url("SHAPE_UI_PUBLIC_URL", 8004, default="http://localhost:8004")
+SHAPE_PUBLIC_URL = _public_url("SHAPE_PUBLIC_URL", 8802, default="http://localhost:8802")
+SHAPE_UI_PUBLIC_URL = _public_url("SHAPE_UI_PUBLIC_URL", 8812, default="http://localhost:8812")
 
 # Set COOKIE_SECURE=true in production (HTTPS deployments)
 _COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"

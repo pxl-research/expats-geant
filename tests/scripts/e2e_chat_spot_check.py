@@ -16,9 +16,9 @@ Usage:
     #   python run_chat_api.py
     #
     # Then in another terminal:
-    #   python tests/scripts/e2e_chat_spot_check.py [--base-url http://localhost:8003]
+    #   python tests/scripts/e2e_chat_spot_check.py [--base-url http://localhost:8802]
 
-Defaults to http://localhost:8003.
+Defaults to http://localhost:8802.
 """
 
 import argparse
@@ -36,7 +36,7 @@ load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 # Configuration
 # ---------------------------------------------------------------------------
 
-DEFAULT_BASE_URL = "http://localhost:8003"
+DEFAULT_BASE_URL = "http://localhost:8802"
 
 # Minimal LimeSurvey-style survey XML for import/export round-trip
 SAMPLE_LSS = """<?xml version="1.0" encoding="UTF-8"?>

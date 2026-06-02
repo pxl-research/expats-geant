@@ -20,9 +20,9 @@ RUN groupadd -r appuser && useradd -r -g appuser -d /app appuser \
     && chown -R appuser:appuser /app
 USER appuser
 
-EXPOSE 8002
+EXPOSE 8811
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"
+    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8811/health')"
 
-CMD ["python3", "-m", "uvicorn", "cue_ui.main:app", "--host", "0.0.0.0", "--port", "8002"]
+CMD ["python3", "-m", "uvicorn", "cue_ui.main:app", "--host", "0.0.0.0", "--port", "8811"]

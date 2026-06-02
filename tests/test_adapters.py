@@ -416,15 +416,14 @@ class TestLimeSurveyAdapterRoundTrip:
     def test_question_order_imported(self):
         survey = self.adapter.import_survey(MINIMAL_LSS)
         questions = survey.sections[0].questions
-        assert questions[0].order == 0
-        assert questions[1].order == 1
+        assert [q.id for q in questions] == ["q_10", "q_11"]
 
     def test_question_order_preserved_on_round_trip(self):
         survey = self.adapter.import_survey(MINIMAL_LSS)
         survey2 = self.adapter.import_survey(self.adapter.export_survey(survey))
-        orders1 = [q.order for s in survey.sections for q in s.questions]
-        orders2 = [q.order for s in survey2.sections for q in s.questions]
-        assert orders1 == orders2
+        ids1 = [q.id for s in survey.sections for q in s.questions]
+        ids2 = [q.id for s in survey2.sections for q in s.questions]
+        assert ids1 == ids2
 
 
 # ---------------------------------------------------------------------------
@@ -586,6 +585,43 @@ class TestQualtricsAdapterImport:
         q = survey.sections[0].questions[0]
         assert q.type == QuestionType.SINGLE_CHOICE
         assert q.required is True
+
+    def test_question_order_follows_block_elements(self):
+        blocks = [
+            {
+                "Type": "Default",
+                "Description": "Block One",
+                "ID": "BL_1",
+                "BlockElements": [
+                    {"Type": "Question", "QuestionID": "QID1"},
+                    {"Type": "Question", "QuestionID": "QID2"},
+                ],
+            }
+        ]
+        qs = [
+            {
+                "Element": "SQ",
+                "Payload": {
+                    "QuestionID": "QID1",
+                    "QuestionText": "First",
+                    "QuestionType": "TE",
+                    "Selector": "SL",
+                    "Validation": {"Settings": {"ForceResponse": "OFF"}},
+                },
+            },
+            {
+                "Element": "SQ",
+                "Payload": {
+                    "QuestionID": "QID2",
+                    "QuestionText": "Second",
+                    "QuestionType": "TE",
+                    "Selector": "SL",
+                    "Validation": {"Settings": {"ForceResponse": "OFF"}},
+                },
+            },
+        ]
+        survey = self.adapter.import_survey(make_minimal_qsf(blocks=blocks, questions=qs))
+        assert [q.id for q in survey.sections[0].questions] == ["q_QID1", "q_QID2"]
 
     def test_multiple_choice_mc(self):
         qs = [
@@ -1153,8 +1189,7 @@ class TestQTIAdapterImport:
 
     def test_section_order_reflects_xml_order(self):
         survey = self.adapter.import_survey(MULTI_SECTION_QTI)
-        assert survey.sections[0].order == 0
-        assert survey.sections[1].order == 1
+        assert [s.title for s in survey.sections] == ["Section One", "Section Two"]
 
     def test_qti_identifier_preserved_in_metadata(self):
         survey = self.adapter.import_survey(MINIMAL_QTI)
@@ -1758,9 +1793,8 @@ class TestSurveyMonkeyAdapterRoundTrip:
     def test_question_order_imported_from_position(self):
         survey = self.adapter.import_survey(make_sm_survey())
         questions = survey.sections[0].questions
-        # SM positions are 1-based; stored as 0-based order
-        assert questions[0].order == 0
-        assert questions[1].order == 1
+        # SM positions are 1-based; list order reflects ascending position.
+        assert [q.id for q in questions] == ["q_q1", "q_q2"]
 
 
 # ---------------------------------------------------------------------------
@@ -1893,6 +1927,35 @@ class TestCrossPlatformRoundTrip:
     Platform-specific metadata fields that have no equivalent in the target format
     are intentionally not checked — only the common-denominator fields.
     """
+
+    # ------------------------------------------------------------------
+    # Ordering agreement (guards the list-position-as-source-of-truth fix)
+    # ------------------------------------------------------------------
+
+    def test_export_order_agrees_across_qti_and_surveymonkey(self):
+        """QTI and SurveyMonkey must encode the same list order — the original
+        bug was SurveyMonkey following a stale order field while QTI followed
+        list position."""
+        survey = Survey(
+            id="s",
+            title="T",
+            sections=[
+                Section(
+                    id="sec",
+                    title="S",
+                    questions=[
+                        Question(id="qa", text="Alpha", type=QuestionType.OPEN_ENDED),
+                        Question(id="qb", text="Bravo", type=QuestionType.OPEN_ENDED),
+                        Question(id="qc", text="Charlie", type=QuestionType.OPEN_ENDED),
+                    ],
+                )
+            ],
+        )
+        qti_rt = QTIAdapter().import_survey(QTIAdapter().export_survey(survey))
+        sm_rt = SurveyMonkeyAdapter().import_survey(SurveyMonkeyAdapter().export_survey(survey))
+        expected = ["Alpha", "Bravo", "Charlie"]
+        assert [q.text for q in _all_questions(qti_rt)] == expected
+        assert [q.text for q in _all_questions(sm_rt)] == expected
 
     # ------------------------------------------------------------------
     # LimeSurvey → Qualtrics

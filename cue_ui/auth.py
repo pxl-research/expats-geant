@@ -11,11 +11,11 @@ from m_shared.utils.public_url import get_public_url as _public_url
 COOKIE_NAME = "autofill_token"
 
 # Server-to-server URL (Docker-internal or localhost)
-CUE_API_URL = os.getenv("CUE_API_URL", "http://localhost:8001")
+CUE_API_URL = os.getenv("CUE_API_URL", "http://localhost:8801")
 
 # Browser-accessible URLs (derived from PUBLIC_HOST when not set explicitly)
-CUE_PUBLIC_URL = _public_url("CUE_PUBLIC_URL", 8001, default="http://localhost:8001")
-CUE_UI_PUBLIC_URL = _public_url("CUE_UI_PUBLIC_URL", 8002, default="http://localhost:8002")
+CUE_PUBLIC_URL = _public_url("CUE_PUBLIC_URL", 8801, default="http://localhost:8801")
+CUE_UI_PUBLIC_URL = _public_url("CUE_UI_PUBLIC_URL", 8811, default="http://localhost:8811")
 
 # Set COOKIE_SECURE=true in production (HTTPS deployments)
 _COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"

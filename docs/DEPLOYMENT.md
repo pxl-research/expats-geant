@@ -6,10 +6,10 @@ This guide covers deploying the Expats platform using Docker.
 
 | Service | Port | Description |
 |---|---|---|
-| `cue-api` | `8001` | Respondent answer suggestion API |
-| `ui` | `8002` | Cue UI survey review frontend (Jinja2 + HTMX) |
-| `shape-api` | `8003` | Administrator questionnaire design API |
-| `shape_ui` | `8004` | Shape browser UI |
+| `cue-api` | `8801` | Respondent answer suggestion API |
+| `ui` | `8811` | Cue UI survey review frontend (Jinja2 + HTMX) |
+| `shape-api` | `8802` | Administrator questionnaire design API |
+| `shape_ui` | `8812` | Shape browser UI |
 | `keycloak` | `8080` | Bundled identity provider (OIDC) |
 
 All five services start together via `docker-compose up`. Keycloak auto-imports the `expats` realm on first start.
@@ -73,14 +73,14 @@ docker-compose up -d --build
 
 ```bash
 # Health check
-curl http://localhost:8001/health
+curl http://localhost:8801/health
 # Expected: {"status":"healthy"}
 
 # Privacy statement (public endpoint)
-curl http://localhost:8001/privacy
+curl http://localhost:8801/privacy
 
 # API documentation (disabled when ENVIRONMENT=production)
-open http://localhost:8001/docs
+open http://localhost:8801/docs
 ```
 
 ### 5. Monitor Logs
@@ -92,6 +92,8 @@ docker-compose logs -f cue-api
 # Check recent logs
 docker-compose logs --tail=50 cue-api
 ```
+
+Container logs are bounded: every service uses the `json-file` driver capped at `max-size: 20m` × `max-file: 5` (~100 MB/service) so logs rotate automatically and cannot fill the disk. Application logs honour `LOG_LEVEL` (default `INFO`); the Shape API additionally logs each chat-turn tool call at `INFO` (e.g. `tool_call ... name=move_question status=ok`) for observability.
 
 ### 6. Stop the Service
 
@@ -108,10 +110,10 @@ docker-compose down -v
 Shape is the questionnaire design co-pilot API.
 
 - **Service name**: `shape-api` (docker-compose)
-- **Port**: `8003`
-- **Health check**: `http://localhost:8003/health`
-- **API docs**: `http://localhost:8003/docs` (disabled when `ENVIRONMENT=production`)
-- **Chat UI**: `http://localhost:8004` (service `shape_ui`)
+- **Port**: `8802`
+- **Health check**: `http://localhost:8802/health`
+- **API docs**: `http://localhost:8802/docs` (disabled when `ENVIRONMENT=production`)
+- **Chat UI**: `http://localhost:8812` (service `shape_ui`)
 
 ### Additional Environment Variables
 
@@ -119,18 +121,18 @@ Shape is the questionnaire design co-pilot API.
 |---|---|---|
 | `SESSION_TTL_HOURS` | `24` | Chat session lifetime (hours) |
 | `MAX_FILE_SIZE_MB` | `50` | Max upload size for style/content documents |
-| `CHAT_PORT` | `8003` | Port for the Shape API |
+| `CHAT_PORT` | `8802` | Port for the Shape API |
 
 Shape shares `JWT_SECRET`, `OPENROUTER_API_KEY`, `DEFAULT_LLM_MODEL`, and OIDC variables with Cue. Set them once in `.env`. Each service can use a different LLM via `CUE_LLM_MODEL` and `SHAPE_LLM_MODEL`.
 
 ### Verify Shape is running
 
 ```bash
-curl http://localhost:8003/health
+curl http://localhost:8802/health
 # Expected: {"status":"healthy"}
 
 # API documentation (disabled when ENVIRONMENT=production)
-open http://localhost:8003/docs
+open http://localhost:8802/docs
 ```
 
 ### Monitor Shape logs
@@ -148,22 +150,22 @@ See [SHAPE_API.md](SHAPE_API.md) for the full API reference.
 Cue UI is the browser-based survey review frontend for respondents.
 
 - **Service name**: `ui` (docker-compose)
-- **Port**: `8002`
-- **Health check**: visit `http://localhost:8002` — redirects to Keycloak login
+- **Port**: `8811`
+- **Health check**: visit `http://localhost:8811` — redirects to Keycloak login
 
 ### Additional Environment Variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `CUE_API_URL` | `http://cue-api:8001` | Internal (Docker) URL for Cue |
-| `CUE_PUBLIC_URL` | `http://localhost:8001` | Browser-accessible URL for Cue |
+| `CUE_API_URL` | `http://cue-api:8801` | Internal (Docker) URL for Cue |
+| `CUE_PUBLIC_URL` | `http://localhost:8801` | Browser-accessible URL for Cue. Normally leave unset — derived from `PUBLIC_HOST`. |
 | `ALLOW_DEV_TOKEN_LOGIN` | _(unset)_ | Set to `1` or `true` to allow direct JWT login via `?token=` query parameter. **Do not enable in production.** |
 
 ### Verify Cue UI is running
 
 ```bash
 # Open in browser (expects Keycloak login redirect)
-open http://localhost:8002
+open http://localhost:8811
 ```
 
 ---
@@ -173,20 +175,20 @@ open http://localhost:8002
 Shape UI is the browser-based frontend for the questionnaire design co-pilot.
 
 - **Service name**: `shape_ui` (docker-compose)
-- **Port**: `8004`
+- **Port**: `8812`
 
 ### Additional Environment Variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `SHAPE_API_URL` | `http://shape-api:8003` | Internal (Docker) URL for Shape |
-| `SHAPE_PUBLIC_URL` | `http://localhost:8003` | Browser-accessible URL for Shape |
+| `SHAPE_API_URL` | `http://shape-api:8802` | Internal (Docker) URL for Shape |
+| `SHAPE_PUBLIC_URL` | `http://localhost:8802` | Browser-accessible URL for Shape. Normally leave unset — derived from `PUBLIC_HOST`. |
 | `ALLOW_DEV_TOKEN_LOGIN` | _(unset)_ | Set to `1` or `true` to allow direct JWT login via `?token=` query parameter. **Do not enable in production.** |
 
 ### Verify Shape UI is running
 
 ```bash
-open http://localhost:8004
+open http://localhost:8812
 ```
 
 ---
@@ -199,7 +201,7 @@ Keycloak is the bundled identity provider, pre-configured with the `expats` real
 - **Port**: `8080`
 - **Admin console**: `http://localhost:8080` (user: `admin`, password from `KEYCLOAK_ADMIN_PASSWORD`)
 
-The realm import in `keycloak/` is loaded automatically on first start. OIDC redirect flows are handled by Cue UI (`/auth/callback` on port 8002), which proxies the token back to the browser.
+The `expats` realm is baked into the Keycloak image (`keycloak/Dockerfile`) and imported on first start; the one-shot `keycloak-init` service then registers the `cue-api` client's redirect URIs on every deploy (see below). OIDC redirect flows are handled by Cue UI (`/auth/callback` on port 8811), which proxies the token back to the browser.
 
 **Local dev note**: The Keycloak *master* realm defaults to `sslRequired: external`, which blocks the admin console over plain HTTP in Docker. The imported *expats* realm is unaffected. To access the admin console locally, run this one-time command (resets when the container is recreated):
 
@@ -221,52 +223,56 @@ docker-compose logs -f keycloak
 
 ## Non-Localhost Deployment
 
-When users access the platform from an external machine (not `localhost`), several additional environment variables must be set. Replace `<HOST>` with your server's IP or domain.
+When users access the platform from an external machine (not `localhost`), set **one** variable — `PUBLIC_HOST` — to the address browsers use to reach the server (its IP or domain). Everything else is derived from it.
 
-### Required additional variables
+### The only required variable
 
 ```bash
-# Browser-accessible URLs for each service
-CUE_PUBLIC_URL=http://<HOST>:8001
-OIDC_REDIRECT_URI=http://<HOST>:8002/auth/callback
-CUE_UI_PUBLIC_URL=http://<HOST>:8002
-SHAPE_PUBLIC_URL=http://<HOST>:8003
-SHAPE_OIDC_REDIRECT_URI=http://<HOST>:8004/auth/callback
-SHAPE_UI_PUBLIC_URL=http://<HOST>:8004
-
-# Public URL of Keycloak as seen by the browser
-# Without this, the OIDC login redirect sends users to http://keycloak:8080/... (Docker-internal, unreachable)
-KEYCLOAK_PUBLIC_URL=http://<HOST>:8080
-
-# Makes the Keycloak admin console redirect to your host instead of http://keycloak:8080/admin/
-KC_HOSTNAME_ADMIN=http://<HOST>:8080
+PUBLIC_HOST=<HOST>   # e.g. 10.50.70.28  or  surveys.example.org
 ```
 
-### Register deployed redirect URIs in Keycloak
+From `PUBLIC_HOST` the stack derives, automatically, for every service:
 
-The `realm-export.json` only contains localhost redirect URIs. After first startup you must add your deployed URIs. The Keycloak admin console itself redirects to `http://keycloak:8080` in the browser (Docker-internal), so use the admin CLI inside the container:
+- the browser-facing base URLs (Cue, Cue UI, Shape, Shape UI),
+- the OIDC redirect URIs (`http://<HOST>:8811/auth/callback`, `:8812/auth/callback`),
+- Keycloak's public hostname (`KC_HOSTNAME` and `KC_HOSTNAME_ADMIN`).
+
+> ⚠️ **Do not also set** `OIDC_REDIRECT_URI`, `SHAPE_OIDC_REDIRECT_URI`, or the `*_PUBLIC_URL` variables. They are optional overrides that take **precedence** over `PUBLIC_HOST` — a leftover `localhost` value will pin logins to `localhost` even with `PUBLIC_HOST` set correctly. Leave them unset. (The exception is TLS behind a reverse proxy — see [KEYCLOAK_SETUP.md](KEYCLOAK_SETUP.md#use-https).)
+>
+> `HOST` stays `0.0.0.0` — that is the internal **bind** address, a different setting from `PUBLIC_HOST`.
+
+### Redirect URIs are registered automatically
+
+The one-shot `keycloak-init` service runs on every deploy, waits for Keycloak, and registers the `cue-api` client's redirect URIs and web origins for both `localhost` and `PUBLIC_HOST`. No manual step is required, and it self-heals after a port or host change. Check its log; it should end with:
+
+```
+[keycloak-init] registering redirect URIs for localhost and <HOST>
+[keycloak-init] done. cue-api redirect URIs updated; Keycloak applies changes immediately.
+```
+
+<details>
+<summary>Manual registration (fallback — rarely needed)</summary>
+
+If you ever need to set them by hand, use the admin CLI inside the container (the admin console itself redirects to the Docker-internal `http://keycloak:8080`, so it isn't browser-reachable):
 
 ```bash
-# Authenticate
 docker compose exec keycloak /opt/keycloak/bin/kcadm.sh config credentials \
-  --server http://localhost:8080 \
-  --realm master \
-  --user admin \
+  --server http://localhost:8080 --realm master --user admin \
   --password <KEYCLOAK_ADMIN_PASSWORD>
 
-# Find the cue-api client ID
 docker compose exec keycloak /opt/keycloak/bin/kcadm.sh get clients -r expats \
-  --fields id,clientId
+  --fields id,clientId   # note the cue-api client id
 
-# Update redirect URIs and web origins (replace <CLIENT_ID> and <HOST>)
 docker compose exec keycloak /opt/keycloak/bin/kcadm.sh update clients/<CLIENT_ID> \
   -r expats \
-  -s 'redirectUris=["http://localhost:8002/auth/callback","http://localhost:8004/auth/callback","http://<HOST>:8002/auth/callback","http://<HOST>:8004/auth/callback"]' \
-  -s 'webOrigins=["http://localhost:8001","http://localhost:8002","http://localhost:8003","http://localhost:8004","http://<HOST>:8001","http://<HOST>:8002","http://<HOST>:8003","http://<HOST>:8004"]' \
-  -s 'attributes."post.logout.redirect.uris"="http://localhost:8002##http://localhost:8004##http://<HOST>:8002##http://<HOST>:8004"'
+  -s 'redirectUris=["http://localhost:8811/auth/callback","http://localhost:8812/auth/callback","http://<HOST>:8811/auth/callback","http://<HOST>:8812/auth/callback"]' \
+  -s 'webOrigins=["http://localhost:8801","http://localhost:8811","http://localhost:8802","http://localhost:8812","http://<HOST>:8801","http://<HOST>:8811","http://<HOST>:8802","http://<HOST>:8812"]' \
+  -s 'attributes."post.logout.redirect.uris"="http://localhost:8811##http://localhost:8812##http://<HOST>:8811##http://<HOST>:8812"'
 ```
 
 No restart needed — Keycloak applies client config changes immediately.
+
+</details>
 
 ### Rebuild API services after changing oauth config
 
@@ -293,7 +299,7 @@ docker build -t cue-api:latest .
 ```bash
 docker run -d \
   --name cue-api \
-  -p 8001:8001 \
+  -p 8801:8801 \
   -e JWT_SECRET="your-secure-secret-here" \
   -e OPENROUTER_API_KEY="sk-or-v1-xxxxx" \
   -e SESSION_TTL_HOURS=24 \
@@ -345,8 +351,8 @@ cp .env.example .env
 # Start API server
 python3 run_api.py
 
-# API available at http://localhost:8001
-# Docs at http://localhost:8001/docs (disabled when ENVIRONMENT=production)
+# API available at http://localhost:8801
+# Docs at http://localhost:8801/docs (disabled when ENVIRONMENT=production)
 ```
 
 ## Environment Variables Reference
@@ -375,7 +381,7 @@ python3 run_api.py
 | `CUE_REWRITE_MODEL`      | —                            | Dedicated model for rewriting (e.g. `google/gemini-2.5-flash`) |
 | `CUE_WEB_INGEST_ENABLED` | `false`                      | Enable web URL ingestion (server-side fetches; per-session opt-in still required) |
 | `THINKING_BUDGET_TOKENS` | —                            | Token budget for extended thinking (Claude 3.5+/4.x only)      |
-| `PORT`                   | `8001`                       | API server port                                                |
+| `PORT`                   | `8801`                       | API server port                                                |
 | `LOG_LEVEL`              | `INFO`                       | Logging level                                                  |
 
 ## Testing Your Deployment
@@ -394,7 +400,7 @@ API_SECRET=your-shared-api-secret   # add this to .env
 #### 2. Generate a Token
 
 ```bash
-curl -X POST http://localhost:8001/auth/token \
+curl -X POST http://localhost:8801/auth/token \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "test_user",
@@ -415,18 +421,18 @@ curl -X POST http://localhost:8001/auth/token \
 
 ```bash
 # Step 1: Generate token
-TOKEN=$(curl -s -X POST http://localhost:8001/auth/token \
+TOKEN=$(curl -s -X POST http://localhost:8801/auth/token \
   -H "Content-Type: application/json" \
   -d '{"user_id":"test_user","api_secret":"your-shared-api-secret"}' \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
 
 # Step 2: Upload a document
-curl -X POST http://localhost:8001/upload \
+curl -X POST http://localhost:8801/upload \
   -H "Authorization: Bearer $TOKEN" \
   -F "file=@sample_document.pdf"
 
 # Step 3: Get answer suggestion
-curl -X POST http://localhost:8001/suggest/batch \
+curl -X POST http://localhost:8801/suggest/batch \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -435,15 +441,15 @@ curl -X POST http://localhost:8001/suggest/batch \
   }'
 
 # Step 4: Check session stats
-curl -X GET http://localhost:8001/session/stats \
+curl -X GET http://localhost:8801/session/stats \
   -H "Authorization: Bearer $TOKEN"
 
 # Step 5: Get audit report
-curl -X GET http://localhost:8001/audit-report \
+curl -X GET http://localhost:8801/audit-report \
   -H "Authorization: Bearer $TOKEN"
 
 # Step 6: Delete session (cleanup)
-curl -X DELETE http://localhost:8001/session \
+curl -X DELETE http://localhost:8801/session \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -454,7 +460,7 @@ import requests
 
 # Generate token
 response = requests.post(
-    "http://localhost:8001/auth/token",
+    "http://localhost:8801/auth/token",
     json={"user_id": "python_tester", "api_secret": "your-shared-api-secret"}
 )
 token = response.json()["token"]
@@ -465,7 +471,7 @@ headers = {"Authorization": f"Bearer {token}"}
 # Upload document
 with open("document.pdf", "rb") as f:
     upload_response = requests.post(
-        "http://localhost:8001/upload",
+        "http://localhost:8801/upload",
         headers=headers,
         files={"file": f}
     )
@@ -473,7 +479,7 @@ print(upload_response.json())
 
 # Get suggestion
 suggest_response = requests.post(
-    "http://localhost:8001/suggest/batch",
+    "http://localhost:8801/suggest/batch",
     headers=headers,
     json={
         "assessment_id": "quick-check",
@@ -487,11 +493,11 @@ print(suggest_response.json())
 
 ```bash
 # Basic health check
-curl http://localhost:8001/health
+curl http://localhost:8801/health
 # Expected: {"status":"healthy"}
 
 # API root
-curl http://localhost:8001/
+curl http://localhost:8801/
 # Expected: {"service":"cue-api","status":"running"}
 ```
 
@@ -499,10 +505,10 @@ curl http://localhost:8001/
 
 ```bash
 # Privacy statement
-curl http://localhost:8001/privacy
+curl http://localhost:8801/privacy
 
 # API documentation (interactive; disabled when ENVIRONMENT=production)
-open http://localhost:8001/docs
+open http://localhost:8801/docs
 ```
 
 ### Manual JWT Token Generation (Advanced)
@@ -661,7 +667,7 @@ server {
     ssl_certificate_key /path/to/key.pem;
 
     location / {
-        proxy_pass http://localhost:8001;
+        proxy_pass http://localhost:8801;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -724,7 +730,7 @@ TENANT_ENCRYPTION_KEY=<your-generated-key>
 **4. Restart services.** Tenants are loaded at startup. You can also hot-reload without restart:
 
 ```bash
-curl -X POST http://localhost:8001/admin/reload-tenants \
+curl -X POST http://localhost:8801/admin/reload-tenants \
   -H "Authorization: Bearer <API_SECRET>"
 ```
 

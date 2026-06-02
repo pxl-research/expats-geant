@@ -1,7 +1,15 @@
 # Docker Compose for Expats
-# Services: cue-api (8001), ui (8002), shape-api (8003), shape_ui (8004), keycloak (8080)
+# Services: cue-api (8801), ui (8811), shape-api (8802), shape_ui (8812), keycloak (8080)
 
 name: expats
+
+# Bounded container logs: rotate at 20 MB, keep 5 files (~100 MB/service max).
+# Applied to every service via `logging: *default-logging`.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
 
 services:
   cue-api:
@@ -9,6 +17,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: cue-api
+    logging: *default-logging
     deploy:
       resources:
         limits:
@@ -16,7 +25,7 @@ services:
         reservations:
           memory: 512m
     ports:
-      - "8001:8001"
+      - "8801:8801"
     environment:
       # JWT Authentication
       - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
@@ -29,7 +38,7 @@ services:
       - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-cue-api}
       - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-change-me}
       - OIDC_REDIRECT_URI=${OIDC_REDIRECT_URI:-}
-      - OIDC_REDIRECT_PORT=8002
+      - OIDC_REDIRECT_PORT=8811
       - PUBLIC_HOST=${PUBLIC_HOST:-}
 
       # LLM Configuration
@@ -80,7 +89,7 @@ services:
           "CMD",
           "python3",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8801/health')",
         ]
       interval: 30s
       timeout: 10s
@@ -95,6 +104,7 @@ services:
       context: .
       dockerfile: shape_api/Dockerfile
     container_name: shape-api
+    logging: *default-logging
     deploy:
       resources:
         limits:
@@ -102,17 +112,19 @@ services:
         reservations:
           memory: 256m
     ports:
-      - "8003:8003"
+      - "8802:8802"
     environment:
       - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
       - JWT_ALGORITHM=HS256
       - JWT_EXPIRATION_HOURS=24
       - API_SECRET=${API_SECRET}
       - OIDC_ISSUER_URL=http://keycloak:8080/realms/expats
-      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-shape-api}
+      # Shares the single bundled realm client with the other services; the
+      # realm export and keycloak-init script only configure 'cue-api'.
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-cue-api}
       - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-change-me}
       - OIDC_REDIRECT_URI=${SHAPE_OIDC_REDIRECT_URI:-}
-      - OIDC_REDIRECT_PORT=8004
+      - OIDC_REDIRECT_PORT=8812
       - PUBLIC_HOST=${PUBLIC_HOST:-}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - LLM_MODEL=${SHAPE_LLM_MODEL:-}
@@ -123,7 +135,7 @@ services:
       - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-50}
       - TENANT_REGISTRY_PATH=${TENANT_REGISTRY_PATH:-}
       - TENANT_ENCRYPTION_KEY=${TENANT_ENCRYPTION_KEY:-}
-      - CHAT_PORT=8003
+      - CHAT_PORT=8802
       - HOST=0.0.0.0
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - ENVIRONMENT=${ENVIRONMENT:-development}
@@ -134,7 +146,7 @@ services:
       - keycloak
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8802/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -147,6 +159,7 @@ services:
       context: .
       dockerfile: cue_ui/Dockerfile
     container_name: cue-ui
+    logging: *default-logging
     deploy:
       resources:
         limits:
@@ -154,9 +167,9 @@ services:
         reservations:
           memory: 128m
     ports:
-      - "8002:8002"
+      - "8811:8811"
     environment:
-      - CUE_API_URL=http://cue-api:8001
+      - CUE_API_URL=http://cue-api:8801
       - PUBLIC_HOST=${PUBLIC_HOST:-}
       - OIDC_ISSUER_URL=http://keycloak:8080/realms/expats
       - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-cue-api}
@@ -173,6 +186,7 @@ services:
       context: .
       dockerfile: shape_ui/Dockerfile
     container_name: shape-ui
+    logging: *default-logging
     deploy:
       resources:
         limits:
@@ -180,9 +194,9 @@ services:
         reservations:
           memory: 128m
     ports:
-      - "8004:8004"
+      - "8812:8812"
     environment:
-      - SHAPE_API_URL=http://shape-api:8003
+      - SHAPE_API_URL=http://shape-api:8802
       - PUBLIC_HOST=${PUBLIC_HOST:-}
       - OIDC_ISSUER_URL=http://keycloak:8080/realms/expats
       - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-cue-api}
@@ -195,8 +209,15 @@ services:
       - cue-api-network
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.0
+    # Custom image bakes in realm-export.json + keycloak-init.sh, so no host
+    # bind mounts are required (works when only the pushed image is present,
+    # e.g. Portainer stacks from prebuilt images). Build/push like the others.
+    image: expats-keycloak:latest
+    build:
+      context: .
+      dockerfile: keycloak/Dockerfile
     container_name: keycloak
+    logging: *default-logging
     deploy:
       resources:
         limits:
@@ -214,8 +235,26 @@ services:
       - KC_HOSTNAME_ADMIN=http://${PUBLIC_HOST:-keycloak}:8080
     ports:
       - "8080:8080"
-    volumes:
-      - ./keycloak:/opt/keycloak/data/import
+    networks:
+      - cue-api-network
+
+  # One-shot: waits for Keycloak, then sets the cue-api client redirect URIs /
+  # web origins for the current ports (localhost + PUBLIC_HOST). Idempotent, so
+  # it self-heals port changes on an existing Keycloak volume — no manual
+  # setup_keycloak.sh run needed. Exits 0 when done. Reuses the custom Keycloak
+  # image (which has kcadm + the baked-in init script); no bind mount needed.
+  keycloak-init:
+    image: expats-keycloak:latest
+    container_name: keycloak-init
+    logging: *default-logging
+    depends_on:
+      - keycloak
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      - PUBLIC_HOST=${PUBLIC_HOST:-}
+    entrypoint: ["/bin/bash", "/opt/keycloak/bin/keycloak-init.sh"]
+    restart: "no"
     networks:
       - cue-api-network
 

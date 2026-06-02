@@ -27,10 +27,10 @@ RUN groupadd -r appuser && useradd -r -g appuser -d /app appuser \
 COPY shape_api/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-EXPOSE 8003
+EXPOSE 8802
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')"
+    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8802/health')"
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["python3", "run_chat_api.py"]

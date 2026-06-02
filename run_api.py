@@ -76,7 +76,7 @@ def main():
     # Configuration from environment
     sessions_base_path = os.getenv("SESSIONS_BASE_PATH", "./data/sessions")
     chroma_base_path = os.getenv("CHROMA_BASE_PATH", "./data/chroma")
-    port = int(os.getenv("PORT", "8001"))
+    port = int(os.getenv("PORT", "8801"))
     host = os.getenv("HOST", "0.0.0.0")  # noqa: S104 - intentional, overridable via env
     cleanup_interval = int(os.getenv("CLEANUP_JOB_INTERVAL_MINUTES", "60"))
 

@@ -14,28 +14,28 @@ Communicates with Shape exclusively via HTTP — imports nothing from `shape_api
 docker compose up --build
 ```
 
-- Shape API: http://localhost:8003
-- Shape UI frontend: http://localhost:8004
+- Shape API: http://localhost:8802
+- Shape UI frontend: http://localhost:8812
 
 ### Standalone (dev)
 
 ```bash
 pip install -r shape_ui/requirements.txt
 
-export SHAPE_API_URL=http://localhost:8003
+export SHAPE_API_URL=http://localhost:8802
 
-python -m uvicorn shape_ui.main:app --host 127.0.0.1 --port 8004 --reload
+python -m uvicorn shape_ui.main:app --host 127.0.0.1 --port 8812 --reload
 ```
 
 ## Architecture
 
 ```
-Browser ──► shape_ui (FastAPI, port 8004)
+Browser ──► shape_ui (FastAPI, port 8812)
                 │  Jinja2 + HTMX, server-rendered
                 │  HttpOnly cookie stores JWT
                 │
                 ▼ httpx + Bearer JWT
-            shape_api API (port 8003)
+            shape_api API (port 8802)
 ```
 
 ## Key Files

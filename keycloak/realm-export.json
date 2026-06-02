@@ -27,21 +27,21 @@
       "publicClient": false,
       "secret": "change-me",
       "redirectUris": [
-        "http://localhost:8002/auth/callback",
-        "http://localhost:8004/auth/callback"
+        "http://localhost:8811/auth/callback",
+        "http://localhost:8812/auth/callback"
       ],
       "webOrigins": [
-        "http://localhost:8001",
-        "http://localhost:8002",
-        "http://localhost:8003",
-        "http://localhost:8004"
+        "http://localhost:8801",
+        "http://localhost:8811",
+        "http://localhost:8802",
+        "http://localhost:8812"
       ],
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "protocol": "openid-connect",
-      "attributes": {"post.logout.redirect.uris": "http://localhost:8002##http://localhost:8004"},
+      "attributes": {"post.logout.redirect.uris": "http://localhost:8811##http://localhost:8812"},
       "defaultClientScopes": [
         "web-origins",
         "acr",

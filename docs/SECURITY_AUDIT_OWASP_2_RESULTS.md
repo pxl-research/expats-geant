@@ -227,7 +227,7 @@ If an attacker achieves prompt injection (identified as HIGH risk in the prior L
 
 **Audit date:** 2026-04-15
 **Scope:** L1 + L2 requirements (L3 noted but deferred for PoC)
-**Applies to:** `cue_ui/` (port 8002) and `shape_ui/` (port 8004) — Jinja2 + HTMX frontends
+**Applies to:** `cue_ui/` (port 8811) and `shape_ui/` (port 8812) — Jinja2 + HTMX frontends
 
 ### V3.1 Web Frontend Security Documentation
 
@@ -348,7 +348,7 @@ if os.getenv("ENABLE_HSTS", "false").lower() == "true":
 
 **Audit date:** 2026-04-15
 **Scope:** L1 + L2 requirements (L3 noted but deferred for PoC)
-**Applies to:** `cue_api/` (port 8001) and `shape_api/` (port 8003) — FastAPI REST APIs returning JSON
+**Applies to:** `cue_api/` (port 8801) and `shape_api/` (port 8802) — FastAPI REST APIs returning JSON
 
 ### V4.1 Generic Web Service Security
 
@@ -850,7 +850,7 @@ The application does **not** operate its own OAuth Authorization Server — Keyc
 
 | Req | Level | Status | Evidence / Notes |
 |-----|-------|--------|-----------------|
-| 10.4.1 | L1 | PASS | Keycloak validates redirect URIs against the client's pre-registered allowlist. The realm export specifies exact redirect URIs: `http://localhost:8002/auth/callback` and `http://localhost:8004/auth/callback` (`realm-export.json:22-25`). No wildcards. |
+| 10.4.1 | L1 | PASS | Keycloak validates redirect URIs against the client's pre-registered allowlist. The realm export specifies exact redirect URIs: `http://localhost:8811/auth/callback` and `http://localhost:8812/auth/callback` (`realm-export.json:22-25`). No wildcards. |
 | 10.4.2 | L1 | PASS | Keycloak enforces single-use authorization codes by default. |
 | 10.4.3 | L1 | PASS | Keycloak authorization codes are short-lived (default: 60 seconds). |
 | 10.4.4 | L1 | PASS | Implicit flow is disabled: `"implicitFlowEnabled": false`. Direct access grants are disabled: `"directAccessGrantsEnabled": false`. Only the standard Authorization Code flow is enabled: `"standardFlowEnabled": true` (`realm-export.json:32-34`). |
@@ -965,7 +965,7 @@ The `_pending_states` store was changed from `{state: expiry_float}` to `{state:
 | 13.4.2 | L2 | PARTIAL | FastAPI's `/docs` (Swagger UI), `/redoc`, and `/openapi.json` endpoints are enabled by default on all 4 services. These expose the full API schema in production. No `ENVIRONMENT`-based toggle to disable them. See **Finding V13-F3**. |
 | 13.4.3 | L2 | PASS | No directory listings — FastAPI only serves registered routes and mounted `StaticFiles` directories. Requests to undefined paths return 404. |
 | 13.4.4 | L2 | PASS | HTTP TRACE is not supported by Uvicorn/ASGI by default. No explicit TRACE handler registered. |
-| 13.4.5 | L2 | PASS | Internal API endpoints are not exposed externally by design: cue_ui → cue_api communication uses Docker-internal URLs (`http://cue-api:8001`). The UIs proxy API calls server-side; the browser never contacts the API backends directly (except via the public URL for OIDC redirects). |
+| 13.4.5 | L2 | PASS | Internal API endpoints are not exposed externally by design: cue_ui → cue_api communication uses Docker-internal URLs (`http://cue-api:8801`). The UIs proxy API calls server-side; the browser never contacts the API backends directly (except via the public URL for OIDC redirects). |
 | 13.4.6 | L3 | N/A | Deferred. No version information exposed in responses (FastAPI default). |
 | 13.4.7 | L3 | N/A | Deferred. No file extension restrictions on static file serving. |
 
@@ -1281,7 +1281,7 @@ USER appuser
 
 #### V12-F1: Internal Docker communication unencrypted (LOW)
 
-**Description:** Inter-service communication within the Docker Compose network uses plain HTTP (e.g., `http://cue-api:8001`, `http://keycloak:8080`). Traffic stays within the Docker bridge network and doesn't traverse external networks.
+**Description:** Inter-service communication within the Docker Compose network uses plain HTTP (e.g., `http://cue-api:8801`, `http://keycloak:8080`). Traffic stays within the Docker bridge network and doesn't traverse external networks.
 
 **Impact:** Low for single-host Docker deployment. The Docker bridge network provides network-level isolation. An attacker would need access to the Docker network to sniff traffic. For multi-host or cloud deployments, this becomes more significant.
 

@@ -40,9 +40,9 @@ All code is open-source for non-commercial use only.
 
 ```
 .
-├── cue_api/     # Respondent answer suggestion assistant (REST API, port 8001)
-├── cue_ui/           # Survey review frontend (Jinja2 + HTMX, port 8002)
-├── shape_api/         # Administrator questionnaire design assistant (REST API, port 8003)
+├── cue_api/     # Respondent answer suggestion assistant (REST API, port 8801)
+├── cue_ui/           # Survey review frontend (Jinja2 + HTMX, port 8811)
+├── shape_api/         # Administrator questionnaire design assistant (REST API, port 8802)
 ├── m_shared/       # Common utilities (LLM clients, vector DB, data models, auth)
 ├── tests/          # All tests (pytest)
 ├── docs/           # Deployment, integration, and API reference guides
@@ -83,10 +83,10 @@ cp .env.example .env
 docker-compose up --build
 ```
 
-The Cue API is available at `http://localhost:8001` (interactive docs at `/docs`).
-The Cue UI survey review frontend is available at `http://localhost:8002`.
-The Shape API is available at `http://localhost:8003` (interactive docs at `/docs`).
-The Shape UI is available at `http://localhost:8004`.
+The Cue API is available at `http://localhost:8801` (interactive docs at `/docs`).
+The Cue UI survey review frontend is available at `http://localhost:8811`.
+The Shape API is available at `http://localhost:8802` (interactive docs at `/docs`).
+The Shape UI is available at `http://localhost:8812`.
 
 See [Deployment Guide](docs/DEPLOYMENT.md) for full configuration options, manual Docker setup, data persistence, and production security guidance.
 
@@ -125,8 +125,8 @@ cp .env.example .env
 
 # Run the API server
 python3 run_api.py
-# API available at: http://localhost:8001
-# Docs available at: http://localhost:8001/docs
+# API available at: http://localhost:8801
+# Docs available at: http://localhost:8801/docs
 ```
 
 We follow standard Python conventions (PEP 8), PyCharm formatting, and commit message prefixes: `FEAT:`, `FIX:`, `CHANGE:`, `DOCS:`, `TEST:`, `REFACTOR:`, `CHORE:`.

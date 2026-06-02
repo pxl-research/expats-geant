@@ -94,7 +94,6 @@ question = Question(
     id=raw_q["id"],
     text=raw_q["title"],
     type=QuestionType.OPEN_ENDED,
-    order=position,
     metadata={
         "myplatform_field": raw_q.get("some_custom_key"),
     },
@@ -179,14 +178,13 @@ class MyPlatformAdapter(SurveyAdapter):
                 id=q["id"],
                 text=q["label"],
                 type=QuestionType.OPEN_ENDED,
-                order=i,
                 required=q.get("required", False),
                 answer_options=[],
                 metadata={},
             )
-            for i, q in enumerate(data.get("questions", []))
+            for q in data.get("questions", [])
         ]
-        section = Section(id="s1", title="", order=0, questions=questions)
+        section = Section(id="s1", title="", questions=questions)
         return Survey(
             id=data["id"],
             title=data.get("title", ""),

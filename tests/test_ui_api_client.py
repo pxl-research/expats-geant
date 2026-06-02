@@ -13,7 +13,7 @@ from cue_ui.api_client import (
     submit_responses,
 )
 
-BASE = "http://localhost:8001"
+BASE = "http://localhost:8801"
 TOKEN = "test-jwt-token"
 
 

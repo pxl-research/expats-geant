@@ -4,7 +4,7 @@ import json
 from unittest.mock import Mock
 
 from m_shared.llm.client import LLMClient
-from m_shared.llm.tool_calling import CompletionResult
+from m_shared.llm.tool_calling import CompletionResult, ToolCall
 from m_shared.models.answer_option import AnswerOption
 from m_shared.models.question import Question, QuestionType
 from m_shared.models.section import Section
@@ -476,8 +476,48 @@ def test_survey_fatigue_does_not_fire_at_threshold():
 
 
 # ---------------------------------------------------------------------------
+# Survey-level checks: section size
+# ---------------------------------------------------------------------------
+
+
+def test_section_dense_fires_above_30():
+    codes = [i.code for i in validate_survey(_make_large_survey(31))]
+    assert "section_dense" in codes
+    assert "section_overlong" not in codes
+
+
+def test_section_size_no_warning_at_30():
+    codes = [i.code for i in validate_survey(_make_large_survey(30))]
+    assert "section_dense" not in codes
+    assert "section_overlong" not in codes
+
+
+def test_section_overlong_fires_above_50():
+    codes = [i.code for i in validate_survey(_make_large_survey(51))]
+    assert "section_overlong" in codes
+    assert "section_dense" not in codes
+
+
+# ---------------------------------------------------------------------------
 # Advisory note integration tests (conversation.py + validation_engine.py)
 # ---------------------------------------------------------------------------
+
+
+def _init_survey_turn(survey_dict: dict, reply: str = "Done.") -> list:
+    """Mock LLM responses for a turn that applies a survey via init_survey."""
+    return [
+        CompletionResult(
+            content=None,
+            tool_calls=[
+                ToolCall(
+                    tool_call_id="c1",
+                    name="init_survey",
+                    arguments_json=json.dumps({"survey": survey_dict}),
+                )
+            ],
+        ),
+        CompletionResult(content=reply, tool_calls=[]),
+    ]
 
 
 def _survey_dict_with_social_desirability() -> dict:
@@ -516,12 +556,8 @@ def test_advisory_note_appended_for_new_issue(tmp_path):
     from shape_api.conversation import execute_chat_turn
 
     mock_llm = Mock()
-    mock_llm.create_completion_full.return_value = CompletionResult(
-        content=(
-            f"Here is the updated survey."
-            f"<survey_update>{json.dumps(_survey_dict_with_social_desirability())}</survey_update>"
-        ),
-        tool_calls=[],
+    mock_llm.create_completion_full.side_effect = _init_survey_turn(
+        _survey_dict_with_social_desirability(), "Here is the updated survey."
     )
     # validate_survey() still uses the older content-only API
     mock_llm.create_completion.return_value = "[]"
@@ -556,9 +592,8 @@ def test_advisory_note_not_shown_for_preexisting_issue(tmp_path):
     save_draft_survey(str(tmp_path), session_id, existing_survey)
 
     mock_llm = Mock()
-    mock_llm.create_completion_full.return_value = CompletionResult(
-        content=f"No changes.<survey_update>{json.dumps(_survey_dict_with_social_desirability())}</survey_update>",
-        tool_calls=[],
+    mock_llm.create_completion_full.side_effect = _init_survey_turn(
+        _survey_dict_with_social_desirability(), "No changes."
     )
     mock_llm.create_completion.return_value = "[]"
 
@@ -615,10 +650,7 @@ def test_advisory_note_not_shown_for_info_only_issue(tmp_path):
     }
 
     mock_llm = Mock()
-    mock_llm.create_completion_full.return_value = CompletionResult(
-        content=f"Updated.<survey_update>{json.dumps(survey_dict)}</survey_update>",
-        tool_calls=[],
-    )
+    mock_llm.create_completion_full.side_effect = _init_survey_turn(survey_dict, "Updated.")
     mock_llm.create_completion.return_value = "[]"
 
     text, survey_updated = execute_chat_turn(

@@ -21,7 +21,7 @@ from fastapi.testclient import TestClient
 
 from m_shared.auth.jwt_handler import create_token
 from m_shared.auth.middleware import SessionMiddleware
-from m_shared.llm.tool_calling import CompletionResult
+from m_shared.llm.tool_calling import CompletionResult, ToolCall
 from m_shared.models.survey import Survey
 from m_shared.session.manager import SessionManager
 from shape_api.api import create_app
@@ -164,6 +164,28 @@ def _create_chat_session(client, headers: dict) -> str:
     return resp.json()["session_id"]
 
 
+def _text_turn(text: str) -> list:
+    """One LLM round-trip: a plain text reply with no tool calls."""
+    return [CompletionResult(content=text, tool_calls=[])]
+
+
+def _init_survey_turn(survey_dict: dict, reply: str = "Done.") -> list:
+    """Two LLM round-trips: an init_survey tool call, then a text reply."""
+    return [
+        CompletionResult(
+            content=None,
+            tool_calls=[
+                ToolCall(
+                    tool_call_id="c1",
+                    name="init_survey",
+                    arguments_json=json.dumps({"survey": survey_dict}),
+                )
+            ],
+        ),
+        CompletionResult(content=reply, tool_calls=[]),
+    ]
+
+
 # ---------------------------------------------------------------------------
 # TestSessionLifecycle
 # ---------------------------------------------------------------------------
@@ -267,13 +289,22 @@ class TestChatTurnEndpoint:
         assert data["message"] == "Sure, I can help with that."
         assert data["survey_updated"] is False
 
-    def test_chat_turn_survey_update_parsed(self, client_with_llm, jwt_secret, mock_llm):
+    def test_chat_turn_applies_mutation_via_tool(self, client_with_llm, jwt_secret, mock_llm):
         headers = _make_auth_headers("user1")
         sid = _create_chat_session(client_with_llm, headers)
-        survey_json = json.dumps(SAMPLE_SURVEY_DICT)
-        mock_llm.create_completion.return_value = (
-            f"Here is the updated survey.<survey_update>{survey_json}</survey_update>"
-        )
+        mock_llm.create_completion_full.side_effect = [
+            CompletionResult(
+                content=None,
+                tool_calls=[
+                    ToolCall(
+                        tool_call_id="c1",
+                        name="init_survey",
+                        arguments_json=json.dumps({"survey": SAMPLE_SURVEY_DICT}),
+                    )
+                ],
+            ),
+            CompletionResult(content="Here is the new survey.", tool_calls=[]),
+        ]
 
         resp = client_with_llm.post(
             f"/chat/{sid}",
@@ -283,7 +314,7 @@ class TestChatTurnEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert data["survey_updated"] is True
-        assert "Here is the updated survey." in data["message"]
+        assert data["message"] == "Here is the new survey."
 
     def test_chat_turn_truncated_output_returns_clean_message(
         self, client_with_llm, jwt_secret, mock_llm
@@ -316,13 +347,22 @@ class TestChatTurnEndpoint:
         )
         assert resp.status_code == 500
 
-    def test_get_survey_after_update(self, client_with_llm, jwt_secret, mock_llm):
+    def test_get_survey_after_tool_update(self, client_with_llm, jwt_secret, mock_llm):
         headers = _make_auth_headers("user1")
         sid = _create_chat_session(client_with_llm, headers)
-        survey_json = json.dumps(SAMPLE_SURVEY_DICT)
-        mock_llm.create_completion.return_value = (
-            f"Updated!<survey_update>{survey_json}</survey_update>"
-        )
+        mock_llm.create_completion_full.side_effect = [
+            CompletionResult(
+                content=None,
+                tool_calls=[
+                    ToolCall(
+                        tool_call_id="c1",
+                        name="init_survey",
+                        arguments_json=json.dumps({"survey": SAMPLE_SURVEY_DICT}),
+                    )
+                ],
+            ),
+            CompletionResult(content="Done.", tool_calls=[]),
+        ]
         client_with_llm.post(
             f"/chat/{sid}",
             json={"message": "Create a survey."},
@@ -334,6 +374,138 @@ class TestChatTurnEndpoint:
         survey = resp.json()["survey"]
         assert survey is not None
         assert survey["title"] == "Test Survey"
+
+    def test_chat_turn_multi_tool_edit(self, client_with_llm, jwt_secret, mock_llm):
+        headers = _make_auth_headers("user1")
+        sid = _create_chat_session(client_with_llm, headers)
+        client_with_llm.put(
+            f"/chat/{sid}/survey", json={"survey": SAMPLE_SURVEY_DICT}, headers=headers
+        )
+        mock_llm.create_completion_full.side_effect = [
+            CompletionResult(
+                content=None,
+                tool_calls=[
+                    ToolCall(
+                        tool_call_id="c1",
+                        name="add_section",
+                        arguments_json=json.dumps({"section": {"id": "sec2", "title": "Two"}}),
+                    ),
+                    ToolCall(
+                        tool_call_id="c2",
+                        name="add_question",
+                        arguments_json=json.dumps(
+                            {
+                                "section_id": "sec2",
+                                "question": {"id": "qa", "text": "A?", "type": "open_ended"},
+                            }
+                        ),
+                    ),
+                    ToolCall(
+                        tool_call_id="c3",
+                        name="add_question",
+                        arguments_json=json.dumps(
+                            {
+                                "section_id": "sec2",
+                                "question": {"id": "qb", "text": "B?", "type": "open_ended"},
+                            }
+                        ),
+                    ),
+                ],
+            ),
+            CompletionResult(content="Added a section with two questions.", tool_calls=[]),
+        ]
+
+        resp = client_with_llm.post(
+            f"/chat/{sid}", json={"message": "add a section with 2 questions"}, headers=headers
+        )
+        assert resp.status_code == 200
+        assert resp.json()["survey_updated"] is True
+        survey = client_with_llm.get(f"/chat/{sid}/survey", headers=headers).json()["survey"]
+        sec2 = next(s for s in survey["sections"] if s["id"] == "sec2")
+        assert [q["id"] for q in sec2["questions"]] == ["qa", "qb"]
+
+    def test_chat_turn_error_recovery(self, client_with_llm, jwt_secret, mock_llm):
+        headers = _make_auth_headers("user1")
+        sid = _create_chat_session(client_with_llm, headers)
+        client_with_llm.put(
+            f"/chat/{sid}/survey", json={"survey": SAMPLE_SURVEY_DICT}, headers=headers
+        )
+        mock_llm.create_completion_full.side_effect = [
+            CompletionResult(
+                content=None,
+                tool_calls=[
+                    ToolCall(
+                        tool_call_id="c1",
+                        name="update_question",
+                        arguments_json=json.dumps({"question_id": "wrong", "patch": {"text": "X"}}),
+                    )
+                ],
+            ),
+            CompletionResult(
+                content=None,
+                tool_calls=[
+                    ToolCall(
+                        tool_call_id="c2",
+                        name="update_question",
+                        arguments_json=json.dumps(
+                            {"question_id": "q1", "patch": {"text": "Fixed?"}}
+                        ),
+                    )
+                ],
+            ),
+            CompletionResult(content="Fixed it.", tool_calls=[]),
+        ]
+
+        resp = client_with_llm.post(
+            f"/chat/{sid}", json={"message": "reword the first question"}, headers=headers
+        )
+        assert resp.status_code == 200
+        assert resp.json()["survey_updated"] is True
+        survey = client_with_llm.get(f"/chat/{sid}/survey", headers=headers).json()["survey"]
+        assert survey["sections"][0]["questions"][0]["text"] == "Fixed?"
+
+    def test_chat_turn_move_preserves_question_id(self, client_with_llm, jwt_secret, mock_llm):
+        headers = _make_auth_headers("user1")
+        sid = _create_chat_session(client_with_llm, headers)
+        base = {
+            **SAMPLE_SURVEY_DICT,
+            "sections": [
+                SAMPLE_SURVEY_DICT["sections"][0],
+                {
+                    "id": "sec2",
+                    "title": "Section 2",
+                    "description": "",
+                    "order": 1,
+                    "metadata": {},
+                    "questions": [],
+                },
+            ],
+        }
+        client_with_llm.put(f"/chat/{sid}/survey", json={"survey": base}, headers=headers)
+        mock_llm.create_completion_full.side_effect = [
+            CompletionResult(
+                content=None,
+                tool_calls=[
+                    ToolCall(
+                        tool_call_id="c1",
+                        name="move_question",
+                        arguments_json=json.dumps({"question_id": "q1", "section_id": "sec2"}),
+                    ),
+                ],
+            ),
+            CompletionResult(content="Moved it.", tool_calls=[]),
+        ]
+
+        resp = client_with_llm.post(
+            f"/chat/{sid}", json={"message": "move q1 to section 2"}, headers=headers
+        )
+        assert resp.status_code == 200
+        assert resp.json()["survey_updated"] is True
+        survey = client_with_llm.get(f"/chat/{sid}/survey", headers=headers).json()["survey"]
+        sec1 = next(s for s in survey["sections"] if s["id"] == "sec1")
+        sec2 = next(s for s in survey["sections"] if s["id"] == "sec2")
+        assert [q["id"] for q in sec1["questions"]] == []
+        assert [q["id"] for q in sec2["questions"]] == ["q1"]
 
     def test_get_survey_no_draft_returns_null(self, client, jwt_secret):
         headers = _make_auth_headers("user1")
@@ -423,6 +595,198 @@ class TestSurveyUpdateEndpoint:
         assert resp.status_code == 200
         get_resp = client.get(f"/chat/{sid}/survey", headers=headers)
         assert get_resp.json()["survey"] is not None
+
+
+# ---------------------------------------------------------------------------
+# TestSurveyMutationEndpoints
+# ---------------------------------------------------------------------------
+
+_NEW_SECTION = {"id": "sec2", "title": "Section 2"}
+_NEW_QUESTION = {"id": "q2", "text": "New question?", "type": "open_ended"}
+
+
+class TestSurveyMutationEndpoints:
+    def _seed(self, client, headers) -> str:
+        sid = _create_chat_session(client, headers)
+        client.put(f"/chat/{sid}/survey", json={"survey": SAMPLE_SURVEY_DICT}, headers=headers)
+        return sid
+
+    def test_add_section(self, client, jwt_secret):
+        headers = _make_auth_headers("user1")
+        sid = self._seed(client, headers)
+        resp = client.post(
+            f"/chat/{sid}/survey/sections", json={"section": _NEW_SECTION}, headers=headers
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["status"] == "saved"
+        survey = client.get(f"/chat/{sid}/survey", headers=headers).json()["survey"]
+        assert [s["id"] for s in survey["sections"]] == ["sec1", "sec2"]
+
+    def test_update_section(self, client, jwt_secret):
+        headers = _make_auth_headers("user1")
+        sid = self._seed(client, headers)
+        resp = client.patch(
+            f"/chat/{sid}/survey/sections/sec1", json={"title": "Renamed"}, headers=headers
+        )
+        assert resp.status_code == 200
+        survey = client.get(f"/chat/{sid}/survey", headers=headers).json()["survey"]
+        assert survey["sections"][0]["title"] == "Renamed"
+
+    def test_delete_section(self, client, jwt_secret):
+        headers = _make_auth_headers("user1")
+        sid = self._seed(client, headers)
+        resp = client.delete(f"/chat/{sid}/survey/sections/sec1", headers=headers)
+        assert resp.status_code == 200
+        survey = client.get(f"/chat/{sid}/survey", headers=headers).json()["survey"]
+        assert survey["sections"] == []
+
+    def test_add_question(self, client, jwt_secret):
+        headers = _make_auth_headers("user1")
+        sid = self._seed(client, headers)
+        resp = client.post(
+            f"/chat/{sid}/survey/sections/sec1/questions",
+            json={"question": _NEW_QUESTION},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        survey = client.get(f"/chat/{sid}/survey", headers=headers).json()["survey"]
+        assert [q["id"] for q in survey["sections"][0]["questions"]] == ["q1", "q2"]
+
+    def test_update_question(self, client, jwt_secret):
+        headers = _make_auth_headers("user1")
+        sid = self._seed(client, headers)
+        resp = client.patch(
+            f"/chat/{sid}/survey/questions/q1", json={"text": "Changed?"}, headers=headers
+        )
+        assert resp.status_code == 200
+        survey = client.get(f"/chat/{sid}/survey", headers=headers).json()["survey"]
+        assert survey["sections"][0]["questions"][0]["text"] == "Changed?"
+
+    def test_delete_question(self, client, jwt_secret):
+        headers = _make_auth_headers("user1")
+        sid = self._seed(client, headers)
+        resp = client.delete(f"/chat/{sid}/survey/questions/q1", headers=headers)
+        assert resp.status_code == 200
+        survey = client.get(f"/chat/{sid}/survey", headers=headers).json()["survey"]
+        assert survey["sections"][0]["questions"] == []
+
+    def test_add_question_unknown_section_returns_404(self, client, jwt_secret):
+        headers = _make_auth_headers("user1")
+        sid = self._seed(client, headers)
+        resp = client.post(
+            f"/chat/{sid}/survey/sections/nope/questions",
+            json={"question": _NEW_QUESTION},
+            headers=headers,
+        )
+        assert resp.status_code == 404
+
+    def test_patch_unknown_question_returns_404(self, client, jwt_secret):
+        headers = _make_auth_headers("user1")
+        sid = self._seed(client, headers)
+        resp = client.patch(
+            f"/chat/{sid}/survey/questions/nope", json={"text": "x"}, headers=headers
+        )
+        assert resp.status_code == 404
+
+    def test_duplicate_section_returns_409(self, client, jwt_secret):
+        headers = _make_auth_headers("user1")
+        sid = self._seed(client, headers)
+        resp = client.post(
+            f"/chat/{sid}/survey/sections",
+            json={"section": {"id": "sec1", "title": "Dup"}},
+            headers=headers,
+        )
+        assert resp.status_code == 409
+
+    def test_mutation_wrong_session_returns_403(self, client, jwt_secret):
+        headers_a = _make_auth_headers("user_a")
+        headers_b = _make_auth_headers("user_b")
+        sid = self._seed(client, headers_a)
+        resp = client.delete(f"/chat/{sid}/survey/sections/sec1", headers=headers_b)
+        assert resp.status_code == 403
+
+    def test_mutation_unauthenticated_returns_401(self, client, jwt_secret):
+        resp = client.delete("/chat/any_session/survey/sections/sec1")
+        assert resp.status_code == 401
+
+    def test_end_to_end_edit_sequence(self, client, jwt_secret):
+        headers = _make_auth_headers("user1")
+        sid = self._seed(client, headers)
+        client.post(f"/chat/{sid}/survey/sections", json={"section": _NEW_SECTION}, headers=headers)
+        client.post(
+            f"/chat/{sid}/survey/sections/sec2/questions",
+            json={"question": {"id": "qX", "text": "Original?", "type": "open_ended"}},
+            headers=headers,
+        )
+        client.patch(f"/chat/{sid}/survey/questions/qX", json={"text": "Final?"}, headers=headers)
+        survey = client.get(f"/chat/{sid}/survey", headers=headers).json()["survey"]
+        sec2 = next(s for s in survey["sections"] if s["id"] == "sec2")
+        assert sec2["questions"][0]["text"] == "Final?"
+
+    def test_move_section(self, client, jwt_secret):
+        headers = _make_auth_headers("user1")
+        sid = self._seed(client, headers)
+        client.post(f"/chat/{sid}/survey/sections", json={"section": _NEW_SECTION}, headers=headers)
+        resp = client.patch(
+            f"/chat/{sid}/survey/sections/sec1/position",
+            json={"after_id": "sec2"},
+            headers=headers,
+        )
+        assert resp.status_code == 200, resp.text
+        survey = client.get(f"/chat/{sid}/survey", headers=headers).json()["survey"]
+        assert [s["id"] for s in survey["sections"]] == ["sec2", "sec1"]
+
+    def test_move_question_within_section(self, client, jwt_secret):
+        headers = _make_auth_headers("user1")
+        sid = self._seed(client, headers)
+        client.post(
+            f"/chat/{sid}/survey/sections/sec1/questions",
+            json={"question": _NEW_QUESTION},
+            headers=headers,
+        )
+        resp = client.patch(
+            f"/chat/{sid}/survey/questions/q1/position", json={"after_id": "q2"}, headers=headers
+        )
+        assert resp.status_code == 200
+        survey = client.get(f"/chat/{sid}/survey", headers=headers).json()["survey"]
+        assert [q["id"] for q in survey["sections"][0]["questions"]] == ["q2", "q1"]
+
+    def test_move_question_to_other_section(self, client, jwt_secret):
+        headers = _make_auth_headers("user1")
+        sid = self._seed(client, headers)
+        client.post(f"/chat/{sid}/survey/sections", json={"section": _NEW_SECTION}, headers=headers)
+        resp = client.patch(
+            f"/chat/{sid}/survey/questions/q1/position",
+            json={"section_id": "sec2"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        survey = client.get(f"/chat/{sid}/survey", headers=headers).json()["survey"]
+        assert survey["sections"][0]["questions"] == []
+        assert [q["id"] for q in survey["sections"][1]["questions"]] == ["q1"]
+
+    def test_move_unknown_section_returns_404(self, client, jwt_secret):
+        headers = _make_auth_headers("user1")
+        sid = self._seed(client, headers)
+        resp = client.patch(f"/chat/{sid}/survey/sections/nope/position", json={}, headers=headers)
+        assert resp.status_code == 404
+
+    def test_move_unknown_question_returns_404(self, client, jwt_secret):
+        headers = _make_auth_headers("user1")
+        sid = self._seed(client, headers)
+        resp = client.patch(f"/chat/{sid}/survey/questions/nope/position", json={}, headers=headers)
+        assert resp.status_code == 404
+
+    def test_move_question_unauthenticated_returns_401(self, client, jwt_secret):
+        resp = client.patch("/chat/any_session/survey/questions/q1/position", json={})
+        assert resp.status_code == 401
+
+    def test_move_wrong_session_returns_403(self, client, jwt_secret):
+        headers_a = _make_auth_headers("user_a")
+        headers_b = _make_auth_headers("user_b")
+        sid = self._seed(client, headers_a)
+        resp = client.patch(f"/chat/{sid}/survey/questions/q1/position", json={}, headers=headers_b)
+        assert resp.status_code == 403
 
 
 # ---------------------------------------------------------------------------
@@ -539,7 +903,7 @@ class TestScenarioIntegration:
         sid = _create_chat_session(client_with_llm, headers)
 
         # Turn 1: plain text response
-        mock_llm.create_completion.return_value = "Let's start with the basics."
+        mock_llm.create_completion_full.side_effect = _text_turn("Let's start with the basics.")
         r1 = client_with_llm.post(
             f"/chat/{sid}",
             json={"message": "I need a wellbeing survey."},
@@ -548,10 +912,9 @@ class TestScenarioIntegration:
         assert r1.status_code == 200
         assert r1.json()["survey_updated"] is False
 
-        # Turn 2: survey update
-        survey_json = json.dumps(SAMPLE_SURVEY_DICT)
-        mock_llm.create_completion.return_value = (
-            f"Here's a draft.<survey_update>{survey_json}</survey_update>"
+        # Turn 2: survey created via init_survey tool
+        mock_llm.create_completion_full.side_effect = _init_survey_turn(
+            SAMPLE_SURVEY_DICT, "Here's a draft."
         )
         r2 = client_with_llm.post(
             f"/chat/{sid}",
@@ -625,7 +988,9 @@ class TestScenarioIntegration:
         assert upload_data["topic_summary"]
 
         # Step 2: Plain chat turn — structure proposal without survey update
-        mock_llm.create_completion.return_value = "Sure, let me propose a structure for you."
+        mock_llm.create_completion_full.side_effect = _text_turn(
+            "Sure, let me propose a structure for you."
+        )
         r2 = client_with_llm.post(
             f"/chat/{sid}",
             json={"message": "Can you propose a survey structure?"},
@@ -634,10 +999,9 @@ class TestScenarioIntegration:
         assert r2.status_code == 200
         assert r2.json()["survey_updated"] is False
 
-        # Step 3: Chat turn with survey update embedded
-        survey_json = json.dumps(SAMPLE_SURVEY_DICT)
-        mock_llm.create_completion.return_value = (
-            f"Here is a draft.<survey_update>{survey_json}</survey_update>"
+        # Step 3: Chat turn creates the survey via init_survey
+        mock_llm.create_completion_full.side_effect = _init_survey_turn(
+            SAMPLE_SURVEY_DICT, "Here is a draft."
         )
         r3 = client_with_llm.post(
             f"/chat/{sid}",
@@ -647,12 +1011,9 @@ class TestScenarioIntegration:
         assert r3.status_code == 200
         assert r3.json()["survey_updated"] is True
 
-        # Step 4: Refine — another survey update with modified title
+        # Step 4: Refine the title via update_section's sibling — re-init with new title
         refined = {**SAMPLE_SURVEY_DICT, "title": "Employee Satisfaction Survey"}
-        refined_json = json.dumps(refined)
-        mock_llm.create_completion.return_value = (
-            f"Refined!<survey_update>{refined_json}</survey_update>"
-        )
+        mock_llm.create_completion_full.side_effect = _init_survey_turn(refined, "Refined!")
         r4 = client_with_llm.post(
             f"/chat/{sid}",
             json={"message": "Change the title to Employee Satisfaction Survey."},
@@ -713,12 +1074,9 @@ class TestScenarioIntegration:
         assert r_validate.status_code == 200, r_validate.text
         assert isinstance(r_validate.json()["issues"], list)
 
-        # Step 5: Chat turn to improve survey
+        # Step 5: Chat turn to improve survey via init_survey
         improved = {**SAMPLE_SURVEY_DICT, "title": "Improved Test Survey"}
-        improved_json = json.dumps(improved)
-        mock_llm.create_completion.return_value = (
-            f"Improved.<survey_update>{improved_json}</survey_update>"
-        )
+        mock_llm.create_completion_full.side_effect = _init_survey_turn(improved, "Improved.")
         r_chat = client_with_llm.post(
             f"/chat/{sid}",
             json={"message": "Improve the survey title."},
@@ -755,9 +1113,8 @@ class TestScenarioIntegration:
         client_a = TestClient(app_with_llm, raise_server_exceptions=False)
         sid = _create_chat_session(client_a, headers)
 
-        survey_json = json.dumps(SAMPLE_SURVEY_DICT)
-        mock_llm.create_completion.return_value = (
-            f"Here it is.<survey_update>{survey_json}</survey_update>"
+        mock_llm.create_completion_full.side_effect = _init_survey_turn(
+            SAMPLE_SURVEY_DICT, "Here it is."
         )
         client_a.post(f"/chat/{sid}", json={"message": "Create a survey."}, headers=headers)
 
@@ -820,9 +1177,8 @@ class TestMethodologicalAdvisor:
         headers = _make_auth_headers("user1")
         sid = _create_chat_session(client_with_llm, headers)
 
-        survey_json = json.dumps(_SD_SURVEY_DICT)
-        mock_llm.create_completion.return_value = (
-            f"Here is the updated survey.<survey_update>{survey_json}</survey_update>"
+        mock_llm.create_completion_full.side_effect = _init_survey_turn(
+            _SD_SURVEY_DICT, "Here is the updated survey."
         )
 
         resp = client_with_llm.post(
@@ -844,9 +1200,9 @@ class TestMethodologicalAdvisor:
         # Seed the draft with the SD survey so the issue already exists in baseline
         save_draft_survey(str(session_manager.base_path), sid, Survey(**_SD_SURVEY_DICT))
 
-        survey_json = json.dumps(_SD_SURVEY_DICT)
-        mock_llm.create_completion.return_value = (
-            f"No changes.<survey_update>{survey_json}</survey_update>"
+        # Re-apply the same survey: survey_updated is True but no NEW issue is introduced
+        mock_llm.create_completion_full.side_effect = _init_survey_turn(
+            _SD_SURVEY_DICT, "No changes."
         )
 
         resp = client_with_llm.post(
