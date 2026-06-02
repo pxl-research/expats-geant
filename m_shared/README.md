@@ -60,8 +60,6 @@ m_shared/
     └── utils.py             # Chunking & embedding utilities
 ```
 
-> Files listed in an earlier version of this README (`vectordb/session_store.py`, `utils/logging.py`, `utils/error_handling.py`, `utils/encryption.py`, `models/qti.py`, `auth/permissions.py`, `llm/models.py`, `llm/utils.py`) were planned but have not been needed. They may be added in future phases.
-
 ## Key Components
 
 ### LLM Client (`llm/client.py`)
@@ -129,6 +127,40 @@ Pydantic models for surveys, responses, sessions, and QTI mapping.
 - `Session` — User session with TTL and isolation scope
 
 All models include Pydantic validation and JSON serialization.
+
+### Session Management (`session/`)
+
+Per-session isolation for vector stores and document storage with TTL-based
+cleanup.
+
+**Layout** — each session has its own folder; deletion = folder removal:
+
+```
+sessions/
+└── <session_id>/
+    ├── chroma_store/    # Isolated ChromaDB instance
+    ├── documents/       # Uploaded documents (optional)
+    └── metadata.json    # Session metadata (user_id, expires_at, ...)
+```
+
+**Session IDs** are derived from JWT tokens via SHA-256 (16-character hash),
+so the same token always resolves to the same session — enabling implicit
+resumption without server-side state.
+
+**Composition, not inheritance** — `SessionManager` uses
+`ChromaDocumentStore` rather than extending it, keeping session lifecycle
+and vector operations cleanly separated and reusable across Cue and Shape.
+
+**TTL and cleanup defaults** are documented in
+[`docs/OPERATOR_RUNBOOK.md` §1.3](../docs/OPERATOR_RUNBOOK.md#13-data-retention).
+
+```python
+from m_shared.session import SessionManager
+
+manager = SessionManager(base_path="./sessions")
+session = manager.create_session(user_id="user_123", jwt_token=token)
+store = manager.get_vector_store(session.session_id)
+```
 
 ### Authentication (`auth/`)
 
@@ -233,13 +265,6 @@ class MyModel(BaseModel):
         json_schema_extra = {"example": {"id": "ex-1", "name": "Example"}}
 ```
 
-### Adding LLM Provider Support
-
-1. Extend `llm/models.py` with new provider configuration
-2. Update `llm/client.py` routing logic
-3. Add tests with mock provider responses
-4. Document in README
-
 ## Privacy & Security
 
 - **Data minimization**: No logging of sensitive user data (documents, responses)
@@ -269,16 +294,6 @@ from m_shared.vectordb import get_vectordb_client
 from m_shared.models import Survey, Response, Citation, Session
 from m_shared.auth import create_token, validate_token
 ```
-
-## Roadmap
-
-- ✅ LLM client (OpenRouter, OpenAI-compat, local via any OpenAI-compatible endpoint)
-- ✅ ChromaDB wrapper with session isolation
-- ✅ Core data models (Survey, Section, Question, Response, Citation, Session)
-- ✅ Survey adapters (LimeSurvey, Qualtrics, SurveyMonkey, QTI 3.0)
-- ✅ Audit logging
-- 📅 PostgreSQL models (future)
-- 📅 Distributed session store (Redis, future)
 
 ## References
 

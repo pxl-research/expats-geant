@@ -120,7 +120,7 @@ pytest tests/test_chat*.py tests/test_shape*.py -v
 pytest tests/test_chat*.py tests/test_shape*.py -v --cov=shape_api --cov-report=term-missing
 ```
 
-There are 11 Shape test files covering ~360 tests:
+Shape test files:
 
 | File | Coverage |
 |---|---|
@@ -136,7 +136,7 @@ There are 11 Shape test files covering ~360 tests:
 | `test_shape_mutations.py` | Pure survey mutation functions (add/update/delete/move, reorder error handling) |
 | `test_shape_tools.py` | LLM tool dispatch over the mutation layer |
 
-Run the full suite for accurate coverage (single-file runs will fail `--cov-fail-under=80`):
+Run the full suite for accurate coverage (single-file runs will fail `--cov-fail-under=85`):
 
 ```bash
 pytest tests/ -v --tb=short
