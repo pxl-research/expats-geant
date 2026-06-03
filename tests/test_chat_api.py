@@ -422,6 +422,79 @@ class TestCreateEndpoint:
         )
         assert response.status_code == 422
 
+    def test_create_surfaces_adapter_runtime_error_as_502(self, client, auth_headers, monkeypatch):
+        """An upstream adapter failure (e.g. wrong LimeSurvey credentials)
+        must arrive at the UI with the actual message intact, not as a
+        generic 500. Routes that swallow the message break the user-facing
+        error rendering."""
+        from m_shared.adapters.limesurvey import LimeSurveyAdapter
+
+        def fake_create_survey(self, survey):
+            raise RuntimeError("LimeSurvey authentication failed: Invalid user name or password")
+
+        monkeypatch.setattr(LimeSurveyAdapter, "create_survey", fake_create_survey)
+        response = client.post(
+            "/create",
+            json={
+                "format": "limesurvey",
+                "survey": SAMPLE_SURVEY_DICT,
+                "api_url": "http://host.docker.internal:7080/index.php/admin/remotecontrol",
+                "username": "admin",
+                "password": "wrong",
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 502
+        assert "Invalid user name or password" in response.json()["detail"]
+
+    def test_create_surfaces_adapter_value_error_as_400(self, client, auth_headers, monkeypatch):
+        """ValueError from the adapter (e.g. credentials missing) maps to 400
+        with the adapter's own message."""
+        from m_shared.adapters.limesurvey import LimeSurveyAdapter
+
+        def fake_create_survey(self, survey):
+            raise ValueError(
+                "LimeSurvey API URL, username, and password must be set to create surveys."
+            )
+
+        monkeypatch.setattr(LimeSurveyAdapter, "create_survey", fake_create_survey)
+        response = client.post(
+            "/create",
+            json={
+                "format": "limesurvey",
+                "survey": SAMPLE_SURVEY_DICT,
+                "api_url": "http://host.docker.internal:7080/index.php/admin/remotecontrol",
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+        assert "must be set" in response.json()["detail"]
+
+    def test_create_falls_back_to_file_export_on_not_implemented(
+        self, client, auth_headers, monkeypatch
+    ):
+        """NotImplementedError is the documented contract for 'no API write
+        support' — should fall back to file_export rather than raising."""
+        from m_shared.adapters.limesurvey import LimeSurveyAdapter
+
+        def fake_create_survey(self, survey):
+            raise NotImplementedError
+
+        monkeypatch.setattr(LimeSurveyAdapter, "create_survey", fake_create_survey)
+        response = client.post(
+            "/create",
+            json={
+                "format": "limesurvey",
+                "survey": SAMPLE_SURVEY_DICT,
+                "api_url": "http://host.docker.internal:7080/index.php/admin/remotecontrol",
+                "username": "admin",
+                "password": "changeme",
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        assert response.json()["created_via"] == "file_export"
+
 
 # ---------------------------------------------------------------------------
 # POST /suggest

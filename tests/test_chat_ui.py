@@ -549,6 +549,58 @@ def test_export_push_shows_cleanup_modal(client):
 
 
 @respx.mock
+def test_export_push_renders_error_with_status_200(client):
+    """When the Shape API returns a 4xx/5xx, the UI must still render the
+    error partial with HTTP 200 — HTMX skips swaps on non-2xx responses, so a
+    non-200 reply leaves the user staring at an unchanged page.
+    """
+    respx.get(f"{BASE}/chat/{SESSION_ID}/survey").mock(
+        return_value=httpx.Response(200, json={"survey": SAMPLE_SURVEY})
+    )
+    respx.post(f"{BASE}/create").mock(
+        return_value=httpx.Response(
+            502,
+            json={"detail": "LimeSurvey authentication failed: Invalid user name or password"},
+        )
+    )
+    resp = client.post(
+        f"/session/{SESSION_ID}/export",
+        data={
+            "action": "push",
+            "fmt": "lss",
+            "api_url": "http://host.docker.internal:7080/index.php/admin/remotecontrol",
+            "username": "admin",
+            "password": "wrong",
+        },
+        cookies=COOKIE,
+        headers={"HX-Request": "true"},
+    )
+    assert resp.status_code == 200, "must be 200 so HTMX swaps the partial in"
+    assert "Export failed" in resp.text
+    assert "(502)" in resp.text
+    assert "Invalid user name or password" in resp.text
+
+
+@respx.mock
+def test_export_push_renders_error_on_unexpected_exception(client):
+    """An exception that is not an APIError (e.g. httpx network error) must
+    still produce a user-visible error rather than a blank result area."""
+    respx.get(f"{BASE}/chat/{SESSION_ID}/survey").mock(
+        return_value=httpx.Response(200, json={"survey": SAMPLE_SURVEY})
+    )
+    respx.post(f"{BASE}/create").mock(side_effect=httpx.ConnectError("boom"))
+    resp = client.post(
+        f"/session/{SESSION_ID}/export",
+        data={"action": "push", "fmt": "lss", "api_url": "http://x"},
+        cookies=COOKIE,
+        headers={"HX-Request": "true"},
+    )
+    assert resp.status_code == 200
+    assert "Export failed" in resp.text
+    assert "Unexpected error" in resp.text
+
+
+@respx.mock
 def test_export_download_shows_cleanup_modal(client):
     respx.get(f"{BASE}/chat/{SESSION_ID}/survey").mock(
         return_value=httpx.Response(200, json={"survey": SAMPLE_SURVEY})
