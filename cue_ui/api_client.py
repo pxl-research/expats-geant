@@ -56,16 +56,25 @@ async def get_capabilities(token: str, format: str) -> set[str]:
     return set(data)
 
 
-async def submit_responses(token: str, session_id: str, responses: dict[str, Any]) -> None:
+async def submit_responses(
+    token: str,
+    session_id: str,
+    responses: dict[str, Any],
+    credentials: dict[str, str] | None = None,
+) -> None:
     """Submit survey responses via Cue adapter.
 
-    POST /sessions/{session_id}/submit
+    POST /sessions/{session_id}/submit with body
+    ``{"responses": {...}, "credentials": {...} | omitted}``.
     """
+    body: dict[str, Any] = {"responses": responses}
+    if credentials:
+        body["credentials"] = credentials
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             f"{CUE_API_URL}/sessions/{session_id}/submit",
             headers=auth_headers(token),
-            json=responses,
+            json=body,
         )
     _raise_for_status(resp)
 
