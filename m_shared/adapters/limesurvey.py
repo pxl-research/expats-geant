@@ -66,6 +66,18 @@ _LS_TYPE_MAP: dict[str, QuestionType] = {
     "X": QuestionType.DESCRIPTIVE,
 }
 
+# DBVersion stamped into exported LSS documents. Chosen high enough that
+# LimeSurvey's importer skips all back-compat shims (lines guarded by
+# `iDBVersion < 145 / < 156 / < 170`). Matches the current LS 6.17.x line;
+# LS 5 accepts higher-than-known DBVersions without complaint.
+_LS_DB_VERSION = "651"
+
+# Type codes that require a per-question get_question_properties call on the
+# fetch_survey path: choice types need answeroptions; slider types need
+# attributes (min_num, max_num, slider_accuracy). Others (text, M/P, ranking,
+# descriptive) do not.
+_NEEDS_QUESTION_DETAILS: frozenset[str] = frozenset({"L", "O", "!", "1", "5", "N", "K"})
+
 # Internal QuestionType → LimeSurvey type code (for export)
 _INTERNAL_TO_LS_TYPE: dict[QuestionType, str] = {
     QuestionType.SINGLE_CHOICE: "L",
@@ -166,18 +178,28 @@ class LimeSurveyAdapter(SurveyAdapter):
         )
 
     def _parse_survey(self, root: Element) -> dict[str, Any]:
-        """Extract survey-level metadata from the LSS root element."""
+        """Extract survey-level metadata from the LSS root element.
+
+        Title/description are read from ``<surveys_languagesettings>/rows/row``
+        first (LimeSurvey's canonical location) and from ``<surveys>/rows/row``
+        as a fallback for hand-written or older test fixtures.
+        """
         row = root.find(".//surveys/rows/row")
         if row is None:
             raise ValueError("LSS XML missing <surveys> section")
 
         sid = _text(row.find("sid")) or str(uuid.uuid4())
+        ls_row = root.find(".//surveys_languagesettings/rows/row")
         title = (
-            _text(row.find("surveyls_title"))
-            or _text(row.find("surveyls_surveys/row/surveyls_title"))
+            (_text(ls_row.find("surveyls_title")) if ls_row is not None else "")
+            or _text(row.find("surveyls_title"))
             or "Untitled Survey"
         )
-        description = _text(row.find("surveyls_description")) or ""
+        description = (
+            (_text(ls_row.find("surveyls_description")) if ls_row is not None else "")
+            or _text(row.find("surveyls_description"))
+            or ""
+        )
 
         extra: dict[str, Any] = {}
         for child in row:
@@ -298,55 +320,22 @@ class LimeSurveyAdapter(SurveyAdapter):
         answers_by_qid: dict[str, list[dict[str, Any]]],
         sub_questions_by_parent: dict[str, list[dict[str, Any]]],
     ) -> Question | None:
-        """Convert raw question metadata into an internal Question object."""
+        """Convert raw question metadata (from LSS XML) into an internal Question."""
         ls_type = q_meta["type"]
-        q_type = _LS_TYPE_MAP.get(ls_type)
-        if q_type is None:
-            logger.warning(
-                "Unsupported LimeSurvey question type '%s' (qid=%s) — skipping",
-                ls_type,
-                q_meta["qid"],
-            )
-            return None
-
         qid = q_meta["qid"]
         if ls_type in ("M", "P"):
             raw_options = sub_questions_by_parent.get(qid, [])
         else:
             raw_options = answers_by_qid.get(qid, [])
-        answer_options = [
-            AnswerOption(
-                id=f"opt_{opt['code']}",
-                text=opt["text"],
-                value=opt["code"],
-                metadata={"ls_code": opt["code"]},
-            )
-            for opt in raw_options
-        ]
-
-        # Slider bounds: LimeSurvey stores these as question attributes (not parsed here),
-        # so we default to 0–100 for slider types unless metadata overrides.
-        min_val = max_val = step = None
-        if q_type == QuestionType.SLIDER:
-            min_val = float(q_meta.get("extra", {}).get("min_num", 0) or 0)
-            max_val = float(q_meta.get("extra", {}).get("max_num", 100) or 100)
-            step = float(q_meta.get("extra", {}).get("slider_accuracy", 1) or 1)
-
-        return Question(
-            id=f"q_{qid}",
+        extra = q_meta.get("extra", {})
+        return _question_from_meta(
+            ls_type=ls_type,
+            qid=qid,
             text=q_meta["text"],
-            type=q_type,
-            answer_options=answer_options,
-            required=q_meta["mandatory"],
-            min_value=min_val,
-            max_value=max_val,
-            step=step,
-            metadata={
-                "platform": "limesurvey",
-                "ls_qid": qid,
-                "ls_type": ls_type,
-                **q_meta.get("extra", {}),
-            },
+            mandatory=q_meta["mandatory"],
+            options=raw_options,
+            attributes=extra,
+            extra_metadata=extra,
         )
 
     # ------------------------------------------------------------------
@@ -356,20 +345,42 @@ class LimeSurveyAdapter(SurveyAdapter):
     def export_survey(self, survey: Survey) -> str:
         """Serialize an internal Survey to LimeSurvey LSS XML format.
 
+        Emits the envelope LimeSurvey's importer requires
+        (``LimeSurveyDocType``, ``DBVersion``, ``languages``) and places the
+        survey title/description in ``<surveys_languagesettings>`` where LS
+        actually reads them. Optional l10n blocks (``question_l10ns``,
+        ``group_l10ns``, ``answer_l10ns``) are intentionally omitted —
+        LimeSurvey falls back to reading text directly from the main rows
+        when those blocks are absent, which keeps our document small and
+        single-language.
+
         Args:
             survey: The survey to serialize.
 
         Returns:
-            str: LSS XML string suitable for import into LimeSurvey.
+            str: LSS XML string suitable for import into LimeSurvey 5+/6+.
         """
-        root = ET.Element("document")
+        sid = survey.metadata.get("ls_sid", survey.id)
+        language = survey.metadata.get("language", "en")
 
-        # Survey metadata
-        surveys_el = ET.SubElement(ET.SubElement(root, "surveys"), "rows")
-        row = ET.SubElement(surveys_el, "row")
-        _sub(row, "sid", survey.metadata.get("ls_sid", survey.id))
-        _sub(row, "surveyls_title", survey.title)
-        _sub(row, "surveyls_description", survey.description)
+        root = ET.Element("document")
+        _sub(root, "LimeSurveyDocType", "Survey")
+        _sub(root, "DBVersion", _LS_DB_VERSION)
+        languages_el = ET.SubElement(root, "languages")
+        _sub(languages_el, "language", language)
+
+        surveys_rows = ET.SubElement(ET.SubElement(root, "surveys"), "rows")
+        survey_row = ET.SubElement(surveys_rows, "row")
+        _sub(survey_row, "sid", str(sid))
+        _sub(survey_row, "language", language)
+        _sub(survey_row, "active", "N")
+
+        ls_rows = ET.SubElement(ET.SubElement(root, "surveys_languagesettings"), "rows")
+        ls_row = ET.SubElement(ls_rows, "row")
+        _sub(ls_row, "surveyls_survey_id", str(sid))
+        _sub(ls_row, "surveyls_language", language)
+        _sub(ls_row, "surveyls_title", survey.title)
+        _sub(ls_row, "surveyls_description", survey.description)
 
         groups_rows = ET.SubElement(ET.SubElement(root, "groups"), "rows")
         questions_rows = ET.SubElement(ET.SubElement(root, "questions"), "rows")
@@ -377,23 +388,43 @@ class LimeSurveyAdapter(SurveyAdapter):
         answers_rows = ET.SubElement(ET.SubElement(root, "answers"), "rows")
 
         sub_qid_counter = 1_000_000
+        synthetic_qid_counter = 100_000
+        synthetic_gid_counter = 10_000
+        question_title_counter = 0
         for group_order, section in enumerate(survey.sections):
-            gid = section.metadata.get("ls_gid", section.id)
+            ls_gid = section.metadata.get("ls_gid")
+            if ls_gid is None or not str(ls_gid).isdigit():
+                synthetic_gid_counter += 1
+                gid = synthetic_gid_counter
+            else:
+                gid = int(ls_gid)
             grow = ET.SubElement(groups_rows, "row")
             _sub(grow, "gid", str(gid))
+            _sub(grow, "sid", str(sid))
+            _sub(grow, "language", language)
             _sub(grow, "group_name", section.title)
             _sub(grow, "description", section.description)
             _sub(grow, "group_order", str(group_order))
 
             for question_order, question in enumerate(section.questions, start=1):
-                qid = question.metadata.get("ls_qid", question.id)
+                ls_qid = question.metadata.get("ls_qid")
+                if ls_qid is None or not str(ls_qid).isdigit():
+                    synthetic_qid_counter += 1
+                    qid = synthetic_qid_counter
+                else:
+                    qid = int(ls_qid)
                 ls_type = question.metadata.get("ls_type") or _INTERNAL_TO_LS_TYPE.get(
                     question.type, "T"
                 )
+                question_title_counter += 1
+                title = question.metadata.get("ls_title") or f"Q{question_title_counter}"
 
                 qrow = ET.SubElement(questions_rows, "row")
                 _sub(qrow, "qid", str(qid))
+                _sub(qrow, "sid", str(sid))
                 _sub(qrow, "gid", str(gid))
+                _sub(qrow, "language", language)
+                _sub(qrow, "title", str(title))
                 _sub(qrow, "type", ls_type)
                 _sub(qrow, "question", question.text)
                 _sub(qrow, "mandatory", "Y" if question.required else "N")
@@ -408,7 +439,9 @@ class LimeSurveyAdapter(SurveyAdapter):
                         srow = ET.SubElement(sub_questions_rows, "row")
                         _sub(srow, "qid", str(sub_qid_counter))
                         _sub(srow, "parent_qid", str(qid))
+                        _sub(srow, "sid", str(sid))
                         _sub(srow, "gid", str(gid))
+                        _sub(srow, "language", language)
                         _sub(srow, "type", "T")
                         _sub(srow, "title", str(code))
                         _sub(srow, "question", opt.text)
@@ -416,6 +449,7 @@ class LimeSurveyAdapter(SurveyAdapter):
                     else:
                         arow = ET.SubElement(answers_rows, "row")
                         _sub(arow, "qid", str(qid))
+                        _sub(arow, "language", language)
                         _sub(arow, "code", str(code))
                         _sub(arow, "answer", opt.text)
                         _sub(arow, "sortorder", str(opt_order))
@@ -428,7 +462,12 @@ class LimeSurveyAdapter(SurveyAdapter):
     # ------------------------------------------------------------------
 
     def create_survey(self, survey: Survey) -> str:
-        """Push survey to LimeSurvey via the RemoteControl 2 JSON-RPC API.
+        """Push a survey to LimeSurvey by importing it as LSS.
+
+        Builds an LSS XML representation via :meth:`export_survey` and pushes
+        it in a single ``import_survey`` RPC call. LimeSurvey 6 removed the
+        old ``add_question`` incremental path, so this is now the canonical
+        create-from-scratch route (and works on LS 5+ as well).
 
         Args:
             survey: The survey to create on the platform.
@@ -438,45 +477,28 @@ class LimeSurveyAdapter(SurveyAdapter):
 
         Raises:
             ValueError: If API credentials are not configured.
-            RuntimeError: If any RPC call returns an error response.
+            RuntimeError: If the import_survey RPC call fails.
         """
-        if not self._api_url or not self._username or not self._password:
-            raise ValueError(
-                "LimeSurvey API URL, username, and password must be set to create surveys."
-            )
-        language = survey.metadata.get("language", "en")
+        self._require_credentials("create surveys")
+        lss_xml = self.export_survey(survey)
+        payload = base64.b64encode(lss_xml.encode("utf-8")).decode("ascii")
         session_key = self._get_session_key()
-        sid: int | None = None
         try:
-            result = self._rpc_call("add_survey", [session_key, 0, survey.title, language, "G"])
-            if isinstance(result, dict) and "status" in result:
-                raise RuntimeError(f"LimeSurvey add_survey failed: {result['status']}")
-            sid = int(result)
-
-            for section in survey.sections:
-                gid_result = self._rpc_call(
-                    "add_group",
-                    [session_key, sid, section.title, section.description or ""],
-                )
-                if isinstance(gid_result, dict) and "status" in gid_result:
-                    raise RuntimeError(f"LimeSurvey add_group failed: {gid_result['status']}")
-                gid = int(gid_result)
-
-                for question in section.questions:
-                    ls_type = _INTERNAL_TO_LS_TYPE.get(question.type, "T")
-                    q_data = _question_to_ls_params(question)
-                    q_result = self._rpc_call(
-                        "add_question",
-                        [session_key, sid, gid, ls_type, question.id, q_data, language],
-                    )
-                    if isinstance(q_result, dict) and "status" in q_result:
-                        raise RuntimeError(f"LimeSurvey add_question failed: {q_result['status']}")
+            result = self._rpc_ok(
+                "import_survey",
+                [session_key, payload, "lss", survey.title],
+            )
         finally:
             self._release_session_key(session_key)
-        return str(sid)
+        return str(int(result))
 
     def fetch_survey(self, survey_id: str) -> Survey:
-        """Fetch a survey from LimeSurvey via the RC2 export_survey RPC call.
+        """Fetch a survey from LimeSurvey by composing read-only RC2 calls.
+
+        Uses ``get_survey_properties`` + ``list_groups`` + ``list_questions``
+        and, for question types that need them, ``get_question_properties``
+        with the ``answeroptions`` / ``attributes`` fields. This avoids the
+        ``export_survey`` RPC method which was removed in LimeSurvey 6.
 
         Args:
             survey_id: The LimeSurvey survey ID (numeric sid as string).
@@ -486,21 +508,53 @@ class LimeSurveyAdapter(SurveyAdapter):
 
         Raises:
             ValueError: If API credentials are not configured.
-            RuntimeError: If the RPC call fails or returns an error.
+            RuntimeError: If any RPC call fails.
         """
-        if not self._api_url or not self._username or not self._password:
-            raise ValueError(
-                "LimeSurvey API URL, username, and password must be set to fetch surveys."
-            )
+        self._require_credentials("fetch surveys")
+        sid_int = int(survey_id)
         session_key = self._get_session_key()
         try:
-            result = self._rpc_call("export_survey", [session_key, int(survey_id)])
-            if isinstance(result, dict) and "status" in result:
-                raise RuntimeError(f"LimeSurvey export_survey failed: {result['status']}")
-            lss_xml = base64.b64decode(result).decode("utf-8")
+            survey_props = self._rpc_ok("get_survey_properties", [session_key, sid_int])
+            language = survey_props.get("language") or "en"
+            language_props = self._fetch_language_properties(session_key, sid_int)
+            groups = self._rpc_ok("list_groups", [session_key, sid_int, language])
+            questions = self._rpc_ok("list_questions", [session_key, sid_int, None, language])
+            details = self._fetch_question_details(session_key, questions, language)
         finally:
             self._release_session_key(session_key)
-        return self.import_survey(lss_xml)
+        return _assemble_survey_from_rpc(
+            survey_id=survey_id,
+            survey_props={**survey_props, **language_props},
+            groups=groups,
+            questions=questions,
+            details=details,
+        )
+
+    def _fetch_language_properties(self, session_key: str, sid_int: int) -> dict[str, Any]:
+        """Return the language-scoped survey settings (title, description).
+
+        These live in a separate table from ``get_survey_properties`` and are
+        retrieved via ``get_language_properties``. Returns an empty dict on
+        any RPC failure — the title fallback in ``_assemble_survey_from_rpc``
+        still produces a usable Survey.
+        """
+        try:
+            return self._rpc_ok(
+                "get_language_properties",
+                [
+                    session_key,
+                    sid_int,
+                    ["surveyls_title", "surveyls_description"],
+                ],
+            )
+        except RuntimeError as exc:
+            logger.warning(
+                "get_language_properties failed for survey %s; "
+                "falling back to default title: %s",
+                sid_int,
+                exc,
+            )
+            return {}
 
     def submit_responses(self, survey_id: str, responses: list[Response]) -> None:
         """Submit responses to LimeSurvey via the RemoteControl 2 JSON-RPC API.
@@ -521,11 +575,7 @@ class LimeSurveyAdapter(SurveyAdapter):
                 question id for a response is not found in the survey's question map.
             RuntimeError: If authentication, the list_questions call, or submission fails.
         """
-        if not self._api_url or not self._username or not self._password:
-            raise ValueError(
-                "LimeSurvey API URL, username, and password must be set to submit responses."
-            )
-
+        self._require_credentials("submit responses")
         session_key = self._get_session_key()
         try:
             gid_map = self._fetch_question_gid_map(session_key, survey_id)
@@ -537,11 +587,44 @@ class LimeSurveyAdapter(SurveyAdapter):
         finally:
             self._release_session_key(session_key)
 
+    def _require_credentials(self, op_label: str) -> None:
+        """Guard helper — raise ValueError if API credentials are not configured."""
+        if not self._api_url or not self._username or not self._password:
+            raise ValueError(
+                f"LimeSurvey API URL, username, and password must be set to {op_label}."
+            )
+
     def _get_session_key(self) -> str:
         result = self._rpc_call("get_session_key", [self._username, self._password])
         if isinstance(result, dict) and result.get("status"):
             raise RuntimeError(f"LimeSurvey authentication failed: {result['status']}")
         return result
+
+    def _fetch_question_details(
+        self,
+        session_key: str,
+        questions: list[dict[str, Any]],
+        language: str,
+    ) -> dict[str, dict[str, Any]]:
+        """Fetch get_question_properties for the question types that need it.
+
+        Choice types (``L``, ``O``, ``!``, ``1``, ``5``) need ``answeroptions``;
+        slider types (``N``, ``K``) need ``attributes``. Other types (text,
+        M/P, ranking, descriptive) don't need a per-question RPC roundtrip.
+        """
+        details: dict[str, dict[str, Any]] = {}
+        for q in questions:
+            if str(q.get("parent_qid", "0")) != "0":
+                continue
+            ls_type = q.get("type", "")
+            if ls_type not in _NEEDS_QUESTION_DETAILS:
+                continue
+            qid = q["qid"]
+            details[str(qid)] = self._rpc_ok(
+                "get_question_properties",
+                [session_key, int(qid), ["answeroptions", "attributes"], language],
+            )
+        return details
 
     def _fetch_question_gid_map(self, session_key: str, survey_id: str) -> dict[str, str]:
         """Return a mapping of qid → gid for all questions in the survey.
@@ -574,7 +657,7 @@ class LimeSurveyAdapter(SurveyAdapter):
 
     def _rpc_call(self, method: str, params: list[Any]) -> Any:
         """Execute a RemoteControl 2 JSON-RPC call."""
-        assert self._api_url is not None  # enforced by submit_responses credential check
+        assert self._api_url is not None  # enforced by _require_credentials check
         payload = {"method": method, "params": params, "id": 1}
         try:
             resp = requests.post(
@@ -592,6 +675,20 @@ class LimeSurveyAdapter(SurveyAdapter):
             raise RuntimeError(f"LimeSurvey RPC error in '{method}': {body['error']}")
         return body.get("result")
 
+    def _rpc_ok(self, method: str, params: list[Any]) -> Any:
+        """RPC call that also rejects RC2 ``{"status": "..."}`` failure shapes.
+
+        LimeSurvey RC2 methods that succeed return the result type (int, str,
+        list, dict). When they fail they often return a single-key dict
+        ``{"status": "Error message"}`` *as the result* rather than setting
+        the JSON-RPC ``error`` field. This helper raises ``RuntimeError`` on
+        that shape so callers don't need to repeat the check.
+        """
+        result = self._rpc_call(method, params)
+        if isinstance(result, dict) and "status" in result:
+            raise RuntimeError(f"LimeSurvey {method} failed: {result['status']}")
+        return result
+
 
 # ------------------------------------------------------------------
 # Helpers
@@ -605,12 +702,189 @@ def questions_by_qid_in_group(
     return questions_by_gid.get(gid, [])
 
 
-def _question_to_ls_params(question: Question) -> dict:
-    """Return aQuestionData dict for RC2 add_question call."""
-    return {
-        "question": question.text,
-        "mandatory": "Y" if question.required else "N",
+def _question_from_meta(
+    *,
+    ls_type: str,
+    qid: str,
+    text: str,
+    mandatory: bool,
+    options: list[dict[str, Any]],
+    attributes: dict[str, Any],
+    extra_metadata: dict[str, Any] | None = None,
+) -> Question | None:
+    """Build an internal ``Question`` from already-shaped Python dicts.
+
+    Shared by both the LSS-XML path (``_build_question``) and the RC2-RPC
+    path (``fetch_survey``) so the type mapping, answer-option construction,
+    slider-bound handling, and metadata stamping live in one place.
+
+    Args:
+        ls_type: LimeSurvey type code (e.g. ``"L"``, ``"M"``, ``"N"``).
+        qid: LimeSurvey question id (string).
+        text: Question text.
+        mandatory: Whether the question is required.
+        options: List of ``{"code": ..., "text": ..., "order": ...}`` dicts.
+        attributes: Question attributes (used for slider bounds).
+        extra_metadata: Optional extra k/v pairs to stamp into question metadata.
+    """
+    q_type = _LS_TYPE_MAP.get(ls_type)
+    if q_type is None:
+        logger.warning(
+            "Unsupported LimeSurvey question type '%s' (qid=%s) — skipping",
+            ls_type,
+            qid,
+        )
+        return None
+
+    answer_options = [
+        AnswerOption(
+            id=f"opt_{opt['code']}",
+            text=opt["text"],
+            value=opt["code"],
+            metadata={"ls_code": opt["code"]},
+        )
+        for opt in options
+    ]
+
+    min_val = max_val = step = None
+    if q_type == QuestionType.SLIDER:
+        min_val = float(attributes.get("min_num", 0) or 0)
+        max_val = float(attributes.get("max_num", 100) or 100)
+        step = float(attributes.get("slider_accuracy", 1) or 1)
+
+    metadata: dict[str, Any] = {
+        "platform": "limesurvey",
+        "ls_qid": qid,
+        "ls_type": ls_type,
     }
+    if extra_metadata:
+        metadata.update(extra_metadata)
+
+    return Question(
+        id=f"q_{qid}",
+        text=text,
+        type=q_type,
+        answer_options=answer_options,
+        required=mandatory,
+        min_value=min_val,
+        max_value=max_val,
+        step=step,
+        metadata=metadata,
+    )
+
+
+def _assemble_survey_from_rpc(
+    *,
+    survey_id: str,
+    survey_props: dict[str, Any],
+    groups: list[dict[str, Any]],
+    questions: list[dict[str, Any]],
+    details: dict[str, dict[str, Any]],
+) -> Survey:
+    """Build a Survey from the dicts returned by the LimeSurvey RC2 API.
+
+    Inputs come from ``get_survey_properties``, ``list_groups``,
+    ``list_questions``, and per-question ``get_question_properties`` calls.
+    The function does not perform any I/O.
+    """
+    sub_questions_by_parent: dict[str, list[dict[str, Any]]] = {}
+    for q in questions:
+        parent = str(q.get("parent_qid", "0"))
+        if parent == "0":
+            continue
+        sub_questions_by_parent.setdefault(parent, []).append(
+            {
+                "code": q.get("title", ""),
+                "text": q.get("question") or q.get("title", ""),
+                "order": int(q.get("question_order") or 0),
+            }
+        )
+    for parent in sub_questions_by_parent:
+        sub_questions_by_parent[parent].sort(key=lambda r: r["order"])
+
+    questions_by_gid: dict[str, list[dict[str, Any]]] = {}
+    for q in questions:
+        if str(q.get("parent_qid", "0")) != "0":
+            continue
+        questions_by_gid.setdefault(str(q.get("gid", "")), []).append(q)
+    for gid in questions_by_gid:
+        questions_by_gid[gid].sort(key=lambda q: int(q.get("question_order") or 0))
+
+    sections: list[Section] = []
+    sorted_groups = sorted(groups, key=lambda g: int(g.get("group_order") or 0))
+    for group in sorted_groups:
+        gid = str(group.get("gid", ""))
+        section_questions: list[Question] = []
+        for q in questions_by_gid.get(gid, []):
+            qid = str(q["qid"])
+            ls_type = q.get("type", "")
+            if ls_type in ("M", "P"):
+                options = sub_questions_by_parent.get(qid, [])
+            else:
+                options = _answer_options_from_properties(details.get(qid, {}))
+            attributes = _attributes_from_properties(details.get(qid, {}))
+            question = _question_from_meta(
+                ls_type=ls_type,
+                qid=qid,
+                text=q.get("question") or f"Question {qid}",
+                mandatory=str(q.get("mandatory", "")) in ("Y", "y", "1"),
+                options=options,
+                attributes=attributes,
+            )
+            if question is not None:
+                section_questions.append(question)
+
+        sections.append(
+            Section(
+                id=f"grp_{gid}",
+                title=group.get("group_name") or f"Section {gid}",
+                description=group.get("description") or "",
+                questions=section_questions,
+                metadata={"ls_gid": gid},
+            )
+        )
+
+    sid = str(survey_props.get("sid", survey_id))
+    return Survey(
+        id=sid,
+        title=survey_props.get("surveyls_title") or f"Survey {sid}",
+        description=survey_props.get("surveyls_description") or "",
+        sections=sections,
+        metadata={"platform": "limesurvey", "ls_sid": sid},
+    )
+
+
+def _answer_options_from_properties(props: dict[str, Any]) -> list[dict[str, Any]]:
+    """Extract answer options from a get_question_properties response.
+
+    The ``answeroptions`` field is either a dict keyed by code with sub-dicts
+    containing ``answer`` and ``order``, or the string ``"No available answer
+    options"`` when the question has none.
+    """
+    raw = props.get("answeroptions")
+    if not isinstance(raw, dict):
+        return []
+    options: list[dict[str, Any]] = []
+    for code, data in raw.items():
+        if not isinstance(data, dict):
+            continue
+        options.append(
+            {
+                "code": code,
+                "text": data.get("answer") or code,
+                "order": int(data.get("order") or data.get("sortorder") or 0),
+            }
+        )
+    options.sort(key=lambda o: o["order"])
+    return options
+
+
+def _attributes_from_properties(props: dict[str, Any]) -> dict[str, Any]:
+    """Extract the attributes dict from a get_question_properties response."""
+    attrs = props.get("attributes")
+    if isinstance(attrs, dict):
+        return attrs
+    return {}
 
 
 def _sub(parent: Element, tag: str, text: str) -> Element:
