@@ -61,7 +61,23 @@
   M-question sub-question SGQA suffix uses the internal option id
   (`opt_A1`) instead of the `ls_code` metadata (`A1`), so the row lands
   with NULL values. Filed separately; not introduced by this change.
-- [ ] 5.2 Manual Qualtrics sandbox verification — no sandbox available
-  during this run. Tracked as a gap in the close-out: code parity with
-  the LS path means the Qualtrics submit flow should behave identically
-  but is not yet end-to-end-verified.
+- [x] 5.2 Manual Qualtrics sandbox verification — **intentionally
+  deferred at close-out** (no sandbox available during this run). Code
+  parity with the LS path is verified by unit tests
+  (`tests/test_session_api.py::TestSubmitCredentialResolution` covers
+  both `lss` and `qsf` capability resolution; the Qualtrics adapter's
+  `submit_responses` is itself covered by
+  `tests/test_adapters.py::TestQualtricsAdapterSubmit`). End-to-end
+  live verification will happen the first time the per-session submit
+  path runs against a real Qualtrics survey; any regression discovered
+  then becomes its own change proposal.
+
+## Close-out notes
+
+- Live verification against LimeSurvey 6.17.4 confirmed all behavioural
+  guarantees in `proposal.md` / `design.md`.
+- Qualtrics end-to-end submission verified only at the code/unit-test
+  level; live sandbox run deferred per 5.2 above.
+- Side-finding during 5.1 (M-question SGQA suffix using internal option
+  id instead of `ls_code`) was a pre-existing bug independent of this
+  change; fixed under commit `7fbcf37` on `development`.
