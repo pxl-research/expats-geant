@@ -70,20 +70,84 @@ class TestValidateWebUrl:
         validate_web_url("http://does-not-exist.invalid/")  # gaierror -> allow
 
 
-class TestValidateApiUrl:
+class TestValidateApiUrlProduction:
+    """``validate_api_url`` is strict when ENVIRONMENT=production."""
+
+    @pytest.fixture(autouse=True)
+    def _force_production(self, monkeypatch):
+        monkeypatch.setenv("ENVIRONMENT", "production")
+
     def test_requires_https(self):
-        with pytest.raises(HTTPException):
+        with pytest.raises(HTTPException, match="HTTPS"):
             validate_api_url("http://example.com/")
 
     def test_credentials_blocked(self):
-        with pytest.raises(HTTPException):
+        with pytest.raises(HTTPException, match="credentials"):
             validate_api_url("https://user:pw@example.com/")
 
     def test_resolving_to_private_blocked(self, monkeypatch):
         _resolves_to(monkeypatch, "10.0.0.5")
-        with pytest.raises(HTTPException):
+        with pytest.raises(HTTPException, match="internal"):
             validate_api_url("https://internal.example.com/")
 
     def test_public_https_allowed(self, monkeypatch):
         _resolves_to(monkeypatch, "93.184.216.34")
         validate_api_url("https://example.com/")  # must not raise
+
+
+class TestValidateApiUrlDevelopment:
+    """Outside production the guard relaxes: http allowed, internal targets
+    allowed (with a logged warning), credentials still rejected."""
+
+    @pytest.fixture(autouse=True)
+    def _force_development(self, monkeypatch):
+        monkeypatch.setenv("ENVIRONMENT", "development")
+
+    def test_http_localhost_allowed_when_not_production(self, monkeypatch):
+        _resolves_to(monkeypatch, "127.0.0.1")
+        validate_api_url("http://localhost:7080/index.php/admin/remotecontrol")
+
+    def test_http_rfc1918_allowed_when_not_production(self, monkeypatch):
+        _resolves_to(monkeypatch, "10.0.0.5")
+        validate_api_url("http://internal.lab.example.com/")
+
+    def test_internal_warning_logged(self, monkeypatch, caplog):
+        _resolves_to(monkeypatch, "127.0.0.1")
+        with caplog.at_level("WARNING", logger="m_shared.utils.url_validation"):
+            validate_api_url("http://localhost:7080/")
+        assert any(
+            "internal address" in rec.message and "ENVIRONMENT" in rec.message
+            for rec in caplog.records
+        )
+
+    def test_credentials_still_blocked(self):
+        with pytest.raises(HTTPException, match="credentials"):
+            validate_api_url("http://user:pw@localhost:7080/")
+
+    def test_unknown_scheme_still_blocked(self):
+        with pytest.raises(HTTPException, match="http or https"):
+            validate_api_url("ftp://localhost:21/")
+
+    def test_missing_hostname_still_blocked(self):
+        with pytest.raises(HTTPException, match="hostname"):
+            validate_api_url("http:///path-only")
+
+    def test_public_https_still_works(self, monkeypatch):
+        _resolves_to(monkeypatch, "93.184.216.34")
+        validate_api_url("https://example.com/")  # must not raise
+
+
+class TestValidateApiUrlUnsetEnvironment:
+    """When ENVIRONMENT is unset, behaviour matches development (lenient)."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_env(self, monkeypatch):
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+
+    def test_http_localhost_allowed(self, monkeypatch):
+        _resolves_to(monkeypatch, "127.0.0.1")
+        validate_api_url("http://localhost:7080/")
+
+    def test_credentials_still_blocked(self):
+        with pytest.raises(HTTPException, match="credentials"):
+            validate_api_url("https://user:pw@example.com/")
