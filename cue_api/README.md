@@ -73,9 +73,11 @@ Tests live in the repo root `tests/` folder.
 - Returns top-k chunks (default: 5) with full metadata
 - Metadata includes: source filename, chunk index, position/percentage, timestamp
 
-**2. Answer Generation (`generate_answer()`)**
+**2. Answer Generation (`_generate_answer_with_reasoning()`)**
 
 - LLM-based generation from retrieved passages
+- Returns structured `{answer, reasoning, selected}` JSON (tightened
+  schema for choice-type questions)
 - Temperature control (0.3–0.5 for slightly deterministic output)
 - Max token limit: 500 tokens (configurable)
 - Graceful error handling for API failures, rate limits, timeouts
@@ -90,12 +92,17 @@ Tests live in the repo root `tests/` folder.
   - Text excerpts (50–200 chars) for verification
 - Handles missing metadata gracefully
 
-**4. Orchestration (`suggest_answer()`)**
+**4. Orchestration (`suggest_batch()` / `suggest_batch_stream()`)**
 
-- End-to-end pipeline: retrieve → generate → format citations
-- Input validation (question, session_id)
-- Returns structured result: `{answer, citations, metadata}`
-- Handles edge cases: no documents, no results, session not found
+- End-to-end batch pipeline: rewrite-query → retrieve → generate → format
+  citations → audit-log
+- Sync (`suggest_batch`) and async-streaming (`suggest_batch_stream`)
+  entry points, both driven by `_process_item` per question
+- Accepts either grouped `sections` or a flat `items` list (see
+  `BatchSuggestRequest`)
+- Returns a list of `ItemSuggestion` dicts with `selected_id` /
+  `selected_ids` populated for choice questions
+- Handles edge cases: no documents, no chunk matches, LLM failure
 
 ### Design Decisions
 
