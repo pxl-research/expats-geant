@@ -50,8 +50,18 @@
 
 ## 5. Live verification
 
-- [ ] 5.1 Against the LS 6.17.4 docker: import via API, complete the
-  AI-assisted survey, click submit, supply credentials, verify the
-  response appears in *Responses & statistics*
-- [ ] 5.2 Manual Qualtrics sandbox verification if available;
-  otherwise document the gap in the proposal close-out
+- [x] 5.1 Against the LS 6.17.4 docker (env vars unset on cue-api):
+  capabilities endpoint returns `submit` for `lss` and `qsf`;
+  `POST /sessions/{id}/submit` with body credentials authenticates and
+  creates a response row in LS (verified via `export_responses` RPC —
+  row #6, submitdate 2026-06-03 15:51:49); 422 returned with the
+  three missing fields when no credentials supplied; UI renders the
+  Platform credentials panel + warning banner + Submit Responses button
+  on the review page. Observed an unrelated pre-existing bug — the
+  M-question sub-question SGQA suffix uses the internal option id
+  (`opt_A1`) instead of the `ls_code` metadata (`A1`), so the row lands
+  with NULL values. Filed separately; not introduced by this change.
+- [ ] 5.2 Manual Qualtrics sandbox verification — no sandbox available
+  during this run. Tracked as a gap in the close-out: code parity with
+  the LS path means the Qualtrics submit flow should behave identically
+  but is not yet end-to-end-verified.
