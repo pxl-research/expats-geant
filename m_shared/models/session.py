@@ -7,16 +7,21 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 
 def _coerce_utc(value: datetime | str | None) -> datetime | None:
-    """Coerce an ISO string or naive datetime to timezone-aware UTC.
+    """Coerce an ISO string or datetime to timezone-aware UTC.
 
     Session timestamps are always UTC-aware so expiry/retention comparisons never
     mix naive and aware datetimes (which raises TypeError). Naive inputs — legacy
     metadata.json or callers passing datetime.utcnow() — are assumed to be UTC.
+    Aware inputs in a non-UTC zone (e.g. ISO strings with explicit offsets) are
+    converted to UTC so the "UTC everywhere" invariant holds end-to-end.
     """
     if isinstance(value, str):
         value = datetime.fromisoformat(value)
-    if isinstance(value, datetime) and value.tzinfo is None:
-        value = value.replace(tzinfo=UTC)
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=UTC)
+        elif value.tzinfo.utcoffset(value) != UTC.utcoffset(value):
+            value = value.astimezone(UTC)
     return value
 
 

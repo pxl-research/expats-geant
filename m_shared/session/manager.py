@@ -22,16 +22,22 @@ _SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 class SessionManager:
     """Manages user sessions with isolated ChromaDB storage and TTL-based cleanup.
 
-    Each session gets its own folder with:
-    - metadata.json: Session info (created_at, expires_at, user_id)
-    - chroma_store/: ChromaDB SQLite files
-    - uploads/: Optional uploaded file storage
+    On-disk layout is per-user, not flat — each user gets a directory keyed by a
+    short SHA-256 of their user_id, and sessions live under that:
 
-    Session IDs are derived from hashed JWT tokens for stability and security.
+        <base_path>/<sha256(user_id)[:16]>/<session_id>/
+            ├── metadata.json   # session info (created_at, expires_at, ...)
+            ├── chroma_<hex>/   # isolated ChromaDB instance
+            └── uploads/        # optional uploaded file storage
+
+    Session IDs are server-generated (UUID4 hex truncated to 12 chars by
+    default; callers may pass ``explicit_session_id`` for stable URLs). The
+    ``jwt_token`` argument on ``create_session`` is retained for backward
+    compatibility and is no longer used to derive the ID.
 
     Examples:
         >>> manager = SessionManager(base_path="./sessions")
-        >>> session = manager.create_session(user_id="user_123", jwt_token="abc...")
+        >>> session = manager.create_session(user_id="user_123")
         >>> store = manager.get_vector_store(session.session_id)
         >>> store.add_document(...)
     """

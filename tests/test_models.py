@@ -358,6 +358,34 @@ class TestSession:
         time_diff = (session.expires_at - session.created_at).total_seconds()
         assert abs(time_diff - (48 * 3600)) < 10  # Within 10 seconds
 
+    def test_naive_datetime_is_assumed_utc(self):
+        """Naive datetimes are treated as UTC (legacy metadata.json compat)."""
+        naive_created = datetime(2026, 1, 1, 12, 0, 0)
+        session = Session(
+            session_id="sess_naive",
+            user_id="user_naive",
+            created_at=naive_created,
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
+        )
+        assert session.created_at.tzinfo is UTC
+        assert session.created_at.hour == 12
+
+    def test_aware_non_utc_is_normalised_to_utc(self):
+        """ISO strings with explicit non-UTC offsets are converted to UTC."""
+        from datetime import timezone
+
+        # 12:00 in UTC+02:00 == 10:00 UTC
+        cet = timezone(timedelta(hours=2))
+        aware_created = datetime(2026, 1, 1, 12, 0, 0, tzinfo=cet)
+        session = Session(
+            session_id="sess_cet",
+            user_id="user_cet",
+            created_at=aware_created,
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
+        )
+        assert session.created_at.utcoffset() == timedelta(0)
+        assert session.created_at.hour == 10
+
 
 class TestModelIntegration:
     """Test model interactions and integration."""

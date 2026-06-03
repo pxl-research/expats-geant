@@ -69,8 +69,10 @@ def _assert_safe_host(hostname: str, detail: str) -> None:
         # type=SOCK_STREAM collapses the result to one row per address instead of
         # the cartesian product over socket types. This call is blocking; async
         # callers must offload it (see fetch_url / the web route).
+        # UnicodeError covers malformed IDNA / non-encodable hostnames, which
+        # getaddrinfo surfaces alongside gaierror — treat both as "unresolvable".
         infos = socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM)
-    except socket.gaierror:
+    except (socket.gaierror, UnicodeError):
         return
     for info in infos:
         if _is_internal_address(ipaddress.ip_address(info[4][0])):
@@ -145,7 +147,7 @@ def _hostname_resolves_to_internal(hostname: str) -> bool:
         pass
     try:
         infos = socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM)
-    except socket.gaierror:
+    except (socket.gaierror, UnicodeError):
         return False
     return any(_is_internal_address(ipaddress.ip_address(info[4][0])) for info in infos)
 

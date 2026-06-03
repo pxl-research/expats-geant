@@ -158,6 +158,20 @@ class TestSessionMiddleware:
         assert response.status_code == 500
         assert "session error" in response.json()["detail"].lower()
 
+    def test_malformed_session_id_claim_returns_401(self, client):
+        """A JWT carrying a path-traversal session_id should produce a 401,
+        not a 500 (the SessionManager guard raises ValueError; the middleware
+        must catch it at the auth boundary)."""
+        bad_token = create_token(
+            user_id="test_user_123",
+            session_id="../evil",
+            org="test_org",
+            roles=["respondent"],
+        )
+        response = client.get("/session/stats", headers={"Authorization": f"Bearer {bad_token}"})
+        assert response.status_code == 401
+        assert "session" in response.json()["detail"].lower()
+
 
 class TestSessionEndpoints:
     """Tests for session management endpoints."""

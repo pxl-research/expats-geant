@@ -133,19 +133,24 @@ All models include Pydantic validation and JSON serialization.
 Per-session isolation for vector stores and document storage with TTL-based
 cleanup.
 
-**Layout** — each session has its own folder; deletion = folder removal:
+**Layout** — sessions are grouped per user under a short SHA-256 of the
+user_id; deletion = folder removal:
 
 ```
 sessions/
-└── <session_id>/
-    ├── chroma_store/    # Isolated ChromaDB instance
-    ├── documents/       # Uploaded documents (optional)
-    └── metadata.json    # Session metadata (user_id, expires_at, ...)
+└── <sha256(user_id)[:16]>/
+    └── <session_id>/
+        ├── chroma_<hex>/    # Isolated ChromaDB instance
+        ├── uploads/         # Uploaded documents (optional)
+        └── metadata.json    # Session metadata (user_id, expires_at, ...)
 ```
 
-**Session IDs** are derived from JWT tokens via SHA-256 (16-character hash),
-so the same token always resolves to the same session — enabling implicit
-resumption without server-side state.
+**Session IDs** are server-generated (UUID4 hex truncated to 12 characters by
+default). Callers may pass `explicit_session_id` to `create_session` for
+stable URLs (e.g. resumable autofill links), in which case the same ID
+always resolves to the same session for the same user. The legacy
+`jwt_token` argument on `create_session` is retained for backward
+compatibility and is no longer used to derive the ID.
 
 **Composition, not inheritance** — `SessionManager` uses
 `ChromaDocumentStore` rather than extending it, keeping session lifecycle
@@ -158,7 +163,7 @@ and vector operations cleanly separated and reusable across Cue and Shape.
 from m_shared.session import SessionManager
 
 manager = SessionManager(base_path="./sessions")
-session = manager.create_session(user_id="user_123", jwt_token=token)
+session = manager.create_session(user_id="user_123")
 store = manager.get_vector_store(session.session_id)
 ```
 

@@ -69,6 +69,16 @@ class TestValidateWebUrl:
         monkeypatch.setattr(url_validation.socket, "getaddrinfo", boom)
         validate_web_url("http://does-not-exist.invalid/")  # gaierror -> allow
 
+    def test_unicode_error_host_allowed(self, monkeypatch):
+        # Invalid IDNA / non-encodable hostnames surface from getaddrinfo as
+        # UnicodeError. Treat them like gaierror — no internal target to
+        # protect, so do not 500.
+        def boom(*a, **k):
+            raise UnicodeError("idna encoding failed")
+
+        monkeypatch.setattr(url_validation.socket, "getaddrinfo", boom)
+        validate_web_url("http://x.invalid/")  # must not raise
+
 
 class TestValidateApiUrlProduction:
     """``validate_api_url`` is strict when ENVIRONMENT=production."""
@@ -151,3 +161,10 @@ class TestValidateApiUrlUnsetEnvironment:
     def test_credentials_still_blocked(self):
         with pytest.raises(HTTPException, match="credentials"):
             validate_api_url("https://user:pw@example.com/")
+
+    def test_unicode_error_host_treated_as_unresolvable(self, monkeypatch):
+        def boom(*a, **k):
+            raise UnicodeError("idna encoding failed")
+
+        monkeypatch.setattr(url_validation.socket, "getaddrinfo", boom)
+        validate_api_url("http://x.invalid/")  # must not raise
