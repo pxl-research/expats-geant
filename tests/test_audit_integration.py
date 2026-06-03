@@ -6,8 +6,6 @@ from pathlib import Path
 import pytest
 
 from cue_api.ingest import ingest_files_into_store
-from cue_api.rag_pipeline import RAGPipeline
-from m_shared.llm import LLMClient
 from m_shared.session import SessionManager
 from m_shared.utils import AuditEventType, AuditLogger
 
@@ -74,28 +72,25 @@ class TestAuditIntegration:
         upload_entries = [e for e in entries if e.event_type == AuditEventType.UPLOAD]
         assert len(upload_entries) == 2
 
-        # Step 2: Generate suggestion (with audit logging)
-        llm_client = LLMClient(model_name="openrouter/anthropic/claude-3-sonnet", temperature=0.4)
-
-        pipeline = RAGPipeline(
-            session_manager=session_manager, llm_client=llm_client, audit_logger=audit_logger
+        # Step 2: Simulate suggestion-time audit logging
+        # Previously this test invoked pipeline.suggest_answer() which exercised
+        # the (now-removed) single-question RAG path. We log the same audit
+        # entry directly — the assertion is on the audit pipeline, not on the
+        # LLM call.
+        audit_logger.log_suggestion(
+            session_id=session_id,
+            question="What is mentioned in the documents?",
+            suggested_answer="Some suggested answer",
+            sources_used=["test_doc.txt"],
+            model="openrouter/anthropic/claude-3-sonnet",
+            user_id="test_user",
         )
-
-        # Note: This will fail without valid API key, but we can check structure
-        try:
-            _result = pipeline.suggest_answer(
-                question="What is mentioned in the documents?",
-                session_id=session_id,
-                user_id="test_user",
-            )
-
-            # If it succeeds, verify audit log
-            entries = audit_logger.get_entries(session_id)
-            suggest_entries = [e for e in entries if e.event_type == AuditEventType.SUGGEST]
-            assert len(suggest_entries) >= 1
-        except Exception:
-            # Expected if no API key configured - skip suggestion check
-            pass
+        suggest_entries = [
+            e
+            for e in audit_logger.get_entries(session_id)
+            if e.event_type == AuditEventType.SUGGEST
+        ]
+        assert len(suggest_entries) == 1
 
         # Step 3: Simulate user edit
         audit_logger.log_edit(
