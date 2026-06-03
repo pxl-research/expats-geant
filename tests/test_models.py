@@ -126,6 +126,19 @@ class TestQuestion:
             )
         assert "requires at least one answer option" in str(exc_info.value)
 
+    def test_choice_question_rejects_omitted_answer_options_key(self):
+        """LLM tool calls often omit ``answer_options`` entirely; the default-
+        factory path must still fire the validator, otherwise an invalid
+        Question gets persisted and the next ``Survey(**data)`` load 500s."""
+        for q_type in (
+            QuestionType.MULTIPLE_CHOICE,
+            QuestionType.SINGLE_CHOICE,
+            QuestionType.RANKING,
+        ):
+            with pytest.raises(ValidationError) as exc_info:
+                Question.model_validate({"id": "q_bad", "text": "Choose one", "type": q_type.value})
+            assert "requires at least one answer option" in str(exc_info.value)
+
     def test_slider_question_requires_min_max(self):
         """Test that slider questions require min/max values."""
         with pytest.raises(ValidationError) as exc_info:
