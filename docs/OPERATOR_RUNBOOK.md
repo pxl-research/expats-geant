@@ -156,6 +156,23 @@ SESSION_TTL_HOURS=24
 AUDIT_RETENTION_DAYS=365
 ```
 
+Optional — shared platform credentials for response submission. These are a
+**convenience** for single-tenant deployments where one shared LimeSurvey or
+Qualtrics account services all respondents. When unset, respondents enter
+their own credentials per submission in the Cue UI; that flow is preferred
+for self-service deployments because the values are never persisted.
+
+```bash
+# LimeSurvey shared-account fallback (optional)
+LIMESURVEY_API_URL=https://survey.example.org/index.php/admin/remotecontrol
+LIMESURVEY_USERNAME=cue-submitter
+LIMESURVEY_PASSWORD=<password>
+
+# Qualtrics shared-account fallback (optional)
+QUALTRICS_API_TOKEN=<token>
+QUALTRICS_DATACENTER_ID=iad1
+```
+
 ### Step 3 — Set production environment
 
 ```bash

@@ -905,7 +905,7 @@ class TestSubmitEndpointErrors:
         response = submit_client.post(
             "/sessions/wrong_session_id/submit",
             headers={"Authorization": f"Bearer {valid_token}"},
-            json={},
+            json={"responses": {}},
         )
         assert response.status_code == 403
 
@@ -915,7 +915,7 @@ class TestSubmitEndpointErrors:
         response = submit_client.post(
             f"/sessions/{session.session_id}/submit",
             headers={"Authorization": f"Bearer {token}"},
-            json={},
+            json={"responses": {}},
         )
         assert response.status_code == 404
 
@@ -929,7 +929,7 @@ class TestSubmitEndpointErrors:
         response = submit_client.post(
             f"/sessions/{session.session_id}/submit",
             headers={"Authorization": f"Bearer {token}"},
-            json={},
+            json={"responses": {}},
         )
         assert response.status_code == 422
 
@@ -943,7 +943,7 @@ class TestSubmitEndpointErrors:
         response = submit_client.post(
             f"/sessions/{session.session_id}/submit",
             headers={"Authorization": f"Bearer {token}"},
-            json={},
+            json={"responses": {}},
         )
         assert response.status_code == 422
 
@@ -959,7 +959,7 @@ class TestSubmitEndpointErrors:
         response = submit_client.post(
             f"/sessions/{session.session_id}/submit",
             headers={"Authorization": f"Bearer {token}"},
-            json={},
+            json={"responses": {}},
         )
         assert response.status_code == 422
 
@@ -980,6 +980,151 @@ class TestSubmitEndpointErrors:
             response = submit_client.post(
                 f"/sessions/{session.session_id}/submit",
                 headers={"Authorization": f"Bearer {token}"},
-                json={"q_1": "answer"},
+                json={"responses": {"q_1": "answer"}},
             )
         assert response.status_code == 502
+
+
+class TestSubmitCredentialResolution:
+    """Per-request credentials + env-var fallback on POST /sessions/{id}/submit."""
+
+    @pytest.fixture
+    def submit_client(self, app):
+        return TestClient(app, raise_server_exceptions=False)
+
+    @pytest.fixture
+    def token_and_session(self, valid_token, session_manager):
+        session = session_manager.create_session(
+            user_id="test_user_123", explicit_session_id="test_session_456"
+        )
+        return valid_token, session
+
+    @pytest.fixture
+    def lss_survey_path(self, session_manager, token_and_session):
+        import json as _json
+
+        _, session = token_and_session
+        path = session_manager._get_session_path(session.session_id) / "survey.json"
+        path.write_text(_json.dumps({"id": "42", "metadata": {"format": "lss"}}))
+        return path
+
+    @pytest.fixture
+    def clear_ls_env(self, monkeypatch):
+        for var in ("LIMESURVEY_API_URL", "LIMESURVEY_USERNAME", "LIMESURVEY_PASSWORD"):
+            monkeypatch.delenv(var, raising=False)
+
+    def test_submit_uses_body_credentials(
+        self, submit_client, token_and_session, lss_survey_path, clear_ls_env
+    ):
+        """Credentials in body are forwarded to the adapter constructor."""
+        from unittest.mock import MagicMock, patch
+
+        _ = lss_survey_path
+        token, session = token_and_session
+        mock_adapter = MagicMock()
+        mock_adapter.capabilities.return_value = ["import", "export", "submit"]
+        mock_factory = MagicMock(return_value=mock_adapter)
+        with patch("cue_api.routes.surveys.get_adapter", mock_factory):
+            response = submit_client.post(
+                f"/sessions/{session.session_id}/submit",
+                headers={"Authorization": f"Bearer {token}"},
+                json={
+                    "responses": {"q_1": "answer"},
+                    "credentials": {
+                        "api_url": "https://survey.example.com/admin/remotecontrol",
+                        "username": "user",
+                        "password": "pass",
+                    },
+                },
+            )
+        assert response.status_code == 200
+        mock_factory.assert_called_once_with(
+            "lss",
+            api_url="https://survey.example.com/admin/remotecontrol",
+            username="user",
+            password="pass",
+        )
+
+    def test_submit_falls_back_to_env_credentials(
+        self, submit_client, token_and_session, lss_survey_path, monkeypatch
+    ):
+        """No body credentials + env vars set → env vars are used."""
+        from unittest.mock import MagicMock, patch
+
+        _ = lss_survey_path
+        token, session = token_and_session
+        monkeypatch.setenv("LIMESURVEY_API_URL", "https://env.example.com/admin/remotecontrol")
+        monkeypatch.setenv("LIMESURVEY_USERNAME", "envuser")
+        monkeypatch.setenv("LIMESURVEY_PASSWORD", "envpass")
+        mock_adapter = MagicMock()
+        mock_adapter.capabilities.return_value = ["import", "export", "submit"]
+        mock_factory = MagicMock(return_value=mock_adapter)
+        with patch("cue_api.routes.surveys.get_adapter", mock_factory):
+            response = submit_client.post(
+                f"/sessions/{session.session_id}/submit",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"responses": {"q_1": "answer"}},
+            )
+        assert response.status_code == 200
+        mock_factory.assert_called_once_with(
+            "lss",
+            api_url="https://env.example.com/admin/remotecontrol",
+            username="envuser",
+            password="envpass",
+        )
+
+    def test_submit_missing_credentials_returns_422(
+        self, submit_client, token_and_session, lss_survey_path, clear_ls_env
+    ):
+        """Empty body credentials + no env vars → 422 listing the missing fields."""
+        _ = lss_survey_path
+        token, session = token_and_session
+        response = submit_client.post(
+            f"/sessions/{session.session_id}/submit",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"responses": {"q_1": "answer"}},
+        )
+        assert response.status_code == 422
+        detail = response.json()["detail"]
+        assert "api_url" in detail
+        assert "username" in detail
+        assert "password" in detail
+        # The error message must not leak any caller-supplied secret value.
+        assert "pass" not in detail.replace("password", "")
+
+    def test_capabilities_reports_submit_regardless_of_env(
+        self, submit_client, valid_token, clear_ls_env
+    ):
+        """Capability endpoint now reflects adapter implementation, not env state."""
+        response = submit_client.get(
+            "/adapters/lss/capabilities",
+            headers={"Authorization": f"Bearer {valid_token}"},
+        )
+        assert response.status_code == 200
+        assert "submit" in response.json()
+
+    def test_submit_validates_api_url_in_production(
+        self,
+        submit_client,
+        token_and_session,
+        lss_survey_path,
+        clear_ls_env,
+        monkeypatch,
+    ):
+        """Unsafe api_url (http to internal address) is rejected in production."""
+        _ = lss_survey_path
+        token, session = token_and_session
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        response = submit_client.post(
+            f"/sessions/{session.session_id}/submit",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "responses": {"q_1": "answer"},
+                "credentials": {
+                    "api_url": "http://localhost:7080/admin/remotecontrol",
+                    "username": "user",
+                    "password": "pass",
+                },
+            },
+        )
+        assert response.status_code == 400

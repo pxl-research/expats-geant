@@ -318,6 +318,48 @@ class TestReviewPage:
         assert resp.status_code == 410
         assert "expired" in resp.text.lower()
 
+    @respx.mock
+    def test_renders_credentials_form_for_lss(self):
+        """LS surveys with submit capability surface the per-session creds panel."""
+        lss_survey = {**SURVEY_FIXTURE, "metadata": {"format": "lss"}}
+        respx.get(f"{BASE}/surveys/survey-abc").mock(
+            return_value=httpx.Response(200, json=lss_survey)
+        )
+        respx.get(f"{BASE}/adapters/lss/capabilities").mock(
+            return_value=httpx.Response(200, json=["import", "export", "submit"])
+        )
+        respx.get(f"{BASE}/session/stats").mock(
+            return_value=httpx.Response(200, json={"documents": []})
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.get("/session/survey-abc/review", cookies=TOKEN_COOKIE)
+        assert resp.status_code == 200
+        assert 'name="api_url"' in resp.text
+        assert 'name="username"' in resp.text
+        assert 'name="password"' in resp.text
+        # The Qualtrics-only fields must not appear on an LS page.
+        assert 'name="api_token"' not in resp.text
+        assert 'name="datacenter_id"' not in resp.text
+
+    @respx.mock
+    def test_does_not_render_credentials_form_for_qti(self):
+        """QTI advertises no submit capability — the creds panel stays hidden."""
+        qti_survey = {**SURVEY_FIXTURE, "metadata": {"format": "qti"}}
+        respx.get(f"{BASE}/surveys/survey-abc").mock(
+            return_value=httpx.Response(200, json=qti_survey)
+        )
+        respx.get(f"{BASE}/adapters/qti/capabilities").mock(
+            return_value=httpx.Response(200, json=["import", "export", "create"])
+        )
+        respx.get(f"{BASE}/session/stats").mock(
+            return_value=httpx.Response(200, json={"documents": []})
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.get("/session/survey-abc/review", cookies=TOKEN_COOKIE)
+        assert resp.status_code == 200
+        for field in ("api_url", "username", "password", "api_token", "datacenter_id"):
+            assert f'name="{field}"' not in resp.text
+
 
 class TestUploadFromApiRoute:
     @respx.mock
@@ -462,6 +504,60 @@ class TestSubmitRoute:
         )
         assert resp.status_code == 503
         assert "Platform down" in resp.text
+
+    @respx.mock
+    def test_submit_forwards_credentials_as_nested_object(self):
+        """Credential form fields ride alongside responses as a nested object."""
+        import json as _json
+
+        route = respx.post(f"{BASE}/sessions/survey-abc/submit").mock(
+            return_value=httpx.Response(200, json={"status": "ok"})
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.post(
+            "/session/survey-abc/submit",
+            data={
+                "q_q1": "My answer",
+                "api_url": "https://survey.example.com/admin/remotecontrol",
+                "username": "user",
+                "password": "pass",
+            },
+            cookies=TOKEN_COOKIE,
+        )
+        assert resp.status_code == 200
+        sent = _json.loads(route.calls.last.request.content)
+        assert sent["responses"] == {"q_q1": "My answer"}
+        assert sent["credentials"] == {
+            "api_url": "https://survey.example.com/admin/remotecontrol",
+            "username": "user",
+            "password": "pass",
+        }
+
+    @respx.mock
+    def test_submit_error_repopulates_non_secret_credentials(self):
+        """On retry-after-error, URL/username are echoed back; password is NOT."""
+        respx.post(f"{BASE}/sessions/survey-abc/submit").mock(
+            return_value=httpx.Response(502, json={"detail": "Authentication failed."})
+        )
+        respx.get(f"{BASE}/surveys/survey-abc").mock(
+            return_value=httpx.Response(200, json={**SURVEY_FIXTURE, "metadata": {"format": "lss"}})
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.post(
+            "/session/survey-abc/submit",
+            data={
+                "q_q1": "My answer",
+                "api_url": "https://survey.example.com/admin/remotecontrol",
+                "username": "user",
+                "password": "sup3rsecret",
+            },
+            cookies=TOKEN_COOKIE,
+        )
+        assert resp.status_code == 502
+        assert 'value="https://survey.example.com/admin/remotecontrol"' in resp.text
+        assert 'value="user"' in resp.text
+        # Password must never be echoed back into the HTML.
+        assert "sup3rsecret" not in resp.text
 
 
 class TestReviewStateProxy:
