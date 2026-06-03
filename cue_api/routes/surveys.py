@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
 
@@ -31,6 +32,29 @@ def _platform_error_detail(exc: RuntimeError) -> str:
     return f"The platform returned an error: {exc}"
 
 
+def _translate_to_platform_code(answer_value: Any, option_values: dict[str, str]) -> Any:
+    """Map internal option ids (e.g. ``opt_A1``) to platform answer codes
+    (e.g. ``A1``) before the adapter builds its platform-specific payload.
+
+    The HTML form submits ``option.id`` (because that's the natural html value
+    of a checkbox / radio), but LimeSurvey's SGQA sub-question suffix and
+    Qualtrics' choice code use ``option.value`` — the platform's own code,
+    stashed on the AnswerOption at import time. Without this translation the
+    upstream call silently drops the answer (the SGQA key never matches a
+    column, the QID choice code doesn't resolve).
+
+    Unknown values pass through unchanged so free-text and slider answers
+    are not mangled.
+    """
+    if not option_values:
+        return answer_value
+    if isinstance(answer_value, list):
+        return [option_values.get(item, item) for item in answer_value]
+    if isinstance(answer_value, str):
+        return option_values.get(answer_value, answer_value)
+    return answer_value
+
+
 def _build_responses_from_body(
     body: dict, question_meta: dict, session_id: str
 ) -> list[SurveyResponse]:
@@ -41,11 +65,12 @@ def _build_responses_from_body(
             continue
         question_id = field_key[2:] if field_key.startswith("q_") else field_key
         q_meta = question_meta.get(question_id, {})
+        translated = _translate_to_platform_code(answer_value, q_meta.get("_option_values", {}))
         responses.append(
             SurveyResponse(
                 id=str(uuid.uuid4()),
                 question_id=question_id,
-                answer_value=answer_value,
+                answer_value=translated,
                 session_id=session_id,
                 metadata={"ls_qid": q_meta["ls_qid"]} if "ls_qid" in q_meta else {},
             )
@@ -270,7 +295,16 @@ async def submit_session_responses(request: Request, session_id: str):
     question_meta: dict[str, dict] = {}
     for section in survey_data.get("sections", []):
         for q in section.get("questions", []):
-            question_meta[q["id"]] = q.get("metadata", {})
+            meta = dict(q.get("metadata", {}))
+            # Stash the option_id → platform_code map so _build_responses_from_body
+            # can translate the HTML form's option ids back to the codes the
+            # platform's submit API expects (SGQA suffix for LS, choice code for QSF).
+            meta["_option_values"] = {
+                opt["id"]: opt["value"]
+                for opt in q.get("answer_options", [])
+                if "id" in opt and opt.get("value") is not None
+            }
+            question_meta[q["id"]] = meta
 
     body = await request.json()
     responses = _build_responses_from_body(body, question_meta, session_id)
