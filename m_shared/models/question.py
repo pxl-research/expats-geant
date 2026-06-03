@@ -60,7 +60,9 @@ class Question(BaseModel):
         description="Question type (multiple_choice, single_choice, open_ended, ranking, slider)",
     )
     answer_options: list[AnswerOption] = Field(
-        default_factory=list, description="Predefined answer options (for choice/ranking questions)"
+        default_factory=list,
+        validate_default=True,
+        description="Predefined answer options (for choice/ranking questions)",
     )
     min_value: float | None = Field(None, description="Minimum value for slider questions")
     max_value: float | None = Field(None, description="Maximum value for slider questions")
