@@ -197,6 +197,30 @@ class TestSuggestStream:
         resp = client.get("/session/survey-abc/suggest", cookies=TOKEN_COOKIE)
         assert resp.status_code == 404
 
+    @respx.mock
+    def test_multi_choice_suggestion_emits_selected_ids_data_attribute(self):
+        """MC suggestion must expose ``selected_ids`` so the Accept handler can
+        check the matching checkboxes; the prior template only emitted
+        ``data-selected-id`` (singular), leaving multi-choice boxes unticked."""
+        respx.get(f"{BASE}/surveys/survey-abc").mock(
+            return_value=httpx.Response(200, json=SURVEY_FIXTURE)
+        )
+        sse_body = (
+            "event: suggestion\n"
+            'data: {"item_id":"q_jury","type":"multiple_choice","suggestion":"External jury",'
+            '"selected_id":null,"selected_ids":["opt_SQ3","opt_SQ1"],'
+            '"reasoning":null,"citations":[]}\n\n'
+            "event: done\ndata: {}\n\n"
+        )
+        respx.post(f"{BASE}/suggest/stream").mock(
+            return_value=httpx.Response(
+                200, text=sse_body, headers={"content-type": "text/event-stream"}
+            )
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.get("/session/survey-abc/suggest-stream", cookies=TOKEN_COOKIE)
+        assert 'data-selected-ids=\'["opt_SQ3", "opt_SQ1"]\'' in resp.text
+
 
 class TestDeleteSessionByIdProxy:
     """Tests for the cue_ui proxy at DELETE /session/{id}."""
