@@ -1128,3 +1128,70 @@ class TestSubmitCredentialResolution:
             },
         )
         assert response.status_code == 400
+
+
+class TestPlatformCodeTranslation:
+    """Submit-time translation from internal option ids to platform answer codes.
+
+    The HTML form sends ``option.id`` (e.g. ``opt_A1``) because that's the
+    natural HTML value of a checkbox; LimeSurvey's SGQA suffix and Qualtrics'
+    choice code use ``option.value`` (e.g. ``A1``). Without translation the
+    upstream call silently drops the answer — the row lands with NULL values.
+    """
+
+    def test_translate_list_maps_each_item(self):
+        from cue_api.routes.surveys import _translate_to_platform_code
+
+        result = _translate_to_platform_code(
+            ["opt_A1", "opt_A3"], {"opt_A1": "A1", "opt_A2": "A2", "opt_A3": "A3"}
+        )
+        assert result == ["A1", "A3"]
+
+    def test_translate_scalar_string_maps_known_id(self):
+        from cue_api.routes.surveys import _translate_to_platform_code
+
+        result = _translate_to_platform_code("opt_A1", {"opt_A1": "A1"})
+        assert result == "A1"
+
+    def test_translate_passes_through_unknown_values(self):
+        """Free-text answers and other unmappable strings must not be mangled."""
+        from cue_api.routes.surveys import _translate_to_platform_code
+
+        result = _translate_to_platform_code("My free text answer", {"opt_A1": "A1"})
+        assert result == "My free text answer"
+
+    def test_translate_no_options_returns_unchanged(self):
+        """Open-ended and slider questions have an empty option map."""
+        from cue_api.routes.surveys import _translate_to_platform_code
+
+        assert _translate_to_platform_code("anything", {}) == "anything"
+        assert _translate_to_platform_code(["a", "b"], {}) == ["a", "b"]
+        assert _translate_to_platform_code(42, {}) == 42
+
+    def test_translate_partial_map_keeps_unknown_items(self):
+        """A list with one known and one unknown item passes the unknown
+        through verbatim — the adapter sees a best-effort answer rather than
+        a silently-dropped one."""
+        from cue_api.routes.surveys import _translate_to_platform_code
+
+        result = _translate_to_platform_code(["opt_A1", "freeform"], {"opt_A1": "A1"})
+        assert result == ["A1", "freeform"]
+
+    def test_build_responses_translates_via_option_values_meta(self):
+        """End-to-end through _build_responses_from_body: the q_<id> body keys
+        become Response objects whose answer_value is the platform code."""
+        from cue_api.routes.surveys import _build_responses_from_body
+
+        question_meta = {
+            "q_5001": {
+                "ls_qid": "5001",
+                "_option_values": {"opt_A1": "A1", "opt_A2": "A2", "opt_A3": "A3"},
+            },
+            "q_text": {"_option_values": {}},
+        }
+        body = {"q_q_5001": ["opt_A1", "opt_A3"], "q_q_text": "Hello world"}
+        responses = _build_responses_from_body(body, question_meta, "sess-xyz")
+        by_qid = {r.question_id: r for r in responses}
+        assert by_qid["q_5001"].answer_value == ["A1", "A3"]
+        assert by_qid["q_5001"].metadata["ls_qid"] == "5001"
+        assert by_qid["q_text"].answer_value == "Hello world"
