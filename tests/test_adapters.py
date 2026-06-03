@@ -78,10 +78,11 @@ MULTI_SECTION_LSS = """\
     <row><qid>1</qid><gid>1</gid><type>T</type><question>Q1</question><mandatory>N</mandatory><question_order>1</question_order><parent_qid>0</parent_qid></row>
     <row><qid>2</qid><gid>2</gid><type>M</type><question>Q2</question><mandatory>Y</mandatory><question_order>1</question_order><parent_qid>0</parent_qid></row>
   </rows></questions>
-  <answers><rows>
-    <row><qid>2</qid><code>X</code><answer>Choice X</answer><sortorder>1</sortorder></row>
-    <row><qid>2</qid><code>Y</code><answer>Choice Y</answer><sortorder>2</sortorder></row>
-  </rows></answers>
+  <subquestions><rows>
+    <row><qid>21</qid><parent_qid>2</parent_qid><gid>2</gid><type>T</type><title>X</title><question>Choice X</question><question_order>1</question_order></row>
+    <row><qid>22</qid><parent_qid>2</parent_qid><gid>2</gid><type>T</type><title>Y</title><question>Choice Y</question><question_order>2</question_order></row>
+  </rows></subquestions>
+  <answers><rows></rows></answers>
 </document>
 """
 
@@ -322,6 +323,72 @@ class TestLimeSurveyAdapterImport:
         types = [q.type for s in survey.sections for q in s.questions]
         assert QuestionType.OPEN_ENDED not in types
 
+    def test_m_question_options_from_subquestions_element(self):
+        """LS 6+ exports put M-question options in a sibling <subquestions> element."""
+        lss = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<document>
+  <surveys><rows><row>
+    <sid>111222</sid><surveyls_title>T</surveyls_title><surveyls_description></surveyls_description>
+  </row></rows></surveys>
+  <groups><rows>
+    <row><gid>1</gid><group_name>G</group_name><description></description><group_order>1</group_order></row>
+  </rows></groups>
+  <questions><rows>
+    <row><qid>5001</qid><gid>1</gid><type>M</type><question>QM1</question>
+         <mandatory>N</mandatory><question_order>1</question_order><parent_qid>0</parent_qid></row>
+  </rows></questions>
+  <subquestions><rows>
+    <row><qid>5002</qid><parent_qid>5001</parent_qid><gid>1</gid><type>T</type>
+         <title>A1</title><question>Option A1</question><question_order>1</question_order></row>
+    <row><qid>5003</qid><parent_qid>5001</parent_qid><gid>1</gid><type>T</type>
+         <title>A2</title><question>Option A2</question><question_order>2</question_order></row>
+    <row><qid>5004</qid><parent_qid>5001</parent_qid><gid>1</gid><type>T</type>
+         <title>A3</title><question>Option A3</question><question_order>3</question_order></row>
+  </rows></subquestions>
+  <answers><rows></rows></answers>
+</document>
+"""
+        survey = self.adapter.import_survey(lss)
+        q = survey.sections[0].questions[0]
+        assert q.type == QuestionType.MULTIPLE_CHOICE
+        assert [opt.value for opt in q.answer_options] == ["A1", "A2", "A3"]
+        assert [opt.text for opt in q.answer_options] == ["Option A1", "Option A2", "Option A3"]
+        assert q.answer_options[0].metadata["ls_code"] == "A1"
+
+    def test_m_question_options_from_inline_parent_qid(self):
+        """Older / inline LSS shape: M-question sub-questions sit in <questions>
+        with non-zero parent_qid. They must be treated as options, not promoted
+        to top-level questions."""
+        lss = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<document>
+  <surveys><rows><row>
+    <sid>1</sid><surveyls_title>T</surveyls_title><surveyls_description></surveyls_description>
+  </row></rows></surveys>
+  <groups><rows>
+    <row><gid>1</gid><group_name>G</group_name><description></description><group_order>1</group_order></row>
+  </rows></groups>
+  <questions><rows>
+    <row><qid>10</qid><gid>1</gid><type>M</type><question>Pick many</question>
+         <mandatory>N</mandatory><question_order>1</question_order><parent_qid>0</parent_qid></row>
+    <row><qid>11</qid><gid>1</gid><type>T</type><question>Apples</question>
+         <mandatory>N</mandatory><question_order>1</question_order><parent_qid>10</parent_qid>
+         <title>SQ1</title></row>
+    <row><qid>12</qid><gid>1</gid><type>T</type><question>Pears</question>
+         <mandatory>N</mandatory><question_order>2</question_order><parent_qid>10</parent_qid>
+         <title>SQ2</title></row>
+  </rows></questions>
+  <answers><rows></rows></answers>
+</document>
+"""
+        survey = self.adapter.import_survey(lss)
+        questions = survey.sections[0].questions
+        assert len(questions) == 1
+        assert questions[0].type == QuestionType.MULTIPLE_CHOICE
+        assert [opt.value for opt in questions[0].answer_options] == ["SQ1", "SQ2"]
+        assert [opt.text for opt in questions[0].answer_options] == ["Apples", "Pears"]
+
     def test_slider_question_has_bounds(self):
         lss = MINIMAL_LSS.replace("<type>T</type>", "<type>N</type>")
         survey = self.adapter.import_survey(lss)
@@ -369,6 +436,103 @@ class TestLimeSurveyAdapterExport:
         exported = self.adapter.export_survey(make_internal_survey())
         assert "<mandatory>Y</mandatory>" in exported
         assert "<mandatory>N</mandatory>" in exported
+
+    def test_export_m_question_emits_subquestions_not_answers(self):
+        """M-question options must land in <subquestions> (with title=code), not in <answers>."""
+        survey = Survey(
+            id="s1",
+            title="T",
+            description="",
+            sections=[
+                Section(
+                    id="g1",
+                    title="G",
+                    description="",
+                    questions=[
+                        Question(
+                            id="q_m",
+                            text="Pick many",
+                            type=QuestionType.MULTIPLE_CHOICE,
+                            required=False,
+                            answer_options=[
+                                AnswerOption(
+                                    id="opt_a1",
+                                    text="Apples",
+                                    value="A1",
+                                    metadata={"ls_code": "A1"},
+                                ),
+                                AnswerOption(
+                                    id="opt_a2",
+                                    text="Pears",
+                                    value="A2",
+                                    metadata={"ls_code": "A2"},
+                                ),
+                            ],
+                            metadata={"ls_qid": "5001", "ls_type": "M"},
+                        )
+                    ],
+                    metadata={"ls_gid": "1"},
+                )
+            ],
+        )
+        exported = self.adapter.export_survey(survey)
+        assert "<subquestions>" in exported
+        assert "<title>A1</title>" in exported
+        assert "<title>A2</title>" in exported
+        assert "<parent_qid>5001</parent_qid>" in exported
+        assert "Apples" in exported
+        assert "Pears" in exported
+
+        import defusedxml.ElementTree as defused_ET
+
+        root = defused_ET.fromstring(exported)
+        answer_rows = root.findall(".//answers/rows/row")
+        assert answer_rows == [], "M-question options must not appear in <answers>"
+
+    def test_export_m_question_round_trip(self):
+        """Exporting an M-question and re-importing preserves its options."""
+        original = Survey(
+            id="s1",
+            title="T",
+            description="",
+            sections=[
+                Section(
+                    id="g1",
+                    title="G",
+                    description="",
+                    questions=[
+                        Question(
+                            id="q_m",
+                            text="Pick many",
+                            type=QuestionType.MULTIPLE_CHOICE,
+                            required=False,
+                            answer_options=[
+                                AnswerOption(
+                                    id="opt_a1",
+                                    text="Apples",
+                                    value="A1",
+                                    metadata={"ls_code": "A1"},
+                                ),
+                                AnswerOption(
+                                    id="opt_a2",
+                                    text="Pears",
+                                    value="A2",
+                                    metadata={"ls_code": "A2"},
+                                ),
+                            ],
+                            metadata={"ls_qid": "5001", "ls_type": "M"},
+                        )
+                    ],
+                    metadata={"ls_gid": "1"},
+                )
+            ],
+        )
+        exported = self.adapter.export_survey(original)
+        reimported = self.adapter.import_survey(exported)
+        q = reimported.sections[0].questions[0]
+        assert q.type == QuestionType.MULTIPLE_CHOICE
+        assert [opt.value for opt in q.answer_options] == ["A1", "A2"]
+        assert [opt.text for opt in q.answer_options] == ["Apples", "Pears"]
 
 
 # ---------------------------------------------------------------------------
@@ -504,7 +668,11 @@ class TestLimeSurveyAdapterSubmit:
         assert mock_resp.json.call_count == 4
 
     def test_multiple_choice_response_serialised_as_flags(self):
-        """Multiple choice answers produce per-option SGQA flag entries."""
+        """Multiple choice answers produce per-option SGQA flag entries.
+
+        Keys are unbracketed (``sidXgidXqidCODE``) — LimeSurvey silently drops
+        the bracketed form so it must not be emitted (see issue #60).
+        """
         from m_shared.adapters.limesurvey import _responses_to_ls_format
 
         resp = Response(
@@ -514,8 +682,10 @@ class TestLimeSurveyAdapterSubmit:
             metadata={"ls_qid": "20"},
         )
         data = _responses_to_ls_format([resp], "42", {"20": "100"})
-        assert data["42X100X20[X]"] == "Y"
-        assert data["42X100X20[Y]"] == "Y"
+        assert data["42X100X20X"] == "Y"
+        assert data["42X100X20Y"] == "Y"
+        assert "42X100X20[X]" not in data
+        assert "42X100X20[Y]" not in data
 
     def test_open_ended_response_serialised_as_string(self):
         from m_shared.adapters.limesurvey import _responses_to_ls_format

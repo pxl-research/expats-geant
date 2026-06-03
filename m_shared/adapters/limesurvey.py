@@ -4,11 +4,21 @@ Handles import/export of LimeSurvey Structure (LSS) XML files and response
 submission via the LimeSurvey RemoteControl 2 JSON-RPC API.
 
 LSS format overview:
-    - Root element: <document> containing <surveys>, <groups>, <questions>, <answers>
+    - Root element: <document> containing <surveys>, <groups>, <questions>,
+      <subquestions> (LS 6+), <answers>
     - surveys/rows/row: survey-level metadata (sid, surveyls_title, surveyls_description)
     - groups/rows/row: question groups (gid, group_name, description, group_order)
     - questions/rows/row: questions (qid, gid, type, question, mandatory)
-    - answers/rows/row: answer options for choice questions (qid, code, answer, sortorder)
+    - subquestions/rows/row: option rows for multi-answer questions (M, P) and
+      array sub-questions. Older LSS exports inline these into <questions> with
+      a non-zero parent_qid; both shapes are accepted on import.
+    - answers/rows/row: answer options for radio/dropdown choice questions
+      (L, O, !, ...) keyed by qid + code.
+
+Submission keying (SGQA):
+    LimeSurvey's RemoteControl 2 add_response expects field keys of the form
+    ``{sid}X{gid}X{qid}`` for scalar answers and ``{sid}X{gid}X{qid}{title}``
+    (sub-question title appended, no brackets) for multi-answer questions.
 
 LimeSurvey question types mapped to internal QuestionType:
     L, O, !  → single_choice  (radio list, list with comment, list dropdown)
@@ -126,13 +136,14 @@ class LimeSurveyAdapter(SurveyAdapter):
         groups = self._parse_groups(root)
         questions_by_gid = self._parse_questions(root)
         answers_by_qid = self._parse_answers(root)
+        sub_questions_by_parent = self._parse_sub_questions(root)
 
         sections: list[Section] = []
         for gid, group_meta in groups.items():
             raw_questions = questions_by_qid_in_group(questions_by_gid, gid)
             questions: list[Question] = []
             for q_meta in raw_questions:
-                question = self._build_question(q_meta, answers_by_qid)
+                question = self._build_question(q_meta, answers_by_qid, sub_questions_by_parent)
                 if question is not None:
                     questions.append(question)
 
@@ -247,10 +258,45 @@ class LimeSurveyAdapter(SurveyAdapter):
 
         return by_qid
 
+    def _parse_sub_questions(self, root: Element) -> dict[str, list[dict[str, Any]]]:
+        """Return dict of parent_qid → list of sub-question option metadata.
+
+        Collects rows from both ``<subquestions>/rows/row`` (LS 6+ format) and
+        ``<questions>/rows/row`` entries with non-zero ``parent_qid`` (older /
+        inline format). The ``code`` field maps to LimeSurvey's ``title`` column
+        — that is the suffix used in SGQA field keys at submit time.
+        """
+        by_parent: dict[str, list[dict[str, Any]]] = {}
+
+        def _collect(row: Element) -> None:
+            parent_qid = _text(row.find("parent_qid"))
+            if not parent_qid or parent_qid == "0":
+                return
+            title = _text(row.find("title"))
+            if not title:
+                return
+            by_parent.setdefault(parent_qid, []).append(
+                {
+                    "code": title,
+                    "text": _text(row.find("question")) or title,
+                    "order": int(_text(row.find("question_order")) or "0"),
+                }
+            )
+
+        for row in root.findall(".//subquestions/rows/row"):
+            _collect(row)
+        for row in root.findall(".//questions/rows/row"):
+            _collect(row)
+
+        for parent in by_parent:
+            by_parent[parent].sort(key=lambda r: r["order"])
+        return by_parent
+
     def _build_question(
         self,
         q_meta: dict[str, Any],
         answers_by_qid: dict[str, list[dict[str, Any]]],
+        sub_questions_by_parent: dict[str, list[dict[str, Any]]],
     ) -> Question | None:
         """Convert raw question metadata into an internal Question object."""
         ls_type = q_meta["type"]
@@ -264,7 +310,10 @@ class LimeSurveyAdapter(SurveyAdapter):
             return None
 
         qid = q_meta["qid"]
-        raw_options = answers_by_qid.get(qid, [])
+        if ls_type in ("M", "P"):
+            raw_options = sub_questions_by_parent.get(qid, [])
+        else:
+            raw_options = answers_by_qid.get(qid, [])
         answer_options = [
             AnswerOption(
                 id=f"opt_{opt['code']}",
@@ -322,13 +371,12 @@ class LimeSurveyAdapter(SurveyAdapter):
         _sub(row, "surveyls_title", survey.title)
         _sub(row, "surveyls_description", survey.description)
 
-        # Groups
         groups_rows = ET.SubElement(ET.SubElement(root, "groups"), "rows")
-        # Questions
         questions_rows = ET.SubElement(ET.SubElement(root, "questions"), "rows")
-        # Answers
+        sub_questions_rows = ET.SubElement(ET.SubElement(root, "subquestions"), "rows")
         answers_rows = ET.SubElement(ET.SubElement(root, "answers"), "rows")
 
+        sub_qid_counter = 1_000_000
         for group_order, section in enumerate(survey.sections):
             gid = section.metadata.get("ls_gid", section.id)
             grow = ET.SubElement(groups_rows, "row")
@@ -350,14 +398,27 @@ class LimeSurveyAdapter(SurveyAdapter):
                 _sub(qrow, "question", question.text)
                 _sub(qrow, "mandatory", "Y" if question.required else "N")
                 _sub(qrow, "question_order", str(question_order))
+                _sub(qrow, "parent_qid", "0")
 
-                for opt in question.answer_options:
-                    arow = ET.SubElement(answers_rows, "row")
-                    _sub(arow, "qid", str(qid))
+                options_go_to_subquestions = ls_type in ("M", "P")
+                for opt_order, opt in enumerate(question.answer_options, start=1):
                     code = opt.metadata.get("ls_code", opt.id)
-                    _sub(arow, "code", str(code))
-                    _sub(arow, "answer", opt.text)
-                    _sub(arow, "sortorder", "0")
+                    if options_go_to_subquestions:
+                        sub_qid_counter += 1
+                        srow = ET.SubElement(sub_questions_rows, "row")
+                        _sub(srow, "qid", str(sub_qid_counter))
+                        _sub(srow, "parent_qid", str(qid))
+                        _sub(srow, "gid", str(gid))
+                        _sub(srow, "type", "T")
+                        _sub(srow, "title", str(code))
+                        _sub(srow, "question", opt.text)
+                        _sub(srow, "question_order", str(opt_order))
+                    else:
+                        arow = ET.SubElement(answers_rows, "row")
+                        _sub(arow, "qid", str(qid))
+                        _sub(arow, "code", str(code))
+                        _sub(arow, "answer", opt.text)
+                        _sub(arow, "sortorder", str(opt_order))
 
         ET.indent(root, space="  ")
         return ET.tostring(root, encoding="unicode", xml_declaration=True)
@@ -567,8 +628,10 @@ def _responses_to_ls_format(
     """Convert internal Response objects to LimeSurvey add_response field dict.
 
     LimeSurvey expects a flat dict keyed by SGQA field codes:
-    ``<sid>X<gid>X<qid>`` for scalar answers, ``<sid>X<gid>X<qid>[<code>]``
-    for multiple-choice sub-fields.
+    ``<sid>X<gid>X<qid>`` for scalar answers and
+    ``<sid>X<gid>X<qid><sub_title>`` (no brackets — the sub-question's title
+    is appended directly) for multi-answer sub-fields. The bracketed form
+    LimeSurvey's frontend uses internally is silently dropped by add_response.
 
     Args:
         responses: Responses to convert. ``ls_qid`` in metadata is used as the
@@ -592,9 +655,8 @@ def _responses_to_ls_format(
         prefix = f"{survey_id}X{gid}X{qid}"
         value = resp.answer_value
         if isinstance(value, list):
-            # multiple_choice or ranking: LimeSurvey expects separate fields per option
             for item in value:
-                data[f"{prefix}[{item}]"] = "Y"
+                data[f"{prefix}{item}"] = "Y"
         else:
             data[prefix] = str(value) if value is not None else ""
     return data
