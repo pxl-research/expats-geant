@@ -131,6 +131,37 @@ class TestToolCallLoopHappyPath:
         assert qids == ["q1", "q2"]
 
 
+class TestEmptyFinalContentFallback:
+    """Some LLMs (e.g. Gemini after tool calls) terminate with empty content.
+    When a mutation succeeded but the final assistant turn has no text, the
+    chat route must still return a non-empty message — otherwise the UI shows
+    a successful survey change paired with an empty chat bubble."""
+
+    def test_mutation_with_empty_final_content_returns_fallback(self, session_manager, jwt_secret):
+        llm = MagicMock()
+        client = _make_client(session_manager, llm)
+        h = _auth_headers()
+        sid = _new_session(client, h)
+        client.put(f"/chat/{sid}/survey", json={"survey": _SURVEY}, headers=h)
+
+        new_q = {"id": "q_extra", "text": "Anything else?", "type": "open_ended"}
+        llm.create_completion_full.side_effect = [
+            CompletionResult(content=None, tool_calls=[_add_question_call("sec1", new_q)]),
+            CompletionResult(content="", tool_calls=[], finish_reason="stop"),
+        ]
+
+        r = client.post(
+            f"/chat/{sid}",
+            json={"message": "add an open-ended question"},
+            headers=h,
+        )
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["survey_updated"] is True
+        assert data["message"], "message must not be empty when survey was updated"
+
+
 class TestPureQAndATurn:
     def test_text_only_response_no_tool_no_save(self, session_manager, jwt_secret):
         llm = MagicMock()
