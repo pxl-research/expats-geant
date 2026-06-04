@@ -1,18 +1,18 @@
 # Expats (GÉANT): Explainable Autofill for Trustworthy Surveys
 
 A platform providing two AI co-pilots that improve questionnaire quality and response completeness while prioritizing privacy, transparency, and user control.
-All code is open-source for non-commercial use only.
+All code is open-source for non-commercial use.
 
 ## Overview
 
-**Expats** is a proof-of-concept developed by PXL University College to build and evaluate privacy-first, standalone AI modules for the European research and education community.
+**Expats** is a prototype developed by PXL University College to build and evaluate privacy-first, standalone AI modules for the European research and education community.
 
 ### Core Components
 
-- **Shape**: Administrator co-pilot for questionnaire design — accelerates creation with guardrails, consistency checks, tagging, and summarization
-- **Cue**: Respondent assistant for evidence-based answer suggestions — retrieves relevant passages from user documents, proposes concise answers with citations, and explains reasoning
-- **Cue UI**: Browser-based survey review frontend — server-rendered FastAPI app (Jinja2 + HTMX) for uploading surveys, reviewing AI suggestions, and submitting responses without custom integration work
-- **M-Shared**: Common utilities and foundational infrastructure for both modules
+- **Shape**: an administrator co-pilot for questionnaire design — accelerates creation with guardrails, consistency checks, tagging, and summarization
+- **Cue**: a respondent assistant for evidence-based answer suggestions — retrieves relevant passages from user documents, proposes concise answers with citations, and explains reasoning
+- **Cue UI**: a browser-based survey review frontend — server-rendered FastAPI app (Jinja2 + HTMX) for uploading surveys, reviewing AI suggestions, and submitting responses without custom integration work
+- **M-Shared**: common utilities and foundational infrastructure for both modules
 
 ## Key Features
 
@@ -25,16 +25,16 @@ All code is open-source for non-commercial use only.
 
 🎯 **Interoperability**
 
-- QTI 3.0-compatible questionnaire import/export
-- SDK-first, embeddable API design for institutional reuse
 - Designed for integration into existing survey platforms and educational tools
+- SDK-first, embeddable API design for institutional reuse
+- QTI 3.0-compatible questionnaire import/export
 
 📊 **Evidence-Based**
 
-- Citation system with precise source tracking (line numbers, timestamps, highlights)
+- Citation system with source tracking (line numbers, timestamps, highlights)
 - Transparent reasoning: understand where suggestions come from
 - Quality metrics: citation accuracy, response completeness, edit/acceptance rates
-- Multiple source modes: file upload, pasted text, and (optional, opt-in) URL ingestion with preview-before-store
+- Multiple source modes: file upload (documents and images), pasted text, and (optional) URL ingestion with preview-before-store
 
 ## Project Structure
 
@@ -177,11 +177,11 @@ For inquiries regarding commercial licensing, integration partnerships, or deplo
 
 ## Deliverables & Roadmap
 
-- **Pilot & evaluation**: Implement at PXL + Belnet partner; measure authoring time, respondent time, citation accuracy, acceptance/edit rates
-- **Demo & dissemination**: Live demo at GÉANT TNC (May 2026); online showcase with architecture & results
 - **Reusable outputs**: Containerized Docker images, REST APIs, SDK, deployment recipes, admin templates, evaluation scripts
 - **Documentation**: Deployment guides, integration docs, style guides for institutional reuse
-- **Timeline**: Jan–May 2026 (PoC), final report by 30 June 2026
+- **Pilot & evaluation**: Implement at PXL + Géant partner; measure authoring time, respondent time, citation accuracy, acceptance/edit rates
+- **Demo & dissemination**: Live demo at GÉANT TNC (June 2026); online showcase with architecture & results
+- **Timeline**: Jan–June 2026 (PoC)
 
 ## Contact & Support
 
@@ -189,7 +189,3 @@ For inquiries regarding commercial licensing, integration partnerships, or deplo
 - **Security vulnerabilities:** follow [SECURITY.md](SECURITY.md) — do not file a public issue.
 - **Privacy / GDPR enquiries:** see [PRIVACY.md](PRIVACY.md). For the PXL-hosted demo/pilot, contact <dpo@pxl.be>.
 - **Institutional reuse, integration, commercial licensing:** Servaas Tilkin, PXL University College — <servaas.tilkin@pxl.be>.
-
----
-
-**This is a proof-of-concept project. Simplicity, clarity, and maintainability are prioritized over completeness.**
