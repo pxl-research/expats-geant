@@ -40,7 +40,7 @@ class AuditLogEntry(BaseModel):
         >>> entry = AuditLogEntry(
         ...     event_type=AuditEventType.UPLOAD,
         ...     session_id="sess_123",
-        ...     timestamp=datetime.utcnow(),
+        ...     timestamp=datetime.now(UTC),
         ...     details={"filename": "cv.pdf", "file_size": 50000}
         ... )
     """
@@ -77,7 +77,7 @@ class Consent(BaseModel):
     Examples:
         >>> consent = Consent(
         ...     session_id="sess_123",
-        ...     accepted_at=datetime.utcnow(),
+        ...     accepted_at=datetime.now(UTC),
         ...     terms_version="1.0",
         ...     privacy_version="1.0"
         ... )
@@ -111,9 +111,9 @@ class AuditReport(BaseModel):
     Examples:
         >>> report = AuditReport(
         ...     session_id="sess_123",
-        ...     created_at=datetime.utcnow(),
-        ...     ended_at=datetime.utcnow(),
-        ...     retention_until=datetime.utcnow() + timedelta(days=365),
+        ...     created_at=datetime.now(UTC),
+        ...     ended_at=datetime.now(UTC),
+        ...     retention_until=datetime.now(UTC) + timedelta(days=365),
         ...     log_entries=[...],
         ...     summary={"documents_uploaded": 2, "suggestions_generated": 5}
         ... )

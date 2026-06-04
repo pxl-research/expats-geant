@@ -90,6 +90,11 @@ class ReviewState {
         } else if (saved.selected_id) {
           const radio = document.getElementById("opt-" + questionId + "-" + saved.selected_id);
           if (radio) radio.checked = true;
+        } else if (saved.selected_ids) {
+          saved.selected_ids.forEach(function (id) {
+            var cb = document.getElementById("opt-" + questionId + "-" + id);
+            if (cb) cb.checked = true;
+          });
         }
       } else if (saved.state === "edited") {
         if (block) {

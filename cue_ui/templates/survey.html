@@ -237,6 +237,42 @@
   {% endfor %}
 {% endfor %}
 
+{% if can_submit and survey_format in ("lss", "limesurvey", "qsf") %}
+<details class="card" style="margin-top:1.5rem;" open>
+  <summary style="cursor:pointer; font-weight:600;">Platform credentials</summary>
+  <div class="alert alert-warning" role="alert" style="margin-top:0.75rem;">
+    &#9888;&#65039; Your credentials are sent to this server and used immediately
+    to submit your responses. They are never stored or logged.
+    Use this only on trusted networks and in trusted environments.
+  </div>
+  {% if survey_format in ("lss", "limesurvey") %}
+  <label>API URL
+    <input name="api_url" type="url"
+           value="{{ form_values.get('api_url', '') }}"
+           placeholder="https://survey.example.com/index.php/admin/remotecontrol"
+           autocomplete="url">
+  </label>
+  <label>Username
+    <input name="username" type="text"
+           value="{{ form_values.get('username', '') }}"
+           autocomplete="username">
+  </label>
+  <label>Password
+    <input name="password" type="password" autocomplete="current-password">
+  </label>
+  {% elif survey_format == "qsf" %}
+  <label>API Token
+    <input name="api_token" type="password" autocomplete="current-password">
+  </label>
+  <label>Datacenter ID
+    <input name="datacenter_id" type="text"
+           value="{{ form_values.get('datacenter_id', '') }}"
+           placeholder="e.g. iad1">
+  </label>
+  {% endif %}
+</details>
+{% endif %}
+
 {% if can_submit %}
 <div style="margin-top:1.5rem;">
   <button type="submit" class="btn btn-success">Submit Responses</button>

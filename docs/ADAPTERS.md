@@ -127,6 +127,34 @@ def create_survey(self, survey: Survey) -> str:
 Return value: a non-empty string platform ID. Raise `RuntimeError` (or a
 platform-specific exception) if the API call fails.
 
+#### LimeSurvey specifics
+
+Tested live against **LimeSurvey 6.17.4**. The adapter uses RC2 methods that
+have been stable since LimeSurvey 3+ and are present on LimeSurvey 5+ and 6+:
+`get_session_key`, `get_survey_properties`, `list_groups`, `list_questions`,
+`get_question_properties`, `import_survey`, `add_response`,
+`release_session_key`. We deliberately avoid `export_survey` and `add_question`
+because LimeSurvey 6 removed them from the RC2 surface; pushing a full LSS via
+`import_survey` is the canonical create path in LimeSurvey 6.
+
+Required deployer configuration:
+
+- **Configuration → Global settings → Interfaces → RPC interface = JSON-RPC**.
+  XML-RPC will not work — the adapter speaks JSON only.
+- Submit credentials may be supplied **per request** by the respondent (form
+  fields on the survey page) or globally by the operator via the `LIMESURVEY_*`
+  environment variables. The Cue API resolves credentials per-key with
+  precedence body → env → none, mirroring `POST /surveys/import-from-api`.
+  Per-request credentials are used for the one outbound platform call and
+  never persisted.
+- The user (whether supplied per request or via `LIMESURVEY_USERNAME`) must
+  have permission to create, read, and submit responses to the surveys it
+  will touch. On a single-tenant test instance the default admin is
+  sufficient.
+
+LimeSurvey versions older than 5 are best-effort: the RC2 surface is
+compatible but we do not verify them in CI. Report issues if you hit one.
+
 ### File-fallback adapters (e.g. SurveyMonkey, QTI)
 
 Delegate to `export_survey()` and return the serialised file content.

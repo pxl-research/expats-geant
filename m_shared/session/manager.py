@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 import shutil
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -11,20 +12,32 @@ from m_shared.models.session import Session
 from m_shared.utils import AuditEventType, AuditLogger, Consent
 from m_shared.vectordb import ChromaDocumentStore
 
+# Session IDs are server-generated (uuid4 hex or full uuid4). Anything outside this
+# character set / length is rejected before it can touch the filesystem, which
+# prevents path traversal (e.g. "../<other_user>/<their_session>") through any
+# caller-supplied session_id (request body, path param, or JWT claim).
+_SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
 
 class SessionManager:
     """Manages user sessions with isolated ChromaDB storage and TTL-based cleanup.
 
-    Each session gets its own folder with:
-    - metadata.json: Session info (created_at, expires_at, user_id)
-    - chroma_store/: ChromaDB SQLite files
-    - uploads/: Optional uploaded file storage
+    On-disk layout is per-user, not flat — each user gets a directory keyed by a
+    short SHA-256 of their user_id, and sessions live under that:
 
-    Session IDs are derived from hashed JWT tokens for stability and security.
+        <base_path>/<sha256(user_id)[:16]>/<session_id>/
+            ├── metadata.json   # session info (created_at, expires_at, ...)
+            ├── chroma_<hex>/   # isolated ChromaDB instance
+            └── uploads/        # optional uploaded file storage
+
+    Session IDs are server-generated (UUID4 hex truncated to 12 chars by
+    default; callers may pass ``explicit_session_id`` for stable URLs). The
+    ``jwt_token`` argument on ``create_session`` is retained for backward
+    compatibility and is no longer used to derive the ID.
 
     Examples:
         >>> manager = SessionManager(base_path="./sessions")
-        >>> session = manager.create_session(user_id="user_123", jwt_token="abc...")
+        >>> session = manager.create_session(user_id="user_123")
         >>> store = manager.get_vector_store(session.session_id)
         >>> store.add_document(...)
     """
@@ -68,7 +81,13 @@ class SessionManager:
 
         Returns:
             Path to session directory
+
+        Raises:
+            ValueError: If session_id is not a valid identifier (defends against
+                path traversal).
         """
+        if not _SESSION_ID_RE.fullmatch(session_id):
+            raise ValueError(f"Invalid session_id: {session_id!r}")
         if user_id:
             return self._get_user_path(user_id) / session_id
         for user_dir in self.base_path.iterdir():
@@ -118,7 +137,13 @@ class SessionManager:
             Session object if exists, None otherwise
         """
         if session_path is None:
-            session_path = self._get_session_path(session_id, user_id=user_id)
+            try:
+                session_path = self._get_session_path(session_id, user_id=user_id)
+            except ValueError:
+                # Malformed session_id (rejected by the path-traversal guard) is
+                # treated as not-found, so every read caller gets a clean None
+                # (→ 404) instead of an unhandled 500.
+                return None
         metadata_path = session_path / "metadata.json"
 
         if not metadata_path.exists():
@@ -127,10 +152,7 @@ class SessionManager:
         with open(metadata_path) as f:
             data = json.load(f)
 
-        # Parse datetime strings
-        data["created_at"] = datetime.fromisoformat(data["created_at"])
-        data["expires_at"] = datetime.fromisoformat(data["expires_at"])
-
+        # Session coerces ISO strings / naive datetimes to aware UTC itself.
         return Session(**data)
 
     def create_session(
@@ -184,7 +206,7 @@ class SessionManager:
         (session_path / "uploads").mkdir(exist_ok=True)
 
         # Create session object
-        created_at = datetime.utcnow()
+        created_at = datetime.now(UTC)
         expires_at = created_at + timedelta(hours=ttl_hours)
 
         meta: dict = {"ttl_hours": ttl_hours, "chroma_dir": chroma_dir}
@@ -231,6 +253,10 @@ class SessionManager:
             Session object if exists and not expired, None otherwise
         """
         session = self._load_session_metadata(session_id, user_id=user_id)
+        if session and user_id is not None and session.user_id != user_id:
+            # Loaded a session that does not belong to the requesting user. Treat
+            # as not-found so a caller cannot bind a token to someone else's session.
+            return None
         if session and session.is_expired():
             return None
         return session
@@ -415,7 +441,7 @@ class SessionManager:
             List of cleaned up session IDs
         """
         cleaned = []
-        cutoff_date = datetime.utcnow() - timedelta(days=365 * retention_years)
+        cutoff_date = datetime.now(UTC) - timedelta(days=365 * retention_years)
 
         for user_dir in self.base_path.iterdir():
             if not user_dir.is_dir():
@@ -433,7 +459,7 @@ class SessionManager:
                 if not audit_log_path.exists():
                     continue
 
-                last_modified = datetime.fromtimestamp(audit_log_path.stat().st_mtime)
+                last_modified = datetime.fromtimestamp(audit_log_path.stat().st_mtime, tz=UTC)
 
                 if last_modified < cutoff_date:
                     if self.delete_session(session_id, reason="retention_policy"):
@@ -455,7 +481,7 @@ class SessionManager:
             return None
 
         # Calculate remaining TTL
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         remaining = session.expires_at - now
         remaining_hours = max(0, remaining.total_seconds() / 3600)
 

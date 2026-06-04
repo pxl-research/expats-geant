@@ -2,7 +2,7 @@
 
 import json
 import tempfile
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -358,7 +358,7 @@ class TestAuditReport:
 
     def test_report_retention_calculation(self, logger):
         """Test retention period is calculated correctly."""
-        created_at = datetime.utcnow()
+        created_at = datetime.now(UTC)
         ended_at = created_at + timedelta(hours=2)
 
         report = logger.generate_report(
@@ -575,7 +575,7 @@ class TestAuditReportModel:
 
     def test_create_report(self):
         """Test creating an audit report model."""
-        created_at = datetime.utcnow()
+        created_at = datetime.now(UTC)
         ended_at = created_at + timedelta(hours=2)
         retention = ended_at + timedelta(days=365)
 
@@ -597,8 +597,8 @@ class TestAuditReportModel:
         """Test report serializes correctly."""
         report = AuditReport(
             session_id="sess_123",
-            created_at=datetime.utcnow(),
-            retention_until=datetime.utcnow() + timedelta(days=365),
+            created_at=datetime.now(UTC),
+            retention_until=datetime.now(UTC) + timedelta(days=365),
             summary={"test": "value"},
         )
 

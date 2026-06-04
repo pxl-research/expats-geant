@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Iterable
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from tqdm import tqdm
@@ -97,7 +97,7 @@ def ingest_files_into_store(
             chunks = chunk_pptx(md_text, max_size=max_chunk_size)
         else:
             chunks = iterative_chunking(md_text, max_size=max_chunk_size)
-        ingested_at = datetime.utcnow().timestamp()  # Unix timestamp for ChromaDB range filtering
+        ingested_at = datetime.now(UTC).timestamp()  # Unix timestamp for ChromaDB range filtering
         total_chunks = len(chunks)
         source_mime = _EXT_TO_MIME.get(suffix, "application/octet-stream")
         meta_info = [
@@ -170,7 +170,7 @@ def ingest_text_into_store(
         return []  # duplicate → silent skip
 
     chunks = iterative_chunking(text, max_size=max_chunk_size)
-    ingested_at = datetime.utcnow().timestamp()
+    ingested_at = datetime.now(UTC).timestamp()
     meta_info = [
         {
             "source": label,
@@ -244,7 +244,7 @@ def ingest_extracted_text_into_store(
             store.remove_document(col.name)
 
     chunks = iterative_chunking(text, max_size=max_chunk_size)
-    ingested_at = datetime.utcnow().timestamp()
+    ingested_at = datetime.now(UTC).timestamp()
     meta_info = [
         {
             "source": source_label,

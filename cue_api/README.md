@@ -28,7 +28,7 @@ Cue is a RAG (Retrieval-Augmented Generation) module that helps respondents comp
 👤 **Privacy-First Design**
 
 - Session-based isolation: each respondent session is independent
-- Ephemeral storage: documents and vectors deleted after TTL expires (24-48h configurable)
+- Ephemeral storage: documents and vectors deleted after TTL expires (24h default, configurable)
 - No profiling, no cross-session tracking
 - GDPR-compliant with user consent capture
 
@@ -73,9 +73,11 @@ Tests live in the repo root `tests/` folder.
 - Returns top-k chunks (default: 5) with full metadata
 - Metadata includes: source filename, chunk index, position/percentage, timestamp
 
-**2. Answer Generation (`generate_answer()`)**
+**2. Answer Generation (`_generate_answer_with_reasoning()`)**
 
 - LLM-based generation from retrieved passages
+- Returns structured `{answer, reasoning, selected}` JSON (tightened
+  schema for choice-type questions)
 - Temperature control (0.3–0.5 for slightly deterministic output)
 - Max token limit: 500 tokens (configurable)
 - Graceful error handling for API failures, rate limits, timeouts
@@ -90,12 +92,17 @@ Tests live in the repo root `tests/` folder.
   - Text excerpts (50–200 chars) for verification
 - Handles missing metadata gracefully
 
-**4. Orchestration (`suggest_answer()`)**
+**4. Orchestration (`suggest_batch()` / `suggest_batch_stream()`)**
 
-- End-to-end pipeline: retrieve → generate → format citations
-- Input validation (question, session_id)
-- Returns structured result: `{answer, citations, metadata}`
-- Handles edge cases: no documents, no results, session not found
+- End-to-end batch pipeline: rewrite-query → retrieve → generate → format
+  citations → audit-log
+- Sync (`suggest_batch`) and async-streaming (`suggest_batch_stream`)
+  entry points, both driven by `_process_item` per question
+- Accepts either grouped `sections` or a flat `items` list (see
+  `BatchSuggestRequest`)
+- Returns a list of `ItemSuggestion` dicts with `selected_id` /
+  `selected_ids` populated for choice questions
+- Handles edge cases: no documents, no chunk matches, LLM failure
 
 ### Design Decisions
 
@@ -175,87 +182,19 @@ privacy decision checklist.
 
 ### POST /suggest/batch
 
-Generate suggestions for multiple questionnaire items in a single request. Items within the same section share context, improving suggestion quality for related questions.
+Generate suggestions for multiple questionnaire items in a single request.
+Items within the same section share context, improving suggestion quality
+for related questions.
 
-Accepts either a structured `sections` list or a flat `items` list — flat items are normalized to an implicit single section internally.
+Accepts either a structured `sections` list or a flat `items` list — flat
+items are normalised to an implicit single section internally.
 
-**Supported question types:** `open_ended`, `single_choice`, `multiple_choice`, `ranking`, `slider`
+**Supported question types:** `open_ended`, `single_choice`,
+`multiple_choice`, `ranking`, `slider`
 
-**Request (sectioned):**
-```json
-{
-  "assessment_id": "gdpr-compliance-2026",
-  "context": "Annual GDPR compliance self-assessment for research institutions",
-  "sections": [
-    {
-      "id": "s1",
-      "title": "Data Retention",
-      "items": [
-        {
-          "id": "q1",
-          "type": "open_ended",
-          "prompt": "Describe your organisation's data retention policy for research participant data."
-        },
-        {
-          "id": "q2",
-          "type": "single_choice",
-          "prompt": "How long are research participant records retained after project completion?",
-          "choices": [
-            {"id": "c1", "label": "Less than 1 year"},
-            {"id": "c2", "label": "1–3 years"},
-            {"id": "c3", "label": "3–10 years"},
-            {"id": "c4", "label": "More than 10 years"}
-          ]
-        }
-      ]
-    }
-  ]
-}
-```
-
-**Response:**
-```json
-{
-  "assessment_id": "gdpr-compliance-2026",
-  "session_id": "sess_abc123",
-  "generated_at": "2026-02-24T10:30:00Z",
-  "model": "openai/gpt-4o-mini",
-  "responses": [
-    {
-      "item_id": "q1",
-      "type": "open_ended",
-      "suggestion": "Research participant data is retained for 5 years after project completion, consistent with the institution's research data management policy and funder requirements.",
-      "selected_id": null,
-      "selected_ids": null,
-      "reasoning": null,
-      "citations": [
-        {
-          "source": "rdm_policy_v3.pdf",
-          "excerpt": "personal data collected during research projects shall be retained for a minimum of five years",
-          "position": 0.34
-        }
-      ]
-    },
-    {
-      "item_id": "q2",
-      "type": "single_choice",
-      "suggestion": "Research participant records are retained for 3–10 years after project completion.",
-      "selected_id": "c3",
-      "selected_ids": null,
-      "reasoning": "The policy states a 5-year retention period, which falls within the 3–10 year bracket. Selected c3 accordingly.",
-      "citations": [
-        {
-          "source": "rdm_policy_v3.pdf",
-          "excerpt": "personal data collected during research projects shall be retained for a minimum of five years",
-          "position": 0.34
-        }
-      ]
-    }
-  ]
-}
-```
-
-See [`docs/examples/`](../docs/examples/) for complete request/response JSON files.
+Full payload shapes and complete request/response JSON examples:
+[`docs/CUE_API.md`](../docs/CUE_API.md) and
+[`docs/examples/`](../docs/examples/).
 
 ## Configuration
 
@@ -310,15 +249,6 @@ Cue is designed as an embeddable SDK. Integrate via:
 3. **Institutional SSO**: OAuth 2.0 integration with institutional identity providers
 
 See [M-Shared](../m_shared/README.md) for client SDKs and utilities.
-
-## Roadmap
-
-- ✅ Basic RAG pipeline (semantic search + LLM generation + citations)
-- ✅ Multi-format document support (PDF, DOCX, TXT, MD, PPTX, XLSX, XLS, images via LLM description)
-- 🚧 Audio/video transcription (not yet supported)
-- 🚧 Citation accuracy testing & refinement
-- 📅 PostgreSQL integration for persistent metadata (future)
-- 📅 Advanced re-ranking & filtering (future)
 
 ## References
 

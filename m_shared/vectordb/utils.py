@@ -223,9 +223,12 @@ def split_on_threshold(text: str, max_chars: int = 1024, overlap_pct: float = 0.
                 chunks.append(chunk.strip())
             break
 
-        # Find last whitespace to avoid breaking words
+        # Find last whitespace to avoid breaking words. Require it to be strictly
+        # past `start`; otherwise (e.g. a single token longer than max_chars that
+        # begins with a space) fall back to a hard cut at `end` so the loop always
+        # makes forward progress and no text is dropped.
         last_whitespace = text.rfind(" ", start, end)
-        chunk_end = last_whitespace if last_whitespace != -1 else end
+        chunk_end = last_whitespace if last_whitespace > start else end
 
         chunk = text[start:chunk_end].strip()
         if chunk:

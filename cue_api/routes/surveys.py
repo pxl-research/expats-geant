@@ -1,13 +1,15 @@
 """Cue API: survey import, retrieval, and response submission routes."""
 
+import asyncio
 import json
 import logging
 import os
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
 
-from cue_api.models import LiveApiImportRequest
+from cue_api.models import LiveApiImportRequest, SubmitCredentials, SubmitResponsesRequest
 from m_shared.adapters.registry import get_adapter
 from m_shared.models.response import Response as SurveyResponse
 from m_shared.utils.url_validation import validate_api_url, validate_datacenter_id
@@ -30,6 +32,29 @@ def _platform_error_detail(exc: RuntimeError) -> str:
     return f"The platform returned an error: {exc}"
 
 
+def _translate_to_platform_code(answer_value: Any, option_values: dict[str, str]) -> Any:
+    """Map internal option ids (e.g. ``opt_A1``) to platform answer codes
+    (e.g. ``A1``) before the adapter builds its platform-specific payload.
+
+    The HTML form submits ``option.id`` (because that's the natural html value
+    of a checkbox / radio), but LimeSurvey's SGQA sub-question suffix and
+    Qualtrics' choice code use ``option.value`` — the platform's own code,
+    stashed on the AnswerOption at import time. Without this translation the
+    upstream call silently drops the answer (the SGQA key never matches a
+    column, the QID choice code doesn't resolve).
+
+    Unknown values pass through unchanged so free-text and slider answers
+    are not mangled.
+    """
+    if not option_values:
+        return answer_value
+    if isinstance(answer_value, list):
+        return [option_values.get(item, item) for item in answer_value]
+    if isinstance(answer_value, str):
+        return option_values.get(answer_value, answer_value)
+    return answer_value
+
+
 def _build_responses_from_body(
     body: dict, question_meta: dict, session_id: str
 ) -> list[SurveyResponse]:
@@ -40,11 +65,12 @@ def _build_responses_from_body(
             continue
         question_id = field_key[2:] if field_key.startswith("q_") else field_key
         q_meta = question_meta.get(question_id, {})
+        translated = _translate_to_platform_code(answer_value, q_meta.get("_option_values", {}))
         responses.append(
             SurveyResponse(
                 id=str(uuid.uuid4()),
                 question_id=question_id,
-                answer_value=answer_value,
+                answer_value=translated,
                 session_id=session_id,
                 metadata={"ls_qid": q_meta["ls_qid"]} if "ls_qid" in q_meta else {},
             )
@@ -52,20 +78,39 @@ def _build_responses_from_body(
     return responses
 
 
-def _adapter_credentials(format: str) -> dict:
-    """Read platform credentials from environment variables."""
-    if format in ("lss", "limesurvey"):
-        return {
-            "api_url": os.getenv("LIMESURVEY_API_URL"),
-            "username": os.getenv("LIMESURVEY_USERNAME"),
-            "password": os.getenv("LIMESURVEY_PASSWORD"),
-        }
-    if format == "qsf":
-        return {
-            "api_token": os.getenv("QUALTRICS_API_TOKEN"),
-            "datacenter_id": os.getenv("QUALTRICS_DATACENTER_ID"),
-        }
-    return {}
+_CREDENTIAL_ENV: dict[str, tuple[tuple[str, str], ...]] = {
+    "lss": (
+        ("api_url", "LIMESURVEY_API_URL"),
+        ("username", "LIMESURVEY_USERNAME"),
+        ("password", "LIMESURVEY_PASSWORD"),
+    ),
+    "limesurvey": (
+        ("api_url", "LIMESURVEY_API_URL"),
+        ("username", "LIMESURVEY_USERNAME"),
+        ("password", "LIMESURVEY_PASSWORD"),
+    ),
+    "qsf": (
+        ("api_token", "QUALTRICS_API_TOKEN"),
+        ("datacenter_id", "QUALTRICS_DATACENTER_ID"),
+    ),
+}
+
+
+def _resolve_submit_credentials(
+    fmt: str, body_creds: SubmitCredentials | None
+) -> dict[str, str | None]:
+    """Resolve adapter credentials with per-key precedence: body → env → None.
+
+    Never logs or persists the returned values; the caller passes them
+    straight to the adapter constructor and discards them on return.
+    """
+    mapping = _CREDENTIAL_ENV.get(fmt)
+    if mapping is None:
+        return {}
+    return {
+        key: (getattr(body_creds, key, None) if body_creds else None) or os.getenv(env_var)
+        for key, env_var in mapping
+    }
 
 
 @router.post("/surveys/import", tags=["Surveys"])
@@ -139,7 +184,8 @@ async def import_survey_from_api(request: Request, body: LiveApiImportRequest):
 
     if body.format == "lss":
         if body.api_url:
-            validate_api_url(body.api_url)
+            # validate_api_url does a blocking DNS lookup; keep it off the event loop.
+            await asyncio.to_thread(validate_api_url, body.api_url)
         adapter_kwargs = {
             "api_url": body.api_url,
             "username": body.username,
@@ -216,15 +262,16 @@ async def get_adapter_capabilities(format: str):
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"No adapter for format '{format}'. Supported: qsf, lss, qti, sm.",
         )
-    caps = set(adapter.capabilities())
-    if "submit" in caps and not all(_adapter_credentials(format).values()):
-        caps.discard("submit")
-    return sorted(caps)
+    return sorted(adapter.capabilities())
 
 
 @router.post("/sessions/{session_id}/submit", tags=["Surveys"])
-async def submit_session_responses(request: Request, session_id: str):
-    """Submit survey responses to the originating platform."""
+async def submit_session_responses(request: Request, session_id: str, body: SubmitResponsesRequest):
+    """Submit survey responses to the originating platform.
+
+    Credentials are resolved with per-key precedence: request body → env vars
+    (`LIMESURVEY_*` / `QUALTRICS_*`) → None. Never logged, never persisted.
+    """
     session = request.state.session
     if session_id != session.session_id:
         raise HTTPException(
@@ -250,7 +297,30 @@ async def submit_session_responses(request: Request, session_id: str):
             detail="Survey has no format metadata — cannot determine submission adapter.",
         )
 
-    adapter_kwargs = _adapter_credentials(survey_format)
+    # Resolved credentials must never appear in logs.
+    adapter_kwargs = _resolve_submit_credentials(survey_format, body.credentials)
+    missing = [k for k, v in adapter_kwargs.items() if not v]
+    if adapter_kwargs and missing:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Missing required credentials for '{survey_format}': "
+                f"{', '.join(missing)}. Supply them in the request body or set "
+                "the corresponding environment variables."
+            ),
+        )
+
+    # Validate AFTER resolution so env-supplied values are guarded the same way
+    # body-supplied values are. Mirrors /surveys/import-from-api which validates
+    # api_url + datacenter_id regardless of where they came from.
+    resolved_api_url = adapter_kwargs.get("api_url")
+    if resolved_api_url:
+        # validate_api_url is blocking (DNS); offload like /surveys/import-from-api does.
+        await asyncio.to_thread(validate_api_url, resolved_api_url)
+    resolved_datacenter_id = adapter_kwargs.get("datacenter_id")
+    if resolved_datacenter_id:
+        validate_datacenter_id(resolved_datacenter_id)
+
     try:
         adapter = get_adapter(survey_format, **adapter_kwargs)
     except KeyError:
@@ -268,10 +338,18 @@ async def submit_session_responses(request: Request, session_id: str):
     question_meta: dict[str, dict] = {}
     for section in survey_data.get("sections", []):
         for q in section.get("questions", []):
-            question_meta[q["id"]] = q.get("metadata", {})
+            meta = dict(q.get("metadata", {}))
+            # Stash the option_id → platform_code map so _build_responses_from_body
+            # can translate the HTML form's option ids back to the codes the
+            # platform's submit API expects (SGQA suffix for LS, choice code for QSF).
+            meta["_option_values"] = {
+                opt["id"]: opt["value"]
+                for opt in q.get("answer_options", [])
+                if "id" in opt and opt.get("value") is not None
+            }
+            question_meta[q["id"]] = meta
 
-    body = await request.json()
-    responses = _build_responses_from_body(body, question_meta, session_id)
+    responses = _build_responses_from_body(body.responses, question_meta, session_id)
 
     platform_survey_id = survey_data.get("id", session_id)
     try:

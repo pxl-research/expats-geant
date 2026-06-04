@@ -240,6 +240,34 @@ class LiveApiImportRequest(BaseModel):
     datacenter_id: str | None = Field(default=None, max_length=50)
 
 
+class SubmitCredentials(BaseModel):
+    """Per-request platform credentials for response submission.
+
+    Never logged and never persisted: the endpoint uses them for the one
+    outbound platform call and discards them. The Cue API also accepts an
+    env-var fallback (LIMESURVEY_* / QUALTRICS_*) for shared-account
+    deployments — per-key precedence is request → env → None.
+    """
+
+    api_url: str | None = Field(default=None, max_length=500)
+    username: str | None = Field(default=None, max_length=200)
+    password: str | None = Field(default=None, max_length=200)
+    api_token: str | None = Field(default=None, max_length=500)
+    datacenter_id: str | None = Field(default=None, max_length=50)
+
+
+class SubmitResponsesRequest(BaseModel):
+    """Body for POST /sessions/{session_id}/submit.
+
+    ``responses`` is the question_id → answer map (single-string values for
+    text/single-choice/slider, list for multi-choice). ``credentials`` is
+    optional; when absent, the endpoint falls back to env vars.
+    """
+
+    responses: dict[str, str | list[str]] = Field(default_factory=dict)
+    credentials: SubmitCredentials | None = None
+
+
 class ReviewStateUpdate(BaseModel):
     """Review state for a single question."""
 

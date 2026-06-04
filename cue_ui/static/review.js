@@ -23,6 +23,43 @@ document.addEventListener("DOMContentLoaded", function () {
   reviewState.restoreAll();
 
   // ---------------------------------------------------------------
+  // Selection helpers (shared by Accept and Accept All)
+  //
+  // MC suggestions carry a list of option ids in data-selected-ids;
+  // single-choice and free-text fall back to selectedId / textarea.
+  // ---------------------------------------------------------------
+
+  function parseSelectedIds(block) {
+    var raw = block.dataset.selectedIds;
+    if (!raw) return null;
+    try {
+      var parsed = JSON.parse(raw);
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function applySelection(questionId, value, selectedId, selectedIds) {
+    var textarea = document.getElementById("input-" + questionId);
+    if (textarea) {
+      textarea.value = value;
+      return;
+    }
+    if (selectedIds) {
+      selectedIds.forEach(function (id) {
+        var cb = document.getElementById("opt-" + questionId + "-" + id);
+        if (cb) cb.checked = true;
+      });
+      return;
+    }
+    if (selectedId) {
+      var radio = document.getElementById("opt-" + questionId + "-" + selectedId);
+      if (radio) radio.checked = true;
+    }
+  }
+
+  // ---------------------------------------------------------------
   // Accept / Dismiss via event delegation
   // ---------------------------------------------------------------
 
@@ -33,18 +70,18 @@ document.addEventListener("DOMContentLoaded", function () {
       var questionId = block.dataset.questionId;
       var value = block.dataset.suggestion;
       var selectedId = block.dataset.selectedId;
+      var selectedIds = parseSelectedIds(block);
 
-      var textarea = document.getElementById("input-" + questionId);
-      if (textarea) {
-        textarea.value = value;
-      } else if (selectedId) {
-        var radio = document.getElementById("opt-" + questionId + "-" + selectedId);
-        if (radio) radio.checked = true;
-      }
+      applySelection(questionId, value, selectedId, selectedIds);
 
       block.style.border = "1px solid #16a34a";
       block.style.background = "#f0fdf4";
-      reviewState.save(questionId, { state: "accepted", value: value, selected_id: selectedId });
+      reviewState.save(questionId, {
+        state: "accepted",
+        value: value,
+        selected_id: selectedId,
+        selected_ids: selectedIds,
+      });
       return;
     }
 
@@ -129,18 +166,18 @@ document.addEventListener("DOMContentLoaded", function () {
         var questionId = block.dataset.questionId;
         var value = block.dataset.suggestion;
         var selectedId = block.dataset.selectedId;
+        var selectedIds = parseSelectedIds(block);
 
-        var textarea = document.getElementById("input-" + questionId);
-        if (textarea) {
-          textarea.value = value;
-        } else if (selectedId) {
-          var radio = document.getElementById("opt-" + questionId + "-" + selectedId);
-          if (radio) radio.checked = true;
-        }
+        applySelection(questionId, value, selectedId, selectedIds);
 
         block.style.border = "1px solid #16a34a";
         block.style.background = "#f0fdf4";
-        reviewState.save(questionId, { state: "accepted", value: value, selected_id: selectedId });
+        reviewState.save(questionId, {
+          state: "accepted",
+          value: value,
+          selected_id: selectedId,
+          selected_ids: selectedIds,
+        });
       });
     });
   }

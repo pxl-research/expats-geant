@@ -263,11 +263,29 @@ async def export_submit(
                 },
             )
     except APIError as exc:
+        # HTMX skips swaps on non-2xx responses, so the error partial would
+        # never render in-page. Return 200 with the rendered error fragment —
+        # the visible message in the UI IS the actionable outcome here. The
+        # underlying status_code is captured in the partial for completeness.
         return templates.TemplateResponse(
             request,
             "partials/export_result.html",
-            {"error": exc.detail},
-            status_code=exc.status_code,
+            {"error": exc.detail, "error_status": exc.status_code},
+            status_code=200,
+        )
+    except Exception:  # noqa: BLE001 — last-resort UI safety net
+        # Full detail is logged server-side; the user-visible message stays
+        # generic so internal context (hostnames, stack-adjacent strings) can't
+        # leak through this HTMX partial.
+        logger.exception("Unexpected error in export_submit for session %s", session_id)
+        return templates.TemplateResponse(
+            request,
+            "partials/export_result.html",
+            {
+                "error": "Unexpected error. Please try again or contact support.",
+                "error_status": 500,
+            },
+            status_code=200,
         )
 
 

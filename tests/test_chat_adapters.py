@@ -9,6 +9,7 @@ Covers:
 - All four adapters include "create" in capabilities()
 """
 
+import base64
 import json
 from unittest.mock import MagicMock, patch
 
@@ -205,6 +206,11 @@ class TestCapabilitiesIncludeCreate:
 
 
 class TestLimeSurveyCreateSurvey:
+    """LimeSurvey create_survey builds an LSS document and pushes it via the
+    RC2 ``import_survey`` method. The old multi-step ``add_survey``/``add_group``
+    /``add_question`` chain was removed when LimeSurvey 6 dropped ``add_question``
+    from RC2."""
+
     def _make_adapter(self):
         return LimeSurveyAdapter(
             api_url="http://lime.example.com/remotecontrol",
@@ -212,115 +218,48 @@ class TestLimeSurveyCreateSurvey:
             password="secret",
         )
 
-    def _make_rpc_results(self, sid=42, gid=10, qids=(100,)):
-        """Build a sequence of RPC return values for a single-section survey."""
-        # get_session_key, add_survey, add_group, add_question..., release_session_key
-        values = ["SESSION_KEY", sid, gid] + list(qids) + ["OK"]
-        it = iter(values)
-        return lambda method, params: next(it)
+    def _make_rpc_results(self, sid=42):
+        """Sequence: get_session_key → import_survey → release_session_key."""
+        values = iter(["SESSION_KEY", sid, "OK"])
+        return lambda method, params: next(values)
 
     def test_create_survey_returns_sid_as_string(self, open_ended_survey):
         adapter = self._make_adapter()
-        side_effect = self._make_rpc_results(sid=42, gid=10, qids=(100,))
-        with patch.object(adapter, "_rpc_call", side_effect=side_effect):
-            result = adapter.create_survey(open_ended_survey)
-        assert result == "42"
+        with patch.object(adapter, "_rpc_call", side_effect=self._make_rpc_results(sid=42)):
+            assert adapter.create_survey(open_ended_survey) == "42"
 
-    def test_create_survey_calls_get_session_key_first(self, open_ended_survey):
+    def test_create_survey_rpc_sequence(self, open_ended_survey):
         adapter = self._make_adapter()
         side_effect = self._make_rpc_results(sid=55)
         with patch.object(adapter, "_rpc_call", side_effect=side_effect) as mock_rpc:
             adapter.create_survey(open_ended_survey)
-        assert mock_rpc.call_args_list[0][0][0] == "get_session_key"
+        methods = [c[0][0] for c in mock_rpc.call_args_list]
+        assert methods == ["get_session_key", "import_survey", "release_session_key"]
 
-    def test_create_survey_calls_add_survey(self, open_ended_survey):
+    def test_import_survey_params_use_base64_lss(self, open_ended_survey):
+        """Verify import_survey is called with [session, base64(lss), "lss", title]."""
         adapter = self._make_adapter()
         side_effect = self._make_rpc_results()
         with patch.object(adapter, "_rpc_call", side_effect=side_effect) as mock_rpc:
             adapter.create_survey(open_ended_survey)
-        method_names = [c[0][0] for c in mock_rpc.call_args_list]
-        assert "add_survey" in method_names
+        import_call = next(c for c in mock_rpc.call_args_list if c[0][0] == "import_survey")
+        params = import_call[0][1]
+        assert params[0] == "SESSION_KEY"
+        assert params[2] == "lss"
+        assert params[3] == open_ended_survey.title
+        decoded_lss = base64.b64decode(params[1]).decode("utf-8")
+        assert "<document>" in decoded_lss
+        assert open_ended_survey.title in decoded_lss
 
-    def test_create_survey_calls_add_group(self, open_ended_survey):
+    def test_import_survey_rc2_error_raises_runtime_error(self, open_ended_survey):
         adapter = self._make_adapter()
-        side_effect = self._make_rpc_results()
-        with patch.object(adapter, "_rpc_call", side_effect=side_effect) as mock_rpc:
-            adapter.create_survey(open_ended_survey)
-        method_names = [c[0][0] for c in mock_rpc.call_args_list]
-        assert "add_group" in method_names
-
-    def test_create_survey_calls_add_question(self, open_ended_survey):
-        adapter = self._make_adapter()
-        side_effect = self._make_rpc_results()
-        with patch.object(adapter, "_rpc_call", side_effect=side_effect) as mock_rpc:
-            adapter.create_survey(open_ended_survey)
-        method_names = [c[0][0] for c in mock_rpc.call_args_list]
-        assert "add_question" in method_names
-
-    def test_create_survey_calls_release_session_key(self, open_ended_survey):
-        adapter = self._make_adapter()
-        side_effect = self._make_rpc_results()
-        with patch.object(adapter, "_rpc_call", side_effect=side_effect) as mock_rpc:
-            adapter.create_survey(open_ended_survey)
-        method_names = [c[0][0] for c in mock_rpc.call_args_list]
-        assert "release_session_key" in method_names
-
-    def test_create_survey_rpc_order(self, open_ended_survey):
-        adapter = self._make_adapter()
-        side_effect = self._make_rpc_results()
-        with patch.object(adapter, "_rpc_call", side_effect=side_effect) as mock_rpc:
-            adapter.create_survey(open_ended_survey)
-        method_names = [c[0][0] for c in mock_rpc.call_args_list]
-        # Order: get_session_key → add_survey → add_group → add_question → release
-        assert method_names.index("get_session_key") < method_names.index("add_survey")
-        assert method_names.index("add_survey") < method_names.index("add_group")
-        assert method_names.index("add_group") < method_names.index("add_question")
-        assert method_names.index("add_question") < method_names.index("release_session_key")
-
-    def test_create_survey_multi_question_calls_add_question_per_question(
-        self, multi_question_survey
-    ):
-        adapter = self._make_adapter()
-        # 2 sections: 1 group + 2 questions, 1 group + 1 question
-        values = iter(["SK", 99, 1, 10, 11, 2, 20, "OK"])
-        with patch.object(adapter, "_rpc_call", side_effect=lambda m, p: next(values)) as mock_rpc:
-            result = adapter.create_survey(multi_question_survey)
-        method_names = [c[0][0] for c in mock_rpc.call_args_list]
-        assert method_names.count("add_question") == 3  # q1, q2, q3
-        assert method_names.count("add_group") == 2  # two sections
-        assert result == "99"
-
-    def test_create_survey_add_survey_params_include_title(self, open_ended_survey):
-        adapter = self._make_adapter()
-        side_effect = self._make_rpc_results()
-        with patch.object(adapter, "_rpc_call", side_effect=side_effect) as mock_rpc:
-            adapter.create_survey(open_ended_survey)
-        add_survey_call = next(c for c in mock_rpc.call_args_list if c[0][0] == "add_survey")
-        params = add_survey_call[0][1]
-        assert open_ended_survey.title in params
-
-    def test_add_survey_rc2_error_raises_runtime_error(self, open_ended_survey):
-        adapter = self._make_adapter()
-        values = iter(["SK", {"status": "Survey creation failed"}, "OK"])
+        values = iter(["SK", {"status": "Invalid LSS"}, "OK"])
         with patch.object(adapter, "_rpc_call", side_effect=lambda m, p: next(values)):
-            with pytest.raises(RuntimeError, match="add_survey failed"):
-                adapter.create_survey(open_ended_survey)
-
-    def test_add_group_rc2_error_raises_runtime_error(self, open_ended_survey):
-        adapter = self._make_adapter()
-        values = iter(["SK", 42, {"status": "Group creation failed"}, "OK"])
-        with patch.object(adapter, "_rpc_call", side_effect=lambda m, p: next(values)):
-            with pytest.raises(RuntimeError, match="add_group failed"):
-                adapter.create_survey(open_ended_survey)
-
-    def test_add_question_rc2_error_raises_runtime_error(self, open_ended_survey):
-        adapter = self._make_adapter()
-        values = iter(["SK", 42, 10, {"status": "Question creation failed"}, "OK"])
-        with patch.object(adapter, "_rpc_call", side_effect=lambda m, p: next(values)):
-            with pytest.raises(RuntimeError, match="add_question failed"):
+            with pytest.raises(RuntimeError, match="import_survey failed"):
                 adapter.create_survey(open_ended_survey)
 
     def test_release_called_even_on_error(self, open_ended_survey):
+        """The session key is released even when import_survey fails."""
         adapter = self._make_adapter()
         values = iter(["SK", {"status": "Error"}, "OK"])
         with patch.object(adapter, "_rpc_call", side_effect=lambda m, p: next(values)) as mock_rpc:
@@ -329,33 +268,16 @@ class TestLimeSurveyCreateSurvey:
         release_calls = [c for c in mock_rpc.call_args_list if c[0][0] == "release_session_key"]
         assert len(release_calls) == 1
 
-    def test_missing_api_url_raises_value_error(self, open_ended_survey):
-        adapter = LimeSurveyAdapter(username="admin", password="secret")
-        with pytest.raises(ValueError, match="must be set"):
-            adapter.create_survey(open_ended_survey)
-
-    def test_missing_username_raises_value_error(self, open_ended_survey):
-        adapter = LimeSurveyAdapter(api_url="http://lime.example.com", password="secret")
-        with pytest.raises(ValueError, match="must be set"):
-            adapter.create_survey(open_ended_survey)
-
-    def test_missing_password_raises_value_error(self, open_ended_survey):
-        adapter = LimeSurveyAdapter(api_url="http://lime.example.com", username="admin")
-        with pytest.raises(ValueError, match="must be set"):
-            adapter.create_survey(open_ended_survey)
-
-    def test_no_credentials_raises_value_error(self, open_ended_survey):
-        adapter = LimeSurveyAdapter()
-        with pytest.raises(ValueError):
-            adapter.create_survey(open_ended_survey)
-
-    def test_different_survey_ids_returned_correctly(self, open_ended_survey):
-        adapter = self._make_adapter()
-        for expected_sid in (1, 100, 99999):
-            values = iter(["SK", expected_sid, 1, 1, "OK"])
-            with patch.object(adapter, "_rpc_call", side_effect=lambda m, p: next(values)):
-                result = adapter.create_survey(open_ended_survey)
-            assert result == str(expected_sid)
+    def test_missing_credentials_raises_value_error(self, open_ended_survey):
+        """Any missing credential field surfaces as ValueError, not as a network call."""
+        for adapter in (
+            LimeSurveyAdapter(username="admin", password="secret"),
+            LimeSurveyAdapter(api_url="http://lime.example.com", password="secret"),
+            LimeSurveyAdapter(api_url="http://lime.example.com", username="admin"),
+            LimeSurveyAdapter(),
+        ):
+            with pytest.raises(ValueError, match="must be set"):
+                adapter.create_survey(open_ended_survey)
 
 
 # ---------------------------------------------------------------------------

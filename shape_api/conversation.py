@@ -223,4 +223,11 @@ def execute_chat_turn(
         if notes:
             text = f"{text}\n\n{notes}" if text else notes
 
+    if survey_updated and not text:
+        # Some models (notably Gemini after multi-step tool use) terminate the
+        # final assistant turn with finish_reason="stop" and no content once they
+        # consider the task done. Without a fallback the user sees the survey
+        # change happen but gets an empty chat bubble.
+        text = "Done."
+
     return text, survey_updated

@@ -363,6 +363,7 @@ All endpoints except `/`, `/health`, `/privacy`, `/auth/token`, `/auth/login`, a
 | `/review-state` | GET | Load full review state map for the session |
 | `/cached-suggestions` | GET | Retrieve cached suggestion results for instant page reload |
 | `/answer-report/download` | GET | Download answer report as JSON (includes review state when available) |
+| `/sessions/{id}/submit` | POST | Submit reviewed responses to the originating platform (LimeSurvey, Qualtrics) using per-request or env-var credentials |
 | `/session/stats` | GET | Session TTL, document count, isolation info |
 | `/audit-report` | GET | Full session audit trail (JSON or plaintext) |
 | `/session` | DELETE | Delete session and all associated data immediately |
@@ -537,7 +538,9 @@ alongside `web_ingest_enabled` (the deployment-wide operator flag).
 
 Submit one or more questions in a single request. Use a flat `items` list for a single question, or group related questions into `sections` to share context. Questions in the same section share LLM context, improving suggestion quality.
 
-> **Migrating from the old `POST /suggest` endpoint?** Pass a flat `items` list with one item — the response is in `responses[0]`.
+> **Note:** the previous single-question `POST /suggest` endpoint was removed.
+> Pass a flat `items` list with one item to `/suggest/batch` — the response is
+> in `responses[0]`.
 
 ```bash
 POST /suggest/batch
@@ -787,6 +790,55 @@ entries are enriched with `review_state` and `final_value` fields:
 
 Returns 404 if no suggestions have been generated yet. The `review_state` and
 `final_value` fields are only present for questions with a review decision.
+
+#### Submit Responses to Originating Platform
+
+For surveys imported via `POST /surveys/import-from-api` (LimeSurvey, Qualtrics),
+the reviewed responses can be pushed back to the originating platform.
+
+```bash
+POST /sessions/{session_id}/submit
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "responses": {
+    "q_1": "answer text",
+    "q_2": ["opt_A1", "opt_A3"]
+  },
+  "credentials": {
+    "api_url": "https://survey.example.com/index.php/admin/remotecontrol",
+    "username": "respondent",
+    "password": "<password>"
+  }
+}
+```
+
+**Credentials precedence.** Per-key resolution: request body → environment
+variable (`LIMESURVEY_*` / `QUALTRICS_*`) → `null`. A missing required key is a
+hard 422; credentials are never persisted or logged. The optional
+`credentials` object is shaped as:
+
+| Field | Used by | Notes |
+|---|---|---|
+| `api_url` | LimeSurvey | Validated as a safe URL (rejects internal addresses in `ENVIRONMENT=production`). |
+| `username` | LimeSurvey | |
+| `password` | LimeSurvey | |
+| `api_token` | Qualtrics | |
+| `datacenter_id` | Qualtrics | Validated as alphanumeric (e.g. `iad1`). |
+
+Validation runs after resolution, so env-supplied values are guarded the same
+way body-supplied ones are.
+
+**Response shape.** 200 on success; 422 when credentials are missing or the
+adapter has no `submit` capability; 502 when the platform call itself fails
+(auth, network, inactive survey). Errors are sanitised — no credential value
+appears in the response body or the logs.
+
+**Form-value translation.** The body's `q_<id>` keys carry the HTML form's
+`option.id` values (e.g. `opt_A1`). The endpoint translates those to the
+platform's own answer code (`AnswerOption.value`, e.g. `A1`) before calling
+the adapter. Free-text and slider answers pass through unchanged.
 
 #### Get Session Statistics
 

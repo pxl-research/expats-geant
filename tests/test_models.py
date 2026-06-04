@@ -1,6 +1,6 @@
 """Unit tests for core domain models."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from pydantic import ValidationError
@@ -125,6 +125,19 @@ class TestQuestion:
                 answer_options=[],  # Invalid: no options
             )
         assert "requires at least one answer option" in str(exc_info.value)
+
+    def test_choice_question_rejects_omitted_answer_options_key(self):
+        """LLM tool calls often omit ``answer_options`` entirely; the default-
+        factory path must still fire the validator, otherwise an invalid
+        Question gets persisted and the next ``Survey(**data)`` load 500s."""
+        for q_type in (
+            QuestionType.MULTIPLE_CHOICE,
+            QuestionType.SINGLE_CHOICE,
+            QuestionType.RANKING,
+        ):
+            with pytest.raises(ValidationError) as exc_info:
+                Question.model_validate({"id": "q_bad", "text": "Choose one", "type": q_type.value})
+            assert "requires at least one answer option" in str(exc_info.value)
 
     def test_slider_question_requires_min_max(self):
         """Test that slider questions require min/max values."""
@@ -305,7 +318,7 @@ class TestSession:
         session = Session(
             session_id="sess_abc123",
             user_id="user_456",
-            expires_at=datetime.utcnow() + timedelta(hours=24),
+            expires_at=datetime.now(UTC) + timedelta(hours=24),
         )
         assert session.session_id == "sess_abc123"
         assert session.user_id == "user_456"
@@ -318,7 +331,7 @@ class TestSession:
         session = Session(
             session_id="sess_expired",
             user_id="user_789",
-            expires_at=datetime.utcnow() - timedelta(hours=1),
+            expires_at=datetime.now(UTC) - timedelta(hours=1),
         )
         assert session.is_expired()
 
@@ -327,7 +340,7 @@ class TestSession:
         session = Session(
             session_id="sess_active",
             user_id="user_101",
-            expires_at=datetime.utcnow() + timedelta(hours=12),
+            expires_at=datetime.now(UTC) + timedelta(hours=12),
         )
         remaining = session.time_remaining()
         assert remaining.total_seconds() > 0
@@ -344,6 +357,34 @@ class TestSession:
         # Should be set to ~48 hours from now
         time_diff = (session.expires_at - session.created_at).total_seconds()
         assert abs(time_diff - (48 * 3600)) < 10  # Within 10 seconds
+
+    def test_naive_datetime_is_assumed_utc(self):
+        """Naive datetimes are treated as UTC (legacy metadata.json compat)."""
+        naive_created = datetime(2026, 1, 1, 12, 0, 0)
+        session = Session(
+            session_id="sess_naive",
+            user_id="user_naive",
+            created_at=naive_created,
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
+        )
+        assert session.created_at.tzinfo is UTC
+        assert session.created_at.hour == 12
+
+    def test_aware_non_utc_is_normalised_to_utc(self):
+        """ISO strings with explicit non-UTC offsets are converted to UTC."""
+        from datetime import timezone
+
+        # 12:00 in UTC+02:00 == 10:00 UTC
+        cet = timezone(timedelta(hours=2))
+        aware_created = datetime(2026, 1, 1, 12, 0, 0, tzinfo=cet)
+        session = Session(
+            session_id="sess_cet",
+            user_id="user_cet",
+            created_at=aware_created,
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
+        )
+        assert session.created_at.utcoffset() == timedelta(0)
+        assert session.created_at.hour == 10
 
 
 class TestModelIntegration:

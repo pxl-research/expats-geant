@@ -1,6 +1,6 @@
 """Citation model for tracking sources in answer suggestions."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -35,7 +35,8 @@ class Citation(BaseModel):
         None, description="Position as percentage through document (0.0-1.0)"
     )
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="When this citation was created"
+        default_factory=lambda: datetime.now(UTC),
+        description="When this citation was created",
     )
     highlights: list[str] = Field(
         default_factory=list, description="Highlighted excerpts from the source"

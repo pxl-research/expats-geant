@@ -1,6 +1,6 @@
 """Tests for ChromaDocumentStore.query_with_filter() and RAGPipeline filtered retrieval."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -84,7 +84,7 @@ class TestQueryWithFilterTimestamp:
 
     def test_time_filter_past_cutoff_returns_results(self, store):
         """Filter with a past cutoff (Unix ts) returns recently ingested documents."""
-        past_ts = (datetime.utcnow() - timedelta(hours=1)).timestamp()
+        past_ts = (datetime.now(UTC) - timedelta(hours=1)).timestamp()
         results = store.query_with_filter(
             query_text="document",
             filters={"ingested_at": {"$gte": past_ts}},
@@ -94,7 +94,7 @@ class TestQueryWithFilterTimestamp:
 
     def test_time_filter_future_cutoff_returns_empty(self, store):
         """Filter requiring ingestion after a future timestamp returns nothing."""
-        future_ts = (datetime.utcnow() + timedelta(hours=1)).timestamp()
+        future_ts = (datetime.now(UTC) + timedelta(hours=1)).timestamp()
         results = store.query_with_filter(
             query_text="document",
             filters={"ingested_at": {"$gte": future_ts}},

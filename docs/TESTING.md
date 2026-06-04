@@ -18,7 +18,8 @@ pytest tests/ --cov=. --cov-report=html --cov-report=term-missing
 open htmlcov/index.html
 ```
 
-Coverage threshold: `--cov-fail-under=80` (configured in `pyproject.toml` / `setup.cfg`).
+Coverage threshold: `--cov-fail-under=85` (configured in `pytest.ini`). The
+full suite is ~1290 tests across 55 files and runs in roughly 60 seconds.
 
 **Note**: Running a single test file in isolation will fail the coverage threshold check. This is expected — the threshold is enforced against the full suite.
 
@@ -31,7 +32,6 @@ Coverage threshold: `--cov-fail-under=80` (configured in `pyproject.toml` / `set
 | `test_session_api.py` | Cue API endpoints (upload, batch suggest, session stats, delete, session-less token handling) |
 | `test_batch_suggest.py` | Batch suggestion endpoint with sections and flat item lists |
 | `test_rag_pipeline.py` | RAG pipeline: document ingestion, chunking, retrieval |
-| `test_rag_integration.py` | End-to-end RAG with ChromaDB (integration) |
 | `test_rag_tools.py` | RAG utility functions |
 | `test_document_ingestion.py` | Document parsing (PDF, DOCX, TXT, MD) |
 | `test_chunking.py` | Text chunking strategies |
@@ -139,7 +139,15 @@ python tests/scripts/e2e_chat_conversational_spot_check.py --base-url $CHAT_URL
 
 # Shape: LLM-driven reorder — move_question / move_section (requires an LLM key, 16 checks)
 python tests/scripts/e2e_reorder_spot_check.py --base-url $CHAT_URL
+
+# Multi-tenant: per-tenant JWT issuance, Keycloak group mapping, hot-reload (23 checks)
+python tests/scripts/e2e_tenant_routing_spot_check.py --base-url $BASE_URL
 ```
+
+The spot-checks that hit a live LLM (Cue `/suggest/*`, Shape `/chat/*`) may
+report 1-2 probabilistic failures per run when the model legitimately
+returns no answer for a question outside the loaded documents' scope. This
+is expected behaviour, not a regression.
 
 ### 4. Curl smoke tests
 
@@ -187,4 +195,4 @@ open htmlcov/index.html
 pytest tests/ --cov=. --cov-report=xml
 ```
 
-The coverage threshold is 80% across the full codebase. Key modules with high coverage: `m_shared/`, `cue_api/`, `shape_api/`.
+The coverage threshold is 85% across the full codebase. Key modules with high coverage: `m_shared/`, `cue_api/`, `shape_api/`.

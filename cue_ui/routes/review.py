@@ -260,6 +260,7 @@ async def review_page(request: Request, session_id: str):
         {
             "session_id": session_id,
             "survey": survey,
+            "survey_format": survey_format,
             "can_submit": can_submit,
             "form_values": {},
             "documents": documents,
@@ -511,17 +512,33 @@ async def audit_report_page(request: Request, session_id: str):
     )
 
 
+_CRED_FIELDS = {"api_url", "username", "password", "api_token", "datacenter_id"}
+_RETRY_ECHO_FIELDS = {"api_url", "username", "datacenter_id"}
+
+
 @router.post("/session/{session_id}/submit")
 async def submit_responses(request: Request, session_id: str):
-    """Collect form data, call submit API, redirect to submitted.html or show error."""
+    """Collect form data, call submit API, redirect to submitted.html or show error.
+
+    Form fields are partitioned: question answers (``q_*``) go to the API as
+    ``responses``; named credential fields (``api_url`` etc.) go as
+    ``credentials``. Password and api_token are never echoed back on retry —
+    the browser's autofill handles re-population.
+    """
     token = get_token(request)
     if not token:
         return RedirectResponse(url="/auth/login", status_code=302)
 
     form = await request.form()
     responses: dict[str, str | list[str]] = {}
+    credentials: dict[str, str] = {}
     for k, v in form.multi_items():
         if k.startswith("_"):
+            continue
+        if k in _CRED_FIELDS:
+            value = str(v).strip()
+            if value:
+                credentials[k] = value
             continue
         if k in responses:
             existing = responses[k]
@@ -533,21 +550,31 @@ async def submit_responses(request: Request, session_id: str):
             responses[k] = str(v)
 
     try:
-        await api_client.submit_responses(token=token, session_id=session_id, responses=responses)
+        await api_client.submit_responses(
+            token=token,
+            session_id=session_id,
+            responses=responses,
+            credentials=credentials or None,
+        )
     except APIError as exc:
         try:
             survey = await api_client.get_survey(token=token, survey_id=session_id)
         except APIError:
             survey = {}
+        form_values: dict[str, str | list[str]] = dict(responses)
+        for k in _RETRY_ECHO_FIELDS:
+            if k in credentials:
+                form_values[k] = credentials[k]
         return templates.TemplateResponse(
             request,
             "survey.html",
             {
                 "session_id": session_id,
                 "survey": survey,
+                "survey_format": survey.get("metadata", {}).get("format", ""),
                 "can_submit": True,
                 "submit_error": exc.detail,
-                "form_values": dict(responses),
+                "form_values": form_values,
             },
             status_code=exc.status_code,
         )

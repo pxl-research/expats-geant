@@ -158,6 +158,20 @@ class TestSessionMiddleware:
         assert response.status_code == 500
         assert "session error" in response.json()["detail"].lower()
 
+    def test_malformed_session_id_claim_returns_401(self, client):
+        """A JWT carrying a path-traversal session_id should produce a 401,
+        not a 500 (the SessionManager guard raises ValueError; the middleware
+        must catch it at the auth boundary)."""
+        bad_token = create_token(
+            user_id="test_user_123",
+            session_id="../evil",
+            org="test_org",
+            roles=["respondent"],
+        )
+        response = client.get("/session/stats", headers={"Authorization": f"Bearer {bad_token}"})
+        assert response.status_code == 401
+        assert "session" in response.json()["detail"].lower()
+
 
 class TestSessionEndpoints:
     """Tests for session management endpoints."""
@@ -905,7 +919,7 @@ class TestSubmitEndpointErrors:
         response = submit_client.post(
             "/sessions/wrong_session_id/submit",
             headers={"Authorization": f"Bearer {valid_token}"},
-            json={},
+            json={"responses": {}},
         )
         assert response.status_code == 403
 
@@ -915,7 +929,7 @@ class TestSubmitEndpointErrors:
         response = submit_client.post(
             f"/sessions/{session.session_id}/submit",
             headers={"Authorization": f"Bearer {token}"},
-            json={},
+            json={"responses": {}},
         )
         assert response.status_code == 404
 
@@ -929,7 +943,7 @@ class TestSubmitEndpointErrors:
         response = submit_client.post(
             f"/sessions/{session.session_id}/submit",
             headers={"Authorization": f"Bearer {token}"},
-            json={},
+            json={"responses": {}},
         )
         assert response.status_code == 422
 
@@ -943,7 +957,7 @@ class TestSubmitEndpointErrors:
         response = submit_client.post(
             f"/sessions/{session.session_id}/submit",
             headers={"Authorization": f"Bearer {token}"},
-            json={},
+            json={"responses": {}},
         )
         assert response.status_code == 422
 
@@ -959,7 +973,7 @@ class TestSubmitEndpointErrors:
         response = submit_client.post(
             f"/sessions/{session.session_id}/submit",
             headers={"Authorization": f"Bearer {token}"},
-            json={},
+            json={"responses": {}},
         )
         assert response.status_code == 422
 
@@ -980,6 +994,268 @@ class TestSubmitEndpointErrors:
             response = submit_client.post(
                 f"/sessions/{session.session_id}/submit",
                 headers={"Authorization": f"Bearer {token}"},
-                json={"q_1": "answer"},
+                json={"responses": {"q_1": "answer"}},
             )
         assert response.status_code == 502
+
+
+class TestSubmitCredentialResolution:
+    """Per-request credentials + env-var fallback on POST /sessions/{id}/submit."""
+
+    @pytest.fixture
+    def submit_client(self, app):
+        return TestClient(app, raise_server_exceptions=False)
+
+    @pytest.fixture
+    def token_and_session(self, valid_token, session_manager):
+        session = session_manager.create_session(
+            user_id="test_user_123", explicit_session_id="test_session_456"
+        )
+        return valid_token, session
+
+    @pytest.fixture
+    def lss_survey_path(self, session_manager, token_and_session):
+        import json as _json
+
+        _, session = token_and_session
+        path = session_manager._get_session_path(session.session_id) / "survey.json"
+        path.write_text(_json.dumps({"id": "42", "metadata": {"format": "lss"}}))
+        return path
+
+    @pytest.fixture
+    def clear_ls_env(self, monkeypatch):
+        for var in ("LIMESURVEY_API_URL", "LIMESURVEY_USERNAME", "LIMESURVEY_PASSWORD"):
+            monkeypatch.delenv(var, raising=False)
+
+    def test_submit_uses_body_credentials(
+        self, submit_client, token_and_session, lss_survey_path, clear_ls_env
+    ):
+        """Credentials in body are forwarded to the adapter constructor."""
+        from unittest.mock import MagicMock, patch
+
+        _ = lss_survey_path
+        token, session = token_and_session
+        mock_adapter = MagicMock()
+        mock_adapter.capabilities.return_value = ["import", "export", "submit"]
+        mock_factory = MagicMock(return_value=mock_adapter)
+        with patch("cue_api.routes.surveys.get_adapter", mock_factory):
+            response = submit_client.post(
+                f"/sessions/{session.session_id}/submit",
+                headers={"Authorization": f"Bearer {token}"},
+                json={
+                    "responses": {"q_1": "answer"},
+                    "credentials": {
+                        "api_url": "https://survey.example.com/admin/remotecontrol",
+                        "username": "user",
+                        "password": "pass",
+                    },
+                },
+            )
+        assert response.status_code == 200
+        mock_factory.assert_called_once_with(
+            "lss",
+            api_url="https://survey.example.com/admin/remotecontrol",
+            username="user",
+            password="pass",
+        )
+
+    def test_submit_falls_back_to_env_credentials(
+        self, submit_client, token_and_session, lss_survey_path, monkeypatch
+    ):
+        """No body credentials + env vars set → env vars are used."""
+        from unittest.mock import MagicMock, patch
+
+        _ = lss_survey_path
+        token, session = token_and_session
+        monkeypatch.setenv("LIMESURVEY_API_URL", "https://env.example.com/admin/remotecontrol")
+        monkeypatch.setenv("LIMESURVEY_USERNAME", "envuser")
+        monkeypatch.setenv("LIMESURVEY_PASSWORD", "envpass")
+        mock_adapter = MagicMock()
+        mock_adapter.capabilities.return_value = ["import", "export", "submit"]
+        mock_factory = MagicMock(return_value=mock_adapter)
+        with patch("cue_api.routes.surveys.get_adapter", mock_factory):
+            response = submit_client.post(
+                f"/sessions/{session.session_id}/submit",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"responses": {"q_1": "answer"}},
+            )
+        assert response.status_code == 200
+        mock_factory.assert_called_once_with(
+            "lss",
+            api_url="https://env.example.com/admin/remotecontrol",
+            username="envuser",
+            password="envpass",
+        )
+
+    def test_submit_missing_credentials_returns_422(
+        self, submit_client, token_and_session, lss_survey_path, clear_ls_env
+    ):
+        """Empty body credentials + no env vars → 422 listing the missing fields."""
+        _ = lss_survey_path
+        token, session = token_and_session
+        response = submit_client.post(
+            f"/sessions/{session.session_id}/submit",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"responses": {"q_1": "answer"}},
+        )
+        assert response.status_code == 422
+        detail = response.json()["detail"]
+        assert "api_url" in detail
+        assert "username" in detail
+        assert "password" in detail
+        # The error message must not leak any caller-supplied secret value.
+        assert "pass" not in detail.replace("password", "")
+
+    def test_capabilities_reports_submit_regardless_of_env(
+        self, submit_client, valid_token, clear_ls_env
+    ):
+        """Capability endpoint now reflects adapter implementation, not env state."""
+        response = submit_client.get(
+            "/adapters/lss/capabilities",
+            headers={"Authorization": f"Bearer {valid_token}"},
+        )
+        assert response.status_code == 200
+        assert "submit" in response.json()
+
+    def test_submit_validates_api_url_in_production(
+        self,
+        submit_client,
+        token_and_session,
+        lss_survey_path,
+        clear_ls_env,
+        monkeypatch,
+    ):
+        """Unsafe api_url (http to internal address) is rejected in production."""
+        _ = lss_survey_path
+        token, session = token_and_session
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        response = submit_client.post(
+            f"/sessions/{session.session_id}/submit",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "responses": {"q_1": "answer"},
+                "credentials": {
+                    "api_url": "http://localhost:7080/admin/remotecontrol",
+                    "username": "user",
+                    "password": "pass",
+                },
+            },
+        )
+        assert response.status_code == 400
+
+    def test_submit_validates_env_api_url_in_production(
+        self,
+        submit_client,
+        token_and_session,
+        lss_survey_path,
+        monkeypatch,
+    ):
+        """Env-supplied api_url is validated too (parity with body path)."""
+        _ = lss_survey_path
+        token, session = token_and_session
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        monkeypatch.setenv("LIMESURVEY_API_URL", "http://localhost:7080/admin/remotecontrol")
+        monkeypatch.setenv("LIMESURVEY_USERNAME", "envuser")
+        monkeypatch.setenv("LIMESURVEY_PASSWORD", "envpass")
+        response = submit_client.post(
+            f"/sessions/{session.session_id}/submit",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"responses": {"q_1": "answer"}},
+        )
+        assert response.status_code == 400
+
+    def test_submit_validates_datacenter_id(
+        self,
+        submit_client,
+        token_and_session,
+        session_manager,
+        monkeypatch,
+    ):
+        """Qualtrics datacenter_id must be alphanumeric, regardless of source."""
+        import json as _json
+
+        token, session = token_and_session
+        path = session_manager._get_session_path(session.session_id) / "survey.json"
+        path.write_text(_json.dumps({"id": "SV_x", "metadata": {"format": "qsf"}}))
+        for v in ("QUALTRICS_API_TOKEN", "QUALTRICS_DATACENTER_ID"):
+            monkeypatch.delenv(v, raising=False)
+        response = submit_client.post(
+            f"/sessions/{session.session_id}/submit",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "responses": {"q_1": "answer"},
+                "credentials": {
+                    "api_token": "tok",
+                    "datacenter_id": "iad1; DROP TABLE",
+                },
+            },
+        )
+        assert response.status_code == 400
+        assert "datacenter_id" in response.json()["detail"]
+
+
+class TestPlatformCodeTranslation:
+    """Submit-time translation from internal option ids to platform answer codes.
+
+    The HTML form sends ``option.id`` (e.g. ``opt_A1``) because that's the
+    natural HTML value of a checkbox; LimeSurvey's SGQA suffix and Qualtrics'
+    choice code use ``option.value`` (e.g. ``A1``). Without translation the
+    upstream call silently drops the answer — the row lands with NULL values.
+    """
+
+    def test_translate_list_maps_each_item(self):
+        from cue_api.routes.surveys import _translate_to_platform_code
+
+        result = _translate_to_platform_code(
+            ["opt_A1", "opt_A3"], {"opt_A1": "A1", "opt_A2": "A2", "opt_A3": "A3"}
+        )
+        assert result == ["A1", "A3"]
+
+    def test_translate_scalar_string_maps_known_id(self):
+        from cue_api.routes.surveys import _translate_to_platform_code
+
+        result = _translate_to_platform_code("opt_A1", {"opt_A1": "A1"})
+        assert result == "A1"
+
+    def test_translate_passes_through_unknown_values(self):
+        """Free-text answers and other unmappable strings must not be mangled."""
+        from cue_api.routes.surveys import _translate_to_platform_code
+
+        result = _translate_to_platform_code("My free text answer", {"opt_A1": "A1"})
+        assert result == "My free text answer"
+
+    def test_translate_no_options_returns_unchanged(self):
+        """Open-ended and slider questions have an empty option map."""
+        from cue_api.routes.surveys import _translate_to_platform_code
+
+        assert _translate_to_platform_code("anything", {}) == "anything"
+        assert _translate_to_platform_code(["a", "b"], {}) == ["a", "b"]
+        assert _translate_to_platform_code(42, {}) == 42
+
+    def test_translate_partial_map_keeps_unknown_items(self):
+        """A list with one known and one unknown item passes the unknown
+        through verbatim — the adapter sees a best-effort answer rather than
+        a silently-dropped one."""
+        from cue_api.routes.surveys import _translate_to_platform_code
+
+        result = _translate_to_platform_code(["opt_A1", "freeform"], {"opt_A1": "A1"})
+        assert result == ["A1", "freeform"]
+
+    def test_build_responses_translates_via_option_values_meta(self):
+        """End-to-end through _build_responses_from_body: the q_<id> body keys
+        become Response objects whose answer_value is the platform code."""
+        from cue_api.routes.surveys import _build_responses_from_body
+
+        question_meta = {
+            "q_5001": {
+                "ls_qid": "5001",
+                "_option_values": {"opt_A1": "A1", "opt_A2": "A2", "opt_A3": "A3"},
+            },
+            "q_text": {"_option_values": {}},
+        }
+        body = {"q_q_5001": ["opt_A1", "opt_A3"], "q_q_text": "Hello world"}
+        responses = _build_responses_from_body(body, question_meta, "sess-xyz")
+        by_qid = {r.question_id: r for r in responses}
+        assert by_qid["q_5001"].answer_value == ["A1", "A3"]
+        assert by_qid["q_5001"].metadata["ls_qid"] == "5001"
+        assert by_qid["q_text"].answer_value == "Hello world"

@@ -141,6 +141,19 @@ class SessionMiddleware(BaseHTTPMiddleware):
                     ttl_hours=self.ttl_hours,
                     explicit_session_id=session_id,
                 )
+        except ValueError:
+            # Malformed session_id claim (rejected by the path-traversal guard).
+            # Treat as an auth failure rather than a server error.
+            logger.warning(
+                "Rejected malformed session_id claim on %s %s",
+                request.method,
+                request.url.path,
+            )
+            return JSONResponse(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                content={"detail": "Invalid session identifier in token"},
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         except Exception as e:
             logger.error(
                 "Session management error on %s %s: %s", request.method, request.url.path, e
