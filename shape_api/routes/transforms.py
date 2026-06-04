@@ -100,7 +100,8 @@ async def create_survey_endpoint(body: CreateRequest):
 
     if credentials_present and "create" in adapter.capabilities():
         try:
-            content = adapter.create_survey(survey)
+            # adapter.create_survey is blocking (requests) — offload like _get_adapter.
+            content = await asyncio.to_thread(adapter.create_survey, survey)
             created_via = "api" if "api_create" in adapter.capabilities() else "file_export"
         except NotImplementedError:
             content = _safe_export(adapter, survey)

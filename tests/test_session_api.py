@@ -1143,6 +1143,56 @@ class TestSubmitCredentialResolution:
         )
         assert response.status_code == 400
 
+    def test_submit_validates_env_api_url_in_production(
+        self,
+        submit_client,
+        token_and_session,
+        lss_survey_path,
+        monkeypatch,
+    ):
+        """Env-supplied api_url is validated too (parity with body path)."""
+        _ = lss_survey_path
+        token, session = token_and_session
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        monkeypatch.setenv("LIMESURVEY_API_URL", "http://localhost:7080/admin/remotecontrol")
+        monkeypatch.setenv("LIMESURVEY_USERNAME", "envuser")
+        monkeypatch.setenv("LIMESURVEY_PASSWORD", "envpass")
+        response = submit_client.post(
+            f"/sessions/{session.session_id}/submit",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"responses": {"q_1": "answer"}},
+        )
+        assert response.status_code == 400
+
+    def test_submit_validates_datacenter_id(
+        self,
+        submit_client,
+        token_and_session,
+        session_manager,
+        monkeypatch,
+    ):
+        """Qualtrics datacenter_id must be alphanumeric, regardless of source."""
+        import json as _json
+
+        token, session = token_and_session
+        path = session_manager._get_session_path(session.session_id) / "survey.json"
+        path.write_text(_json.dumps({"id": "SV_x", "metadata": {"format": "qsf"}}))
+        for v in ("QUALTRICS_API_TOKEN", "QUALTRICS_DATACENTER_ID"):
+            monkeypatch.delenv(v, raising=False)
+        response = submit_client.post(
+            f"/sessions/{session.session_id}/submit",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "responses": {"q_1": "answer"},
+                "credentials": {
+                    "api_token": "tok",
+                    "datacenter_id": "iad1; DROP TABLE",
+                },
+            },
+        )
+        assert response.status_code == 400
+        assert "datacenter_id" in response.json()["detail"]
+
 
 class TestPlatformCodeTranslation:
     """Submit-time translation from internal option ids to platform answer codes.

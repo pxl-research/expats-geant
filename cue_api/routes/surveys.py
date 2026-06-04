@@ -310,9 +310,16 @@ async def submit_session_responses(request: Request, session_id: str, body: Subm
             ),
         )
 
-    if body.credentials and body.credentials.api_url:
+    # Validate AFTER resolution so env-supplied values are guarded the same way
+    # body-supplied values are. Mirrors /surveys/import-from-api which validates
+    # api_url + datacenter_id regardless of where they came from.
+    resolved_api_url = adapter_kwargs.get("api_url")
+    if resolved_api_url:
         # validate_api_url is blocking (DNS); offload like /surveys/import-from-api does.
-        await asyncio.to_thread(validate_api_url, body.credentials.api_url)
+        await asyncio.to_thread(validate_api_url, resolved_api_url)
+    resolved_datacenter_id = adapter_kwargs.get("datacenter_id")
+    if resolved_datacenter_id:
+        validate_datacenter_id(resolved_datacenter_id)
 
     try:
         adapter = get_adapter(survey_format, **adapter_kwargs)

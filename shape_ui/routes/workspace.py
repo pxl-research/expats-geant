@@ -273,12 +273,18 @@ async def export_submit(
             {"error": exc.detail, "error_status": exc.status_code},
             status_code=200,
         )
-    except Exception as exc:  # noqa: BLE001 — last-resort UI safety net
+    except Exception:  # noqa: BLE001 — last-resort UI safety net
+        # Full detail is logged server-side; the user-visible message stays
+        # generic so internal context (hostnames, stack-adjacent strings) can't
+        # leak through this HTMX partial.
         logger.exception("Unexpected error in export_submit for session %s", session_id)
         return templates.TemplateResponse(
             request,
             "partials/export_result.html",
-            {"error": f"Unexpected error: {exc}", "error_status": 500},
+            {
+                "error": "Unexpected error. Please try again or contact support.",
+                "error_status": 500,
+            },
             status_code=200,
         )
 

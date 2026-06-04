@@ -238,7 +238,7 @@
 {% endfor %}
 
 {% if can_submit and survey_format in ("lss", "limesurvey", "qsf") %}
-<details class="card" style="margin-top:1.5rem;" {% if not submit_error %}open{% endif %}>
+<details class="card" style="margin-top:1.5rem;" open>
   <summary style="cursor:pointer; font-weight:600;">Platform credentials</summary>
   <div class="alert alert-warning" role="alert" style="margin-top:0.75rem;">
     &#9888;&#65039; Your credentials are sent to this server and used immediately
