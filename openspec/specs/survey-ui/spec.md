@@ -50,6 +50,13 @@ HTML input controls.
 - **WHEN** a question of type `ranking` is rendered
 - **THEN** the UI displays answer options in a reorderable list
 
+#### Scenario: Render descriptive item
+
+- **WHEN** a question of type `descriptive` is rendered
+- **THEN** the UI displays the text as static informational content
+- **AND** no input control is shown
+- **AND** no suggestion zone is rendered for this item
+
 ### Requirement: Inline Suggestion Display
 
 The UI SHALL display AI-generated suggestions alongside each question in the same view,

@@ -111,9 +111,9 @@
 
 - [x] 8.1 `openspec validate add-chat-turn-survey-tool-load --strict` clean.
 - [x] 8.2 Full test suite green (`pytest`).
-- [ ] 8.3 Manual smoke against the deployed Gemini-flash gateway: edit a
+- [x] 8.3 Manual smoke against the deployed Gemini-flash gateway: edit a
   small survey via PUT, ask a follow-up question in chat, verify that the
   edits are preserved. Repeat 5–10 times and record how often the LLM skips
   the tool call (baseline for the escalation decision).
-- [ ] 8.4 Capture the manual-smoke counts in the change folder (e.g. an
+- [x] 8.4 Capture the manual-smoke counts in the change folder (e.g. an
   appendix in `design.md` open-questions section) before archiving.

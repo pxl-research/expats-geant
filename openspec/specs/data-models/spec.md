@@ -21,7 +21,7 @@ The system SHALL define a `Survey` model as the **platform-agnostic common denom
 
 ### Requirement: Question Model
 
-The system SHALL define a `Question` model supporting the five core question types that represent the common denominator across QTI 3.0, Qualtrics, LimeSurvey, and SurveyMonkey. The `metadata` dict SHALL serve as the escape hatch for platform-specific question properties.
+The system SHALL define a `Question` model supporting six core question types that represent the common denominator across QTI 3.0, Qualtrics, LimeSurvey, and SurveyMonkey. The `metadata` dict SHALL serve as the escape hatch for platform-specific question properties.
 
 #### Scenario: Multiple choice question
 
@@ -47,6 +47,13 @@ The system SHALL define a `Question` model supporting the five core question typ
 
 - **WHEN** a question is of type `slider`
 - **THEN** it contains `min_value`, `max_value`, and `step`
+
+#### Scenario: Descriptive item
+
+- **WHEN** a question is of type `descriptive`
+- **THEN** it contains display text only, with no answer_options, no min/max, and `required` defaults to `False`
+- **AND** it is rendered as static informational content in the UI
+- **AND** no response is expected or collected for this item
 
 ### Requirement: Response Model
 

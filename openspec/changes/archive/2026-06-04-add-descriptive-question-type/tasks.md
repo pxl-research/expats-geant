@@ -34,5 +34,5 @@
 ## 6. Testing
 
 - [x] 6.1 Round-trip test: import a survey with descriptive items, export, verify content preserved
-- [ ] 6.2 Smoke-test: import a real survey with descriptive blocks, review in Cue UI
+- [x] 6.2 Smoke-test: import a real survey with descriptive blocks, review in Cue UI
 - [x] 6.3 Verify no regressions in existing tests (1071/1071 pass)

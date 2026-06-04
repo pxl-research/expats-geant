@@ -197,3 +197,47 @@ Tests for the existing chat-turn flow continue to pass without modification
   prior tool call — is this concerning?"), how many such occurrences in a
   monitoring window would trigger escalation?
   **Lean: undefined at this stage.** Decide after a few days of pilot data.
+
+
+## Appendix: Manual smoke results (2026-06-04)
+
+Ran 15 trials against the deployed Shape API (model: `google/gemini-3-flash-preview` via OpenRouter), in two batches.
+
+**Batch A — small targeted edits (10 trials)**
+
+Prompts: section-title renames ("Rename the first section to X", etc.). For each trial: a fresh chat session, PUT a survey with rich `answer_options` and numeric ranges that the prompt summary deliberately omits, send one chat turn, GET the resulting draft.
+
+| Metric | Count |
+|---|---|
+| Edit landed correctly | 10/10 |
+| All questions preserved byte-for-byte | 10/10 |
+| Untouched section intact | 10/10 |
+| `get_full_survey` called before mutation | 0/10 |
+| Corruptions | 0/10 |
+
+**Batch B — harder edits (5 trials)**
+
+Prompts that benefit from reading state first: insert an answer option at a specific position, rephrase to a 5-point Likert, translate question text, add an option + make required, swap question order.
+
+| Trial | Prompt summary | get_full_survey | Mutation tool |
+|---|---|---|---|
+| 0 | insert option between two existing | 1 | update_question |
+| 1 | rephrase to 5-point Likert | 1 | update_question |
+| 2 | translate text to Spanish | 0 | update_question |
+| 3 | add option + make required | 1 | update_question |
+| 4 | swap question order | 0 | move_question |
+
+**Reading of the numbers**
+
+The original concern motivating task 4.7 — *"LLM clobbers `answer_options` because it emits a wholesale `<survey_update>` from memory"* — is **structurally moot in the shipped design**. The `<survey_update>` tag was replaced by the tool-call surface (`update_section`, `update_question`, `move_question`, etc.) where every mutation is a targeted patch on named fields. There is no code path through which an unread field can be silently dropped.
+
+Given that, the `get_full_survey` call rate is an *efficiency* metric, not a *safety* metric:
+
+- On simple patch-style edits (section rename, single-field update, move) the model correctly skips the read — it has all the IDs it needs from the summary, and the patch tools only touch the fields specified.
+- On edits that genuinely need context (where to insert an option, what the current options look like to expand to a Likert), the model calls `get_full_survey` 3/5 of the time. The two skips (translate, swap) succeed anyway because the relevant tool calls (`update_question(text=...)`, `move_question(after_id=...)`) are self-contained.
+
+**Outcome**
+
+No corruption across 15 trials. Soft enforcement is sufficient for the current model. If a future model or future tool surface (e.g. a bulk-translate tool) shows actual corruption, escalate per design.md open question 3 — reject mutations when `get_full_survey` was not called this turn.
+
+Reproducer scripts (kept in `/tmp` for one-off use, not committed): `shape_tool_load_smoke.py` (Batch A) and `shape_tool_load_hard.py` (Batch B). Both drive the running Shape API stack via the server-to-server JWT path on `POST /auth/token`.
