@@ -73,6 +73,28 @@ classDiagram
     Question --> QuestionType
 ```
 
+### AnswerOption: `id` vs `value`
+
+The two string-ish fields on `AnswerOption` carry different responsibilities,
+and the distinction matters when a survey round-trips through a platform
+adapter:
+
+- **`id`** is the **internal identifier** used by the UI and by the response
+  payload. It is unique within the parent question and never escapes the Cue
+  data model. Convention for platform-imported surveys: `opt_<platform_code>`
+  (e.g. `opt_A1`).
+- **`value`** is the **platform-facing answer code** — what LimeSurvey expects
+  as the SGQA sub-question suffix or what Qualtrics expects as the choice
+  code (e.g. `A1`). For internally-authored Likert-style options it may also
+  carry a numeric score (e.g. `5`), in which case it is `null` when there is
+  no platform mapping to preserve.
+
+When `POST /sessions/{id}/submit` runs, it walks each answered question and
+translates the form's `option.id` back to `option.value` before calling the
+adapter's `submit_responses()`. Free-text and slider answers (no
+`answer_options`) pass through unchanged. See
+[cue_api/routes/surveys.py `_translate_to_platform_code`](../cue_api/routes/surveys.py).
+
 ---
 
 ## Question Types
