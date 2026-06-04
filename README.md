@@ -10,6 +10,7 @@ All code is open-source for non-commercial use.
 ### Core Components
 
 - **Shape**: an administrator co-pilot for questionnaire design — accelerates creation with guardrails, consistency checks, tagging, and summarization
+- **Shape UI**: a browser-based authoring frontend for Shape — server-rendered FastAPI app (Jinja2 + HTMX) for drafting surveys conversationally, previewing them live, and exporting to platform formats
 - **Cue**: a respondent assistant for evidence-based answer suggestions — retrieves relevant passages from user documents, proposes concise answers with citations, and explains reasoning
 - **Cue UI**: a browser-based survey review frontend — server-rendered FastAPI app (Jinja2 + HTMX) for uploading surveys, reviewing AI suggestions, and submitting responses without custom integration work
 - **M-Shared**: common utilities and foundational infrastructure for both modules
@@ -27,7 +28,7 @@ All code is open-source for non-commercial use.
 
 - Designed for integration into existing survey platforms and educational tools
 - SDK-first, embeddable API design for institutional reuse
-- QTI 3.0-compatible questionnaire import/export
+- Bidirectional import/export for QTI 3.0, LimeSurvey, Qualtrics, and SurveyMonkey
 
 📊 **Evidence-Based**
 
@@ -40,9 +41,10 @@ All code is open-source for non-commercial use.
 
 ```
 .
-├── cue_api/     # Respondent answer suggestion assistant (REST API, port 8801)
-├── cue_ui/           # Survey review frontend (Jinja2 + HTMX, port 8811)
-├── shape_api/         # Administrator questionnaire design assistant (REST API, port 8802)
+├── cue_api/        # Respondent answer suggestion assistant (REST API, port 8801)
+├── cue_ui/         # Survey review frontend (Jinja2 + HTMX, port 8811)
+├── shape_api/      # Administrator questionnaire design assistant (REST API, port 8802)
+├── shape_ui/       # Authoring frontend for Shape (Jinja2 + HTMX, port 8812)
 ├── m_shared/       # Common utilities (LLM clients, vector DB, data models, auth)
 ├── tests/          # All tests (pytest)
 ├── docs/           # Deployment, integration, and API reference guides
@@ -65,7 +67,7 @@ All code is open-source for non-commercial use.
 ### Prerequisites
 
 - Docker & Docker Compose
-- OpenRouter or OpenAI API key (or local LLM alternative)
+- An OpenAI-compatible LLM API key — OpenRouter recommended; local LLMs (Ollama, vLLM, LM Studio) also supported
 
 ### Installation
 
@@ -76,7 +78,7 @@ cd expats-geant
 
 # Configure environment
 cp .env.example .env
-# Edit .env: set OPENROUTER_API_KEY (or OPENAI_API_KEY) and JWT_SECRET
+# Edit .env: set OPENROUTER_API_KEY (or any OpenAI-compatible key) and JWT_SECRET
 # For multi-tenant deployments (per-subsidiary LLM keys), see docs/DEPLOYMENT.md § Multi-Tenant Setup
 
 # Build and run
