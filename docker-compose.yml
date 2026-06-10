@@ -218,6 +218,7 @@ services:
       dockerfile: keycloak/Dockerfile
     container_name: keycloak
     logging: *default-logging
+    restart: unless-stopped
     deploy:
       resources:
         limits:
