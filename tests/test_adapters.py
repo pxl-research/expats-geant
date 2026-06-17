@@ -728,6 +728,117 @@ class TestLimeSurveyAdapterSubmit:
 
 
 # ---------------------------------------------------------------------------
+# LimeSurveyAdapter — CSV response export
+# ---------------------------------------------------------------------------
+
+
+class TestLimeSurveyCsvExport:
+    """LimeSurveyAdapter.export_responses_to_csv emits the LS importer column shape."""
+
+    def setup_method(self):
+        self.adapter = LimeSurveyAdapter()
+
+    def _parsed(self, survey, responses):
+        import csv as _csv
+        import io as _io
+
+        text = self.adapter.export_responses_to_csv(survey, responses)
+        assert text.startswith("﻿"), "CSV should begin with UTF-8 BOM"
+        rows = list(_csv.reader(_io.StringIO(text.lstrip("﻿"))))
+        return text, rows
+
+    def test_header_starts_with_canonical_fixed_columns(self):
+        survey = self.adapter.import_survey(MINIMAL_LSS)
+        _, rows = self._parsed(survey, [])
+        assert rows[0][:5] == [
+            "response_id",
+            "submitdate",
+            "lastpage",
+            "startlanguage",
+            "seed",
+        ]
+
+    def test_header_includes_sgqa_column_per_question(self):
+        survey = self.adapter.import_survey(MINIMAL_LSS)
+        _, rows = self._parsed(survey, [])
+        # MINIMAL_LSS: sid=42, gid=1, qid=10 (single-choice L) and 11 (open-ended T)
+        header = rows[0]
+        assert "42X1X10" in header
+        assert "42X1X11" in header
+
+    def test_m_question_sub_question_columns_unbracketed(self):
+        """SGQA sub-question keys append the title directly — no brackets (issue #60)."""
+        survey = self.adapter.import_survey(MULTI_SECTION_LSS)
+        _, rows = self._parsed(survey, [])
+        header = rows[0]
+        # MULTI_SECTION_LSS: sid=99, M-question is qid=2 in gid=2 with sub-titles X / Y
+        assert "99X2X2X" in header
+        assert "99X2X2Y" in header
+        # Bracketed form must NOT appear
+        assert "99X2X2[X]" not in header
+        assert "99X2X2[Y]" not in header
+
+    def test_single_choice_cell_carries_option_value(self):
+        survey = self.adapter.import_survey(MINIMAL_LSS)
+        # First question of MINIMAL_LSS is the single-choice radio (qid=10)
+        q_single = survey.sections[0].questions[0]
+        resp = Response(
+            id="r1",
+            question_id=q_single.id,
+            answer_value="A1",  # the LS option code
+            metadata={},
+        )
+        _, rows = self._parsed(survey, [resp])
+        header, data = rows[0], rows[1]
+        idx = header.index("42X1X10")
+        assert data[idx] == "A1"
+
+    def test_multi_choice_emits_y_for_selected_empty_for_not(self):
+        survey = self.adapter.import_survey(MULTI_SECTION_LSS)
+        m_q = next(
+            q
+            for s in survey.sections
+            for q in s.questions
+            if q.type == QuestionType.MULTIPLE_CHOICE
+        )
+        resp = Response(
+            id="r1",
+            question_id=m_q.id,
+            answer_value=["X"],  # only X selected
+            metadata={},
+        )
+        _, rows = self._parsed(survey, [resp])
+        header, data = rows[0], rows[1]
+        assert data[header.index("99X2X2X")] == "Y"
+        assert data[header.index("99X2X2Y")] == ""
+
+    def test_open_ended_passthrough(self):
+        survey = self.adapter.import_survey(MINIMAL_LSS)
+        # MINIMAL_LSS second question is the open-ended one (qid=11)
+        q_open = survey.sections[0].questions[1]
+        resp = Response(
+            id="r2",
+            question_id=q_open.id,
+            answer_value="Hello, world",
+            metadata={},
+        )
+        _, rows = self._parsed(survey, [resp])
+        header, data = rows[0], rows[1]
+        assert data[header.index("42X1X11")] == "Hello, world"
+
+    def test_empty_response_list_emits_header_only(self):
+        survey = self.adapter.import_survey(MINIMAL_LSS)
+        _, rows = self._parsed(survey, [])
+        assert len(rows) == 1  # header only
+
+    def test_csv_uses_crlf_line_endings(self):
+        survey = self.adapter.import_survey(MINIMAL_LSS)
+        text, _ = self._parsed(survey, [])
+        # The first line ending after the header should be CRLF.
+        assert "\r\n" in text
+
+
+# ---------------------------------------------------------------------------
 # QualtricsAdapter — import
 # ---------------------------------------------------------------------------
 
@@ -1227,6 +1338,139 @@ class TestQualtricsAdapterSubmit:
         ):
             with pytest.raises(RuntimeError, match="Qualtrics response import failed"):
                 adapter.submit_responses("SV_abc", [])
+
+
+# ---------------------------------------------------------------------------
+# QualtricsAdapter — CSV response export
+# ---------------------------------------------------------------------------
+
+
+class TestQualtricsCsvExport:
+    """QualtricsAdapter.export_responses_to_csv emits the 3-row Qualtrics importer shape."""
+
+    def setup_method(self):
+        self.adapter = QualtricsAdapter()
+
+    def _parsed(self, survey, responses):
+        import csv as _csv
+        import io as _io
+
+        text = self.adapter.export_responses_to_csv(survey, responses)
+        assert text.startswith("﻿"), "CSV should begin with UTF-8 BOM"
+        rows = list(_csv.reader(_io.StringIO(text.lstrip("﻿"))))
+        return text, rows
+
+    def _qsf_with_mc_and_te(self):
+        return make_minimal_qsf(
+            blocks=[
+                {
+                    "Type": "Default",
+                    "Description": "Block",
+                    "ID": "BL_1",
+                    "BlockElements": [
+                        {"Type": "Question", "QuestionID": "QID1"},
+                        {"Type": "Question", "QuestionID": "QID2"},
+                    ],
+                }
+            ],
+            questions=[
+                {
+                    "Element": "SQ",
+                    "Payload": {
+                        "QuestionID": "QID1",
+                        "QuestionText": "Pick all",
+                        "QuestionType": "MC",
+                        "Selector": "MAVR",
+                        "Choices": {"1": {"Display": "A"}, "2": {"Display": "B"}},
+                        "ChoiceOrder": ["1", "2"],
+                    },
+                },
+                {
+                    "Element": "SQ",
+                    "Payload": {
+                        "QuestionID": "QID2",
+                        "QuestionText": "Free response",
+                        "QuestionType": "TE",
+                        "Selector": "SL",
+                    },
+                },
+            ],
+        )
+
+    def test_three_header_rows_emitted(self):
+        survey = self.adapter.import_survey(self._qsf_with_mc_and_te())
+        _, rows = self._parsed(survey, [])
+        assert len(rows) >= 3  # IDs, display text, ImportId JSON
+
+    def test_row1_includes_fixed_columns_and_qids(self):
+        survey = self.adapter.import_survey(self._qsf_with_mc_and_te())
+        _, rows = self._parsed(survey, [])
+        row1 = rows[0]
+        # Canonical fixed prefix from the design.md spec
+        for fixed in ("StartDate", "EndDate", "ResponseId", "DistributionChannel", "UserLanguage"):
+            assert fixed in row1
+        # Multi-select expanded to QID_<code> columns; single TE = one QID column
+        assert "QID1_1" in row1
+        assert "QID1_2" in row1
+        assert "QID2" in row1
+
+    def test_row3_importid_json_has_qid_per_data_column(self):
+        survey = self.adapter.import_survey(self._qsf_with_mc_and_te())
+        _, rows = self._parsed(survey, [])
+        row1, row3 = rows[0], rows[2]
+        assert len(row3) == len(row1)
+        seen_qid_imports = set()
+        for cell in row3:
+            parsed = json.loads(cell)
+            assert "ImportId" in parsed, f"row3 cell missing ImportId: {cell!r}"
+            assert parsed.get("timeZone") == "UTC"
+            seen_qid_imports.add(parsed["ImportId"])
+        for qcol in ("QID1_1", "QID1_2", "QID2"):
+            assert qcol in seen_qid_imports
+
+    def test_multi_select_emits_1_for_selected_empty_for_not(self):
+        survey = self.adapter.import_survey(self._qsf_with_mc_and_te())
+        mc_q = next(
+            q
+            for s in survey.sections
+            for q in s.questions
+            if q.type == QuestionType.MULTIPLE_CHOICE
+        )
+        resp = Response(
+            id="r1",
+            question_id=mc_q.id,
+            answer_value=["1"],  # only choice 1 selected
+            metadata={},
+        )
+        _, rows = self._parsed(survey, [resp])
+        row1, data = rows[0], rows[3]
+        assert data[row1.index("QID1_1")] == "1"
+        assert data[row1.index("QID1_2")] == ""
+
+    def test_open_ended_passthrough(self):
+        survey = self.adapter.import_survey(self._qsf_with_mc_and_te())
+        open_q = next(
+            q for s in survey.sections for q in s.questions if q.type == QuestionType.OPEN_ENDED
+        )
+        resp = Response(
+            id="r2",
+            question_id=open_q.id,
+            answer_value="Hello, world",
+            metadata={},
+        )
+        _, rows = self._parsed(survey, [resp])
+        row1, data = rows[0], rows[3]
+        assert data[row1.index("QID2")] == "Hello, world"
+
+    def test_empty_response_list_emits_three_header_rows_only(self):
+        survey = self.adapter.import_survey(self._qsf_with_mc_and_te())
+        _, rows = self._parsed(survey, [])
+        assert len(rows) == 3
+
+    def test_csv_uses_crlf_line_endings(self):
+        survey = self.adapter.import_survey(self._qsf_with_mc_and_te())
+        text, _ = self._parsed(survey, [])
+        assert "\r\n" in text
 
 
 # ---------------------------------------------------------------------------
@@ -2072,6 +2316,22 @@ class TestCapabilityDiscovery:
             SurveyMonkeyAdapter(),
         ]:
             assert isinstance(adapter.capabilities(), set)
+
+    def test_csv_export_advertised_by_ls_and_qsf(self):
+        assert "csv_export" in LimeSurveyAdapter().capabilities()
+        assert "csv_export" in QualtricsAdapter().capabilities()
+
+    def test_csv_export_not_advertised_by_qti_or_sm(self):
+        assert "csv_export" not in QTIAdapter().capabilities()
+        assert "csv_export" not in SurveyMonkeyAdapter().capabilities()
+
+    def test_base_export_responses_to_csv_raises_not_implemented(self):
+        from m_shared.models.survey import Survey
+
+        empty_survey = Survey(id="s", title="t", sections=[], metadata={})
+        # QTI does not override → falls back to the base NotImplementedError default
+        with pytest.raises(NotImplementedError, match="csv_export"):
+            QTIAdapter().export_responses_to_csv(empty_survey, [])
 
 
 # ---------------------------------------------------------------------------

@@ -158,3 +158,61 @@ download; the API endpoint can be removed without orphaning anything.
   submission? Default position: emit as-is; the CSV is the user's own
   data, and adding redaction would diverge from what the platform's
   importer expects.
+
+## Implementation Notes (added at apply time)
+
+### Source of responses
+
+The endpoint reads `review_state.json`, which is already maintained per-
+keystroke by `cue_ui/static/review-state.js` (every textarea `input` event
+and every radio/checkbox `change` event PUTs to `/review-state/{qid}`).
+No new persistence is introduced; CSV-export and Submit become two views
+over the same source of truth. Submit's body-driven path is now redundant
+with `review_state.json` and can be migrated to read from it in a follow-up
+change (out of scope here). This resolves the "404 if none yet" wording in
+this change's proposal: it means "no `accepted` / `edited` entries in
+`review_state.json`".
+
+### Authentication
+
+Resolved per design.md §Open Questions default position: the endpoint
+inherits the existing session-bound JWT middleware that already protects
+`/sessions/*`. Session ownership is checked via the same
+`session_id != session.session_id` 403 pattern as `POST /submit`. No new
+auth plumbing.
+
+### Endpoint placement
+
+Both endpoints (Submit + CSV download) live in `cue_api/routes/surveys.py`
+because they share the same session-ownership, survey-load, adapter-
+resolution and capability-gate scaffolding. A shared helper
+`_question_meta_from_survey_data(survey_data)` builds the per-question
+`_option_values` translation map and a sibling
+`_responses_from_review_state(review_state, question_meta, session_id)`
+converts persisted review entries to `list[Response]` — both helpers
+strictly platform-agnostic, alongside the existing
+`_build_responses_from_body`.
+
+### Category C (SM / QTI) dead-end fix
+
+Spec deltas already cover this in the "Neither affordance shown" scenario.
+Implementation surfaces the existing JSON answer-report download as a
+prominent primary-zone action labelled "Export your answers (JSON)" when
+neither `"submit"` nor `"csv_export"` is advertised, instead of leaving the
+review page as a literal dead end. No new endpoint; reuses
+`/session/{id}/answer-report/download`.
+
+### LimeSurvey SGQA column shape
+
+The spec text says columns are keyed `{sid}X{gid}X{qid}{title}` for top-
+level questions. The implementation emits `{sid}X{gid}X{qid}` to match what
+`submit_responses` already produces — issue #60 verification proved this
+shape works for both submit and CSV import; deviation here would break the
+single-source-of-truth invariant the `_sgqa_key` helper is intended to
+preserve.
+
+### Live verification
+
+Tasks §7.1 (LS) and §7.2 (QSF, if a sandbox is available) intentionally
+stay open for the operator. The change is otherwise feature-complete on
+merge.

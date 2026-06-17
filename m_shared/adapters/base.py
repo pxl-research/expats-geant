@@ -45,7 +45,8 @@ class SurveyAdapter(ABC):
     def capabilities(self) -> set[str]:
         """Return the set of operations this adapter supports.
 
-        Defined capability strings: "import", "export", "submit", "create", "api_create".
+        Defined capability strings: "import", "export", "submit", "create",
+        "api_create", "csv_export".
 
         Returns:
             set[str]: Supported capability identifiers.
@@ -82,3 +83,26 @@ class SurveyAdapter(ABC):
     def fetch_survey(self, survey_id: str) -> "Survey":
         """Fetch a survey from the platform API by ID (optional override)."""
         raise NotImplementedError(f"{type(self).__name__} does not support fetch_survey")
+
+    def export_responses_to_csv(self, survey: Survey, responses: list[Response]) -> str:
+        """Render responses as a CSV string consumable by the platform's response importer.
+
+        Override in adapters that support file-based response import (LimeSurvey,
+        Qualtrics). The returned CSV SHALL match the column shape the originating
+        platform's admin UI accepts without further transformation.
+
+        Args:
+            survey: The internal survey, used for column order and per-question metadata.
+            responses: The respondent's answers as internal Response objects.
+
+        Returns:
+            str: UTF-8 CSV text (with BOM where the platform's importer expects one).
+
+        Raises:
+            NotImplementedError: Override in subclasses that advertise the
+                "csv_export" capability.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support 'csv_export'. "
+            "Check capabilities() before invoking."
+        )

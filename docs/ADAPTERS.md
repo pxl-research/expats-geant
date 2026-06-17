@@ -180,6 +180,37 @@ responsible for delivering the file to the user (e.g. as a download response).
 
 ---
 
+## Response Export (`"csv_export"` capability)
+
+LimeSurvey and Qualtrics both expose a first-party file-based response
+importer in their admin UIs — LS reads CSV matching its SGQA column scheme;
+Qualtrics reads a three-row-header CSV matching its survey QID scheme. Both
+importers are typically usable on accounts where the platform's write API is
+locked down (no RC2 / no API token), so adding the matching CSV-out path lets
+respondents close the loop offline.
+
+Override `export_responses_to_csv(survey, responses) -> str` on adapters that
+support such an importer and add `"csv_export"` to `capabilities()`. The
+returned UTF-8 CSV (with BOM) must match the platform's importer column shape
+exactly:
+
+| Platform | Column shape |
+|---|---|
+| LimeSurvey | `response_id,submitdate,lastpage,startlanguage,seed,{sid}X{gid}X{qid}[{sub_title}],…` — sub-question titles are appended directly with **no brackets** (issue #60). Reuse the `_sgqa_key` helper shared with `submit_responses` — single source of truth. |
+| Qualtrics  | Three-row header: row 1 column IDs (`StartDate`, `EndDate`, …, `QID<n>`, with `QID<n>_<choice_code>` per choice on multi-select), row 2 human-readable display labels, row 3 the per-column `{"ImportId":"…","timeZone":"UTC"}` JSON the importer keys on. |
+
+Adapters that do not target such an importer (QTI, SurveyMonkey on the tiers
+we support) MUST leave `export_responses_to_csv` as the base
+`NotImplementedError` default and MUST NOT advertise `"csv_export"`.
+
+The Cue API endpoint `GET /sessions/{id}/responses/csv?platform={fmt}` builds
+the `list[Response]` from the session's persisted `review_state.json` (the
+per-keystroke source of truth maintained by the UI) and calls
+`export_responses_to_csv`. There is no separate response-persistence step —
+review state IS the persisted answer.
+
+---
+
 ## Minimal Working Example
 
 ```python

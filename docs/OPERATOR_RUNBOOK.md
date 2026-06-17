@@ -173,6 +173,16 @@ QUALTRICS_API_TOKEN=<token>
 QUALTRICS_DATACENTER_ID=iad1
 ```
 
+For LimeSurvey and Qualtrics, the Cue UI also offers a **"Download responses
+as CSV"** action on the review page that produces a file the platform's admin
+UI ("Responses → Import responses from CSV/Excel" for LS;
+"Data & Analysis → Import Responses" for Qualtrics) imports directly. This is
+a deliberately no-API fallback: it works in environments where RC2 is disabled
+or no Qualtrics API token has been issued, and requires no operator-side
+configuration to enable. For QTI / SurveyMonkey sessions, the review page
+promotes the existing "Export your answers (JSON)" download as the equivalent
+take-with-you action.
+
 ### Step 3 — Set production environment
 
 ```bash

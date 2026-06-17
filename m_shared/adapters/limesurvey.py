@@ -29,6 +29,8 @@ LimeSurvey question types mapped to internal QuestionType:
 """
 
 import base64
+import csv
+import io
 import json
 import logging
 import uuid
@@ -121,7 +123,7 @@ class LimeSurveyAdapter(SurveyAdapter):
         self._password = password
 
     def capabilities(self) -> set[str]:
-        return {"import", "export", "submit", "create", "api_create"}
+        return {"import", "export", "submit", "create", "api_create", "csv_export"}
 
     # ------------------------------------------------------------------
     # Import
@@ -587,6 +589,76 @@ class LimeSurveyAdapter(SurveyAdapter):
         finally:
             self._release_session_key(session_key)
 
+    def export_responses_to_csv(self, survey: Survey, responses: list[Response]) -> str:
+        """Render responses as a CSV consumable by LimeSurvey's response importer.
+
+        Emits the column shape that LS admin → "Responses & statistics → Import
+        responses from CSV/Excel" expects: a fixed header prefix
+        (``response_id,submitdate,lastpage,startlanguage,seed``) followed by one
+        SGQA column per top-level question and one column per sub-question for
+        ``M``/``P`` (multi-answer) questions. Sub-question keys use the unbracketed
+        ``{sid}X{gid}X{qid}{sub_title}`` form — same as ``submit_responses``;
+        the bracketed form is silently dropped on import (issue #60).
+
+        Single-choice answers emit the option's value; multi-choice answers
+        emit ``"Y"`` per selected sub-question column and empty otherwise;
+        open-ended / numeric answers pass through as-is.
+
+        Output is UTF-8 with BOM (LS tolerates it; mirrors the Qualtrics
+        importer's preference for a single common encoding across platforms)
+        and CRLF line endings per RFC 4180.
+
+        Args:
+            survey: The internal survey, used for column order and metadata
+                (``ls_sid`` on the survey, ``ls_gid`` on each section,
+                ``ls_qid`` on each question).
+            responses: The respondent's answers. Indexed by ``question_id``;
+                ``answer_value`` is the platform code for single-choice
+                (e.g. ``"A1"``), a list of sub-question titles for multi-
+                choice (e.g. ``["X", "Y"]``), or text/numeric for open-ended.
+        """
+        sid = str(survey.metadata.get("ls_sid", survey.id))
+        responses_by_qid = {str(r.question_id): r for r in responses}
+
+        columns: list[str] = ["response_id", "submitdate", "lastpage", "startlanguage", "seed"]
+        column_sources: list[tuple[str, str | None]] = [("", None) for _ in columns]
+        for section in survey.sections:
+            gid = str(section.metadata.get("ls_gid", ""))
+            for question in section.questions:
+                qid = str(question.metadata.get("ls_qid", question.id))
+                if question.type == QuestionType.MULTIPLE_CHOICE and question.answer_options:
+                    for opt in question.answer_options:
+                        sub_title = str(opt.value) if opt.value is not None else ""
+                        columns.append(_sgqa_key(sid, gid, qid, sub_title))
+                        column_sources.append((question.id, sub_title))
+                else:
+                    columns.append(_sgqa_key(sid, gid, qid))
+                    column_sources.append((question.id, None))
+
+        row: list[str] = []
+        for col_qid, col_sub_title in column_sources:
+            if not col_qid:
+                row.append("")
+                continue
+            resp = responses_by_qid.get(col_qid)
+            if resp is None or resp.answer_value is None:
+                row.append("")
+                continue
+            value = resp.answer_value
+            if col_sub_title is not None:
+                row.append("Y" if isinstance(value, list) and col_sub_title in value else "")
+            elif isinstance(value, list):
+                row.append(",".join(str(v) for v in value))
+            else:
+                row.append(str(value))
+
+        buf = io.StringIO()
+        writer = csv.writer(buf, dialect="excel", lineterminator="\r\n")
+        writer.writerow(columns)
+        if responses:
+            writer.writerow(row)
+        return "﻿" + buf.getvalue()
+
     def _require_credentials(self, op_label: str) -> None:
         """Guard helper — raise ValueError if API credentials are not configured."""
         if not self._api_url or not self._username or not self._password:
@@ -894,6 +966,18 @@ def _sub(parent: Element, tag: str, text: str) -> Element:
     return el
 
 
+def _sgqa_key(survey_id: str, gid: str, qid: str, suffix: str = "") -> str:
+    """Build a LimeSurvey SGQA field key.
+
+    Top-level questions use ``{sid}X{gid}X{qid}``; multi-answer sub-fields
+    append the sub-question's title directly with NO brackets — the bracketed
+    form is silently dropped by the platform on submit and is rejected by the
+    CSV importer (issue #60). Single source of truth for both ``submit_responses``
+    and ``export_responses_to_csv``.
+    """
+    return f"{survey_id}X{gid}X{qid}{suffix}"
+
+
 def _responses_to_ls_format(
     responses: list[Response],
     survey_id: str,
@@ -926,11 +1010,10 @@ def _responses_to_ls_format(
                 f"qid '{qid}' not found in survey {survey_id}. "
                 "Ensure ls_qid is set in response metadata and matches a question in this survey."
             )
-        prefix = f"{survey_id}X{gid}X{qid}"
         value = resp.answer_value
         if isinstance(value, list):
             for item in value:
-                data[f"{prefix}{item}"] = "Y"
+                data[_sgqa_key(survey_id, gid, qid, str(item))] = "Y"
         else:
-            data[prefix] = str(value) if value is not None else ""
+            data[_sgqa_key(survey_id, gid, qid)] = str(value) if value is not None else ""
     return data

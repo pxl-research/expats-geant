@@ -5,7 +5,15 @@ import logging
 
 import httpx
 from fastapi import APIRouter, File, Request, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import (
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    StreamingResponse,
+)
+from fastapi.responses import (
+    Response as FastAPIResponse,
+)
 
 from cue_ui import api_client
 from cue_ui.api_client import APIError, auth_headers
@@ -225,6 +233,10 @@ async def review_page(request: Request, session_id: str):
             pass
 
     can_submit = "submit" in capabilities
+    can_csv_export = "csv_export" in capabilities
+    # Dead-end signal — for SM/QTI sessions (no submit, no csv_export) promote the
+    # existing JSON answer-report as the explicit "take your answers with you" action.
+    can_export_answers = not (can_submit or can_csv_export)
 
     # Fetch document info for the session panel
     documents = []
@@ -262,6 +274,8 @@ async def review_page(request: Request, session_id: str):
             "survey": survey,
             "survey_format": survey_format,
             "can_submit": can_submit,
+            "can_csv_export": can_csv_export,
+            "can_export_answers": can_export_answers,
             "form_values": {},
             "documents": documents,
             "last_upload_at": last_upload_at,
@@ -482,6 +496,32 @@ async def download_answer_report_proxy(request: Request, session_id: str):
     )
 
 
+@router.get("/session/{session_id}/responses/csv")
+async def download_responses_csv_proxy(request: Request, session_id: str, platform: str):
+    """Thin proxy: GET /sessions/{id}/responses/csv on the Cue API, stream back as a download.
+
+    Mirrors ``download_answer_report_proxy`` — all platform-specific knowledge
+    stays on the API side; the UI just forwards bytes and the
+    ``Content-Disposition`` filename.
+    """
+    token = get_token(request)
+    if not token:
+        return RedirectResponse(url="/auth/login", status_code=302)
+    try:
+        csv_bytes, filename = await api_client.get_responses_csv(
+            token=token, session_id=session_id, platform=platform
+        )
+    except APIError as exc:
+        if exc.status_code in (404, 410):
+            return _render_error(request, exc.detail, exc.status_code)
+        return _render_error(request, exc.detail, exc.status_code)
+    return FastAPIResponse(
+        content=csv_bytes,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/session/{session_id}/audit-report", response_class=HTMLResponse)
 async def audit_report_page(request: Request, session_id: str):
     token = get_token(request)
@@ -561,6 +601,15 @@ async def submit_responses(request: Request, session_id: str):
             survey = await api_client.get_survey(token=token, survey_id=session_id)
         except APIError:
             survey = {}
+        survey_format = survey.get("metadata", {}).get("format", "")
+        retry_capabilities: set[str] = set()
+        if survey_format:
+            try:
+                retry_capabilities = await api_client.get_capabilities(
+                    token=token, format=survey_format
+                )
+            except APIError:
+                pass
         form_values: dict[str, str | list[str]] = dict(responses)
         for k in _RETRY_ECHO_FIELDS:
             if k in credentials:
@@ -571,8 +620,10 @@ async def submit_responses(request: Request, session_id: str):
             {
                 "session_id": session_id,
                 "survey": survey,
-                "survey_format": survey.get("metadata", {}).get("format", ""),
+                "survey_format": survey_format,
                 "can_submit": True,
+                "can_csv_export": "csv_export" in retry_capabilities,
+                "can_export_answers": False,
                 "submit_error": exc.detail,
                 "form_values": form_values,
             },

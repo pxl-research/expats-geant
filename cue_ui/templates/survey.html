@@ -280,6 +280,20 @@
 {% endif %}
 </form>
 
+{% if can_csv_export %}
+<div style="margin-top:0.75rem;">
+  <a href="/session/{{ session_id }}/responses/csv?platform={{ survey_format }}"
+     class="btn btn-secondary">Download responses as CSV</a>
+</div>
+{% endif %}
+
+{% if can_export_answers %}
+<div style="margin-top:1.5rem;">
+  <a href="/session/{{ session_id }}/answer-report/download"
+     class="btn btn-primary">Export your answers (JSON)</a>
+</div>
+{% endif %}
+
 <div style="margin-top:1rem; text-align:right; display:flex; gap:0.5rem; justify-content:flex-end;">
   <button type="button" class="btn btn-ghost" id="regenerate-empty-btn" hidden
           style="font-size:0.8rem;">Regenerate empty answers (<span data-count>0</span>)</button>

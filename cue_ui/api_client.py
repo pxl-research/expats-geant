@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 from typing import Any
 
 import httpx
@@ -77,6 +78,30 @@ async def submit_responses(
             json=body,
         )
     _raise_for_status(resp)
+
+
+_CSV_FILENAME_RE = re.compile(r'filename="([^"]+)"')
+
+
+async def get_responses_csv(token: str, session_id: str, platform: str) -> tuple[bytes, str]:
+    """Fetch the session's responses as a CSV consumable by the platform's importer.
+
+    GET /sessions/{session_id}/responses/csv?platform=… → (csv_bytes, filename)
+
+    The filename is extracted from the upstream ``Content-Disposition`` header
+    so the browser-facing download presents the same name the Cue API chose.
+    """
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{CUE_API_URL}/sessions/{session_id}/responses/csv",
+            params={"platform": platform},
+            headers=auth_headers(token),
+        )
+    _raise_for_status(resp)
+    disposition = resp.headers.get("content-disposition", "")
+    match = _CSV_FILENAME_RE.search(disposition)
+    filename = match.group(1) if match else f"responses-{platform}.csv"
+    return resp.content, filename
 
 
 async def get_session_stats(token: str) -> dict[str, Any]:
