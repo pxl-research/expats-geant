@@ -439,9 +439,14 @@ def _safe_filename_component(value: str) -> str:
     return _FILENAME_SAFE_RE.sub("_", value).strip("_") or "survey"
 
 
-@router.get("/sessions/{session_id}/responses/csv", tags=["Surveys"])
-async def download_responses_csv(request: Request, session_id: str, platform: str):
-    """Return the session's saved answers as a CSV consumable by the platform's importer.
+@router.get("/sessions/{session_id}/responses/export", tags=["Surveys"])
+async def download_responses_export(request: Request, session_id: str, platform: str):
+    """Return the session's saved answers in the file format the platform's importer accepts.
+
+    The exact format is adapter-defined (LimeSurvey: TSV in VV shape;
+    Qualtrics: CSV) and the response's ``Content-Type`` + filename suffix come
+    from the adapter's ``ResponseExport`` tuple — the API endpoint stays
+    platform-agnostic above the adapter layer.
 
     Reads from ``review_state.json`` — the persisted source of truth maintained
     per-keystroke by the UI's ``review-state.js`` (every accept / dismiss / edit
@@ -452,7 +457,7 @@ async def download_responses_csv(request: Request, session_id: str, platform: st
         400 — ``platform`` does not match the survey's actual format
         403 — session belongs to a different user
         404 — survey not found OR no ``accepted``/``edited`` entries yet
-        422 — unknown platform or adapter does not advertise ``csv_export``
+        422 — unknown platform or adapter does not advertise ``responses_export``
     """
     session = request.state.session
     if session_id != session.session_id:
@@ -489,10 +494,10 @@ async def download_responses_csv(request: Request, session_id: str, platform: st
             detail=f"No adapter for format '{platform}'.",
         )
 
-    if "csv_export" not in adapter.capabilities():
+    if "responses_export" not in adapter.capabilities():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Adapter for '{platform}' does not support CSV response export.",
+            detail=f"Adapter for '{platform}' does not support response file export.",
         )
 
     review_state = await asyncio.to_thread(read_review_state, session_path)
@@ -506,19 +511,19 @@ async def download_responses_csv(request: Request, session_id: str, platform: st
 
     survey = Survey.model_validate(survey_data)
     try:
-        csv_text = adapter.export_responses_to_csv(survey, responses)
+        export = adapter.export_responses(survey, responses)
     except NotImplementedError:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Adapter for '{platform}' does not support CSV response export.",
+            detail=f"Adapter for '{platform}' does not support response file export.",
         )
 
     platform_survey_id = _safe_filename_component(str(survey_data.get("id", session_id)))
     ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    filename = f"responses-{platform}-{platform_survey_id}-{ts}.csv"
+    filename = f"responses-{platform}-{platform_survey_id}-{ts}{export.filename_suffix}"
 
     return FastAPIResponse(
-        content=csv_text.encode("utf-8"),
-        media_type="text/csv; charset=utf-8",
+        content=export.content,
+        media_type=export.media_type,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

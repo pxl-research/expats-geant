@@ -1261,8 +1261,8 @@ class TestPlatformCodeTranslation:
         assert by_qid["q_text"].answer_value == "Hello world"
 
 
-class TestResponsesCsvEndpoint:
-    """GET /sessions/{session_id}/responses/csv — CSV export of saved answers."""
+class TestResponsesExportEndpoint:
+    """GET /sessions/{session_id}/responses/export — adapter-format export of saved answers."""
 
     @pytest.fixture
     def csv_client(self, app):
@@ -1317,7 +1317,7 @@ class TestResponsesCsvEndpoint:
 
     def test_csv_session_mismatch_returns_403(self, csv_client, valid_token):
         response = csv_client.get(
-            "/sessions/wrong_session_id/responses/csv?platform=lss",
+            "/sessions/wrong_session_id/responses/export?platform=lss",
             headers={"Authorization": f"Bearer {valid_token}"},
         )
         assert response.status_code == 403
@@ -1325,7 +1325,7 @@ class TestResponsesCsvEndpoint:
     def test_csv_survey_not_found_returns_404(self, csv_client, token_and_session):
         token, session = token_and_session
         response = csv_client.get(
-            f"/sessions/{session.session_id}/responses/csv?platform=lss",
+            f"/sessions/{session.session_id}/responses/export?platform=lss",
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 404
@@ -1336,7 +1336,7 @@ class TestResponsesCsvEndpoint:
         token, session = token_and_session
         self._write_survey(session_manager, session, fmt="lss")
         response = csv_client.get(
-            f"/sessions/{session.session_id}/responses/csv?platform=qsf",
+            f"/sessions/{session.session_id}/responses/export?platform=qsf",
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 400
@@ -1345,7 +1345,7 @@ class TestResponsesCsvEndpoint:
         token, session = token_and_session
         self._write_survey(session_manager, session, fmt="unknown_fmt")
         response = csv_client.get(
-            f"/sessions/{session.session_id}/responses/csv?platform=unknown_fmt",
+            f"/sessions/{session.session_id}/responses/export?platform=unknown_fmt",
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 422
@@ -1353,22 +1353,22 @@ class TestResponsesCsvEndpoint:
     def test_csv_capability_absent_returns_422(
         self, csv_client, token_and_session, session_manager
     ):
-        """QTI does not advertise csv_export → 422."""
+        """QTI does not advertise responses_export → 422."""
         token, session = token_and_session
         self._write_survey(session_manager, session, fmt="qti")
         response = csv_client.get(
-            f"/sessions/{session.session_id}/responses/csv?platform=qti",
+            f"/sessions/{session.session_id}/responses/export?platform=qti",
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 422
 
     def test_csv_no_answers_yet_returns_404(self, csv_client, token_and_session, session_manager):
-        """Survey present + adapter supports csv_export, but no accepted/edited entries."""
+        """Survey present + adapter supports responses_export, but no accepted/edited entries."""
         token, session = token_and_session
         self._write_survey(session_manager, session, fmt="lss")
         self._write_review_state(session_manager, session, {})
         response = csv_client.get(
-            f"/sessions/{session.session_id}/responses/csv?platform=lss",
+            f"/sessions/{session.session_id}/responses/export?platform=lss",
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 404
@@ -1379,12 +1379,13 @@ class TestResponsesCsvEndpoint:
         self._write_survey(session_manager, session, fmt="lss")
         self._write_review_state(session_manager, session, {"q_11": {"state": "dismissed"}})
         response = csv_client.get(
-            f"/sessions/{session.session_id}/responses/csv?platform=lss",
+            f"/sessions/{session.session_id}/responses/export?platform=lss",
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 404
 
-    def test_csv_returns_csv_for_lss(self, csv_client, token_and_session, session_manager):
+    def test_export_returns_vv_tsv_for_lss(self, csv_client, token_and_session, session_manager):
+        """LS adapter emits the VV-import shape (TSV with two header rows + _vv.csv suffix)."""
         token, session = token_and_session
         self._write_survey(session_manager, session, fmt="lss", sid="42")
         self._write_review_state(
@@ -1393,21 +1394,28 @@ class TestResponsesCsvEndpoint:
             {"q_11": {"state": "accepted", "value": "Hello world"}},
         )
         response = csv_client.get(
-            f"/sessions/{session.session_id}/responses/csv?platform=lss",
+            f"/sessions/{session.session_id}/responses/export?platform=lss",
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 200
-        assert response.headers["content-type"].startswith("text/csv")
+        # LS returns TSV (a.k.a. LS's "VV" format), not CSV.
+        assert response.headers["content-type"].startswith("text/tab-separated-values")
         disposition = response.headers["content-disposition"]
         assert "attachment" in disposition
         assert "responses-lss-42-" in disposition
-        assert disposition.endswith('.csv"')
-        # Body has the SGQA header column and the value
+        # LS VV files use a `_vv.csv` suffix to mirror LS's own
+        # ``vvexport_{sid}.csv`` naming style even though the bytes are TSV.
+        assert disposition.endswith('_vv.csv"')
+        # Body has the qcode column (falls back to ls_qid=11 since the test
+        # survey carries no ls_qcode) and the accepted value.
         body = response.text
-        assert "42X1X11" in body
+        lines = body.splitlines()
+        assert len(lines) >= 3  # display headers, code headers, data row
+        assert "id\ttoken\tsubmitdate" in lines[1]  # codes row
+        assert "11" in lines[1].split("\t")
         assert "Hello world" in body
 
-    def test_csv_returns_csv_for_qsf(self, csv_client, token_and_session, session_manager):
+    def test_export_returns_csv_for_qsf(self, csv_client, token_and_session, session_manager):
         token, session = token_and_session
         self._write_survey(session_manager, session, fmt="qsf", sid="SV_xyz")
         self._write_review_state(
@@ -1416,12 +1424,14 @@ class TestResponsesCsvEndpoint:
             {"q_11": {"state": "edited", "value": "edited answer"}},
         )
         response = csv_client.get(
-            f"/sessions/{session.session_id}/responses/csv?platform=qsf",
+            f"/sessions/{session.session_id}/responses/export?platform=qsf",
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/csv")
-        assert "responses-qsf-SV_xyz-" in response.headers["content-disposition"]
+        disposition = response.headers["content-disposition"]
+        assert "responses-qsf-SV_xyz-" in disposition
+        assert disposition.endswith('.csv"')
         body = response.text
         # Row-1 should contain the QID for the configured question
         assert "QID11" in body

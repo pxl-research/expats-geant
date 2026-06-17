@@ -35,7 +35,7 @@ from typing import Any
 
 import requests
 
-from m_shared.adapters.base import SurveyAdapter
+from m_shared.adapters.base import ResponseExport, SurveyAdapter
 from m_shared.models.answer_option import AnswerOption
 from m_shared.models.question import Question, QuestionType
 from m_shared.models.response import Response
@@ -82,7 +82,7 @@ class QualtricsAdapter(SurveyAdapter):
         self._datacenter_id = datacenter_id
 
     def capabilities(self) -> set[str]:
-        return {"import", "export", "submit", "create", "api_create", "csv_export"}
+        return {"import", "export", "submit", "create", "api_create", "responses_export"}
 
     # ------------------------------------------------------------------
     # Import
@@ -370,8 +370,18 @@ class QualtricsAdapter(SurveyAdapter):
 
         logger.info("Submitted %d responses to Qualtrics survey %s", len(responses), survey_id)
 
-    def export_responses_to_csv(self, survey: Survey, responses: list[Response]) -> str:
+    def export_responses(self, survey: Survey, responses: list[Response]) -> ResponseExport:
         """Render responses as a CSV consumable by Qualtrics' Import Responses tool.
+
+        **Verification status:** This CSV shape is built from the Qualtrics
+        Importer documentation (column IDs + display labels + ImportId JSON +
+        ``QIDn[_choice]`` columns). It has NOT been live-verified against a
+        Qualtrics sandbox — the live verification step in the OpenSpec change
+        (§7.2) is intentionally left open. The LimeSurvey adapter's "CSV
+        export and CSV import use the same column shape" assumption turned
+        out to be false (see ``LimeSurveyAdapter.export_responses``); the
+        same divergence may apply here. Treat as untested-by-platform until
+        someone runs the file through the Qualtrics admin UI.
 
         Emits the three-row header shape Qualtrics' admin → "Data & Analysis →
         Import Responses" expects:
@@ -467,7 +477,11 @@ class QualtricsAdapter(SurveyAdapter):
         writer.writerow(import_meta)
         if responses:
             writer.writerow(row)
-        return "﻿" + buf.getvalue()
+        return ResponseExport(
+            content=("﻿" + buf.getvalue()).encode("utf-8"),
+            media_type="text/csv; charset=utf-8",
+            filename_suffix=".csv",
+        )
 
 
 # ------------------------------------------------------------------

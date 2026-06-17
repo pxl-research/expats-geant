@@ -362,12 +362,14 @@ class TestReviewPage:
 
     @respx.mock
     def test_renders_csv_button_when_capability_present(self):
-        """csv_export in capabilities → "Download responses as CSV" anchor present."""
+        """responses_export in capabilities → "Download responses for platform import" anchor present."""
         respx.get(f"{BASE}/surveys/survey-abc").mock(
             return_value=httpx.Response(200, json=SURVEY_FIXTURE)
         )
         respx.get(f"{BASE}/adapters/qsf/capabilities").mock(
-            return_value=httpx.Response(200, json=["import", "export", "submit", "csv_export"])
+            return_value=httpx.Response(
+                200, json=["import", "export", "submit", "responses_export"]
+            )
         )
         respx.get(f"{BASE}/session/stats").mock(
             return_value=httpx.Response(200, json={"documents": []})
@@ -375,8 +377,8 @@ class TestReviewPage:
         client = TestClient(app, follow_redirects=False)
         resp = client.get("/session/survey-abc/review", cookies=TOKEN_COOKIE)
         assert resp.status_code == 200
-        assert "Download responses as CSV" in resp.text
-        assert "/responses/csv?platform=qsf" in resp.text
+        assert "Download responses for platform import" in resp.text
+        assert "/responses/export?platform=qsf" in resp.text
 
     @respx.mock
     def test_omits_csv_button_when_capability_absent(self):
@@ -392,11 +394,11 @@ class TestReviewPage:
         client = TestClient(app, follow_redirects=False)
         resp = client.get("/session/survey-abc/review", cookies=TOKEN_COOKIE)
         assert resp.status_code == 200
-        assert "Download responses as CSV" not in resp.text
+        assert "Download responses for platform import" not in resp.text
 
     @respx.mock
     def test_promotes_json_export_for_dead_end_adapters(self):
-        """SM/QTI: no submit, no csv_export → primary "Export your answers (JSON)" affordance."""
+        """SM/QTI: no submit, no responses_export → primary "Export your answers (JSON)" affordance."""
         qti_survey = {**SURVEY_FIXTURE, "metadata": {"format": "qti"}}
         respx.get(f"{BASE}/surveys/survey-abc").mock(
             return_value=httpx.Response(200, json=qti_survey)
@@ -421,7 +423,9 @@ class TestReviewPage:
             return_value=httpx.Response(200, json=lss_survey)
         )
         respx.get(f"{BASE}/adapters/lss/capabilities").mock(
-            return_value=httpx.Response(200, json=["import", "export", "submit", "csv_export"])
+            return_value=httpx.Response(
+                200, json=["import", "export", "submit", "responses_export"]
+            )
         )
         respx.get(f"{BASE}/session/stats").mock(
             return_value=httpx.Response(200, json={"documents": []})
@@ -432,27 +436,29 @@ class TestReviewPage:
         assert "Export your answers (JSON)" not in resp.text
 
 
-class TestDownloadResponsesCsvProxy:
-    """The UI's thin proxy at GET /session/{id}/responses/csv forwards to the Cue API."""
+class TestDownloadResponsesExportProxy:
+    """The UI's thin proxy at GET /session/{id}/responses/export forwards to the Cue API."""
 
     @respx.mock
-    def test_proxy_forwards_bytes_and_filename(self):
-        upstream = respx.get(f"{BASE}/sessions/survey-abc/responses/csv").mock(
+    def test_proxy_forwards_bytes_filename_and_media_type(self):
+        """Proxy forwards the upstream Content-Type verbatim (TSV for LS, CSV for QSF)."""
+        upstream = respx.get(f"{BASE}/sessions/survey-abc/responses/export").mock(
             return_value=httpx.Response(
                 200,
-                content=b"\xef\xbb\xbfresponse_id,42X1X11\r\n,Hello\r\n",
+                content=b'"Response ID"\tid\nx\ty\n',
                 headers={
-                    "content-type": "text/csv; charset=utf-8",
-                    "content-disposition": 'attachment; filename="responses-lss-42-20260617T000000Z.csv"',
+                    "content-type": "text/tab-separated-values; charset=utf-8",
+                    "content-disposition": 'attachment; filename="responses-lss-42-20260617T000000Z_vv.csv"',
                 },
             )
         )
         client = TestClient(app, follow_redirects=False)
-        resp = client.get("/session/survey-abc/responses/csv?platform=lss", cookies=TOKEN_COOKIE)
+        resp = client.get("/session/survey-abc/responses/export?platform=lss", cookies=TOKEN_COOKIE)
         assert resp.status_code == 200
-        assert resp.headers["content-type"].startswith("text/csv")
-        assert "responses-lss-42-20260617T000000Z.csv" in resp.headers["content-disposition"]
-        assert resp.content.startswith(b"\xef\xbb\xbfresponse_id,42X1X11\r\n")
+        # Media type forwarded unchanged — TSV for LS, not CSV.
+        assert resp.headers["content-type"].startswith("text/tab-separated-values")
+        assert "responses-lss-42-20260617T000000Z_vv.csv" in resp.headers["content-disposition"]
+        assert resp.content == b'"Response ID"\tid\nx\ty\n'
         assert upstream.called
         # Make sure the platform query string is forwarded verbatim.
         sent = upstream.calls.last.request
@@ -460,17 +466,17 @@ class TestDownloadResponsesCsvProxy:
 
     @respx.mock
     def test_proxy_surfaces_404_when_upstream_has_no_answers(self):
-        respx.get(f"{BASE}/sessions/survey-abc/responses/csv").mock(
+        respx.get(f"{BASE}/sessions/survey-abc/responses/export").mock(
             return_value=httpx.Response(404, json={"detail": "No responses recorded yet"})
         )
         client = TestClient(app, follow_redirects=False)
-        resp = client.get("/session/survey-abc/responses/csv?platform=lss", cookies=TOKEN_COOKIE)
+        resp = client.get("/session/survey-abc/responses/export?platform=lss", cookies=TOKEN_COOKIE)
         assert resp.status_code == 404
         assert "No responses recorded yet" in resp.text
 
     def test_proxy_redirects_unauthenticated(self):
         client = TestClient(app, follow_redirects=False)
-        resp = client.get("/session/survey-abc/responses/csv?platform=lss")
+        resp = client.get("/session/survey-abc/responses/export?platform=lss")
         assert resp.status_code == 302
         assert resp.headers["location"].startswith("/auth/login")
 

@@ -80,28 +80,34 @@ async def submit_responses(
     _raise_for_status(resp)
 
 
-_CSV_FILENAME_RE = re.compile(r'filename="([^"]+)"')
+_FILENAME_RE = re.compile(r'filename="([^"]+)"')
 
 
-async def get_responses_csv(token: str, session_id: str, platform: str) -> tuple[bytes, str]:
-    """Fetch the session's responses as a CSV consumable by the platform's importer.
+async def get_responses_export(
+    token: str, session_id: str, platform: str
+) -> tuple[bytes, str, str]:
+    """Fetch the session's responses in the file format the platform's importer accepts.
 
-    GET /sessions/{session_id}/responses/csv?platform=… → (csv_bytes, filename)
+    GET /sessions/{session_id}/responses/export?platform=… →
+    ``(content_bytes, filename, media_type)``.
 
-    The filename is extracted from the upstream ``Content-Disposition`` header
-    so the browser-facing download presents the same name the Cue API chose.
+    The format is adapter-defined: LimeSurvey returns a VV-shape TSV
+    (filename ends in ``.vv.csv``); Qualtrics returns a CSV. The media_type
+    and filename come from the upstream Content-Type and Content-Disposition
+    headers verbatim, so the proxy can forward them unchanged.
     """
     async with httpx.AsyncClient() as client:
         resp = await client.get(
-            f"{CUE_API_URL}/sessions/{session_id}/responses/csv",
+            f"{CUE_API_URL}/sessions/{session_id}/responses/export",
             params={"platform": platform},
             headers=auth_headers(token),
         )
     _raise_for_status(resp)
     disposition = resp.headers.get("content-disposition", "")
-    match = _CSV_FILENAME_RE.search(disposition)
-    filename = match.group(1) if match else f"responses-{platform}.csv"
-    return resp.content, filename
+    match = _FILENAME_RE.search(disposition)
+    filename = match.group(1) if match else f"responses-{platform}"
+    media_type = resp.headers.get("content-type", "application/octet-stream")
+    return resp.content, filename, media_type
 
 
 async def get_session_stats(token: str) -> dict[str, Any]:

@@ -280,10 +280,10 @@
 {% endif %}
 </form>
 
-{% if can_csv_export %}
+{% if can_responses_export %}
 <div style="margin-top:0.75rem;">
-  <a href="/session/{{ session_id }}/responses/csv?platform={{ survey_format }}"
-     class="btn btn-secondary">Download responses as CSV</a>
+  <a href="/session/{{ session_id }}/responses/export?platform={{ survey_format }}"
+     class="btn btn-secondary">Download responses for platform import</a>
 </div>
 {% endif %}
 

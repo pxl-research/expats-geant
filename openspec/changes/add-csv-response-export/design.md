@@ -213,6 +213,48 @@ preserve.
 
 ### Live verification
 
-Tasks §7.1 (LS) and §7.2 (QSF, if a sandbox is available) intentionally
-stay open for the operator. The change is otherwise feature-complete on
-merge.
+Task §7.1 (LS) is verified against LS 6.17.4 via a live smoke that
+generated the export, uploaded it through *Responses & statistics →
+Import a VV response data file*, and observed the response count
+go from N to N+1 with the expected sub-question selected. Task §7.2
+(QSF, if a sandbox is available) intentionally stays open for the
+operator.
+
+### LimeSurvey actually has three response-related formats (discovered live)
+
+The proposal's working assumption was "LS's CSV export shape IS what the
+LS CSV importer accepts." That turned out to be wrong on two counts:
+
+1. LS 6's admin response importer is the **VV** ("Vertical
+   Verification") path — TAB-separated, distinct from CSV. We use a
+   `_vv.csv` filename suffix to mirror LS's own `vvexport_{sid}.csv`
+   naming style. It has two header rows
+   and uses literal `{question_not_shown}` markers for empty cells.
+2. LS has *three* incompatible response-format contracts, sharing no
+   parsing code between them on the LS side:
+
+   | Path | Column format | Sub-question separator |
+   |---|---|---|
+   | RC2 `add_response` (Submit) | `{sid}X{gid}X{qid}{sub_title}` | none (no brackets — issue #60) |
+   | CSV export (read-only) | `{qcode}[{sub_qcode}]`, semicolons | brackets |
+   | VV import (this change) | `{qcode}_{sub_qcode}`, TAB | underscore |
+
+   These are independent contracts; matching one does not imply matching
+   another. The proposal's "reuse the SGQA helper for the CSV emitter"
+   intuition was therefore wrong — the CSV emitter must use VV column
+   names, and the RC2 submit and VV import paths must keep their own
+   column-naming functions.
+
+Adapter naming reflects this — `export_responses_to_csv` was renamed to
+`export_responses` and the return shape became `ResponseExport(content,
+media_type, filename_suffix)` so each adapter can declare its native
+format. The capability string is `responses_export`, not `csv_export`.
+
+### Qualtrics: same risk vector, unverified
+
+Qualtrics' CSV exporter and CSV importer formats almost certainly differ
+the same way LS's do. Our shipped Qualtrics implementation matches the
+documented importer contract (3-row CSV with `ImportId` JSON on row 3),
+but we have no sandbox to run a live round-trip. The risk is captured
+explicitly in the Qualtrics adapter's `export_responses` docstring and
+task §7.2 stays open.

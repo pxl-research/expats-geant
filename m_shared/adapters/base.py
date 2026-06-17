@@ -1,9 +1,34 @@
 """Abstract base class for platform survey adapters."""
 
 from abc import ABC, abstractmethod
+from typing import NamedTuple
 
 from m_shared.models.response import Response
 from m_shared.models.survey import Survey
+
+
+class ResponseExport(NamedTuple):
+    """One adapter-emitted response export.
+
+    Different platforms accept different file formats from their admin-UI
+    importers (LimeSurvey: VV / TSV; Qualtrics: CSV; future adapters: their
+    own). The adapter knows which format the platform's importer expects and
+    returns the bytes plus the metadata the calling layer needs to deliver
+    them as a browser download.
+    """
+
+    content: bytes
+    """File payload as encoded bytes (UTF-8, with BOM where the platform expects it)."""
+
+    media_type: str
+    """RFC 7231 media type, used verbatim as the HTTP ``Content-Type`` header."""
+
+    filename_suffix: str
+    """Trailing portion of the filename INCLUDING the leading connector, so
+    the adapter chooses the joining character. E.g. LimeSurvey uses
+    ``"_vv.csv"`` to match LS's own ``vvexport_{sid}.csv`` naming style;
+    Qualtrics uses ``".csv"`` for a plain extension. The endpoint composes
+    ``responses-{platform}-{sid}-{ts}{suffix}`` (no inserted character)."""
 
 
 class SurveyAdapter(ABC):
@@ -46,7 +71,7 @@ class SurveyAdapter(ABC):
         """Return the set of operations this adapter supports.
 
         Defined capability strings: "import", "export", "submit", "create",
-        "api_create", "csv_export".
+        "api_create", "responses_export".
 
         Returns:
             set[str]: Supported capability identifiers.
@@ -84,25 +109,27 @@ class SurveyAdapter(ABC):
         """Fetch a survey from the platform API by ID (optional override)."""
         raise NotImplementedError(f"{type(self).__name__} does not support fetch_survey")
 
-    def export_responses_to_csv(self, survey: Survey, responses: list[Response]) -> str:
-        """Render responses as a CSV string consumable by the platform's response importer.
+    def export_responses(self, survey: Survey, responses: list[Response]) -> ResponseExport:
+        """Render responses in the file format the platform's admin importer accepts.
 
-        Override in adapters that support file-based response import (LimeSurvey,
-        Qualtrics). The returned CSV SHALL match the column shape the originating
-        platform's admin UI accepts without further transformation.
+        Override in adapters that support file-based response import. The
+        returned ``ResponseExport`` SHALL be importable by the originating
+        platform's admin UI without further transformation. The format is
+        platform-specific and need not be CSV — LimeSurvey's VV importer
+        wants TSV with two header rows; Qualtrics wants its own 3-row CSV.
 
         Args:
             survey: The internal survey, used for column order and per-question metadata.
             responses: The respondent's answers as internal Response objects.
 
         Returns:
-            str: UTF-8 CSV text (with BOM where the platform's importer expects one).
+            ResponseExport: ``(content, media_type, filename_suffix)``.
 
         Raises:
             NotImplementedError: Override in subclasses that advertise the
-                "csv_export" capability.
+                ``responses_export`` capability.
         """
         raise NotImplementedError(
-            f"{self.__class__.__name__} does not support 'csv_export'. "
+            f"{self.__class__.__name__} does not support 'responses_export'. "
             "Check capabilities() before invoking."
         )

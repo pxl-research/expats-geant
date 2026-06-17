@@ -29,8 +29,6 @@ LimeSurvey question types mapped to internal QuestionType:
 """
 
 import base64
-import csv
-import io
 import json
 import logging
 import uuid
@@ -41,7 +39,7 @@ from xml.etree.ElementTree import Element
 import defusedxml.ElementTree as defused_ET
 import requests
 
-from m_shared.adapters.base import SurveyAdapter
+from m_shared.adapters.base import ResponseExport, SurveyAdapter
 from m_shared.models.answer_option import AnswerOption
 from m_shared.models.question import Question, QuestionType
 from m_shared.models.response import Response
@@ -123,7 +121,7 @@ class LimeSurveyAdapter(SurveyAdapter):
         self._password = password
 
     def capabilities(self) -> set[str]:
-        return {"import", "export", "submit", "create", "api_create", "csv_export"}
+        return {"import", "export", "submit", "create", "api_create", "responses_export"}
 
     # ------------------------------------------------------------------
     # Import
@@ -330,6 +328,12 @@ class LimeSurveyAdapter(SurveyAdapter):
         else:
             raw_options = answers_by_qid.get(qid, [])
         extra = q_meta.get("extra", {})
+        extra_metadata = dict(extra)
+        if "title" in extra and extra["title"]:
+            # Surface the question's user-defined code under a stable key so
+            # downstream code (CSV export) does not depend on the raw XML field
+            # name leaking through.
+            extra_metadata["ls_qcode"] = extra["title"]
         return _question_from_meta(
             ls_type=ls_type,
             qid=qid,
@@ -337,7 +341,7 @@ class LimeSurveyAdapter(SurveyAdapter):
             mandatory=q_meta["mandatory"],
             options=raw_options,
             attributes=extra,
-            extra_metadata=extra,
+            extra_metadata=extra_metadata,
         )
 
     # ------------------------------------------------------------------
@@ -589,75 +593,148 @@ class LimeSurveyAdapter(SurveyAdapter):
         finally:
             self._release_session_key(session_key)
 
-    def export_responses_to_csv(self, survey: Survey, responses: list[Response]) -> str:
-        """Render responses as a CSV consumable by LimeSurvey's response importer.
+    def export_responses(self, survey: Survey, responses: list[Response]) -> ResponseExport:
+        """Render responses as a VV file consumable by LS's *Import a VV response data file*.
 
-        Emits the column shape that LS admin → "Responses & statistics → Import
-        responses from CSV/Excel" expects: a fixed header prefix
-        (``response_id,submitdate,lastpage,startlanguage,seed``) followed by one
-        SGQA column per top-level question and one column per sub-question for
-        ``M``/``P`` (multi-answer) questions. Sub-question keys use the unbracketed
-        ``{sid}X{gid}X{qid}{sub_title}`` form — same as ``submit_responses``;
-        the bracketed form is silently dropped on import (issue #60).
+        Emits the exact byte format the LS 6 VV importer expects, verified
+        live against LS 6.17.4 by running this output through the admin UI:
 
-        Single-choice answers emit the option's value; multi-choice answers
-        emit ``"Y"`` per selected sub-question column and empty otherwise;
-        open-ended / numeric answers pass through as-is.
+        - **TAB-separated** values (LS calls it "VV" — Vertical Verification —
+          a format distinct from CSV; the file extension is ``.csv`` by LS
+          convention but the separator is ``\\t``).
+        - **Two header rows**:
+            - Row 1 — human display headers (column display labels,
+              ignored by the importer but expected to be present).
+            - Row 2 — column codes the importer maps to survey fields:
+              ``id, token, submitdate, lastpage, startlanguage, seed, startdate,
+              datestamp`` followed by one column per top-level question
+              (``ls_qcode``) and one column per ``M``/``P`` sub-question
+              keyed ``{qcode}_{sub_qcode}`` (UNDERSCORE separator, no brackets).
+        - Data rows: one per response. Empty values use the literal
+          ``{question_not_shown}`` marker; multi-choice selected cells contain
+          ``Y``; the ``id`` column is left empty so LS auto-assigns.
 
-        Output is UTF-8 with BOM (LS tolerates it; mirrors the Qualtrics
-        importer's preference for a single common encoding across platforms)
-        and CRLF line endings per RFC 4180.
+        This is one of THREE incompatible LS response-formats:
+
+        =========================  ===================================  ========
+        Endpoint                   Column shape                         Brackets
+        =========================  ===================================  ========
+        RC2 ``add_response``       ``{sid}X{gid}X{qid}{sub_title}``     NO
+        CSV export (read-only)     ``{qcode}[{sub_qcode}]``             YES
+        VV import (this method)    ``{qcode}_{sub_qcode}``              NO
+        =========================  ===================================  ========
+
+        These contracts share no parsing code on the LS side; matching one
+        does not imply matching another. We previously emitted the CSV-export
+        shape and the importer rejected every column ("No answers could be
+        mapped") — the VV import contract above is what actually round-trips.
 
         Args:
-            survey: The internal survey, used for column order and metadata
-                (``ls_sid`` on the survey, ``ls_gid`` on each section,
-                ``ls_qid`` on each question).
-            responses: The respondent's answers. Indexed by ``question_id``;
-                ``answer_value`` is the platform code for single-choice
-                (e.g. ``"A1"``), a list of sub-question titles for multi-
-                choice (e.g. ``["X", "Y"]``), or text/numeric for open-ended.
+            survey: The internal survey. Per-question metadata MUST include
+                ``ls_qcode`` (the question's user-defined ``<title>`` code) for
+                column matching to work. Sub-question codes come from
+                ``AnswerOption.value`` on M/P questions.
+            responses: The respondent's answers. ``answer_value`` is the
+                option code for single-choice (e.g. ``"A1"``), a list of
+                sub-question codes for multi-choice (e.g. ``["A1", "A3"]``),
+                or text/numeric for open-ended.
+
+        Returns:
+            ResponseExport with ``media_type="text/tab-separated-values"`` and
+            ``filename_suffix="vv.csv"`` (LS's expected extension).
         """
-        sid = str(survey.metadata.get("ls_sid", survey.id))
         responses_by_qid = {str(r.question_id): r for r in responses}
 
-        columns: list[str] = ["response_id", "submitdate", "lastpage", "startlanguage", "seed"]
-        column_sources: list[tuple[str, str | None]] = [("", None) for _ in columns]
+        display_row: list[str] = [
+            '"Response ID"',
+            "token",
+            '"Date submitted"',
+            '"Last page"',
+            '"Start language"',
+            "Seed",
+            '"Date started"',
+            '"Date last action"',
+        ]
+        code_row: list[str] = [
+            "id",
+            "token",
+            "submitdate",
+            "lastpage",
+            "startlanguage",
+            "seed",
+            "startdate",
+            "datestamp",
+        ]
+        column_sources: list[tuple[str, str | None]] = [("", None) for _ in code_row]
+
         for section in survey.sections:
-            gid = str(section.metadata.get("ls_gid", ""))
             for question in section.questions:
-                qid = str(question.metadata.get("ls_qid", question.id))
+                qcode = str(
+                    question.metadata.get("ls_qcode")
+                    or question.metadata.get("ls_qid")
+                    or question.id
+                )
                 if question.type == QuestionType.MULTIPLE_CHOICE and question.answer_options:
                     for opt in question.answer_options:
-                        sub_title = str(opt.value) if opt.value is not None else ""
-                        columns.append(_sgqa_key(sid, gid, qid, sub_title))
-                        column_sources.append((question.id, sub_title))
+                        sub_code = str(opt.value) if opt.value is not None else ""
+                        display_row.append(f'"{question.text} ({opt.text})"')
+                        code_row.append(f"{qcode}_{sub_code}")
+                        column_sources.append((question.id, sub_code))
                 else:
-                    columns.append(_sgqa_key(sid, gid, qid))
+                    display_row.append(f'"{question.text}"')
+                    code_row.append(qcode)
                     column_sources.append((question.id, None))
 
-        row: list[str] = []
-        for col_qid, col_sub_title in column_sources:
-            if not col_qid:
-                row.append("")
-                continue
-            resp = responses_by_qid.get(col_qid)
-            if resp is None or resp.answer_value is None:
-                row.append("")
-                continue
-            value = resp.answer_value
-            if col_sub_title is not None:
-                row.append("Y" if isinstance(value, list) and col_sub_title in value else "")
-            elif isinstance(value, list):
-                row.append(",".join(str(v) for v in value))
-            else:
-                row.append(str(value))
+        out_lines: list[str] = ["\t".join(display_row), "\t".join(code_row)]
+        for resp_obj in responses:
+            data_row: list[str] = []
+            for col_qid, col_sub_code in column_sources:
+                if not col_qid:
+                    # Fixed prefix columns. id is left empty so LS auto-assigns;
+                    # everything else is "not shown" since we did not capture it.
+                    data_row.append("")
+                    continue
+                target_resp = responses_by_qid.get(col_qid)
+                if target_resp is None or target_resp.answer_value is None:
+                    data_row.append("{question_not_shown}")
+                    continue
+                value = target_resp.answer_value
+                if col_sub_code is not None:
+                    if isinstance(value, list) and col_sub_code in value:
+                        data_row.append("Y")
+                    else:
+                        data_row.append("{question_not_shown}")
+                elif isinstance(value, list):
+                    data_row.append('"' + ",".join(str(v) for v in value) + '"')
+                else:
+                    s = str(value)
+                    # Quote values containing whitespace or the TAB separator to
+                    # mirror LS's own export quoting heuristic.
+                    if any(c in s for c in (" ", "\t", '"', "\n")):
+                        s = '"' + s.replace('"', '""') + '"'
+                    data_row.append(s)
+            # Empty fixed-prefix columns are marked {question_not_shown} except `id`
+            # (left empty so LS auto-assigns) and `startlanguage` which LS expects
+            # to be a real language code. Patch them up here in one place rather
+            # than threading defaults through the column build above.
+            data_row[0] = ""  # id — auto-assign
+            for fixed_idx, default in (
+                (1, "{question_not_shown}"),  # token
+                (2, "{question_not_shown}"),  # submitdate (LS fills if missing)
+                (3, "{question_not_shown}"),  # lastpage
+                (4, "en"),  # startlanguage
+                (5, "{question_not_shown}"),  # seed
+                (6, "{question_not_shown}"),  # startdate
+                (7, "{question_not_shown}"),  # datestamp
+            ):
+                data_row[fixed_idx] = default
+            out_lines.append("\t".join(data_row))
 
-        buf = io.StringIO()
-        writer = csv.writer(buf, dialect="excel", lineterminator="\r\n")
-        writer.writerow(columns)
-        if responses:
-            writer.writerow(row)
-        return "﻿" + buf.getvalue()
+        return ResponseExport(
+            content=("\n".join(out_lines) + "\n").encode("utf-8"),
+            media_type="text/tab-separated-values; charset=utf-8",
+            filename_suffix="_vv.csv",
+        )
 
     def _require_credentials(self, op_label: str) -> None:
         """Guard helper — raise ValueError if API credentials are not configured."""
@@ -895,6 +972,7 @@ def _assemble_survey_from_rpc(
             else:
                 options = _answer_options_from_properties(details.get(qid, {}))
             attributes = _attributes_from_properties(details.get(qid, {}))
+            qcode = q.get("title") or ""
             question = _question_from_meta(
                 ls_type=ls_type,
                 qid=qid,
@@ -902,6 +980,7 @@ def _assemble_survey_from_rpc(
                 mandatory=str(q.get("mandatory", "")) in ("Y", "y", "1"),
                 options=options,
                 attributes=attributes,
+                extra_metadata={"ls_qcode": qcode} if qcode else None,
             )
             if question is not None:
                 section_questions.append(question)
