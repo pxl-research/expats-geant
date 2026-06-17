@@ -1280,7 +1280,10 @@ class TestResponsesExportEndpoint:
         """Persist a minimal survey.json with one open-ended question (qid=11)."""
         import json as _json
 
-        survey_path = session_manager._get_session_path(session.session_id) / "survey.json"
+        survey_path = (
+            session_manager._get_session_path(session.session_id, user_id=session.user_id)
+            / "survey.json"
+        )
         survey_data = {
             "id": sid,
             "title": "T",
@@ -1312,7 +1315,10 @@ class TestResponsesExportEndpoint:
     def _write_review_state(session_manager, session, state: dict) -> None:
         import json as _json
 
-        path = session_manager._get_session_path(session.session_id) / "review_state.json"
+        path = (
+            session_manager._get_session_path(session.session_id, user_id=session.user_id)
+            / "review_state.json"
+        )
         path.write_text(_json.dumps(state))
 
     def test_csv_session_mismatch_returns_403(self, csv_client, valid_token):

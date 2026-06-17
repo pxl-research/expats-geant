@@ -92,7 +92,7 @@ async def get_responses_export(
     ``(content_bytes, filename, media_type)``.
 
     The format is adapter-defined: LimeSurvey returns a VV-shape TSV
-    (filename ends in ``.vv.csv``); Qualtrics returns a CSV. The media_type
+    (filename ends in ``_vv.csv``); Qualtrics returns a CSV. The media_type
     and filename come from the upstream Content-Type and Content-Disposition
     headers verbatim, so the proxy can forward them unchanged.
     """

@@ -361,7 +361,7 @@ class TestReviewPage:
             assert f'name="{field}"' not in resp.text
 
     @respx.mock
-    def test_renders_csv_button_when_capability_present(self):
+    def test_renders_export_button_when_capability_present(self):
         """responses_export in capabilities → "Download responses for platform import" anchor present."""
         respx.get(f"{BASE}/surveys/survey-abc").mock(
             return_value=httpx.Response(200, json=SURVEY_FIXTURE)
@@ -381,7 +381,7 @@ class TestReviewPage:
         assert "/responses/export?platform=qsf" in resp.text
 
     @respx.mock
-    def test_omits_csv_button_when_capability_absent(self):
+    def test_omits_export_button_when_capability_absent(self):
         respx.get(f"{BASE}/surveys/survey-abc").mock(
             return_value=httpx.Response(200, json=SURVEY_FIXTURE)
         )

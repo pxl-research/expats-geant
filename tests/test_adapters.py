@@ -853,6 +853,28 @@ class TestLimeSurveyVvExport:
         _, _, code_row, data_rows = self._parsed(survey, [resp])
         assert data_rows[0][code_row.index("startlanguage")] == "en"
 
+    def test_multiple_responses_collapse_to_single_data_row(self):
+        """One respondent's N answers must emit exactly ONE VV data row, not N."""
+        survey = self.adapter.import_survey(MULTI_SECTION_LSS)
+        m_q = next(
+            q
+            for s in survey.sections
+            for q in s.questions
+            if q.type == QuestionType.MULTIPLE_CHOICE
+        )
+        open_q = next(
+            q for s in survey.sections for q in s.questions if q.type == QuestionType.OPEN_ENDED
+        )
+        responses = [
+            Response(id="r1", question_id=m_q.id, answer_value=["X"], metadata={}),
+            Response(id="r2", question_id=open_q.id, answer_value="hello", metadata={}),
+        ]
+        _, _, code_row, data_rows = self._parsed(survey, responses)
+        assert len(data_rows) == 1
+        row = data_rows[0]
+        assert row[code_row.index("2_X")] == "Y"
+        assert row[code_row.index("1")] == "hello"
+
 
 # ---------------------------------------------------------------------------
 # QualtricsAdapter — import

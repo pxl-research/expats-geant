@@ -641,7 +641,8 @@ class LimeSurveyAdapter(SurveyAdapter):
 
         Returns:
             ResponseExport with ``media_type="text/tab-separated-values"`` and
-            ``filename_suffix="vv.csv"`` (LS's expected extension).
+            ``filename_suffix="_vv.csv"`` (mirrors LS's own ``vvexport_{sid}.csv``
+            naming; the leading underscore is part of the suffix).
         """
         responses_by_qid = {str(r.question_id): r for r in responses}
 
@@ -686,12 +687,12 @@ class LimeSurveyAdapter(SurveyAdapter):
                     column_sources.append((question.id, None))
 
         out_lines: list[str] = ["\t".join(display_row), "\t".join(code_row)]
-        for resp_obj in responses:
+        if responses:
+            # `responses` is one respondent's per-question answers; emit exactly
+            # one data row built from responses_by_qid.
             data_row: list[str] = []
             for col_qid, col_sub_code in column_sources:
                 if not col_qid:
-                    # Fixed prefix columns. id is left empty so LS auto-assigns;
-                    # everything else is "not shown" since we did not capture it.
                     data_row.append("")
                     continue
                 target_resp = responses_by_qid.get(col_qid)
@@ -713,19 +714,18 @@ class LimeSurveyAdapter(SurveyAdapter):
                     if any(c in s for c in (" ", "\t", '"', "\n")):
                         s = '"' + s.replace('"', '""') + '"'
                     data_row.append(s)
-            # Empty fixed-prefix columns are marked {question_not_shown} except `id`
-            # (left empty so LS auto-assigns) and `startlanguage` which LS expects
-            # to be a real language code. Patch them up here in one place rather
-            # than threading defaults through the column build above.
-            data_row[0] = ""  # id — auto-assign
+            # Fixed-prefix defaults: id stays empty so LS auto-assigns;
+            # startlanguage must be a real language code; the rest are marked
+            # not-shown since the session did not capture them.
+            data_row[0] = ""
             for fixed_idx, default in (
-                (1, "{question_not_shown}"),  # token
-                (2, "{question_not_shown}"),  # submitdate (LS fills if missing)
-                (3, "{question_not_shown}"),  # lastpage
-                (4, "en"),  # startlanguage
-                (5, "{question_not_shown}"),  # seed
-                (6, "{question_not_shown}"),  # startdate
-                (7, "{question_not_shown}"),  # datestamp
+                (1, "{question_not_shown}"),
+                (2, "{question_not_shown}"),
+                (3, "{question_not_shown}"),
+                (4, "en"),
+                (5, "{question_not_shown}"),
+                (6, "{question_not_shown}"),
+                (7, "{question_not_shown}"),
             ):
                 data_row[fixed_idx] = default
             out_lines.append("\t".join(data_row))
@@ -1046,13 +1046,12 @@ def _sub(parent: Element, tag: str, text: str) -> Element:
 
 
 def _sgqa_key(survey_id: str, gid: str, qid: str, suffix: str = "") -> str:
-    """Build a LimeSurvey SGQA field key.
+    """Build a LimeSurvey SGQA field key for the RC2 ``add_response`` API.
 
     Top-level questions use ``{sid}X{gid}X{qid}``; multi-answer sub-fields
     append the sub-question's title directly with NO brackets — the bracketed
-    form is silently dropped by the platform on submit and is rejected by the
-    CSV importer (issue #60). Single source of truth for both ``submit_responses``
-    and ``export_responses_to_csv``.
+    form is silently dropped by ``add_response`` (issue #60). Used only by
+    ``submit_responses``; the VV export uses qcode-based columns, not SGQA.
     """
     return f"{survey_id}X{gid}X{qid}{suffix}"
 

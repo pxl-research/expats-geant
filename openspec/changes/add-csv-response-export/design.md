@@ -198,8 +198,8 @@ strictly platform-agnostic, alongside the existing
 Spec deltas already cover this in the "Neither affordance shown" scenario.
 Implementation surfaces the existing JSON answer-report download as a
 prominent primary-zone action labelled "Export your answers (JSON)" when
-neither `"submit"` nor `"csv_export"` is advertised, instead of leaving the
-review page as a literal dead end. No new endpoint; reuses
+neither `"submit"` nor `"responses_export"` is advertised, instead of
+leaving the review page as a literal dead end. No new endpoint; reuses
 `/session/{id}/answer-report/download`.
 
 ### LimeSurvey SGQA column shape
