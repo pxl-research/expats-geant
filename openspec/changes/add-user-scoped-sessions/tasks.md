@@ -48,8 +48,33 @@
 
 ## 6. Testing
 
-- [ ] 6.1 Smoke-test: OIDC login → session list → new session → upload → review → reload on different device → same session
-- [ ] 6.2 Smoke-test: create two sessions, switch between them
-- [ ] 6.3 Smoke-test: transfer session from User A to User B
+- [x] 6.1 Smoke-test: OIDC login → session list → new session → upload →
+  review → reload on different device → same session.
+  Verified 2026-06-18 against the docker-compose stack with user
+  `servaas.tilkin@pxl.be` and a QTI survey (`bachelor_survey.qti`).
+  "Different device" simulated via Keycloak logout + re-login, exercising
+  JWT/cookie persistence and `list_sessions_for_user` recovery from the
+  user-scoped layout. Resume routed back to `/session/{id}/review`.
+- [x] 6.2 Smoke-test: create two sessions, switch between them.
+  Verified 2026-06-18. Two sessions appear in `/sessions` listed by
+  reverse `created_at`; Resume on either routes to its own
+  `/session/{id}/review` without cross-contamination.
+- [x] 6.3 Smoke-test: transfer session from User A to User B.
+  Verified 2026-06-18. Transfer of `f2f739ed0ab1` from
+  `servaas.tilkin@pxl.be` to `servaas.tilkin@gmail.com` via
+  `POST /sessions/{id}/transfer` returned `{"status":"transferred"}`;
+  the session directory moved from User A's hash to User B's; User B's
+  `/sessions` listed the session with the original `created_at` and
+  `Loaded` status; Resume rendered the original survey content.
+  **Hardening applied during verification**: the transfer endpoint now
+  returns a fresh session-less JWT (``token``) when the caller's current
+  JWT was bound to the transferred session — mirroring
+  ``delete_user_session``'s cookie-rotation pattern. Without it, the
+  middleware lazy-resurrects an empty same-id shell at the sender's
+  path on the next request from the still-open tab. Test coverage in
+  ``TestTransferSession`` (5 cases: success path, JWT rotation when
+  bound, no rotation when unbound, recipient-must-exist, ownership
+  guard). Cue UI does not currently expose transfer; the new ``token``
+  field is there for any future UI/CLI caller that needs to self-heal.
 - [x] 6.4 Verify session cleanup handles nested layout (unit tests)
 - [x] 6.5 Verify RTBF deletion removes all user data (unit tests)

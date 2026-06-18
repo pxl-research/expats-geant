@@ -425,6 +425,108 @@ class TestDeleteSessionById:
         assert resp.status_code == 404
 
 
+class TestTransferSession:
+    """Tests for POST /sessions/{session_id}/transfer — handoff with JWT rotation."""
+
+    def _session_less_token(self, user_id: str) -> str:
+        return create_token(user_id=user_id, session_id=None, org="test_org", roles=["respondent"])
+
+    def _bound_token(self, user_id: str, session_id: str) -> str:
+        return create_token(
+            user_id=user_id, session_id=session_id, org="test_org", roles=["respondent"]
+        )
+
+    def test_transfer_succeeds_for_owner(self, client, jwt_secret, session_manager):
+        sender_token = self._session_less_token("transfer_sender")
+        recipient_token = self._session_less_token("transfer_recipient")
+        # Recipient must have logged in at least once — simulated by creating
+        # a throwaway session, which calls ensure_user_directory.
+        client.post("/sessions/new", headers={"Authorization": f"Bearer {recipient_token}"})
+
+        created = client.post("/sessions/new", headers={"Authorization": f"Bearer {sender_token}"})
+        sid = created.json()["session_id"]
+
+        resp = client.post(
+            f"/sessions/{sid}/transfer",
+            headers={"Authorization": f"Bearer {sender_token}"},
+            json={"recipient_user_id": "transfer_recipient"},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "transferred"
+        assert body["session_id"] == sid
+        moved = session_manager.get_session(sid, user_id="transfer_recipient")
+        assert moved is not None
+        assert moved.user_id == "transfer_recipient"
+
+    def test_transfer_returns_session_less_token_when_jwt_bound(
+        self, client, jwt_secret, session_manager
+    ):
+        sender_token = self._session_less_token("sender_bound")
+        recipient_token = self._session_less_token("recipient_bound")
+        client.post("/sessions/new", headers={"Authorization": f"Bearer {recipient_token}"})
+        created = client.post("/sessions/new", headers={"Authorization": f"Bearer {sender_token}"})
+        sid = created.json()["session_id"]
+        bound = self._bound_token("sender_bound", sid)
+
+        resp = client.post(
+            f"/sessions/{sid}/transfer",
+            headers={"Authorization": f"Bearer {bound}"},
+            json={"recipient_user_id": "recipient_bound"},
+        )
+        assert resp.status_code == 200
+        new_token = resp.json()["token"]
+        assert new_token and new_token != bound
+
+        from m_shared.auth.jwt_handler import validate_token
+
+        claims = validate_token(new_token)
+        assert claims["user_id"] == "sender_bound"
+        assert claims.get("session_id") is None
+
+    def test_transfer_no_token_when_jwt_unbound(self, client, jwt_secret, session_manager):
+        sender_token = self._session_less_token("sender_unbound")
+        recipient_token = self._session_less_token("recipient_unbound")
+        client.post("/sessions/new", headers={"Authorization": f"Bearer {recipient_token}"})
+        created = client.post("/sessions/new", headers={"Authorization": f"Bearer {sender_token}"})
+        sid = created.json()["session_id"]
+
+        resp = client.post(
+            f"/sessions/{sid}/transfer",
+            headers={"Authorization": f"Bearer {sender_token}"},
+            json={"recipient_user_id": "recipient_unbound"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["token"] is None
+
+    def test_transfer_recipient_must_exist(self, client, jwt_secret, session_manager):
+        sender_token = self._session_less_token("sender_norec")
+        created = client.post("/sessions/new", headers={"Authorization": f"Bearer {sender_token}"})
+        sid = created.json()["session_id"]
+
+        resp = client.post(
+            f"/sessions/{sid}/transfer",
+            headers={"Authorization": f"Bearer {sender_token}"},
+            json={"recipient_user_id": "never_logged_in"},
+        )
+        assert resp.status_code == 404
+
+    def test_transfer_other_users_session_returns_404(self, client, jwt_secret, session_manager):
+        owner_token = self._session_less_token("owner_x")
+        thief_token = self._session_less_token("thief_x")
+        recipient_token = self._session_less_token("recipient_x")
+        client.post("/sessions/new", headers={"Authorization": f"Bearer {recipient_token}"})
+        created = client.post("/sessions/new", headers={"Authorization": f"Bearer {owner_token}"})
+        sid = created.json()["session_id"]
+
+        resp = client.post(
+            f"/sessions/{sid}/transfer",
+            headers={"Authorization": f"Bearer {thief_token}"},
+            json={"recipient_user_id": "recipient_x"},
+        )
+        assert resp.status_code == 404
+
+
 class TestListSessionsSorted:
     """Tests for GET /sessions returning newest-first."""
 

@@ -113,7 +113,15 @@ async def delete_user_session(request: Request, session_id: str):
 
 @router.post("/sessions/{session_id}/transfer", tags=["Sessions"])
 async def transfer_session(request: Request, session_id: str, body: TransferRequest):
-    """Transfer a session to another user (handoff)."""
+    """Transfer a session to another user (handoff).
+
+    Returns a fresh session-less JWT (``token``) iff the caller's current JWT
+    was bound to the transferred session. The client must replace its cookie
+    with this token; otherwise the next request would carry a stale
+    ``session_id`` claim that the auth middleware would lazy-resurrect into
+    an empty session shell at the sender's path. Same pattern as
+    ``delete_user_session``.
+    """
     claims = request.state.claims
     user_id = claims["user_id"]
     manager = request.state.session_manager
@@ -149,4 +157,13 @@ async def transfer_session(request: Request, session_id: str, body: TransferRequ
         session.user_id = body.recipient_user_id
         manager._save_session_metadata(session)
 
-    return {"status": "transferred", "session_id": session_id}
+    token: str | None = None
+    if claims.get("session_id") == session_id:
+        token = create_token(
+            user_id=user_id,
+            session_id=None,
+            org=claims.get("org", "default"),
+            roles=claims.get("roles", ["respondent"]),
+        )
+
+    return {"status": "transferred", "session_id": session_id, "token": token}
