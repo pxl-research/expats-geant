@@ -180,6 +180,60 @@ responsible for delivering the file to the user (e.g. as a download response).
 
 ---
 
+## Response Export (`"responses_export"` capability)
+
+LimeSurvey and Qualtrics both expose a first-party file-based response
+importer in their admin UIs — but **the file formats they accept are
+platform-specific and not interchangeable** (LimeSurvey wants TSV in its
+"VV" shape; Qualtrics wants a three-row CSV). Both importers are typically
+usable on accounts where the platform's write API is locked down (no RC2 /
+no API token), so adding the matching file-out path lets respondents close
+the loop offline.
+
+Override `export_responses(survey, responses) -> ResponseExport` on adapters
+that support such an importer and add `"responses_export"` to
+`capabilities()`. The returned `ResponseExport` is a NamedTuple of
+`(content: bytes, media_type: str, filename_suffix: str)` so each adapter
+declares its native format directly; the caller (Cue API endpoint) forwards
+the media_type and filename suffix verbatim. The format must match the
+platform's importer contract exactly — see the live-verification gotcha
+note below.
+
+| Platform | Format | Column shape |
+|---|---|---|
+| LimeSurvey | **TSV** in LS's "VV" shape (filename suffix `_vv.csv` — chosen to mirror LS's own `vvexport_{sid}.csv` naming; media type `text/tab-separated-values; charset=utf-8`). Two header rows: row 1 human display labels (ignored by the importer); row 2 column codes — fixed prefix `id, token, submitdate, lastpage, startlanguage, seed, startdate, datestamp` followed by one column per top-level question keyed by its `ls_qcode` and one column per M/P sub-question keyed `{qcode}_{sub_qcode}` (**underscore separator**). Empty cells use literal `{question_not_shown}`. | `id ... QM1 QM1_A1 QM1_A2 ...` (codes row) |
+| Qualtrics  | **CSV** with BOM (filename suffix `.csv`, media type `text/csv; charset=utf-8`). Three header rows: row 1 column IDs (`StartDate`, `EndDate`, …, `QID<n>`, with `QID<n>_<choice_code>` per choice on multi-select), row 2 human-readable display labels, row 3 the per-column `{"ImportId":"…","timeZone":"UTC"}` JSON the importer keys on. | `QID1 QID2_1 QID2_2 ...` (row 1) |
+
+Adapters that do not target such an importer (QTI, SurveyMonkey on the
+tiers we support) MUST leave `export_responses` as the base
+`NotImplementedError` default and MUST NOT advertise `"responses_export"`.
+
+### LS gotcha — three incompatible response-format contracts
+
+LimeSurvey has THREE incompatible response-format contracts that share no
+parsing code on the LS side. Matching one does not imply matching another:
+
+| Path | Column format | Sub-question separator |
+|---|---|---|
+| RC2 `add_response` (Submit) | `{sid}X{gid}X{qid}{sub_title}` (SGQA) | none — **no brackets** (issue #60) |
+| CSV export (read-only) | `{qcode}[{sub_qcode}]`, semicolons | brackets |
+| VV import (this method) | `{qcode}_{sub_qcode}`, TAB | underscore |
+
+The LS adapter exposes `_sgqa_key` (for `submit_responses`) and
+`export_responses` (for VV import) as two genuinely independent code
+paths. Do not factor them together "because they look similar" — the
+platform's contracts diverged on the LS side first.
+
+### Data source
+
+The Cue API endpoint `GET /sessions/{id}/responses/export?platform={fmt}`
+builds the `list[Response]` from the session's persisted
+`review_state.json` (the per-keystroke source of truth maintained by the
+UI) and calls `export_responses`. There is no separate response-persistence
+step — review state IS the persisted answer.
+
+---
+
 ## Minimal Working Example
 
 ```python

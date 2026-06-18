@@ -747,3 +747,93 @@ generated previously.
 - **THEN** the accepted answer remains accepted with its original text
   and citation
 
+### Requirement: Responses Export Download
+
+The survey submission page SHALL render a "Download responses for platform import" action alongside the existing "Submit to platform" action whenever the active platform's adapter advertises the `"responses_export"` capability. The download action SHALL invoke the Cue API responses-export endpoint and present the result as a browser-initiated file download. The exact file format is adapter-defined (e.g. LimeSurvey emits TSV in its VV shape; Qualtrics emits CSV); the UI MUST forward the adapter's declared `media_type` and filename suffix verbatim and MUST NOT assume "CSV" in user-facing copy or in the Content-Type header.
+
+This is a deliberately user-initiated path — the UI MUST NOT substitute the response-file download automatically when API submission fails, because doing so would hide the upstream failure cause (typically authentication or permissions) behind a download dialog.
+
+#### Scenario: Both submit and export affordances shown
+
+- **WHEN** the respondent reaches the submission page with an active
+  platform whose adapter advertises both `"submit"` and `"responses_export"`
+- **THEN** the page renders both a "Submit to platform" button and a
+  "Download responses for platform import" button as peer actions
+
+#### Scenario: Only export affordance shown
+
+- **WHEN** the respondent reaches the submission page with an active
+  platform whose adapter advertises `"responses_export"` but not `"submit"`
+- **THEN** the page renders the "Download responses for platform import"
+  button but not the "Submit to platform" button
+
+#### Scenario: Neither affordance shown
+
+- **WHEN** the active platform's adapter advertises neither `"submit"`
+  nor `"responses_export"` (e.g., the file-import path with no platform target)
+- **THEN** the page renders the existing answer-report download but no
+  platform-bound action
+
+#### Scenario: Successful responses-export download
+
+- **WHEN** the respondent clicks "Download responses for platform import"
+- **THEN** the UI calls `GET /sessions/{id}/responses/export?platform={platform}`
+  and delivers the bytes as a browser download with a filename of the form
+  `responses-{platform}-{survey_id}-{timestamp}{suffix}`, where
+  `{suffix}` includes its own leading connector and comes from the adapter
+  (e.g. `_vv.csv` for LimeSurvey, `.csv` for Qualtrics)
+- **AND** the response carries the adapter's declared `Content-Type`
+  verbatim (e.g. `text/tab-separated-values` for LimeSurvey, `text/csv`
+  for Qualtrics)
+
+#### Scenario: API submission failure does not trigger export fallback
+
+- **WHEN** the respondent clicks "Submit to platform" and the call fails
+- **THEN** the UI surfaces the existing inline error and leaves the
+  respondent's filled-in answers intact
+- **AND** the UI does NOT automatically initiate the responses-export
+  download — the respondent must click the export button explicitly if
+  they want that path
+
+### Requirement: Session List Page
+
+The Cue UI SHALL display a session list page after login, showing all active sessions
+for the authenticated user. Each session entry SHALL display the session label (derived
+from survey title or filename), creation date, and status. The page SHALL provide
+options to resume an existing session or start a new one.
+
+#### Scenario: User with existing sessions
+
+- **WHEN** an authenticated user navigates to the session list page
+- **THEN** all active sessions are displayed with label, date, and status
+- **AND** each session has a "Resume" action that navigates to the review page
+
+#### Scenario: User starts a new session
+
+- **WHEN** a user clicks "New session" on the session list page
+- **THEN** a new session is created via the API
+- **AND** the user is redirected to the upload/import page for the new session
+
+#### Scenario: User with no sessions
+
+- **WHEN** an authenticated user has no active sessions
+- **THEN** the session list page shows an empty state message
+- **AND** the "New session" action is prominently displayed
+
+### Requirement: Session Selection Flow
+
+The Cue UI SHALL redirect users to the session list page after login instead of
+directly to the upload page. Session-scoped pages (review, documents, answer report)
+SHALL require a selected session. If no session is selected, the user SHALL be
+redirected to the session list page.
+
+#### Scenario: Post-login redirect
+
+- **WHEN** a user completes OIDC login
+- **THEN** they are redirected to the session list page
+
+#### Scenario: Access session-scoped page without selection
+
+- **WHEN** a user navigates to a session-scoped page without a valid session
+- **THEN** they are redirected to the session list page
+

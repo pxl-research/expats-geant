@@ -26,6 +26,8 @@ Qualtrics Response Import API:
     Body:   {"values": {"QID1": "1", "QID2": ["1", "3"]}}
 """
 
+import csv
+import io
 import json
 import logging
 import uuid
@@ -33,7 +35,7 @@ from typing import Any
 
 import requests
 
-from m_shared.adapters.base import SurveyAdapter
+from m_shared.adapters.base import ResponseExport, SurveyAdapter
 from m_shared.models.answer_option import AnswerOption
 from m_shared.models.question import Question, QuestionType
 from m_shared.models.response import Response
@@ -80,7 +82,7 @@ class QualtricsAdapter(SurveyAdapter):
         self._datacenter_id = datacenter_id
 
     def capabilities(self) -> set[str]:
-        return {"import", "export", "submit", "create", "api_create"}
+        return {"import", "export", "submit", "create", "api_create", "responses_export"}
 
     # ------------------------------------------------------------------
     # Import
@@ -367,6 +369,120 @@ class QualtricsAdapter(SurveyAdapter):
             raise RuntimeError(f"Qualtrics API error: {body.get('meta')}")
 
         logger.info("Submitted %d responses to Qualtrics survey %s", len(responses), survey_id)
+
+    def export_responses(self, survey: Survey, responses: list[Response]) -> ResponseExport:
+        """Render responses as a CSV consumable by Qualtrics' Import Responses tool.
+
+        **Verification status:** This CSV shape is built from the Qualtrics
+        Importer documentation (column IDs + display labels + ImportId JSON +
+        ``QIDn[_choice]`` columns). It has NOT been live-verified against a
+        Qualtrics sandbox — the live verification step in the OpenSpec change
+        (§7.2) is intentionally left open. The LimeSurvey adapter's "CSV
+        export and CSV import use the same column shape" assumption turned
+        out to be false (see ``LimeSurveyAdapter.export_responses``); the
+        same divergence may apply here. Treat as untested-by-platform until
+        someone runs the file through the Qualtrics admin UI.
+
+        Emits the three-row header shape Qualtrics' admin → "Data & Analysis →
+        Import Responses" expects:
+
+        - Row 1 — column IDs: a fixed prefix of standard response columns
+          (``StartDate``, ``EndDate``, ``Status``, ``IPAddress``, ``Progress``,
+          ``Duration (in seconds)``, ``Finished``, ``RecordedDate``,
+          ``ResponseId``, ``DistributionChannel``, ``UserLanguage``) followed
+          by one ``QID<n>`` column per question; multi-select questions expand
+          to one ``QID<n>_<choice_code>`` column per choice.
+        - Row 2 — human-readable display labels. Fixed columns use their
+          canonical Qualtrics display names; question columns carry the
+          question text (repeated for each sub-column of a multi-select).
+        - Row 3 — per-column import metadata JSON,
+          ``{"ImportId":"<colId>","timeZone":"UTC"}``. The importer keys
+          columns to questions via this row, so deviation triggers a "could
+          not parse" error with no useful detail.
+
+        Single-select cells carry the choice code; multi-select sub-columns
+        carry ``"1"`` (selected) or empty. Open-ended values pass through.
+        Output is UTF-8 with BOM (Qualtrics' importer prefers it) and CRLF
+        line endings per RFC 4180.
+
+        Args:
+            survey: The internal survey. ``question.metadata["qsf_qid"]`` is
+                used for column IDs; ``AnswerOption.value`` carries each
+                choice's Qualtrics code (populated by ``import_survey`` from
+                the QSF ``Choices`` map).
+            responses: The respondent's answers. ``response.question_id``
+                indexes into the survey; ``answer_value`` is the choice code
+                for single-select, a list of codes for multi-select, or a
+                string for open-ended.
+        """
+        responses_by_qid = {str(r.question_id): r for r in responses}
+
+        fixed_cols = [
+            ("StartDate", "Start Date"),
+            ("EndDate", "End Date"),
+            ("Status", "Response Type"),
+            ("IPAddress", "IP Address"),
+            ("Progress", "Progress"),
+            ("Duration (in seconds)", "Duration (in seconds)"),
+            ("Finished", "Finished"),
+            ("RecordedDate", "Recorded Date"),
+            ("ResponseId", "Response ID"),
+            ("DistributionChannel", "Distribution Channel"),
+            ("UserLanguage", "User Language"),
+        ]
+
+        col_ids: list[str] = [c[0] for c in fixed_cols]
+        col_texts: list[str] = [c[1] for c in fixed_cols]
+        col_sources: list[tuple[str, str | None]] = [("", None) for _ in fixed_cols]
+
+        for section in survey.sections:
+            for question in section.questions:
+                qid = str(question.metadata.get("qsf_qid", question.id))
+                if question.type == QuestionType.MULTIPLE_CHOICE and question.answer_options:
+                    for opt in question.answer_options:
+                        code = str(opt.value) if opt.value is not None else ""
+                        col_ids.append(f"{qid}_{code}")
+                        col_texts.append(question.text)
+                        col_sources.append((question.id, code))
+                else:
+                    col_ids.append(qid)
+                    col_texts.append(question.text)
+                    col_sources.append((question.id, None))
+
+        import_meta = [
+            json.dumps({"ImportId": cid, "timeZone": "UTC"}, separators=(",", ":"))
+            for cid in col_ids
+        ]
+
+        row: list[str] = []
+        for q_id, sub_code in col_sources:
+            if not q_id:
+                row.append("")
+                continue
+            resp = responses_by_qid.get(q_id)
+            if resp is None or resp.answer_value is None:
+                row.append("")
+                continue
+            value = resp.answer_value
+            if sub_code is not None:
+                row.append("1" if isinstance(value, list) and sub_code in value else "")
+            elif isinstance(value, list):
+                row.append(",".join(str(v) for v in value))
+            else:
+                row.append(str(value))
+
+        buf = io.StringIO()
+        writer = csv.writer(buf, dialect="excel", lineterminator="\r\n")
+        writer.writerow(col_ids)
+        writer.writerow(col_texts)
+        writer.writerow(import_meta)
+        if responses:
+            writer.writerow(row)
+        return ResponseExport(
+            content=("﻿" + buf.getvalue()).encode("utf-8"),
+            media_type="text/csv; charset=utf-8",
+            filename_suffix=".csv",
+        )
 
 
 # ------------------------------------------------------------------

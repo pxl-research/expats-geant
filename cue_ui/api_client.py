@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 from typing import Any
 
 import httpx
@@ -77,6 +78,36 @@ async def submit_responses(
             json=body,
         )
     _raise_for_status(resp)
+
+
+_FILENAME_RE = re.compile(r'filename="([^"]+)"')
+
+
+async def get_responses_export(
+    token: str, session_id: str, platform: str
+) -> tuple[bytes, str, str]:
+    """Fetch the session's responses in the file format the platform's importer accepts.
+
+    GET /sessions/{session_id}/responses/export?platform=… →
+    ``(content_bytes, filename, media_type)``.
+
+    The format is adapter-defined: LimeSurvey returns a VV-shape TSV
+    (filename ends in ``_vv.csv``); Qualtrics returns a CSV. The media_type
+    and filename come from the upstream Content-Type and Content-Disposition
+    headers verbatim, so the proxy can forward them unchanged.
+    """
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{CUE_API_URL}/sessions/{session_id}/responses/export",
+            params={"platform": platform},
+            headers=auth_headers(token),
+        )
+    _raise_for_status(resp)
+    disposition = resp.headers.get("content-disposition", "")
+    match = _FILENAME_RE.search(disposition)
+    filename = match.group(1) if match else f"responses-{platform}"
+    media_type = resp.headers.get("content-type", "application/octet-stream")
+    return resp.content, filename, media_type
 
 
 async def get_session_stats(token: str) -> dict[str, Any]:

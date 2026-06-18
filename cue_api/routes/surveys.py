@@ -4,14 +4,19 @@ import asyncio
 import json
 import logging
 import os
+import re
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
+from fastapi.responses import Response as FastAPIResponse
 
 from cue_api.models import LiveApiImportRequest, SubmitCredentials, SubmitResponsesRequest
+from cue_api.routes.review_state import read_review_state
 from m_shared.adapters.registry import get_adapter
 from m_shared.models.response import Response as SurveyResponse
+from m_shared.models.survey import Survey
 from m_shared.utils.url_validation import validate_api_url, validate_datacenter_id
 
 logger = logging.getLogger(__name__)
@@ -66,6 +71,76 @@ def _build_responses_from_body(
         question_id = field_key[2:] if field_key.startswith("q_") else field_key
         q_meta = question_meta.get(question_id, {})
         translated = _translate_to_platform_code(answer_value, q_meta.get("_option_values", {}))
+        responses.append(
+            SurveyResponse(
+                id=str(uuid.uuid4()),
+                question_id=question_id,
+                answer_value=translated,
+                session_id=session_id,
+                metadata={"ls_qid": q_meta["ls_qid"]} if "ls_qid" in q_meta else {},
+            )
+        )
+    return responses
+
+
+def _question_meta_from_survey_data(survey_data: dict) -> dict[str, dict]:
+    """Build the per-question meta map used by both submit and responses-export paths.
+
+    The map carries each question's stored metadata (e.g. ``ls_qid`` / ``qsf_qid``)
+    plus an ``_option_values`` map of option_id → platform_code so callers can
+    translate HTML form ids (or saved review_state ids) back to the codes the
+    adapters expect.
+    """
+    meta_map: dict[str, dict] = {}
+    for section in survey_data.get("sections", []):
+        for q in section.get("questions", []):
+            meta = dict(q.get("metadata", {}))
+            meta["_option_values"] = {
+                opt["id"]: opt["value"]
+                for opt in q.get("answer_options", [])
+                if "id" in opt and opt.get("value") is not None
+            }
+            meta_map[q["id"]] = meta
+    return meta_map
+
+
+def _responses_from_review_state(
+    review_state: dict, question_meta: dict, session_id: str
+) -> list[SurveyResponse]:
+    """Materialise SurveyResponse objects from the per-session review_state map.
+
+    The review state is the persisted source of truth for the respondent's
+    answers — every accept / dismiss / edit interaction PUTs to
+    ``/review-state/{question_id}`` from the UI. Each entry has shape::
+
+        {"state": "accepted" | "edited" | "dismissed",
+         "value": str | None,
+         "selected_id": str | None,
+         "selected_ids": list[str] | None}
+
+    Only entries with ``state in ("accepted", "edited")`` produce a response;
+    ``dismissed`` and missing entries are skipped (the exported row omits
+    that column, same semantics as Submit).
+
+    Translation to platform codes mirrors ``_build_responses_from_body``: option
+    ids (e.g. ``opt_A1``) are mapped to platform codes (e.g. ``A1``) via the
+    per-question ``_option_values`` map stashed by the caller.
+    """
+    responses: list[SurveyResponse] = []
+    for question_id, entry in review_state.items():
+        state = entry.get("state")
+        if state not in ("accepted", "edited"):
+            continue
+        if entry.get("selected_ids") is not None:
+            raw_value: Any = entry["selected_ids"]
+        elif entry.get("selected_id") is not None:
+            raw_value = entry["selected_id"]
+        else:
+            raw_value = entry.get("value")
+        if raw_value is None or raw_value == "":
+            continue
+        q_meta = question_meta.get(question_id, {})
+        translated = _translate_to_platform_code(raw_value, q_meta.get("_option_values", {}))
         responses.append(
             SurveyResponse(
                 id=str(uuid.uuid4()),
@@ -335,20 +410,7 @@ async def submit_session_responses(request: Request, session_id: str, body: Subm
             detail=f"Adapter for '{survey_format}' does not support response submission.",
         )
 
-    question_meta: dict[str, dict] = {}
-    for section in survey_data.get("sections", []):
-        for q in section.get("questions", []):
-            meta = dict(q.get("metadata", {}))
-            # Stash the option_id → platform_code map so _build_responses_from_body
-            # can translate the HTML form's option ids back to the codes the
-            # platform's submit API expects (SGQA suffix for LS, choice code for QSF).
-            meta["_option_values"] = {
-                opt["id"]: opt["value"]
-                for opt in q.get("answer_options", [])
-                if "id" in opt and opt.get("value") is not None
-            }
-            question_meta[q["id"]] = meta
-
+    question_meta = _question_meta_from_survey_data(survey_data)
     responses = _build_responses_from_body(body.responses, question_meta, session_id)
 
     platform_survey_id = survey_data.get("id", session_id)
@@ -367,3 +429,101 @@ async def submit_session_responses(request: Request, session_id: str, body: Subm
         )
 
     return {"status": "submitted", "session_id": session_id}
+
+
+_FILENAME_SAFE_RE = re.compile(r"[^A-Za-z0-9._-]")
+
+
+def _safe_filename_component(value: str) -> str:
+    """Sanitise a string for use inside a Content-Disposition filename."""
+    return _FILENAME_SAFE_RE.sub("_", value).strip("_") or "survey"
+
+
+@router.get("/sessions/{session_id}/responses/export", tags=["Surveys"])
+async def download_responses_export(request: Request, session_id: str, platform: str):
+    """Return the session's saved answers in the file format the platform's importer accepts.
+
+    The exact format is adapter-defined (LimeSurvey: TSV in VV shape;
+    Qualtrics: CSV) and the response's ``Content-Type`` + filename suffix come
+    from the adapter's ``ResponseExport`` tuple — the API endpoint stays
+    platform-agnostic above the adapter layer.
+
+    Reads from ``review_state.json`` — the persisted source of truth maintained
+    per-keystroke by the UI's ``review-state.js`` (every accept / dismiss / edit
+    interaction PUTs to ``/review-state/{question_id}``). No request body, no
+    new persistence.
+
+    Errors:
+        400 — ``platform`` does not match the survey's actual format
+        403 — session belongs to a different user
+        404 — survey not found OR no ``accepted``/``edited`` entries yet
+        422 — unknown platform or adapter does not advertise ``responses_export``
+    """
+    session = request.state.session
+    if session_id != session.session_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: session belongs to a different user.",
+        )
+
+    manager = request.state.session_manager
+    session_path = manager._get_session_path(session_id, user_id=session.user_id)
+    survey_path = session_path / "survey.json"
+    if not survey_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Survey '{session_id}' not found or session expired.",
+        )
+
+    survey_data = json.loads(survey_path.read_text())
+    survey_format = survey_data.get("metadata", {}).get("format", "")
+    if platform != survey_format:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Requested platform '{platform}' does not match the session's "
+                f"survey format '{survey_format}'."
+            ),
+        )
+
+    try:
+        adapter = get_adapter(platform)
+    except KeyError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"No adapter for format '{platform}'.",
+        )
+
+    if "responses_export" not in adapter.capabilities():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Adapter for '{platform}' does not support response file export.",
+        )
+
+    review_state = await asyncio.to_thread(read_review_state, session_path)
+    question_meta = _question_meta_from_survey_data(survey_data)
+    responses = _responses_from_review_state(review_state, question_meta, session_id)
+    if not responses:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No responses recorded yet — accept or edit at least one suggestion first.",
+        )
+
+    survey = Survey.model_validate(survey_data)
+    try:
+        export = adapter.export_responses(survey, responses)
+    except NotImplementedError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Adapter for '{platform}' does not support response file export.",
+        )
+
+    platform_survey_id = _safe_filename_component(str(survey_data.get("id", session_id)))
+    ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    filename = f"responses-{platform}-{platform_survey_id}-{ts}{export.filename_suffix}"
+
+    return FastAPIResponse(
+        content=export.content,
+        media_type=export.media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

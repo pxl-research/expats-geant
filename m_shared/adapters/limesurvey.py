@@ -39,7 +39,7 @@ from xml.etree.ElementTree import Element
 import defusedxml.ElementTree as defused_ET
 import requests
 
-from m_shared.adapters.base import SurveyAdapter
+from m_shared.adapters.base import ResponseExport, SurveyAdapter
 from m_shared.models.answer_option import AnswerOption
 from m_shared.models.question import Question, QuestionType
 from m_shared.models.response import Response
@@ -121,7 +121,7 @@ class LimeSurveyAdapter(SurveyAdapter):
         self._password = password
 
     def capabilities(self) -> set[str]:
-        return {"import", "export", "submit", "create", "api_create"}
+        return {"import", "export", "submit", "create", "api_create", "responses_export"}
 
     # ------------------------------------------------------------------
     # Import
@@ -328,6 +328,12 @@ class LimeSurveyAdapter(SurveyAdapter):
         else:
             raw_options = answers_by_qid.get(qid, [])
         extra = q_meta.get("extra", {})
+        extra_metadata = dict(extra)
+        if "title" in extra and extra["title"]:
+            # Surface the question's user-defined code under a stable key so
+            # downstream code (responses export) does not depend on the raw XML
+            # field name leaking through.
+            extra_metadata["ls_qcode"] = extra["title"]
         return _question_from_meta(
             ls_type=ls_type,
             qid=qid,
@@ -335,7 +341,7 @@ class LimeSurveyAdapter(SurveyAdapter):
             mandatory=q_meta["mandatory"],
             options=raw_options,
             attributes=extra,
-            extra_metadata=extra,
+            extra_metadata=extra_metadata,
         )
 
     # ------------------------------------------------------------------
@@ -587,6 +593,149 @@ class LimeSurveyAdapter(SurveyAdapter):
         finally:
             self._release_session_key(session_key)
 
+    def export_responses(self, survey: Survey, responses: list[Response]) -> ResponseExport:
+        """Render responses as a VV file consumable by LS's *Import a VV response data file*.
+
+        Emits the exact byte format the LS 6 VV importer expects, verified
+        live against LS 6.17.4 by running this output through the admin UI:
+
+        - **TAB-separated** values (LS calls it "VV" — Vertical Verification —
+          a format distinct from CSV; the file extension is ``.csv`` by LS
+          convention but the separator is ``\\t``).
+        - **Two header rows**:
+            - Row 1 — human display headers (column display labels,
+              ignored by the importer but expected to be present).
+            - Row 2 — column codes the importer maps to survey fields:
+              ``id, token, submitdate, lastpage, startlanguage, seed, startdate,
+              datestamp`` followed by one column per top-level question
+              (``ls_qcode``) and one column per ``M``/``P`` sub-question
+              keyed ``{qcode}_{sub_qcode}`` (UNDERSCORE separator, no brackets).
+        - Data rows: one per response. Empty values use the literal
+          ``{question_not_shown}`` marker; multi-choice selected cells contain
+          ``Y``; the ``id`` column is left empty so LS auto-assigns.
+
+        This is one of THREE incompatible LS response-formats:
+
+        =========================  ===================================  ========
+        Endpoint                   Column shape                         Brackets
+        =========================  ===================================  ========
+        RC2 ``add_response``       ``{sid}X{gid}X{qid}{sub_title}``     NO
+        CSV export (read-only)     ``{qcode}[{sub_qcode}]``             YES
+        VV import (this method)    ``{qcode}_{sub_qcode}``              NO
+        =========================  ===================================  ========
+
+        These contracts share no parsing code on the LS side; matching one
+        does not imply matching another. We previously emitted the CSV-export
+        shape and the importer rejected every column ("No answers could be
+        mapped") — the VV import contract above is what actually round-trips.
+
+        Args:
+            survey: The internal survey. Per-question metadata MUST include
+                ``ls_qcode`` (the question's user-defined ``<title>`` code) for
+                column matching to work. Sub-question codes come from
+                ``AnswerOption.value`` on M/P questions.
+            responses: The respondent's answers. ``answer_value`` is the
+                option code for single-choice (e.g. ``"A1"``), a list of
+                sub-question codes for multi-choice (e.g. ``["A1", "A3"]``),
+                or text/numeric for open-ended.
+
+        Returns:
+            ResponseExport with ``media_type="text/tab-separated-values"`` and
+            ``filename_suffix="_vv.csv"`` (mirrors LS's own ``vvexport_{sid}.csv``
+            naming; the leading underscore is part of the suffix).
+        """
+        responses_by_qid = {str(r.question_id): r for r in responses}
+
+        display_row: list[str] = [
+            '"Response ID"',
+            "token",
+            '"Date submitted"',
+            '"Last page"',
+            '"Start language"',
+            "Seed",
+            '"Date started"',
+            '"Date last action"',
+        ]
+        code_row: list[str] = [
+            "id",
+            "token",
+            "submitdate",
+            "lastpage",
+            "startlanguage",
+            "seed",
+            "startdate",
+            "datestamp",
+        ]
+        column_sources: list[tuple[str, str | None]] = [("", None) for _ in code_row]
+
+        for section in survey.sections:
+            for question in section.questions:
+                qcode = str(
+                    question.metadata.get("ls_qcode")
+                    or question.metadata.get("ls_qid")
+                    or question.id
+                )
+                if question.type == QuestionType.MULTIPLE_CHOICE and question.answer_options:
+                    for opt in question.answer_options:
+                        sub_code = str(opt.value) if opt.value is not None else ""
+                        display_row.append(f'"{question.text} ({opt.text})"')
+                        code_row.append(f"{qcode}_{sub_code}")
+                        column_sources.append((question.id, sub_code))
+                else:
+                    display_row.append(f'"{question.text}"')
+                    code_row.append(qcode)
+                    column_sources.append((question.id, None))
+
+        out_lines: list[str] = ["\t".join(display_row), "\t".join(code_row)]
+        if responses:
+            # `responses` is one respondent's per-question answers; emit exactly
+            # one data row built from responses_by_qid.
+            data_row: list[str] = []
+            for col_qid, col_sub_code in column_sources:
+                if not col_qid:
+                    data_row.append("")
+                    continue
+                target_resp = responses_by_qid.get(col_qid)
+                if target_resp is None or target_resp.answer_value is None:
+                    data_row.append("{question_not_shown}")
+                    continue
+                value = target_resp.answer_value
+                if col_sub_code is not None:
+                    if isinstance(value, list) and col_sub_code in value:
+                        data_row.append("Y")
+                    else:
+                        data_row.append("{question_not_shown}")
+                elif isinstance(value, list):
+                    data_row.append('"' + ",".join(str(v) for v in value) + '"')
+                else:
+                    s = str(value)
+                    # Quote values containing whitespace or the TAB separator to
+                    # mirror LS's own export quoting heuristic.
+                    if any(c in s for c in (" ", "\t", '"', "\n")):
+                        s = '"' + s.replace('"', '""') + '"'
+                    data_row.append(s)
+            # Fixed-prefix defaults: id stays empty so LS auto-assigns;
+            # startlanguage must be a real language code; the rest are marked
+            # not-shown since the session did not capture them.
+            data_row[0] = ""
+            for fixed_idx, default in (
+                (1, "{question_not_shown}"),
+                (2, "{question_not_shown}"),
+                (3, "{question_not_shown}"),
+                (4, "en"),
+                (5, "{question_not_shown}"),
+                (6, "{question_not_shown}"),
+                (7, "{question_not_shown}"),
+            ):
+                data_row[fixed_idx] = default
+            out_lines.append("\t".join(data_row))
+
+        return ResponseExport(
+            content=("\n".join(out_lines) + "\n").encode("utf-8"),
+            media_type="text/tab-separated-values; charset=utf-8",
+            filename_suffix="_vv.csv",
+        )
+
     def _require_credentials(self, op_label: str) -> None:
         """Guard helper — raise ValueError if API credentials are not configured."""
         if not self._api_url or not self._username or not self._password:
@@ -823,6 +972,7 @@ def _assemble_survey_from_rpc(
             else:
                 options = _answer_options_from_properties(details.get(qid, {}))
             attributes = _attributes_from_properties(details.get(qid, {}))
+            qcode = q.get("title") or ""
             question = _question_from_meta(
                 ls_type=ls_type,
                 qid=qid,
@@ -830,6 +980,7 @@ def _assemble_survey_from_rpc(
                 mandatory=str(q.get("mandatory", "")) in ("Y", "y", "1"),
                 options=options,
                 attributes=attributes,
+                extra_metadata={"ls_qcode": qcode} if qcode else None,
             )
             if question is not None:
                 section_questions.append(question)
@@ -894,6 +1045,17 @@ def _sub(parent: Element, tag: str, text: str) -> Element:
     return el
 
 
+def _sgqa_key(survey_id: str, gid: str, qid: str, suffix: str = "") -> str:
+    """Build a LimeSurvey SGQA field key for the RC2 ``add_response`` API.
+
+    Top-level questions use ``{sid}X{gid}X{qid}``; multi-answer sub-fields
+    append the sub-question's title directly with NO brackets — the bracketed
+    form is silently dropped by ``add_response`` (issue #60). Used only by
+    ``submit_responses``; the VV export uses qcode-based columns, not SGQA.
+    """
+    return f"{survey_id}X{gid}X{qid}{suffix}"
+
+
 def _responses_to_ls_format(
     responses: list[Response],
     survey_id: str,
@@ -926,11 +1088,10 @@ def _responses_to_ls_format(
                 f"qid '{qid}' not found in survey {survey_id}. "
                 "Ensure ls_qid is set in response metadata and matches a question in this survey."
             )
-        prefix = f"{survey_id}X{gid}X{qid}"
         value = resp.answer_value
         if isinstance(value, list):
             for item in value:
-                data[f"{prefix}{item}"] = "Y"
+                data[_sgqa_key(survey_id, gid, qid, str(item))] = "Y"
         else:
-            data[prefix] = str(value) if value is not None else ""
+            data[_sgqa_key(survey_id, gid, qid)] = str(value) if value is not None else ""
     return data

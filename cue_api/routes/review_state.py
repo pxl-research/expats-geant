@@ -44,7 +44,7 @@ def _review_state_path(session_path: Path) -> Path:
     return session_path / "review_state.json"
 
 
-def _read_review_state(session_path: Path) -> dict:
+def read_review_state(session_path: Path) -> dict:
     path = _review_state_path(session_path)
     if not path.exists():
         return {}
@@ -79,7 +79,7 @@ async def save_review_state(question_id: str, body: ReviewStateUpdate, request: 
 
     def _save():
         with _get_review_lock(session_path):
-            state_map = _read_review_state(session_path)
+            state_map = read_review_state(session_path)
             state_map[question_id] = body.model_dump(exclude_none=True)
             _write_review_state(session_path, state_map)
 
@@ -94,7 +94,7 @@ async def get_review_state(request: Request):
         session.session_id, user_id=session.user_id
     )
 
-    state_map = await asyncio.to_thread(_read_review_state, session_path)
+    state_map = await asyncio.to_thread(read_review_state, session_path)
     return ReviewStateResponse(states=state_map)
 
 

@@ -425,6 +425,108 @@ class TestDeleteSessionById:
         assert resp.status_code == 404
 
 
+class TestTransferSession:
+    """Tests for POST /sessions/{session_id}/transfer — handoff with JWT rotation."""
+
+    def _session_less_token(self, user_id: str) -> str:
+        return create_token(user_id=user_id, session_id=None, org="test_org", roles=["respondent"])
+
+    def _bound_token(self, user_id: str, session_id: str) -> str:
+        return create_token(
+            user_id=user_id, session_id=session_id, org="test_org", roles=["respondent"]
+        )
+
+    def test_transfer_succeeds_for_owner(self, client, jwt_secret, session_manager):
+        sender_token = self._session_less_token("transfer_sender")
+        recipient_token = self._session_less_token("transfer_recipient")
+        # Recipient must have logged in at least once — simulated by creating
+        # a throwaway session, which calls ensure_user_directory.
+        client.post("/sessions/new", headers={"Authorization": f"Bearer {recipient_token}"})
+
+        created = client.post("/sessions/new", headers={"Authorization": f"Bearer {sender_token}"})
+        sid = created.json()["session_id"]
+
+        resp = client.post(
+            f"/sessions/{sid}/transfer",
+            headers={"Authorization": f"Bearer {sender_token}"},
+            json={"recipient_user_id": "transfer_recipient"},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "transferred"
+        assert body["session_id"] == sid
+        moved = session_manager.get_session(sid, user_id="transfer_recipient")
+        assert moved is not None
+        assert moved.user_id == "transfer_recipient"
+
+    def test_transfer_returns_session_less_token_when_jwt_bound(
+        self, client, jwt_secret, session_manager
+    ):
+        sender_token = self._session_less_token("sender_bound")
+        recipient_token = self._session_less_token("recipient_bound")
+        client.post("/sessions/new", headers={"Authorization": f"Bearer {recipient_token}"})
+        created = client.post("/sessions/new", headers={"Authorization": f"Bearer {sender_token}"})
+        sid = created.json()["session_id"]
+        bound = self._bound_token("sender_bound", sid)
+
+        resp = client.post(
+            f"/sessions/{sid}/transfer",
+            headers={"Authorization": f"Bearer {bound}"},
+            json={"recipient_user_id": "recipient_bound"},
+        )
+        assert resp.status_code == 200
+        new_token = resp.json()["token"]
+        assert new_token and new_token != bound
+
+        from m_shared.auth.jwt_handler import validate_token
+
+        claims = validate_token(new_token)
+        assert claims["user_id"] == "sender_bound"
+        assert claims.get("session_id") is None
+
+    def test_transfer_no_token_when_jwt_unbound(self, client, jwt_secret, session_manager):
+        sender_token = self._session_less_token("sender_unbound")
+        recipient_token = self._session_less_token("recipient_unbound")
+        client.post("/sessions/new", headers={"Authorization": f"Bearer {recipient_token}"})
+        created = client.post("/sessions/new", headers={"Authorization": f"Bearer {sender_token}"})
+        sid = created.json()["session_id"]
+
+        resp = client.post(
+            f"/sessions/{sid}/transfer",
+            headers={"Authorization": f"Bearer {sender_token}"},
+            json={"recipient_user_id": "recipient_unbound"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["token"] is None
+
+    def test_transfer_recipient_must_exist(self, client, jwt_secret, session_manager):
+        sender_token = self._session_less_token("sender_norec")
+        created = client.post("/sessions/new", headers={"Authorization": f"Bearer {sender_token}"})
+        sid = created.json()["session_id"]
+
+        resp = client.post(
+            f"/sessions/{sid}/transfer",
+            headers={"Authorization": f"Bearer {sender_token}"},
+            json={"recipient_user_id": "never_logged_in"},
+        )
+        assert resp.status_code == 404
+
+    def test_transfer_other_users_session_returns_404(self, client, jwt_secret, session_manager):
+        owner_token = self._session_less_token("owner_x")
+        thief_token = self._session_less_token("thief_x")
+        recipient_token = self._session_less_token("recipient_x")
+        client.post("/sessions/new", headers={"Authorization": f"Bearer {recipient_token}"})
+        created = client.post("/sessions/new", headers={"Authorization": f"Bearer {owner_token}"})
+        sid = created.json()["session_id"]
+
+        resp = client.post(
+            f"/sessions/{sid}/transfer",
+            headers={"Authorization": f"Bearer {thief_token}"},
+            json={"recipient_user_id": "recipient_x"},
+        )
+        assert resp.status_code == 404
+
+
 class TestListSessionsSorted:
     """Tests for GET /sessions returning newest-first."""
 
@@ -1259,3 +1361,186 @@ class TestPlatformCodeTranslation:
         assert by_qid["q_5001"].answer_value == ["A1", "A3"]
         assert by_qid["q_5001"].metadata["ls_qid"] == "5001"
         assert by_qid["q_text"].answer_value == "Hello world"
+
+
+class TestResponsesExportEndpoint:
+    """GET /sessions/{session_id}/responses/export — adapter-format export of saved answers."""
+
+    @pytest.fixture
+    def csv_client(self, app):
+        return TestClient(app, raise_server_exceptions=False)
+
+    @pytest.fixture
+    def token_and_session(self, valid_token, session_manager):
+        session = session_manager.create_session(
+            user_id="test_user_123", explicit_session_id="test_session_456"
+        )
+        return valid_token, session
+
+    @staticmethod
+    def _write_survey(session_manager, session, fmt: str, *, sid: str = "42") -> None:
+        """Persist a minimal survey.json with one open-ended question (qid=11)."""
+        import json as _json
+
+        survey_path = (
+            session_manager._get_session_path(session.session_id, user_id=session.user_id)
+            / "survey.json"
+        )
+        survey_data = {
+            "id": sid,
+            "title": "T",
+            "sections": [
+                {
+                    "id": "sec_1",
+                    "title": "S",
+                    "questions": [
+                        {
+                            "id": "q_11",
+                            "text": "Any comments?",
+                            "type": "open_ended",
+                            "answer_options": [],
+                            "required": False,
+                            "metadata": {"ls_qid": "11", "qsf_qid": "QID11"},
+                        }
+                    ],
+                    "metadata": {"ls_gid": "1"},
+                }
+            ],
+            "metadata": {
+                "format": fmt,
+                "ls_sid": sid,
+            },
+        }
+        survey_path.write_text(_json.dumps(survey_data))
+
+    @staticmethod
+    def _write_review_state(session_manager, session, state: dict) -> None:
+        import json as _json
+
+        path = (
+            session_manager._get_session_path(session.session_id, user_id=session.user_id)
+            / "review_state.json"
+        )
+        path.write_text(_json.dumps(state))
+
+    def test_csv_session_mismatch_returns_403(self, csv_client, valid_token):
+        response = csv_client.get(
+            "/sessions/wrong_session_id/responses/export?platform=lss",
+            headers={"Authorization": f"Bearer {valid_token}"},
+        )
+        assert response.status_code == 403
+
+    def test_csv_survey_not_found_returns_404(self, csv_client, token_and_session):
+        token, session = token_and_session
+        response = csv_client.get(
+            f"/sessions/{session.session_id}/responses/export?platform=lss",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 404
+
+    def test_csv_platform_mismatch_returns_400(
+        self, csv_client, token_and_session, session_manager
+    ):
+        token, session = token_and_session
+        self._write_survey(session_manager, session, fmt="lss")
+        response = csv_client.get(
+            f"/sessions/{session.session_id}/responses/export?platform=qsf",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 400
+
+    def test_csv_unknown_platform_returns_422(self, csv_client, token_and_session, session_manager):
+        token, session = token_and_session
+        self._write_survey(session_manager, session, fmt="unknown_fmt")
+        response = csv_client.get(
+            f"/sessions/{session.session_id}/responses/export?platform=unknown_fmt",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 422
+
+    def test_csv_capability_absent_returns_422(
+        self, csv_client, token_and_session, session_manager
+    ):
+        """QTI does not advertise responses_export → 422."""
+        token, session = token_and_session
+        self._write_survey(session_manager, session, fmt="qti")
+        response = csv_client.get(
+            f"/sessions/{session.session_id}/responses/export?platform=qti",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 422
+
+    def test_csv_no_answers_yet_returns_404(self, csv_client, token_and_session, session_manager):
+        """Survey present + adapter supports responses_export, but no accepted/edited entries."""
+        token, session = token_and_session
+        self._write_survey(session_manager, session, fmt="lss")
+        self._write_review_state(session_manager, session, {})
+        response = csv_client.get(
+            f"/sessions/{session.session_id}/responses/export?platform=lss",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 404
+
+    def test_csv_dismissed_only_returns_404(self, csv_client, token_and_session, session_manager):
+        """Dismissed entries do not count as answers."""
+        token, session = token_and_session
+        self._write_survey(session_manager, session, fmt="lss")
+        self._write_review_state(session_manager, session, {"q_11": {"state": "dismissed"}})
+        response = csv_client.get(
+            f"/sessions/{session.session_id}/responses/export?platform=lss",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 404
+
+    def test_export_returns_vv_tsv_for_lss(self, csv_client, token_and_session, session_manager):
+        """LS adapter emits the VV-import shape (TSV with two header rows + _vv.csv suffix)."""
+        token, session = token_and_session
+        self._write_survey(session_manager, session, fmt="lss", sid="42")
+        self._write_review_state(
+            session_manager,
+            session,
+            {"q_11": {"state": "accepted", "value": "Hello world"}},
+        )
+        response = csv_client.get(
+            f"/sessions/{session.session_id}/responses/export?platform=lss",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 200
+        # LS returns TSV (a.k.a. LS's "VV" format), not CSV.
+        assert response.headers["content-type"].startswith("text/tab-separated-values")
+        disposition = response.headers["content-disposition"]
+        assert "attachment" in disposition
+        assert "responses-lss-42-" in disposition
+        # LS VV files use a `_vv.csv` suffix to mirror LS's own
+        # ``vvexport_{sid}.csv`` naming style even though the bytes are TSV.
+        assert disposition.endswith('_vv.csv"')
+        # Body has the qcode column (falls back to ls_qid=11 since the test
+        # survey carries no ls_qcode) and the accepted value.
+        body = response.text
+        lines = body.splitlines()
+        assert len(lines) >= 3  # display headers, code headers, data row
+        assert "id\ttoken\tsubmitdate" in lines[1]  # codes row
+        assert "11" in lines[1].split("\t")
+        assert "Hello world" in body
+
+    def test_export_returns_csv_for_qsf(self, csv_client, token_and_session, session_manager):
+        token, session = token_and_session
+        self._write_survey(session_manager, session, fmt="qsf", sid="SV_xyz")
+        self._write_review_state(
+            session_manager,
+            session,
+            {"q_11": {"state": "edited", "value": "edited answer"}},
+        )
+        response = csv_client.get(
+            f"/sessions/{session.session_id}/responses/export?platform=qsf",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/csv")
+        disposition = response.headers["content-disposition"]
+        assert "responses-qsf-SV_xyz-" in disposition
+        assert disposition.endswith('.csv"')
+        body = response.text
+        # Row-1 should contain the QID for the configured question
+        assert "QID11" in body
+        assert "edited answer" in body
