@@ -79,5 +79,9 @@
   response count 8 → 9 with only the expected sub-question (`QM1_A1` =
   Red) selected. The smoke also surfaced the import-vs-export format
   divergence captured in `design.md`.
-- [ ] 7.2 Manually verify the Qualtrics CSV against a sandbox account
-  (skip if no sandbox available; document the gap).
+- [x] 7.2 Manually verify the Qualtrics CSV against a sandbox account —
+  **deferred**: no Qualtrics sandbox available at archive time. The
+  `QualtricsAdapter.export_responses` docstring flags the unverified
+  status; a follow-up smoke (mirroring §7.1) should be run when sandbox
+  access becomes available, and any divergence captured as a fix-up
+  change (analogous to the LS VV-vs-CSV divergence found in §7.1).
