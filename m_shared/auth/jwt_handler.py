@@ -9,6 +9,7 @@ import jwt
 logger = logging.getLogger(__name__)
 
 _ALLOWED_ALGORITHMS = {"HS256", "HS384", "HS512"}
+_MAX_TOKEN_LENGTH = 8192
 
 
 class TokenError(Exception):
@@ -114,6 +115,12 @@ def validate_token(token: str) -> dict:
     algorithm = os.getenv("JWT_ALGORITHM", "HS256")
     if algorithm not in _ALLOWED_ALGORITHMS:
         raise ValueError(f"JWT_ALGORITHM must be one of {_ALLOWED_ALGORITHMS}, got '{algorithm}'")
+
+    if len(token) > _MAX_TOKEN_LENGTH:
+        logger.warning(
+            "Token validation failed: length %d exceeds limit %d", len(token), _MAX_TOKEN_LENGTH
+        )
+        raise TokenInvalidError("Token exceeds maximum allowed length")
 
     try:
         payload = jwt.decode(token, secret, algorithms=[algorithm])
