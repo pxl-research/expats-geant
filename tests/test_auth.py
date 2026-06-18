@@ -133,6 +133,13 @@ class TestValidateToken:
             with pytest.raises(ValueError, match="JWT_SECRET"):
                 validate_token("some.token.here")
 
+    def test_validate_token_rejects_oversized_token(self):
+        """Tokens exceeding the max-length cap are rejected before decode (DoS defence)."""
+        with patch.dict(os.environ, {"JWT_SECRET": "test-secret-key"}):
+            oversized = "a" * 8193
+            with pytest.raises(TokenInvalidError, match="maximum allowed length"):
+                validate_token(oversized)
+
     def test_validate_token_algorithm_mismatch(self):
         """Test validation with algorithm mismatch."""
         with patch.dict(os.environ, {"JWT_SECRET": "test-secret-key", "JWT_ALGORITHM": "HS256"}):
