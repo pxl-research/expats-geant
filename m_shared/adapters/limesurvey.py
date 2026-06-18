@@ -331,8 +331,8 @@ class LimeSurveyAdapter(SurveyAdapter):
         extra_metadata = dict(extra)
         if "title" in extra and extra["title"]:
             # Surface the question's user-defined code under a stable key so
-            # downstream code (CSV export) does not depend on the raw XML field
-            # name leaking through.
+            # downstream code (responses export) does not depend on the raw XML
+            # field name leaking through.
             extra_metadata["ls_qcode"] = extra["title"]
         return _question_from_meta(
             ls_type=ls_type,

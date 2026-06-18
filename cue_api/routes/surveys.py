@@ -84,7 +84,7 @@ def _build_responses_from_body(
 
 
 def _question_meta_from_survey_data(survey_data: dict) -> dict[str, dict]:
-    """Build the per-question meta map used by both submit and CSV-export paths.
+    """Build the per-question meta map used by both submit and responses-export paths.
 
     The map carries each question's stored metadata (e.g. ``ls_qid`` / ``qsf_qid``)
     plus an ``_option_values`` map of option_id → platform_code so callers can
@@ -119,8 +119,8 @@ def _responses_from_review_state(
          "selected_ids": list[str] | None}
 
     Only entries with ``state in ("accepted", "edited")`` produce a response;
-    ``dismissed`` and missing entries are skipped (the CSV cell is empty, same
-    semantics as Submit).
+    ``dismissed`` and missing entries are skipped (the exported row omits
+    that column, same semantics as Submit).
 
     Translation to platform codes mirrors ``_build_responses_from_body``: option
     ids (e.g. ``opt_A1``) are mapped to platform codes (e.g. ``A1``) via the

@@ -337,7 +337,9 @@ caller's JWT is no longer valid for the transferred session.
 #### Scenario: Transfer non-owned session
 
 - **WHEN** a user attempts to transfer a session they do not own
-- **THEN** the endpoint returns HTTP 403 Forbidden
+- **THEN** the endpoint returns HTTP 404 Not Found (matching the
+  ``delete_user_session`` pattern — non-owners receive the same response
+  as missing sessions so callers cannot probe for session existence)
 
 ### Requirement: User Data Deletion (RTBF)
 

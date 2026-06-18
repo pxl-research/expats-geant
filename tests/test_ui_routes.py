@@ -616,7 +616,7 @@ class TestSubmitRoute:
         respx.get(f"{BASE}/surveys/survey-abc").mock(
             return_value=httpx.Response(200, json=SURVEY_FIXTURE)
         )
-        # Retry-render path refetches capabilities to keep the CSV button live.
+        # Retry-render path refetches capabilities to keep the responses-export button live.
         respx.get(f"{BASE}/adapters/qsf/capabilities").mock(
             return_value=httpx.Response(200, json=["import", "export", "submit"])
         )

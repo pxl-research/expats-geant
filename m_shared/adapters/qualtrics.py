@@ -407,8 +407,9 @@ class QualtricsAdapter(SurveyAdapter):
 
         Args:
             survey: The internal survey. ``question.metadata["qsf_qid"]`` is
-                used for column IDs; ``AnswerOption.value`` for choice codes
-                (set during import at ``qualtrics.py:454-465``).
+                used for column IDs; ``AnswerOption.value`` carries each
+                choice's Qualtrics code (populated by ``import_survey`` from
+                the QSF ``Choices`` map).
             responses: The respondent's answers. ``response.question_id``
                 indexes into the survey; ``answer_value`` is the choice code
                 for single-select, a list of codes for multi-select, or a

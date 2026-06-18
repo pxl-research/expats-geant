@@ -201,7 +201,7 @@ note below.
 
 | Platform | Format | Column shape |
 |---|---|---|
-| LimeSurvey | **TSV** in LS's "VV" shape (filename suffix `_vv.csv` — chosen to mirror LS's own `vvexport_{sid}.csv` naming; media type `text/tab-separated-values`). Two header rows: row 1 human display labels (ignored by the importer); row 2 column codes — fixed prefix `id, token, submitdate, lastpage, startlanguage, seed, startdate, datestamp` followed by one column per top-level question keyed by its `ls_qcode` and one column per M/P sub-question keyed `{qcode}_{sub_qcode}` (**underscore separator**). Empty cells use literal `{question_not_shown}`. | `id ... QM1 QM1_A1 QM1_A2 ...` (codes row) |
+| LimeSurvey | **TSV** in LS's "VV" shape (filename suffix `_vv.csv` — chosen to mirror LS's own `vvexport_{sid}.csv` naming; media type `text/tab-separated-values; charset=utf-8`). Two header rows: row 1 human display labels (ignored by the importer); row 2 column codes — fixed prefix `id, token, submitdate, lastpage, startlanguage, seed, startdate, datestamp` followed by one column per top-level question keyed by its `ls_qcode` and one column per M/P sub-question keyed `{qcode}_{sub_qcode}` (**underscore separator**). Empty cells use literal `{question_not_shown}`. | `id ... QM1 QM1_A1 QM1_A2 ...` (codes row) |
 | Qualtrics  | **CSV** with BOM (filename suffix `.csv`, media type `text/csv; charset=utf-8`). Three header rows: row 1 column IDs (`StartDate`, `EndDate`, …, `QID<n>`, with `QID<n>_<choice_code>` per choice on multi-select), row 2 human-readable display labels, row 3 the per-column `{"ImportId":"…","timeZone":"UTC"}` JSON the importer keys on. | `QID1 QID2_1 QID2_2 ...` (row 1) |
 
 Adapters that do not target such an importer (QTI, SurveyMonkey on the
