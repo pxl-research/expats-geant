@@ -294,6 +294,20 @@ class ReviewStateResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class ExtractFormRequest(BaseModel):
+    """Request body for /extract-form (LLM-assisted form-field extraction)."""
+
+    url: str = Field(
+        ..., min_length=1, max_length=4096, description="Source page URL the form lives on"
+    )
+    page_text: str = Field(
+        ...,
+        min_length=1,
+        max_length=200_000,
+        description="Plain-text content of the page (no HTML); supplied by the caller",
+    )
+
+
 class WebPreviewRequest(BaseModel):
     """Request body for /web/preview and /web/ingest."""
 

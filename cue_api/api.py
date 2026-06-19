@@ -4,12 +4,14 @@ import logging
 import os
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from cue_api.rag_pipeline import RAGPipeline
 from cue_api.routes.audit import router as audit_router
 from cue_api.routes.auth import router as auth_router
 from cue_api.routes.documents import router as documents_router
+from cue_api.routes.extract_form import router as extract_form_router
 from cue_api.routes.review_state import router as review_state_router
 from cue_api.routes.session import router as session_router
 from cue_api.routes.sessions import router as sessions_router
@@ -23,6 +25,34 @@ from m_shared.session.manager import SessionManager
 from m_shared.utils.audit import AuditLogger
 
 logger = logging.getLogger(__name__)
+
+_ALLOWED_EXTENSION_SCHEMES = ("chrome-extension://", "moz-extension://")
+
+
+def _parse_extension_origins(raw: str) -> list[str]:
+    """Parse EXTENSION_ALLOWED_ORIGINS into an exact-match origin list.
+
+    Drops empty entries, entries containing wildcards, and entries that do not
+    start with an allowed extension scheme. Rejected entries are warn-logged
+    once at startup so misconfiguration is visible.
+    """
+    accepted: list[str] = []
+    for entry in raw.split(","):
+        candidate = entry.strip()
+        if not candidate:
+            continue
+        if "*" in candidate:
+            logger.warning("EXTENSION_ALLOWED_ORIGINS: rejected wildcard entry '%s'", candidate)
+            continue
+        if not candidate.startswith(_ALLOWED_EXTENSION_SCHEMES):
+            logger.warning(
+                "EXTENSION_ALLOWED_ORIGINS: rejected entry '%s' (only %s permitted)",
+                candidate,
+                ", ".join(_ALLOWED_EXTENSION_SCHEMES),
+            )
+            continue
+        accepted.append(candidate)
+    return accepted
 
 
 def create_app(
@@ -56,6 +86,17 @@ def create_app(
     )
 
     apply_rate_limiting(app)
+
+    extension_origins = _parse_extension_origins(os.getenv("EXTENSION_ALLOWED_ORIGINS", ""))
+    if extension_origins:
+        logger.info("CORS: allowing extension origins: %s", extension_origins)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=extension_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     @app.middleware("http")
     async def add_cache_headers(request: Request, call_next):
@@ -130,6 +171,7 @@ def create_app(
     app.include_router(review_state_router)
     app.include_router(surveys_router)
     app.include_router(web_router)
+    app.include_router(extract_form_router)
     app.include_router(admin_router)
 
     return app
