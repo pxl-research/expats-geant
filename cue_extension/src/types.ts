@@ -70,3 +70,21 @@ export interface UploadResponse {
   upload_timestamp: string;
   session_id: string;
 }
+
+export interface DocumentInfo {
+  name: string;
+  chunk_count: number;
+  source_kind?: string | null;
+  source_mime?: string | null;
+}
+
+export interface SessionStatsResponse {
+  session_id: string;
+  user_id: string;
+  created_at: string;
+  expires_at: string;
+  remaining_hours: number;
+  is_expired: boolean;
+  document_count: number;
+  documents: DocumentInfo[];
+}

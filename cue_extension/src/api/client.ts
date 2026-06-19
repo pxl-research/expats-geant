@@ -6,6 +6,7 @@ import type {
   BatchSuggestRequest,
   BatchSuggestResponse,
   ItemSuggestion,
+  SessionStatsResponse,
   UploadResponse,
 } from '../types.js';
 import { consumeSseStream } from './sse.js';
@@ -83,6 +84,14 @@ export class CueApiClient {
       [JWT_STORAGE_KEY]: payload.token,
       [USER_STORAGE_KEY]: payload.user_id,
     });
+  }
+
+  async getSessionStats(): Promise<SessionStatsResponse> {
+    this.requireAuth();
+    const response = await fetch(`${this.baseUrl}/session/stats`, {
+      headers: { Authorization: `Bearer ${this.jwt!}` },
+    });
+    return this.unwrapJson<SessionStatsResponse>(response, 'Could not fetch session stats');
   }
 
   async uploadDocument(file: File): Promise<UploadResponse> {

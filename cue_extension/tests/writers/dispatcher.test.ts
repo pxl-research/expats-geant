@@ -110,4 +110,46 @@ describe('applySuggestion', () => {
     expect(applied).toBe(false);
     expect(input.value).toBe('');
   });
+
+  it('does not blank a pre-filled input with an empty-string suggestion', () => {
+    document.body.innerHTML = `<input id="x" type="text" value="prior" />`;
+    const input = document.getElementById('x') as HTMLInputElement;
+    const applied = applySuggestion(input, makeSuggestion({ suggestion: '' }));
+    expect(applied).toBe(false);
+    expect(input.value).toBe('prior');
+  });
+
+  it('treats a whitespace-only suggestion as no-answer', () => {
+    document.body.innerHTML = `<textarea id="x">existing</textarea>`;
+    const ta = document.getElementById('x') as HTMLTextAreaElement;
+    const applied = applySuggestion(ta, makeSuggestion({ suggestion: '   \n   ' }));
+    expect(applied).toBe(false);
+    expect(ta.value).toBe('existing');
+  });
+
+  it('does not click radios when selected_id is null', () => {
+    document.body.innerHTML = `
+      <form>
+        <input type="radio" name="x" value="a" />
+        <input type="radio" name="x" value="b" />
+      </form>
+    `;
+    const radioA = document.querySelector<HTMLInputElement>('input[value="a"]')!;
+    const applied = applySuggestion(radioA, makeSuggestion());
+    expect(applied).toBe(false);
+    expect(document.querySelectorAll<HTMLInputElement>('input:checked').length).toBe(0);
+  });
+
+  it('does not click checkboxes when selected_ids is empty', () => {
+    document.body.innerHTML = `
+      <form>
+        <input type="checkbox" name="x" value="a" />
+        <input type="checkbox" name="x" value="b" />
+      </form>
+    `;
+    const member = document.querySelector<HTMLInputElement>('input[value="a"]')!;
+    const applied = applySuggestion(member, makeSuggestion({ selected_ids: [] }));
+    expect(applied).toBe(false);
+    expect(document.querySelectorAll<HTMLInputElement>('input:checked').length).toBe(0);
+  });
 });

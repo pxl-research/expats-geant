@@ -536,25 +536,28 @@ class RAGPipeline:
         chunks = self._filter_chunks_by_distance(self.retrieve(search_query, session_id))
 
         if not chunks:
-            no_match_answer = "No relevant information found in your documents for this question."
+            no_match_reasoning = "No document chunks matched this question. Please answer manually."
             if self.audit_logger:
                 self.audit_logger.log_suggestion(
                     session_id=session_id,
                     question=item.prompt,
-                    suggested_answer=no_match_answer,
+                    suggested_answer=no_match_reasoning,
                     sources_used=[],
                     model=client.model_name,
                     user_id=user_id,
                     question_id=item.id,
                     rewritten_query=rewritten_query,
                 )
+            # Return suggestion=None so the client neither writes anything
+            # back to the form nor renders a misleading boilerplate string.
+            # The reasoning carries the explanation for the popup.
             return {
                 "item_id": item.id,
                 "type": item.type.value,
-                "suggestion": no_match_answer,
+                "suggestion": None,
                 "selected_id": None,
                 "selected_ids": None,
-                "reasoning": "No document chunks matched this question. Please answer manually.",
+                "reasoning": no_match_reasoning,
                 "citations": [],
             }
 
@@ -576,10 +579,10 @@ class RAGPipeline:
             return {
                 "item_id": item.id,
                 "type": item.type.value,
-                "suggestion": "Generation failed.",
+                "suggestion": None,
                 "selected_id": None,
                 "selected_ids": None,
-                "reasoning": str(e),
+                "reasoning": f"Generation failed: {e}",
                 "citations": [],
             }
 
@@ -612,10 +615,22 @@ class RAGPipeline:
                 source_details=source_details,
             )
 
+        # Normalise an empty / whitespace-only answer with no choice
+        # selection to None so the client renders it as a "no answer" entry
+        # rather than blanking a field that the user already filled.
+        normalised_answer: str | None = answer
+        if (
+            normalised_answer is not None
+            and not normalised_answer.strip()
+            and selected_id is None
+            and not selected_ids
+        ):
+            normalised_answer = None
+
         return {
             "item_id": item.id,
             "type": item.type.value,
-            "suggestion": answer,
+            "suggestion": normalised_answer,
             "selected_id": selected_id,
             "selected_ids": selected_ids,
             "reasoning": reasoning,

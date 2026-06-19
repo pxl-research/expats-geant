@@ -142,6 +142,21 @@ button:disabled {
   margin: 2px 0 0 0;
 }
 
+#suggestions dd.no-answer {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.reasoning {
+  font-size: 12px;
+  color: var(--fg);
+  background: #f7f7f7;
+  margin: 4px 0 0 0;
+  padding: 4px 8px;
+  border-left: 2px solid var(--accent);
+  border-radius: 2px;
+}
+
 .citation {
   font-size: 11px;
   color: var(--muted);
@@ -150,13 +165,19 @@ button:disabled {
   border-left: 2px solid var(--border);
 }
 
-#upload-log {
-  margin: 6px 0 0 0;
+#document-list {
+  margin: 6px 0 8px 0;
   padding-left: 14px;
 }
 
-#upload-log li {
+#document-list li {
   list-style: disc;
+}
+
+#document-list li.placeholder {
+  list-style: none;
+  font-style: italic;
+  padding-left: 0;
 }
 
 dialog {

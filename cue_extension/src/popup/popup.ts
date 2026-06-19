@@ -4,6 +4,18 @@ import { CueApiClient } from '../api/client.js';
 import type { BatchSuggestItem, ItemSuggestion } from '../types.js';
 
 const PRIVACY_ACK_KEY = 'cue.privacyAck';
+const LAST_RUN_KEY = 'cue.lastRun';
+// Stale-run guard: a cached analysis older than this is dropped on popup
+// open instead of being re-rendered. Users who come back hours later see a
+// clean slate.
+const LAST_RUN_TTL_MS = 60 * 60 * 1000;
+
+interface CachedRun {
+  ts: number;
+  status: string;
+  items: BatchSuggestItem[];
+  suggestions: ItemSuggestion[];
+}
 
 interface ExtractFormApiMessage {
   type: 'extractFormViaAPI';
@@ -29,6 +41,10 @@ async function initPopup(): Promise<void> {
   installRuntimeBridge();
   await maybeShowPrivacyDialog();
   renderState();
+  if (client.hasCredentials()) {
+    void refreshDocumentList();
+    void rehydrateLastRun();
+  }
 
   byId('cue-url-save').addEventListener('click', () => void onSaveCueUrl());
   byId('login-btn').addEventListener('click', () => void onLogin());
@@ -40,6 +56,38 @@ async function initPopup(): Promise<void> {
     void onAuditReport();
   });
   byId('privacy-accept').addEventListener('click', onPrivacyAccept);
+}
+
+async function refreshDocumentList(): Promise<void> {
+  try {
+    const stats = await client.getSessionStats();
+    renderDocumentList(stats.documents);
+  } catch (err) {
+    // 404 here is fine — session may not exist yet for fresh logins; the
+    // first successful upload will create it. Other errors surface to the
+    // user so they're not stuck on a stale view.
+    const message = (err as Error).message;
+    if (!message.includes('404')) {
+      showError(message);
+    }
+  }
+}
+
+function renderDocumentList(documents: { name: string }[]): void {
+  const list = byId('document-list');
+  list.innerHTML = '';
+  if (documents.length === 0) {
+    const placeholder = document.createElement('li');
+    placeholder.className = 'placeholder';
+    placeholder.textContent = 'No documents yet.';
+    list.append(placeholder);
+    return;
+  }
+  for (const doc of documents) {
+    const li = document.createElement('li');
+    li.textContent = doc.name;
+    list.append(li);
+  }
 }
 
 function installRuntimeBridge(): void {
@@ -139,10 +187,10 @@ async function onUpload(): Promise<void> {
     return;
   }
   try {
-    const result = await client.uploadDocument(file);
-    appendUploadLog(`${result.filename} (${result.size_bytes.toLocaleString()} bytes)`);
+    await client.uploadDocument(file);
     input.value = '';
     clearError();
+    await refreshDocumentList();
   } catch (err) {
     showError((err as Error).message);
   }
@@ -153,13 +201,14 @@ async function onTrigger(): Promise<void> {
   trigger.disabled = true;
   clearError();
   clearSuggestions();
-  setStatus('Locating active tab…');
+  const run: CachedRun = { ts: Date.now(), status: '', items: [], suggestions: [] };
+  await setStatus('Locating active tab…', run);
   try {
     const tabId = await getActiveTabId();
-    setStatus('Injecting content script…');
+    await setStatus('Injecting content script…', run);
     await browser.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
 
-    setStatus('Extracting form fields…');
+    await setStatus('Extracting form fields…', run);
     const response = (await browser.tabs.sendMessage(tabId, {
       type: 'extract',
       url: '',
@@ -168,12 +217,14 @@ async function onTrigger(): Promise<void> {
       throw new Error(response?.error ?? 'Extraction failed');
     }
     const items = response.items ?? [];
+    run.items = items;
     if (items.length === 0) {
-      setStatus('No form fields detected on this page.');
+      await setStatus('No form fields detected on this page.', run);
       return;
     }
-    setStatus(
+    await setStatus(
       `Extractor: ${response.extractorName} — ${items.length} field(s). Streaming suggestions…`,
+      run,
     );
 
     let received = 0;
@@ -182,12 +233,14 @@ async function onTrigger(): Promise<void> {
       {
         onSuggestion: (suggestion) => {
           received += 1;
+          run.suggestions.push(suggestion);
           renderSuggestion(items, suggestion);
+          void persistRun(run);
           void browser.tabs.sendMessage(tabId, { type: 'writeBack', suggestion });
         },
         onError: (detail) => showError(`Stream error: ${detail}`),
         onDone: () =>
-          setStatus(`Done — ${received}/${items.length} suggestion(s) delivered.`),
+          void setStatus(`Done — ${received}/${items.length} suggestion(s) delivered.`, run),
       },
     );
   } catch (err) {
@@ -214,8 +267,9 @@ async function onAuditReport(): Promise<void> {
 
 async function onLogout(): Promise<void> {
   await client.logout();
+  await browser.storage.local.remove(LAST_RUN_KEY);
   clearSuggestions();
-  setStatus('');
+  await setStatus('');
   renderState();
 }
 
@@ -231,17 +285,25 @@ function renderSuggestion(items: BatchSuggestItem[], suggestion: ItemSuggestion)
   const item = items.find((i) => i.id === suggestion.item_id);
   const dt = document.createElement('dt');
   dt.textContent = item?.prompt ?? suggestion.item_id;
+  dl.append(dt);
+
   const dd = document.createElement('dd');
-  if (suggestion.suggestion !== null) {
-    dd.textContent = suggestion.suggestion;
-  } else if (suggestion.selected_ids?.length) {
-    dd.textContent = suggestion.selected_ids.join(', ');
-  } else if (suggestion.selected_id) {
-    dd.textContent = suggestion.selected_id;
-  } else {
+  const answerText = readableAnswer(suggestion);
+  if (answerText === null) {
+    dd.className = 'no-answer';
     dd.textContent = '(no answer)';
+  } else {
+    dd.textContent = answerText;
   }
-  dl.append(dt, dd);
+  dl.append(dd);
+
+  if (suggestion.reasoning && suggestion.reasoning.trim()) {
+    const reasoning = document.createElement('div');
+    reasoning.className = 'reasoning';
+    reasoning.textContent = suggestion.reasoning.trim();
+    dl.append(reasoning);
+  }
+
   for (const citation of suggestion.citations) {
     const note = document.createElement('div');
     note.className = 'citation';
@@ -249,6 +311,19 @@ function renderSuggestion(items: BatchSuggestItem[], suggestion: ItemSuggestion)
     note.textContent = `${citation.source} · ${positionPct}%: ${citation.excerpt}`;
     dl.append(note);
   }
+}
+
+function readableAnswer(suggestion: ItemSuggestion): string | null {
+  if (suggestion.suggestion !== null && suggestion.suggestion.trim()) {
+    return suggestion.suggestion;
+  }
+  if (suggestion.selected_ids && suggestion.selected_ids.length > 0) {
+    return suggestion.selected_ids.join(', ');
+  }
+  if (suggestion.selected_id) {
+    return suggestion.selected_id;
+  }
+  return null;
 }
 
 function toggleHidden(id: string, hidden: boolean): void {
@@ -260,14 +335,30 @@ function clearSuggestions(): void {
   byId('suggestions').innerHTML = '';
 }
 
-function setStatus(text: string): void {
+async function setStatus(text: string, run?: CachedRun): Promise<void> {
   byId('status').textContent = text;
+  if (run) {
+    run.status = text;
+    await persistRun(run);
+  }
 }
 
-function appendUploadLog(text: string): void {
-  const li = document.createElement('li');
-  li.textContent = text;
-  byId('upload-log').append(li);
+async function persistRun(run: CachedRun): Promise<void> {
+  await browser.storage.local.set({ [LAST_RUN_KEY]: run });
+}
+
+async function rehydrateLastRun(): Promise<void> {
+  const stored = await browser.storage.local.get(LAST_RUN_KEY);
+  const run = stored[LAST_RUN_KEY] as CachedRun | undefined;
+  if (!run) return;
+  if (Date.now() - run.ts > LAST_RUN_TTL_MS) {
+    await browser.storage.local.remove(LAST_RUN_KEY);
+    return;
+  }
+  if (run.status) byId('status').textContent = run.status;
+  for (const suggestion of run.suggestions) {
+    renderSuggestion(run.items, suggestion);
+  }
 }
 
 function showError(message: string): void {

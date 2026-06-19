@@ -34,19 +34,27 @@ function applyToInput(input: HTMLInputElement, suggestion: ItemSuggestion): bool
   }
   if (type === 'checkbox') {
     const targets = suggestion.selected_ids ?? [];
+    if (targets.length === 0) return false;
     return clickGroupedInput(input, targets);
   }
-  if (type === 'range') {
-    if (suggestion.suggestion === null) return false;
-    return setNativeValue(input, suggestion.suggestion);
-  }
-  if (suggestion.suggestion === null) return false;
-  return setNativeValue(input, suggestion.suggestion);
+  const value = effectiveValue(suggestion);
+  if (value === null) return false;
+  return setNativeValue(input, value);
 }
 
 function applyToTextarea(ta: HTMLTextAreaElement, suggestion: ItemSuggestion): boolean {
-  if (suggestion.suggestion === null) return false;
-  return setNativeValue(ta, suggestion.suggestion);
+  const value = effectiveValue(suggestion);
+  if (value === null) return false;
+  return setNativeValue(ta, value);
+}
+
+// An "effective" value treats null, empty, and whitespace-only suggestions
+// the same: nothing to write. This stops boilerplate "no answer found"
+// strings from blanking fields the user already filled.
+function effectiveValue(suggestion: ItemSuggestion): string | null {
+  if (suggestion.suggestion === null) return null;
+  const trimmed = suggestion.suggestion.trim();
+  return trimmed.length === 0 ? null : suggestion.suggestion;
 }
 
 function applyToSelect(sel: HTMLSelectElement, suggestion: ItemSuggestion): boolean {
@@ -81,9 +89,10 @@ function applyToSelect(sel: HTMLSelectElement, suggestion: ItemSuggestion): bool
 }
 
 function applyToContentEditable(el: HTMLElement, suggestion: ItemSuggestion): boolean {
-  if (suggestion.suggestion === null) return false;
+  const value = effectiveValue(suggestion);
+  if (value === null) return false;
   el.focus();
-  el.textContent = suggestion.suggestion;
+  el.textContent = value;
   el.dispatchEvent(new Event('input', { bubbles: true }));
   return true;
 }
