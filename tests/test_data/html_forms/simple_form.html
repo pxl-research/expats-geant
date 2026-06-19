@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Simple Test Form</title>
+</head>
+<body>
+  <h1>Volunteer signup</h1>
+  <form action="/submit" method="post">
+    <p>
+      <label for="full_name">Full name</label>
+      <input id="full_name" name="full_name" type="text" required>
+    </p>
+    <p>
+      <label for="email">Email address</label>
+      <input id="email" name="email" type="email" required>
+    </p>
+    <fieldset>
+      <legend>Preferred shift</legend>
+      <label><input type="radio" name="shift" value="morning"> Morning</label>
+      <label><input type="radio" name="shift" value="afternoon"> Afternoon</label>
+      <label><input type="radio" name="shift" value="evening"> Evening</label>
+    </fieldset>
+    <fieldset>
+      <legend>Skills you bring</legend>
+      <label><input type="checkbox" name="skills" value="cooking"> Cooking</label>
+      <label><input type="checkbox" name="skills" value="driving"> Driving</label>
+      <label><input type="checkbox" name="skills" value="first_aid"> First aid</label>
+    </fieldset>
+    <p>
+      <label for="role">Role preference</label>
+      <select id="role" name="role">
+        <option value="">— select —</option>
+        <option value="host">Host</option>
+        <option value="steward">Steward</option>
+        <option value="cleanup">Cleanup crew</option>
+      </select>
+    </p>
+    <p>
+      <label for="hours">Hours available per week</label>
+      <input id="hours" name="hours" type="range" min="0" max="40" step="1">
+    </p>
+    <p>
+      <label for="notes">Anything else we should know?</label>
+      <textarea id="notes" name="notes" rows="4"></textarea>
+    </p>
+    <button type="submit">Sign me up</button>
+  </form>
+</body>
+</html>

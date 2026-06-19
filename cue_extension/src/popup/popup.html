@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Cue Form Filler</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Cue</h1>
+      <button id="logout-btn" class="ghost" hidden>Log out</button>
+    </header>
+    <main>
+      <section id="onboarding" hidden>
+        <h2>Connect to a Cue instance</h2>
+        <p class="hint">Enter the base URL of your institutional Cue API.</p>
+        <label>
+          <span>Cue API URL</span>
+          <input id="cue-url-input" type="url" placeholder="https://cue.example.org" autocomplete="off" />
+        </label>
+        <button id="cue-url-save">Save &amp; request permission</button>
+      </section>
+
+      <section id="login" hidden>
+        <h2>Log in</h2>
+        <p class="hint">Credentials authenticate you to <span id="login-host"></span>.</p>
+        <label>
+          <span>User ID</span>
+          <input id="login-user" type="text" autocomplete="username" />
+        </label>
+        <label>
+          <span>API secret</span>
+          <input id="login-secret" type="password" autocomplete="current-password" />
+        </label>
+        <button id="login-btn" class="primary">Log in</button>
+      </section>
+
+      <section id="ready" hidden>
+        <h2>Source documents</h2>
+        <input id="file-input" type="file" accept=".pdf,.docx,.txt,.md" />
+        <button id="upload-btn">Upload</button>
+        <ul id="upload-log" class="muted"></ul>
+
+        <h2>Suggest answers</h2>
+        <button id="trigger-btn" class="primary">Analyse this page</button>
+        <p id="status" class="muted"></p>
+        <dl id="suggestions"></dl>
+        <p><a id="audit-link" href="#">Download audit report</a></p>
+      </section>
+
+      <p id="error-banner" class="error" hidden></p>
+    </main>
+    <dialog id="privacy-dialog">
+      <h2>Before you start</h2>
+      <p>
+        Cue reads this page only when you click <strong>Analyse this page</strong>. Detected
+        form labels and choices are sent to your configured Cue instance; field values you
+        already typed are not.
+      </p>
+      <p>
+        If a page has no recognisable form structure, the page text is sent for LLM-assisted
+        extraction. Citations come back with each suggestion.
+      </p>
+      <button id="privacy-accept" class="primary">Got it</button>
+    </dialog>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

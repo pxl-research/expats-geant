@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Cue — Form Filler",
+  "version": "0.1.0",
+  "description": "Fill web forms with evidence-backed answers from your uploaded documents, via a configurable Cue API instance.",
+  "action": {
+    "default_title": "Cue — Form Filler",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "sw.js",
+    "type": "module"
+  },
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ]
+}

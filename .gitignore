@@ -16,7 +16,7 @@ CLINE.md
 .secrets/
 data/
 logs/
-test_data/
+/test_data/
 docs/application_form.pdf
 # docs/PROJECT_PLAN.md
 .coverage
