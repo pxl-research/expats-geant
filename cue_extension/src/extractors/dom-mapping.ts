@@ -103,14 +103,18 @@ function cssEscape(value: string): string {
   return value.replace(/["\\]/g, '\\$&');
 }
 
-export function mapInput(input: HTMLInputElement, idGen: IdGen): ExtractedField | null {
+export function mapInput(
+  input: HTMLInputElement,
+  idGen: IdGen,
+  promptOverride?: string,
+): ExtractedField | null {
   if (isHidden(input) || isDisabled(input)) return null;
   const type = input.type.toLowerCase();
   if (SKIPPED_INPUT_TYPES.has(type)) return null;
   if (type === 'radio' || type === 'checkbox') return null;
 
   if (type === 'range') {
-    const prompt = resolvePrompt(input);
+    const prompt = promptOverride || resolvePrompt(input);
     if (!prompt) return null;
     return {
       item: { id: idGen(), type: 'slider', prompt },
@@ -119,7 +123,7 @@ export function mapInput(input: HTMLInputElement, idGen: IdGen): ExtractedField 
   }
 
   if (OPEN_ENDED_INPUT_TYPES.has(type)) {
-    const prompt = resolvePrompt(input);
+    const prompt = promptOverride || resolvePrompt(input);
     if (!prompt) return null;
     return {
       item: { id: idGen(), type: 'open_ended', prompt },
@@ -129,9 +133,13 @@ export function mapInput(input: HTMLInputElement, idGen: IdGen): ExtractedField 
   return null;
 }
 
-export function mapTextarea(ta: HTMLTextAreaElement, idGen: IdGen): ExtractedField | null {
+export function mapTextarea(
+  ta: HTMLTextAreaElement,
+  idGen: IdGen,
+  promptOverride?: string,
+): ExtractedField | null {
   if (isHidden(ta) || isDisabled(ta)) return null;
-  const prompt = resolvePrompt(ta);
+  const prompt = promptOverride || resolvePrompt(ta);
   if (!prompt) return null;
   return {
     item: { id: idGen(), type: 'open_ended', prompt },
@@ -139,9 +147,13 @@ export function mapTextarea(ta: HTMLTextAreaElement, idGen: IdGen): ExtractedFie
   };
 }
 
-export function mapSelect(sel: HTMLSelectElement, idGen: IdGen): ExtractedField | null {
+export function mapSelect(
+  sel: HTMLSelectElement,
+  idGen: IdGen,
+  promptOverride?: string,
+): ExtractedField | null {
   if (isHidden(sel) || isDisabled(sel)) return null;
-  const prompt = resolvePrompt(sel);
+  const prompt = promptOverride || resolvePrompt(sel);
   if (!prompt) return null;
   const choices: BatchChoice[] = [];
   for (const opt of Array.from(sel.options)) {
@@ -164,10 +176,11 @@ export function mapSelect(sel: HTMLSelectElement, idGen: IdGen): ExtractedField 
 export function mapRadioGroup(
   radios: HTMLInputElement[],
   idGen: IdGen,
+  promptOverride?: string,
 ): ExtractedField | null {
   const visible = radios.filter((r) => !isHidden(r) && !isDisabled(r));
   if (visible.length === 0) return null;
-  const prompt = groupPrompt(visible[0]);
+  const prompt = promptOverride || groupPrompt(visible[0]);
   if (!prompt) return null;
   const choices = collectChoiceLabels(visible);
   if (choices.length === 0) return null;
@@ -180,13 +193,14 @@ export function mapRadioGroup(
 export function mapCheckboxGroup(
   checkboxes: HTMLInputElement[],
   idGen: IdGen,
+  promptOverride?: string,
 ): ExtractedField | null {
   const visible = checkboxes.filter((c) => !isHidden(c) && !isDisabled(c));
   if (visible.length === 0) return null;
   // A lone checkbox is a yes/no toggle; we don't have a question type for it
   // in BatchSuggestItem, so skip rather than misrepresent.
   if (visible.length === 1) return null;
-  const prompt = groupPrompt(visible[0]);
+  const prompt = promptOverride || groupPrompt(visible[0]);
   if (!prompt) return null;
   const choices = collectChoiceLabels(visible);
   if (choices.length === 0) return null;

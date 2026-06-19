@@ -51,6 +51,7 @@ async function initPopup(): Promise<void> {
   byId('upload-btn').addEventListener('click', () => void onUpload());
   byId('trigger-btn').addEventListener('click', () => void onTrigger());
   byId('logout-btn').addEventListener('click', () => void onLogout());
+  byId('reset-session-btn').addEventListener('click', () => void onResetSession());
   byId('audit-link').addEventListener('click', (event) => {
     event.preventDefault();
     void onAuditReport();
@@ -85,8 +86,50 @@ function renderDocumentList(documents: { name: string }[]): void {
   }
   for (const doc of documents) {
     const li = document.createElement('li');
-    li.textContent = doc.name;
+    const label = document.createElement('span');
+    label.textContent = doc.name;
+    li.append(label);
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'doc-remove';
+    removeBtn.type = 'button';
+    removeBtn.title = `Remove ${doc.name}`;
+    removeBtn.setAttribute('aria-label', `Remove ${doc.name}`);
+    removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', () => void onRemoveDocument(doc.name));
+    li.append(removeBtn);
     list.append(li);
+  }
+}
+
+async function onRemoveDocument(name: string): Promise<void> {
+  try {
+    await client.removeDocument(name);
+    clearError();
+    await refreshDocumentList();
+  } catch (err) {
+    showError((err as Error).message);
+  }
+}
+
+async function onResetSession(): Promise<void> {
+  const confirmed = window.confirm(
+    'Delete all uploaded documents, suggestions, and audit data, then start a fresh session?',
+  );
+  if (!confirmed) return;
+  const button = byId('reset-session-btn') as HTMLButtonElement;
+  button.disabled = true;
+  try {
+    await client.resetSession();
+    await browser.storage.local.remove(LAST_RUN_KEY);
+    clearSuggestions();
+    await setStatus('');
+    clearError();
+    await refreshDocumentList();
+  } catch (err) {
+    showError((err as Error).message);
+    renderState();
+  } finally {
+    button.disabled = false;
   }
 }
 

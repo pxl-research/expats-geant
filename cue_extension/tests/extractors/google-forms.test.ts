@@ -80,4 +80,37 @@ describe('googleFormsExtractor.extract', () => {
     const fields = await googleFormsExtractor.extract(document, {});
     expect(fields.map((f) => f.item.id)).toEqual(['q1', 'q2']);
   });
+
+  it('prefers the listitem heading even when the input has a placeholder', async () => {
+    // Regression: in live Google Forms the textarea fell through to the
+    // generic "Jouw antwoord" placeholder. With heading override, the
+    // listitem's `role="heading"` text always wins.
+    document.documentElement.innerHTML = `
+      <div role="listitem">
+        <div role="heading"><span>Naam</span><span> *</span></div>
+        <input type="text" placeholder="Jouw antwoord" />
+      </div>
+      <div role="listitem">
+        <div role="heading">Adres *</div>
+        <textarea placeholder="Jouw antwoord"></textarea>
+      </div>
+    `;
+    const fields = await googleFormsExtractor.extract(document, {});
+    expect(fields.length).toBe(2);
+    expect(fields[0].item.prompt).toBe('Naam');
+    expect(fields[1].item.prompt).toBe('Adres');
+    expect(fields.map((f) => f.item.prompt)).not.toContain('Jouw antwoord');
+  });
+
+  it('keeps the heading text when no required-asterisk is present', async () => {
+    document.documentElement.innerHTML = `
+      <div role="listitem">
+        <div role="heading">Telefoonnummer</div>
+        <input type="text" />
+      </div>
+    `;
+    const fields = await googleFormsExtractor.extract(document, {});
+    expect(fields.length).toBe(1);
+    expect(fields[0].item.prompt).toBe('Telefoonnummer');
+  });
 });

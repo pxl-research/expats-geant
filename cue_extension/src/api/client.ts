@@ -6,6 +6,8 @@ import type {
   BatchSuggestRequest,
   BatchSuggestResponse,
   ItemSuggestion,
+  NewSessionResponse,
+  RemoveSourceResponse,
   SessionStatsResponse,
   UploadResponse,
 } from '../types.js';
@@ -92,6 +94,47 @@ export class CueApiClient {
       headers: { Authorization: `Bearer ${this.jwt!}` },
     });
     return this.unwrapJson<SessionStatsResponse>(response, 'Could not fetch session stats');
+  }
+
+  async removeDocument(name: string): Promise<RemoveSourceResponse> {
+    this.requireAuth();
+    const response = await fetch(
+      `${this.baseUrl}/session/documents/${encodeURIComponent(name)}`,
+      { method: 'DELETE', headers: { Authorization: `Bearer ${this.jwt!}` } },
+    );
+    return this.unwrapJson<RemoveSourceResponse>(response, 'Could not remove source');
+  }
+
+  // Reset to a fresh, empty session: DELETE the current session (server
+  // hands back a session-less JWT) and then create a new session under the
+  // same user_id. Local JWT is rotated in place; the caller is responsible
+  // for clearing any cached UI state. On failure, the JWT is cleared so the
+  // popup falls back to the login flow.
+  async resetSession(): Promise<void> {
+    this.requireAuth();
+    const oldSessionId = decodeJwtSessionId(this.jwt!);
+    if (oldSessionId) {
+      const delResponse = await fetch(
+        `${this.baseUrl}/sessions/${encodeURIComponent(oldSessionId)}`,
+        { method: 'DELETE', headers: { Authorization: `Bearer ${this.jwt!}` } },
+      );
+      if (delResponse.ok) {
+        const body = (await delResponse.json()) as { token?: string };
+        if (body.token) this.jwt = body.token;
+      }
+    }
+    const newResponse = await fetch(`${this.baseUrl}/sessions/new`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${this.jwt!}` },
+    });
+    if (!newResponse.ok) {
+      this.jwt = null;
+      await browser.storage.local.remove([JWT_STORAGE_KEY]);
+      throw new Error(`Session reset failed (HTTP ${newResponse.status}). Please log in again.`);
+    }
+    const fresh = (await newResponse.json()) as NewSessionResponse;
+    this.jwt = fresh.token;
+    await browser.storage.local.set({ [JWT_STORAGE_KEY]: this.jwt });
   }
 
   async uploadDocument(file: File): Promise<UploadResponse> {
@@ -202,5 +245,20 @@ export class CueApiClient {
       }
     }
     throw new Error(`${errorPrefix} (HTTP ${response.status}${detail ? `: ${detail}` : ''})`);
+  }
+}
+
+// Decode the JWT payload to extract the session_id claim without validating
+// the signature (validation is the server's job; we only need the id to
+// address DELETE /sessions/{id}).
+function decodeJwtSessionId(jwt: string): string | null {
+  try {
+    const parts = jwt.split('.');
+    if (parts.length !== 3) return null;
+    const padded = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(padded));
+    return typeof payload.session_id === 'string' ? payload.session_id : null;
+  } catch {
+    return null;
   }
 }

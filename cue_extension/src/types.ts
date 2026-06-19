@@ -88,3 +88,13 @@ export interface SessionStatsResponse {
   document_count: number;
   documents: DocumentInfo[];
 }
+
+export interface RemoveSourceResponse {
+  status: string;
+  name: string;
+}
+
+export interface NewSessionResponse {
+  token: string;
+  session_id: string;
+}

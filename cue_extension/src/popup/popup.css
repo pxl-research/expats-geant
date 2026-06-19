@@ -95,6 +95,16 @@ button.primary {
   border-color: var(--accent);
 }
 
+button.danger {
+  background: transparent;
+  color: var(--error);
+  border-color: var(--error);
+}
+
+button.danger:hover {
+  background: var(--error-bg);
+}
+
 button.ghost {
   background: transparent;
   border: none;
@@ -172,12 +182,31 @@ button:disabled {
 
 #document-list li {
   list-style: disc;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
 }
 
 #document-list li.placeholder {
   list-style: none;
   font-style: italic;
   padding-left: 0;
+  display: list-item;
+}
+
+#document-list .doc-remove {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+#document-list .doc-remove:hover {
+  color: var(--error);
 }
 
 dialog {

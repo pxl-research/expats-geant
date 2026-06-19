@@ -29,17 +29,29 @@ export const semanticHtmlExtractor: Extractor = {
   },
 };
 
-export function extractFromContainers(containers: ParentNode[]): ExtractedField[] {
+export interface ExtractFromContainersOptions {
+  // Function returning a prompt to use for any control found inside the
+  // given container, overriding the generic label-resolution cascade.
+  // Returning `undefined`/`""` falls back to the generic resolver.
+  promptForContainer?: (container: ParentNode) => string | undefined;
+}
+
+export function extractFromContainers(
+  containers: ParentNode[],
+  options: ExtractFromContainersOptions = {},
+): ExtractedField[] {
   const idGen = makeIdGen();
   const fields: ExtractedField[] = [];
   const handled = new WeakSet<HTMLElement>();
 
   for (const container of containers) {
+    const promptOverride = options.promptForContainer?.(container) || undefined;
+
     const radios = Array.from(
       container.querySelectorAll<HTMLInputElement>('input[type=radio]'),
     );
     for (const [, group] of groupBy(radios, (r) => r.name)) {
-      const f = mapRadioGroup(group, idGen);
+      const f = mapRadioGroup(group, idGen, promptOverride);
       if (f) {
         fields.push(f);
         for (const member of group) handled.add(member);
@@ -50,7 +62,7 @@ export function extractFromContainers(containers: ParentNode[]): ExtractedField[
       container.querySelectorAll<HTMLInputElement>('input[type=checkbox]'),
     );
     for (const [, group] of groupBy(checkboxes, (c) => c.name)) {
-      const f = mapCheckboxGroup(group, idGen);
+      const f = mapCheckboxGroup(group, idGen, promptOverride);
       if (f) {
         fields.push(f);
         for (const member of group) handled.add(member);
@@ -59,17 +71,17 @@ export function extractFromContainers(containers: ParentNode[]): ExtractedField[
 
     for (const input of Array.from(container.querySelectorAll<HTMLInputElement>('input'))) {
       if (handled.has(input)) continue;
-      const f = mapInput(input, idGen);
+      const f = mapInput(input, idGen, promptOverride);
       if (f) fields.push(f);
     }
     for (const ta of Array.from(container.querySelectorAll<HTMLTextAreaElement>('textarea'))) {
       if (handled.has(ta)) continue;
-      const f = mapTextarea(ta, idGen);
+      const f = mapTextarea(ta, idGen, promptOverride);
       if (f) fields.push(f);
     }
     for (const sel of Array.from(container.querySelectorAll<HTMLSelectElement>('select'))) {
       if (handled.has(sel)) continue;
-      const f = mapSelect(sel, idGen);
+      const f = mapSelect(sel, idGen, promptOverride);
       if (f) fields.push(f);
     }
   }
