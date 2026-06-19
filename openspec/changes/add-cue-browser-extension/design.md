@@ -6,15 +6,18 @@ for institutional surveys but excludes the long tail of forms users encounter
 in the browser — Google Forms, MS Forms, government portals, internal HR tools.
 
 A standalone Firefox-only prototype already exists at
-`pxl-research/tai-llm-ff-ext` ("Pixie Lite"). It demonstrates that DOM scraping
-and write-back work in practice but talks directly to OpenRouter with a pasted
-API key — no RAG, no citations, no audit trail, no institutional posture.
+`pxl-research/tai-llm-ff-ext` ("Pixie Lite", MV2, v1.0.0). It demonstrates that
+DOM scraping and write-back work in practice but talks directly to OpenRouter
+with a pasted API key — no RAG, no citations, no audit trail, no
+institutional posture. Pixie Lite remains as a lightweight "paste-an-API-key"
+demo; this change builds its institutional sibling.
 
-This change rebuilds that prototype as a first-class Cue frontend: MV3 (Chrome
-+ Firefox + Edge), Cue API as the backend, full session lifecycle, evidence-
-backed answers with citations. The full plan is captured in
-`docs/BROWSER_EXTENSION_PLAN.md` — this design document records the decisions
-that differ from or refine that plan.
+The Cue extension rebuilds that prototype as a first-class Cue frontend: MV3
+(Chrome + Edge + Firefox from one source), Cue API as the backend, full
+session lifecycle, evidence-backed answers with citations. Reusable pieces
+from Pixie Lite (DOM addressing, per-tag write-back dispatch, popup shell,
+font/CSS bundle) are forked once at the start; the two codebases do not stay
+in sync.
 
 ## Goals / Non-Goals
 
@@ -144,10 +147,17 @@ analyse). Ship **no** Cue API host grants by default; the popup calls
 - *`<all_urls>` for the API too*: excessive, slows store review, raises pilot
   questions.
 
-**Rationale:** Recorded in `docs/BROWSER_EXTENSION_PLAN.md`. The
-`optional_host_permissions` pattern is the cleanest answer to the
-"every institution has its own host" problem and the smallest target for
-store reviewers.
+**Rationale:** MV3 is stable on Firefox since v109 (Jan 2023) and is mandatory
+on Chrome (MV2 removed June 2024). Manifest differences between Chromium and
+Firefox reduce to `browser_specific_settings.gecko.id` (ignored by Chrome) and
+the `browser.*` shim. The `optional_host_permissions` pattern is the cleanest
+answer to the "every institution has its own host" problem — the extension
+ships with no API host grants, the user enters their Cue URL in settings, and
+the extension calls `browser.permissions.request()` to grant just that origin.
+This is the smallest target for store reviewers. The content script's
+`<all_urls>` grant remains in `host_permissions` because it is functionally
+required: the user picks which page to analyse, and the extension cannot know
+the host set in advance.
 
 ### CORS allow-list with no default extension origins
 
@@ -184,9 +194,13 @@ with no new surface area.
 **Decision:** New `cue_extension/` directory alongside `cue_api/`, `cue_ui/`,
 `shape_api/`, `shape_ui/`. Not a separate repo.
 
-**Rationale:** Recorded in `docs/BROWSER_EXTENSION_PLAN.md`. The extension
-talks to Cue exclusively, ships against Cue's API version, and shares its
-release cadence and governance. Cross-repo sync would be tax with no benefit.
+**Rationale:** The extension talks to Cue exclusively, ships against Cue's
+API version, and shares its release cadence and governance. It is
+functionally the third Cue frontend; same contributors, same licence.
+Cross-repo sync would be tax with no benefit. The tooling difference
+(JS/TypeScript vs Python) is contained by scoping CI jobs per package; the
+store-review release path is independent of `docker-compose up` for the
+backend services and that separation is healthy.
 
 ## Risks / Trade-offs
 

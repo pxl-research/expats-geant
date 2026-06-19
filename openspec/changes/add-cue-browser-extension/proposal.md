@@ -70,7 +70,11 @@ Cue API and document store but distributed independently to end-users' browsers.
   - `docs/DEPLOYMENT.md` — extension install + distribution section
   - `docs/CUE_API.md` — `/extract-form` endpoint reference
 - **Not in scope**:
-  - Safari support (deferred per `docs/BROWSER_EXTENSION_PLAN.md`)
+  - Safari support — deferred. Distribution requires a Mac, Xcode wrapping via
+    `xcrun safari-web-extension-converter`, an Apple Developer membership
+    (~$99/yr individual or ~$299/yr enterprise), and App Store / TestFlight
+    review cycles. Cost does not pencil for a PoC where Chrome and Firefox
+    cover the great majority of researchers.
   - Typeform / JotForm / SurveyMonkey-respondent-UI extractors (post-PoC)
   - Pasting an existing `cue_ui/` session JWT (full lifecycle only in v1)
   - Multi-page / SPA pagination handling beyond what each extractor needs for

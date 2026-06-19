@@ -89,14 +89,78 @@ returns true. Each extractor SHALL live in its own file under
 - **THEN** no changes to existing extractors are required
 - **AND** the registry routes matching pages to it on the next build
 
+### Requirement: DOM Element to BatchSuggestItem Mapping
+
+All extractors SHALL map DOM form controls to `BatchSuggestItem.type` values
+according to the following table:
+
+- `<input type="text|email|number|url|tel|search|date|time">` and `<textarea>`
+  → `open_ended`
+- `<input type="radio">` group (shared `name` attribute) → `single_choice`,
+  with one `choices` entry per option in the group
+- `<input type="checkbox">` group (shared `name` attribute) →
+  `multiple_choice`, with one `choices` entry per option in the group
+- `<select>` (single-select) → `single_choice`, with one `choices` entry per
+  `<option>`
+- `<select multiple>` → `multiple_choice`, with one `choices` entry per
+  `<option>`
+- `<input type="range">` → `slider`, with `min` and `max` properties resolved
+  from the corresponding attributes
+
+The content script SHALL stamp a synthetic `path` attribute on every emitted
+form control identifying its DOM location. That `path` value SHALL be used as
+the `BatchSuggestItem.id`. The extension SHALL retain an `id → path` map
+locally so each returned answer can be written back to the originating
+element.
+
+#### Scenario: Text and textarea mapped to open_ended
+
+- **WHEN** an extractor encounters an `<input type="text">`, an `<input>` with
+  another text-like type, or a `<textarea>`
+- **THEN** it emits `type: "open_ended"`
+
+#### Scenario: Radio group mapped to single_choice with options
+
+- **WHEN** an extractor encounters two or more `<input type="radio">` elements
+  sharing a `name` attribute
+- **THEN** a single `BatchSuggestItem` is emitted with `type: "single_choice"`
+- **AND** one `choices` entry per radio option
+
+#### Scenario: Checkbox group mapped to multiple_choice with options
+
+- **WHEN** an extractor encounters two or more `<input type="checkbox">`
+  elements sharing a `name` attribute
+- **THEN** a single `BatchSuggestItem` is emitted with `type: "multiple_choice"`
+- **AND** one `choices` entry per checkbox option
+
+#### Scenario: Select mapped to single or multiple choice
+
+- **WHEN** an extractor encounters a `<select>` without `multiple`
+- **THEN** it emits `type: "single_choice"` with one `choices` entry per
+  `<option>`
+- **AND** when the `<select>` has the `multiple` attribute it emits
+  `type: "multiple_choice"` instead
+
+#### Scenario: Range mapped to slider with min/max
+
+- **WHEN** an extractor encounters an `<input type="range">`
+- **THEN** it emits `type: "slider"`
+- **AND** populates `min` and `max` from the element's attributes
+
+#### Scenario: Path-to-id mapping retained for write-back
+
+- **WHEN** the extension emits a `BatchSuggestItem`
+- **THEN** its `id` equals the synthetic `path` stamped on the originating DOM
+  element
+- **AND** the extension retains the `id → path` association for later
+  write-back
+
 ### Requirement: Google Forms Extractor
 
 The extension SHALL provide a Google Forms extractor that activates on
 `docs.google.com/forms/*` URLs. The extractor SHALL identify questions via the
-`[role="listitem"]` container and translate them to `BatchSuggestItem` entries
-mapping `input[type="text"]`, `textarea`, radio groups, checkbox groups,
-`select`, and range inputs as documented in
-`docs/BROWSER_EXTENSION_PLAN.md`.
+`[role="listitem"]` container and translate each contained form control to a
+`BatchSuggestItem` using the shared DOM-to-`BatchSuggestItem` mapping.
 
 #### Scenario: Open-ended question mapped
 

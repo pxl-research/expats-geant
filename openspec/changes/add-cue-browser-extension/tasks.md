@@ -84,7 +84,6 @@
 - [ ] 10.1 `cue_extension/README.md` — local install, build, structure overview
 - [ ] 10.2 `docs/DEPLOYMENT.md` — extension section: install, CORS configuration, privacy posture
 - [ ] 10.3 `docs/CUE_API.md` — document `POST /extract-form`
-- [ ] 10.4 `docs/BROWSER_EXTENSION_PLAN.md` — note the spec has landed and link to the change directory
 
 ## 11. Tests and CI Hygiene
 
