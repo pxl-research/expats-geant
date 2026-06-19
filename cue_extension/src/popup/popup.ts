@@ -87,6 +87,7 @@ function renderState(): void {
     } catch {
       byId('login-host').textContent = url;
     }
+    byId('login-user-display').textContent = client.getUserId() ?? '(generating…)';
   }
 }
 
@@ -109,20 +110,19 @@ async function onSaveCueUrl(): Promise<void> {
     showError('Permission denied — extension cannot reach this host.');
     return;
   }
-  client.setBaseUrl(value);
+  await client.setBaseUrl(value);
   clearError();
   renderState();
 }
 
 async function onLogin(): Promise<void> {
-  const userId = (byId('login-user') as HTMLInputElement).value.trim();
   const secret = (byId('login-secret') as HTMLInputElement).value;
-  if (!userId || !secret) {
-    showError('User ID and API secret are required.');
+  if (!secret) {
+    showError('API secret is required.');
     return;
   }
   try {
-    await client.login(userId, secret);
+    await client.login(secret);
     (byId('login-secret') as HTMLInputElement).value = '';
     clearError();
     renderState();

@@ -34,6 +34,13 @@ export class CueApiClient {
     this.baseUrl = (stored[BASE_URL_STORAGE_KEY] as string | undefined) ?? '';
     this.jwt = (stored[JWT_STORAGE_KEY] as string | undefined) ?? null;
     this.userId = (stored[USER_STORAGE_KEY] as string | undefined) ?? null;
+    // Auto-generate a stable per-install user_id so the user only has to
+    // supply the operator-distributed API secret. Persists across logout —
+    // logging out clears the JWT but keeps the account identity.
+    if (!this.userId) {
+      this.userId = crypto.randomUUID();
+      await browser.storage.local.set({ [USER_STORAGE_KEY]: this.userId });
+    }
   }
 
   getBaseUrl(): string {
@@ -44,8 +51,9 @@ export class CueApiClient {
     return this.userId;
   }
 
-  setBaseUrl(url: string): void {
+  async setBaseUrl(url: string): Promise<void> {
     this.baseUrl = url.replace(/\/+$/, '');
+    await browser.storage.local.set({ [BASE_URL_STORAGE_KEY]: this.baseUrl });
   }
 
   hasCredentials(): boolean {
@@ -54,16 +62,16 @@ export class CueApiClient {
 
   async logout(): Promise<void> {
     this.jwt = null;
-    this.userId = null;
-    await browser.storage.local.remove([JWT_STORAGE_KEY, USER_STORAGE_KEY]);
+    await browser.storage.local.remove([JWT_STORAGE_KEY]);
   }
 
-  async login(userId: string, apiSecret: string): Promise<void> {
+  async login(apiSecret: string): Promise<void> {
     if (!this.baseUrl) throw new Error('Cue base URL not configured');
+    if (!this.userId) throw new Error('Account ID is missing');
     const response = await fetch(`${this.baseUrl}/auth/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: userId, api_secret: apiSecret }),
+      body: JSON.stringify({ user_id: this.userId, api_secret: apiSecret }),
     });
     if (!response.ok) {
       throw new Error(`Login failed (HTTP ${response.status})`);
@@ -72,7 +80,6 @@ export class CueApiClient {
     this.jwt = payload.token;
     this.userId = payload.user_id;
     await browser.storage.local.set({
-      [BASE_URL_STORAGE_KEY]: this.baseUrl,
       [JWT_STORAGE_KEY]: payload.token,
       [USER_STORAGE_KEY]: payload.user_id,
     });

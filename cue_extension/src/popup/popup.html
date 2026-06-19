@@ -23,15 +23,18 @@
 
       <section id="login" hidden>
         <h2>Log in</h2>
-        <p class="hint">Credentials authenticate you to <span id="login-host"></span>.</p>
-        <label>
-          <span>User ID</span>
-          <input id="login-user" type="text" autocomplete="username" />
-        </label>
+        <p class="hint">Authenticating to <span id="login-host"></span>.</p>
+        <p class="hint">
+          Account ID (auto-generated; stable per install): <code id="login-user-display"></code>
+        </p>
         <label>
           <span>API secret</span>
           <input id="login-secret" type="password" autocomplete="current-password" />
         </label>
+        <p class="hint">
+          Provided by your Cue operator — the <code>API_SECRET</code> environment variable
+          on the cue-api service.
+        </p>
         <button id="login-btn" class="primary">Log in</button>
       </section>
 
