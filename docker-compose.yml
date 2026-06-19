@@ -64,6 +64,11 @@ services:
       # Web URL ingestion (operator gate; per-session consent still required)
       - CUE_WEB_INGEST_ENABLED=${CUE_WEB_INGEST_ENABLED:-false}
 
+      # Browser-extension CORS allow-list. Comma-separated chrome-extension://
+      # and moz-extension:// origins. Empty by default. Required for the Cue
+      # browser extension (cue_extension/) to call this API.
+      - EXTENSION_ALLOWED_ORIGINS=${EXTENSION_ALLOWED_ORIGINS:-}
+
       # Multi-tenant credential routing (optional)
       - TENANT_REGISTRY_PATH=${TENANT_REGISTRY_PATH:-}
       - TENANT_ENCRYPTION_KEY=${TENANT_ENCRYPTION_KEY:-}
