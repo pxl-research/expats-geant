@@ -6,12 +6,21 @@ import pytest
 from fastapi.testclient import TestClient
 
 from cue_api.api import _parse_extension_origins, create_app
+from m_shared.auth.middleware import SessionMiddleware
 from m_shared.session.manager import SessionManager
 
 
 @pytest.fixture
 def session_manager(tmp_path):
     return SessionManager(base_path=str(tmp_path / "sessions"))
+
+
+@pytest.fixture
+def jwt_secret(monkeypatch):
+    monkeypatch.setenv("JWT_SECRET", "test-secret-key")
+    monkeypatch.setenv("JWT_ALGORITHM", "HS256")
+    monkeypatch.setenv("JWT_EXPIRATION_HOURS", "24")
+    return "test-secret-key"
 
 
 class TestParseExtensionOrigins:
@@ -147,3 +156,51 @@ class TestCORSEndToEnd:
             },
         )
         assert response.headers.get("access-control-allow-origin") is None
+
+
+class TestPreflightOnProtectedPaths:
+    """Preflight OPTIONS requests must bypass SessionMiddleware so CORS can
+    short-circuit them. Without this bypass, browsers would receive 401 on
+    preflight and never attempt the real request."""
+
+    def test_preflight_on_protected_path_returns_cors_when_allowed(
+        self, session_manager, jwt_secret, monkeypatch
+    ):
+        del jwt_secret  # fixture only sets env for SessionMiddleware
+        monkeypatch.setenv("EXTENSION_ALLOWED_ORIGINS", "chrome-extension://abcdef0123456789")
+        app = create_app(session_manager)
+        app.add_middleware(SessionMiddleware, session_manager=session_manager, ttl_hours=24)
+        client = TestClient(app)
+        response = client.options(
+            "/extract-form",
+            headers={
+                "Origin": "chrome-extension://abcdef0123456789",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "authorization,content-type",
+            },
+        )
+        assert response.status_code == 200
+        assert (
+            response.headers.get("access-control-allow-origin")
+            == "chrome-extension://abcdef0123456789"
+        )
+
+    def test_preflight_on_protected_path_no_401_when_origin_not_listed(
+        self, session_manager, jwt_secret, monkeypatch
+    ):
+        del jwt_secret
+        monkeypatch.delenv("EXTENSION_ALLOWED_ORIGINS", raising=False)
+        app = create_app(session_manager)
+        app.add_middleware(SessionMiddleware, session_manager=session_manager, ttl_hours=24)
+        client = TestClient(app)
+        response = client.options(
+            "/extract-form",
+            headers={
+                "Origin": "chrome-extension://rogue",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "authorization",
+            },
+        )
+        # SessionMiddleware bypasses; CORSMiddleware (with no allow-list)
+        # returns 400 "Disallowed CORS origin" — never 401.
+        assert response.status_code != 401
