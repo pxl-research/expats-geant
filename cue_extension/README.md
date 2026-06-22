@@ -117,7 +117,6 @@ assets — both gated on the operator initiating the dev-account registrations.
 
 ## What's not in v1
 
-- Icons (browser default is used; replace before store submission).
 - Token refresh / rotation.
 - Quill / rich-text write-back beyond `contenteditable`.
 - Safari — separate Xcode + App Store track; deferred per proposal.

@@ -53,6 +53,8 @@ async function copyStatic(distDir) {
   for (const [src, dest] of files) {
     await fs.copyFile(path.join(__dirname, src), path.join(distDir, dest));
   }
+  const iconsSrc = path.join(__dirname, 'icons');
+  await fs.cp(iconsSrc, path.join(distDir, 'icons'), { recursive: true });
 }
 
 async function buildTarget(target) {
