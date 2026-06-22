@@ -81,6 +81,20 @@ describe('applySuggestion', () => {
     expect(radioB.checked).toBe(true);
   });
 
+  it('clicks the correct radio when inputs have empty value attributes (label match)', () => {
+    document.body.innerHTML = `
+      <form>
+        <label><input type="radio" name="x" value="" />Apple</label>
+        <label><input type="radio" name="x" value="" />Banana</label>
+      </form>
+    `;
+    const first = document.querySelector<HTMLInputElement>('input[name="x"]')!;
+    applySuggestion(first, makeSuggestion({ selected_id: 'Banana' }));
+    const radios = document.querySelectorAll<HTMLInputElement>('input[name="x"]');
+    expect(radios[0].checked).toBe(false);
+    expect(radios[1].checked).toBe(true);
+  });
+
   it('checks multiple checkboxes in a group', () => {
     document.body.innerHTML = `
       <form>

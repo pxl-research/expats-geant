@@ -226,11 +226,22 @@ function collectChoiceLabels(inputs: HTMLInputElement[]): BatchChoice[] {
     const label = choiceLabelFor(input);
     if (!label) continue;
     choices.push({
-      id: input.value || label,
+      id: choiceIdFor(input, label),
       label,
     });
   }
   return choices;
+}
+
+// The synthetic id we emit for a radio/checkbox choice. Inputs with a
+// meaningful `value` attribute use that; inputs without one (common on
+// Google Forms, MS Forms, and many SPA frameworks) fall back to the label
+// text. Shared with the writer dispatcher so write-back matches what
+// extraction produced.
+export function choiceIdFor(input: HTMLInputElement, label?: string): string {
+  if (input.value) return input.value;
+  const resolved = label ?? choiceLabelFor(input);
+  return resolved;
 }
 
 function choiceLabelFor(input: HTMLInputElement): string {
