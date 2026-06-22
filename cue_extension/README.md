@@ -1,11 +1,14 @@
 # `cue_extension/`
 
-Cue browser extension — Manifest V3, Chromium-first, evidence-backed form filling
-against a configurable Cue API instance. The third Cue frontend alongside `cue_ui/`
-and `shape_ui/`.
+Cue browser extension — Manifest V3, Chromium + Firefox, evidence-backed form
+filling against a configurable Cue API instance. The third Cue frontend
+alongside `cue_ui/` and `shape_ui/`.
 
-Full spec: `openspec/changes/add-cue-browser-extension/`. Implementation plan:
-`~/.claude/plans/kind-churning-lovelace.md`.
+This README is the **developer entry point** for editing the extension source.
+For installation, configuration, store-publication, and smoke-testing instructions,
+see the canonical operator doc: [`docs/DEPLOYMENT.md` → Cue Browser Extension](../docs/DEPLOYMENT.md#cue-browser-extension).
+For the server-side API contract, see [`docs/CUE_API.md` → Extract Form Fields](../docs/CUE_API.md#extract-form-fields-llm-fallback).
+Full spec: `openspec/changes/add-cue-browser-extension/`.
 
 ## What it does
 
@@ -40,9 +43,10 @@ cue_extension/
 │   │   └── sse.ts                fetch + ReadableStream SSE parser
 │   ├── extractors/
 │   │   ├── base.ts               Extractor interface + ExtractHelpers
-│   │   ├── registry.ts           runExtraction() — three-tier fall-through
+│   │   ├── registry.ts           runExtraction() — priority fall-through
 │   │   ├── dom-mapping.ts        DOM → BatchSuggestItem helpers (shared)
 │   │   ├── google-forms.ts
+│   │   ├── microsoft-forms.ts
 │   │   ├── semantic-html.ts
 │   │   └── llm-fallback.ts
 │   ├── writers/dispatcher.ts     applySuggestion(element, suggestion)
@@ -68,45 +72,22 @@ npm run typecheck     # tsc --noEmit
 npm test              # vitest run
 ```
 
-## Local install (Chrome / Edge, MVP)
+## Loading the unpacked build
 
-1. Run the Cue API locally (`docker-compose up` from repo root) with
-   `EXTENSION_ALLOWED_ORIGINS=chrome-extension://<your-extension-id>` set in the
-   environment. The extension ID is shown on `chrome://extensions` after
-   loading unpacked.
-2. `npm run build` in this directory.
-3. Open `chrome://extensions`, enable Developer mode, click **Load unpacked**,
-   choose `dist/chrome/`.
-4. Pin the extension to the toolbar.
-5. Click the icon to open the popup. Enter your Cue URL, grant the permission
-   prompt, log in.
-6. Visit a form, click **Analyse this page**.
+For full configuration steps — `EXTENSION_ALLOWED_ORIGINS`, container
+restart, smoke-test, store publication — see
+[`docs/DEPLOYMENT.md` → Cue Browser Extension](../docs/DEPLOYMENT.md#cue-browser-extension).
+The minimum dev loop:
 
-## Local install (Firefox)
+- **Chrome / Edge**: `npm run build:chrome` → `chrome://extensions` → enable
+  Developer mode → **Load unpacked** → `dist/chrome/`.
+- **Firefox 121+**: `npm run build:firefox` →
+  `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…** →
+  `dist/firefox/manifest.json`.
 
-The TypeScript is cross-engine through `webextension-polyfill`, so the same
-source builds for Firefox with only the manifest's `browser_specific_settings`
-block differing (already in `manifest.json` — Chromium ignores it silently).
-
-1. `npm run build:firefox` from this directory.
-2. Open `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…** →
-   select `dist/firefox/manifest.json`.
-3. The extension ID Firefox uses is the `gecko.id` from the manifest
-   (`cue-form-filler@expat-geant.local`). Add `moz-extension://cue-form-filler@expat-geant.local/`
-   to `EXTENSION_ALLOWED_ORIGINS` in `.env` and restart cue-api
-   (`docker compose up -d cue-api`).
-4. Click the toolbar icon → same flow as Chrome: configure Cue URL, grant the
-   host-permission prompt, log in, upload a doc, analyse a form.
-
-Notes:
-
-- Temporary add-ons are wiped on Firefox restart; this path is for development
-  + smoke only. Signed AMO distribution is Phase F.
-- Firefox 121+ is required (release channel; the manifest pins
-  `strict_min_version: "121.0"`). Earlier versions fail to register the MV3
-  `service_worker` declaration.
-- The host-permission prompt copy differs from Chrome's but the grant flow
-  through `browser.permissions.request()` is identical.
+In both cases, add the resulting `chrome-extension://<id>` or
+`moz-extension://<gecko-id>` origin to `EXTENSION_ALLOWED_ORIGINS` in
+`.env` and `docker compose up -d cue-api`.
 
 ## Architecture notes
 
@@ -118,7 +99,7 @@ Notes:
   rather than the alarming "all sites" variant. This matches user-triggered
   operation and makes store review smoother.
 - **`browser.*` via webextension-polyfill.** Single namespace across Chrome,
-  Edge, and (Phase E) Firefox.
+  Edge, and Firefox.
 - **JWT in `browser.storage.local`.** Token rotation/refresh is out of scope
   for v1; on 401 the user logs in again.
 - **PII posture.** The audit trail records URL + item count + model name only.
@@ -130,13 +111,13 @@ Notes:
 
 Shipped: Phase A (server `/extract-form` + CORS), Phase B (MVP Chromium build,
 three extractors), Phase C (end-to-end validation + UX fixes), Phase D
-(Microsoft Forms extractor), Phase E (Firefox parity). Next:
-
-- Phase F: CWS + AMO unlisted distribution, deployment docs.
+(Microsoft Forms extractor), Phase E (Firefox parity), Phase F (deployment +
+API docs). Remaining for Phase F: store listings (CWS + AMO unlisted) and icon
+assets — both gated on the operator initiating the dev-account registrations.
 
 ## What's not in v1
 
-- Icons (browser default is used; replace before Phase F store submission).
+- Icons (browser default is used; replace before store submission).
 - Token refresh / rotation.
 - Quill / rich-text write-back beyond `contenteditable`.
 - Safari — separate Xcode + App Store track; deferred per proposal.
