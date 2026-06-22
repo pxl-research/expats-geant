@@ -1,12 +1,14 @@
 import type { ExtractedField, ExtractHelpers, Extractor } from './base.js';
 import { googleFormsExtractor } from './google-forms.js';
 import { llmFallbackExtractor } from './llm-fallback.js';
+import { microsoftFormsExtractor } from './microsoft-forms.js';
 import { semanticHtmlExtractor } from './semantic-html.js';
 
 // Priority-ordered list. Known-platform extractors come first; the semantic
 // HTML extractor is the universal floor; the LLM fallback is the last resort.
 export const extractors: Extractor[] = [
   googleFormsExtractor,
+  microsoftFormsExtractor,
   semanticHtmlExtractor,
   llmFallbackExtractor,
 ];
