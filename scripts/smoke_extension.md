@@ -129,7 +129,7 @@ against the `firefox` bundle. Differences from the Chrome flow:
       wiped on Firefox restart — re-load between sessions.)
 - [ ] Extension ID is fixed by the manifest's `gecko.id`
       (`cue-form-filler@expat-geant.local`), not generated. Add
-      `moz-extension://cue-form-filler@expat-geant.local/` to
+      `moz-extension://cue-form-filler@expat-geant.local` to
       `EXTENSION_ALLOWED_ORIGINS` in `.env`, then `docker compose up -d cue-api`.
 - [ ] Preflight probe with the moz-extension origin returns the same echoed
       `access-control-allow-origin`:

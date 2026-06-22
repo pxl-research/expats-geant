@@ -254,7 +254,7 @@ npm test                # vitest run
 **Firefox 121+:**
 
 1. `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…** → `cue_extension/dist/firefox/manifest.json`.
-2. The extension ID is fixed by the manifest's `gecko.id` (see `manifest.json`). Add `moz-extension://<gecko-id>/` to `EXTENSION_ALLOWED_ORIGINS`, restart cue-api.
+2. The extension ID is fixed by the manifest's `gecko.id` (see `manifest.json`). Add `moz-extension://<gecko-id>` to `EXTENSION_ALLOWED_ORIGINS`, restart cue-api.
 3. Same popup flow as Chrome.
 
 Temporary Firefox add-ons are wiped on browser restart; this path is for development and smoke testing. Signed AMO distribution is the publication path documented below.
@@ -284,7 +284,7 @@ Both stores accept "unlisted" listings, visible only via direct URL — appropri
 2. From `cue_extension/`, zip the contents of `dist/firefox/` into `cue-form-filler.xpi`.
 3. Upload via **Submit a New Add-on** → **On your own**. Mozilla signs the package and emails back the signed `.xpi`.
 4. Distribute the signed `.xpi` URL to pilot users. Firefox installs it via direct download; no further allow-listing required at the OS level.
-5. The `moz-extension://<gecko-id>/` origin matches the manifest's `browser_specific_settings.gecko.id` — this is the value to add to `EXTENSION_ALLOWED_ORIGINS`.
+5. The `moz-extension://<gecko-id>` origin matches the manifest's `browser_specific_settings.gecko.id` — this is the value to add to `EXTENSION_ALLOWED_ORIGINS`. No trailing slash: browsers send `Origin: moz-extension://<gecko-id>` and CORS uses exact-match.
 
 ### Enterprise force-install (optional)
 

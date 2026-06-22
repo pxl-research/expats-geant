@@ -51,7 +51,10 @@ def _parse_extension_origins(raw: str) -> list[str]:
                 ", ".join(_ALLOWED_EXTENSION_SCHEMES),
             )
             continue
-        accepted.append(candidate)
+        # Browsers send `Origin: <scheme>://<id>` with no trailing slash;
+        # CORSMiddleware uses exact-match, so a configured `…/` would silently
+        # never match. Normalise here so operators don't have to remember.
+        accepted.append(candidate.rstrip("/"))
     return accepted
 
 

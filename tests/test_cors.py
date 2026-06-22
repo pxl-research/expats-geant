@@ -46,6 +46,10 @@ class TestParseExtensionOrigins:
         result = _parse_extension_origins("  chrome-extension://abc , moz-extension://def  ")
         assert result == ["chrome-extension://abc", "moz-extension://def"]
 
+    def test_trailing_slash_stripped(self):
+        result = _parse_extension_origins("chrome-extension://abc/,moz-extension://def/")
+        assert result == ["chrome-extension://abc", "moz-extension://def"]
+
     def test_wildcard_entry_dropped_with_warning(self, caplog):
         caplog.set_level(logging.WARNING, logger="cue_api.api")
         result = _parse_extension_origins("chrome-extension://*")
