@@ -11,6 +11,7 @@ import type {
   SessionStatsResponse,
   UploadResponse,
 } from '../types.js';
+import { decodeJwtSessionId } from './jwt.js';
 import { consumeSseStream } from './sse.js';
 
 const JWT_STORAGE_KEY = 'cue.jwt';
@@ -248,17 +249,3 @@ export class CueApiClient {
   }
 }
 
-// Decode the JWT payload to extract the session_id claim without validating
-// the signature (validation is the server's job; we only need the id to
-// address DELETE /sessions/{id}).
-function decodeJwtSessionId(jwt: string): string | null {
-  try {
-    const parts = jwt.split('.');
-    if (parts.length !== 3) return null;
-    const padded = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const payload = JSON.parse(atob(padded));
-    return typeof payload.session_id === 'string' ? payload.session_id : null;
-  } catch {
-    return null;
-  }
-}
