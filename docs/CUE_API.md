@@ -951,7 +951,7 @@ Content-Type: application/json
 }
 ```
 
-Reserved for the Cue Browser Extension's third-tier fallback: when deterministic extractors (known-platform DOM scrapes, semantic-HTML walkers) return zero items, the extension sends the active page's plain text here so the LLM can identify field labels and choice lists. Rate-limited at **10 requests/minute** per session and gated by `EXTENSION_ALLOWED_ORIGINS` (see [DEPLOYMENT.md → Cue Browser Extension](DEPLOYMENT.md#cue-browser-extension)).
+Reserved for the Cue Browser Extension's third-tier fallback: when deterministic extractors (known-platform DOM scrapes, semantic-HTML walkers) return zero items, the extension sends the active page's plain text here so the LLM can identify field labels and choice lists. Rate-limited at **10 requests/minute per authenticated user** (the shared limiter keys on `user_id` from the JWT, falling back to client IP for unauthenticated callers) and gated by `EXTENSION_ALLOWED_ORIGINS` (see [DEPLOYMENT.md → Cue Browser Extension](DEPLOYMENT.md#cue-browser-extension)).
 
 **Request body:**
 
@@ -999,7 +999,7 @@ Item-level rules (enforced by `BatchSuggestItem` validation server-side):
 
 **Response (503):** the deployment has no LLM client configured (`DEFAULT_LLM_MODEL` unset and no per-service override). Distinct from 502 so operators can diagnose configuration vs. model failure.
 
-**Response (429):** rate limit exceeded (10/minute per session). Client SHOULD back off and surface a "try again in a minute" message.
+**Response (429):** rate limit exceeded (10/minute per authenticated user). Client SHOULD back off and surface a "try again in a minute" message.
 
 **Audit (`EXTRACT_FORM` event):** records `url`, `item_count`, and `model` only. The supplied `page_text` and the extracted item labels are deliberately NOT persisted to the audit trail — a PII-preserving posture verified by `tests/test_extract_form_api.py::TestAudit`. Operators looking for usage metrics get URL + counts; they do not get the form contents.
 
