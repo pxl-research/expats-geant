@@ -154,10 +154,12 @@ the `browser.*` shim. The `optional_host_permissions` pattern is the cleanest
 answer to the "every institution has its own host" problem — the extension
 ships with no API host grants, the user enters their Cue URL in settings, and
 the extension calls `browser.permissions.request()` to grant just that origin.
-This is the smallest target for store reviewers. The content script's
-`<all_urls>` grant remains in `host_permissions` because it is functionally
-required: the user picks which page to analyse, and the extension cannot know
-the host set in advance.
+This is the smallest target for store reviewers. Arbitrary-page access for
+form analysis is obtained per click via the `activeTab` permission plus
+`browser.scripting.executeScript()` — no persistent `<all_urls>`
+`host_permissions` grant, no preloaded content script, no broad install
+warning. The user picks which page to analyse with each click, and the
+content script is injected only at that moment.
 
 ### CORS allow-list with no default extension origins
 

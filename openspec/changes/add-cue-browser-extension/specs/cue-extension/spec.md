@@ -355,9 +355,11 @@ events that the framework's state layer observes (e.g.
 The extension's manifest SHALL declare no Cue API host grants by default. The
 popup SHALL request the operator-entered Cue origin at runtime via
 `browser.permissions.request()` using `optional_host_permissions`. The
-content script's `<all_urls>` host permission SHALL remain in
-`host_permissions` because it is functionally required for scraping arbitrary
-pages.
+extension SHALL NOT declare any `host_permissions` block; arbitrary-page
+access is obtained per click via the `activeTab` permission combined with
+`browser.scripting.executeScript()`, so the content script is injected on
+user action rather than preloaded. This avoids the `<all_urls>` install
+warning and keeps store review small.
 
 #### Scenario: New Cue URL prompts permission request
 
