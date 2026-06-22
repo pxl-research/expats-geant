@@ -114,6 +114,23 @@ class TestCORSEndToEnd:
         )
         assert response.headers.get("access-control-allow-credentials") == "true"
 
+    def test_preflight_accepted_for_moz_extension_origin(self, session_manager, monkeypatch):
+        moz_origin = "moz-extension://cue-form-filler@expat-geant.local"
+        monkeypatch.setenv("EXTENSION_ALLOWED_ORIGINS", moz_origin)
+        app = create_app(session_manager)
+        client = TestClient(app)
+        response = client.options(
+            "/health",
+            headers={
+                "Origin": moz_origin,
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "authorization",
+            },
+        )
+        assert response.status_code == 200
+        assert response.headers.get("access-control-allow-origin") == moz_origin
+        assert response.headers.get("access-control-allow-credentials") == "true"
+
     def test_actual_request_carries_cors_header_for_allowed_origin(
         self, session_manager, monkeypatch
     ):

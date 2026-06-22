@@ -117,6 +117,39 @@ The Cue API rejects requests from any browser-extension origin not listed in
 
 ---
 
+## Firefox parity (Phase E)
+
+Re-run sections 1, 3, 4, 5, 6, 7, 8 in Firefox 121+ (release channel or Nightly)
+against the `firefox` bundle. Differences from the Chrome flow:
+
+- [ ] Build: `(cd cue_extension && npm run build:firefox)` produces
+      `cue_extension/dist/firefox/`.
+- [ ] Load: `about:debugging#/runtime/this-firefox` → **Load Temporary
+      Add-on…** → select `dist/firefox/manifest.json`. (Temporary add-ons are
+      wiped on Firefox restart — re-load between sessions.)
+- [ ] Extension ID is fixed by the manifest's `gecko.id`
+      (`cue-form-filler@expat-geant.local`), not generated. Add
+      `moz-extension://cue-form-filler@expat-geant.local/` to
+      `EXTENSION_ALLOWED_ORIGINS` in `.env`, then `docker compose up -d cue-api`.
+- [ ] Preflight probe with the moz-extension origin returns the same echoed
+      `access-control-allow-origin`:
+      ```
+      curl -i -X OPTIONS http://localhost:8801/extract-form \
+        -H "Origin: moz-extension://cue-form-filler@expat-geant.local" \
+        -H "Access-Control-Request-Method: POST" 2>&1 | grep -i 'access-control-allow-origin'
+      ```
+- [ ] Host-permission prompt copy differs from Chrome's, but the grant flow is
+      identical. Allow it for `http://localhost/*`.
+- [ ] Repeat extraction tiers 1/2/3 — extractor names and field counts must
+      match Chrome's output exactly.
+- [ ] Audit report contents must match Chrome's PII posture (URL + item_count
+      + model only on `EXTRACT_FORM` entries).
+
+Any user-visible divergence is a bug, not a documented difference; log it and
+fix before declaring Phase E complete.
+
+---
+
 ## Quick server-side sanity (no browser required)
 
 If the browser flow fails, isolate whether the issue is server-side or

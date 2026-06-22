@@ -61,9 +61,11 @@ cue_extension/
 ```bash
 cd cue_extension
 npm install
-npm run build       # bundles to dist/chrome/
-npm run typecheck   # tsc --noEmit
-npm test            # vitest run
+npm run build         # bundles to dist/chrome/
+npm run build:firefox # bundles to dist/firefox/
+npm run build:all     # both targets
+npm run typecheck     # tsc --noEmit
+npm test              # vitest run
 ```
 
 ## Local install (Chrome / Edge, MVP)
@@ -79,6 +81,32 @@ npm test            # vitest run
 5. Click the icon to open the popup. Enter your Cue URL, grant the permission
    prompt, log in.
 6. Visit a form, click **Analyse this page**.
+
+## Local install (Firefox)
+
+The TypeScript is cross-engine through `webextension-polyfill`, so the same
+source builds for Firefox with only the manifest's `browser_specific_settings`
+block differing (already in `manifest.json` — Chromium ignores it silently).
+
+1. `npm run build:firefox` from this directory.
+2. Open `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…** →
+   select `dist/firefox/manifest.json`.
+3. The extension ID Firefox uses is the `gecko.id` from the manifest
+   (`cue-form-filler@expat-geant.local`). Add `moz-extension://cue-form-filler@expat-geant.local/`
+   to `EXTENSION_ALLOWED_ORIGINS` in `.env` and restart cue-api
+   (`docker compose up -d cue-api`).
+4. Click the toolbar icon → same flow as Chrome: configure Cue URL, grant the
+   host-permission prompt, log in, upload a doc, analyse a form.
+
+Notes:
+
+- Temporary add-ons are wiped on Firefox restart; this path is for development
+  + smoke only. Signed AMO distribution is Phase F.
+- Firefox 121+ is required (release channel; the manifest pins
+  `strict_min_version: "121.0"`). Earlier versions fail to register the MV3
+  `service_worker` declaration.
+- The host-permission prompt copy differs from Chrome's but the grant flow
+  through `browser.permissions.request()` is identical.
 
 ## Architecture notes
 
@@ -100,18 +128,15 @@ npm test            # vitest run
 
 ## Phased build status
 
-This is Phase B (MVP). Subsequent phases — see the plan:
+Shipped: Phase A (server `/extract-form` + CORS), Phase B (MVP Chromium build,
+three extractors), Phase C (end-to-end validation + UX fixes), Phase D
+(Microsoft Forms extractor), Phase E (Firefox parity). Next:
 
-- Phase C: end-to-end manual validation against real forms.
-- Phase D: Microsoft Forms extractor (`forms.office.com`, `forms.cloud.microsoft`).
-- Phase E: Firefox parity (build target + manifest gecko id).
 - Phase F: CWS + AMO unlisted distribution, deployment docs.
 
 ## What's not in v1
 
 - Icons (browser default is used; replace before Phase F store submission).
-- Microsoft Forms — Phase D.
-- Firefox build — Phase E.
 - Token refresh / rotation.
 - Quill / rich-text write-back beyond `contenteditable`.
 - Safari — separate Xcode + App Store track; deferred per proposal.

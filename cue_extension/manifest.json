@@ -20,5 +20,11 @@
     "https://*/*",
     "http://localhost/*",
     "http://127.0.0.1/*"
-  ]
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "cue-form-filler@expat-geant.local",
+      "strict_min_version": "121.0"
+    }
+  }
 }

@@ -6,6 +6,9 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
+    "build:chrome": "CUE_EXT_TARGET=chrome node build.mjs",
+    "build:firefox": "CUE_EXT_TARGET=firefox node build.mjs",
+    "build:all": "CUE_EXT_TARGET=all node build.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"

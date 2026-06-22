@@ -5,8 +5,6 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distRoot = path.join(__dirname, 'dist');
-const target = process.env.CUE_EXT_TARGET ?? 'chrome';
-const distDir = path.join(distRoot, target);
 
 const sharedOptions = {
   bundle: true,
@@ -16,12 +14,12 @@ const sharedOptions = {
   logLevel: 'info',
 };
 
-async function clean() {
+async function clean(distDir) {
   await fs.rm(distDir, { recursive: true, force: true });
   await fs.mkdir(distDir, { recursive: true });
 }
 
-async function bundle() {
+async function bundle(distDir) {
   // Popup runs as an ES module from popup.html.
   await esbuild.build({
     ...sharedOptions,
@@ -46,7 +44,7 @@ async function bundle() {
   });
 }
 
-async function copyStatic() {
+async function copyStatic(distDir) {
   const files = [
     ['manifest.json', 'manifest.json'],
     ['src/popup/popup.html', 'popup.html'],
@@ -57,7 +55,16 @@ async function copyStatic() {
   }
 }
 
-await clean();
-await bundle();
-await copyStatic();
-console.log(`Built ${target} bundle → ${distDir}`);
+async function buildTarget(target) {
+  const distDir = path.join(distRoot, target);
+  await clean(distDir);
+  await bundle(distDir);
+  await copyStatic(distDir);
+  console.log(`Built ${target} bundle → ${distDir}`);
+}
+
+const target = process.env.CUE_EXT_TARGET ?? 'chrome';
+const targets = target === 'all' ? ['chrome', 'firefox'] : [target];
+for (const t of targets) {
+  await buildTarget(t);
+}
