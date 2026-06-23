@@ -37,6 +37,7 @@ export const googleFormsExtractor: Extractor = {
     const remaining = containers.filter((c) => !ariaContainers.has(c));
     const otherFields = extractFromContainers(remaining, {
       promptForContainer: googleFormsHeadingPrompt,
+      idGen,
     });
     return [...ariaFields, ...otherFields];
   },

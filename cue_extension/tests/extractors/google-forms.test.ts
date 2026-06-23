@@ -166,6 +166,34 @@ describe('googleFormsExtractor.extract', () => {
     ]);
   });
 
+  it('emits unique sequential ids across ARIA widget and input phases', async () => {
+    // Regression: before this fix the ARIA-widget pass and the
+    // extractFromContainers pass each ran their own idGen, so q1 and q2
+    // collided. The popup keys answers by item_id, so duplicates caused
+    // the rendering to pair prompts with the wrong streamed answers.
+    document.documentElement.innerHTML = `
+      <div role="listitem">
+        <div role="heading">Kun je deelnemen?</div>
+        <div role="radiogroup">
+          <div role="radio" data-value="Ja"></div>
+          <div role="radio" data-value="Nee"></div>
+        </div>
+      </div>
+      <div role="listitem">
+        <div role="heading">Wat is je naam?</div>
+        <input type="text" />
+      </div>
+      <div role="listitem">
+        <div role="heading">Wat is je e-mail?</div>
+        <input type="email" />
+      </div>
+    `;
+    const fields = await googleFormsExtractor.extract(document, {});
+    const ids = fields.map((f) => f.item.id);
+    expect(ids).toEqual(['q1', 'q2', 'q3']);
+    expect(new Set(ids).size).toBe(3);
+  });
+
   it('routes the dispatcher to the first widget element of a role="radio" group', async () => {
     document.documentElement.innerHTML = `
       <div role="listitem">

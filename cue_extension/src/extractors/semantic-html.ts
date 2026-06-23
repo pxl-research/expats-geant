@@ -1,5 +1,6 @@
 import type { Extractor, ExtractedField } from './base.js';
 import {
+  type IdGen,
   makeIdGen,
   mapCheckboxGroup,
   mapInput,
@@ -34,13 +35,18 @@ export interface ExtractFromContainersOptions {
   // given container, overriding the generic label-resolution cascade.
   // Returning `undefined`/`""` falls back to the generic resolver.
   promptForContainer?: (container: ParentNode) => string | undefined;
+  // Shared id generator. Callers that emit fields outside of
+  // extractFromContainers (e.g. google-forms.ts pulling out ARIA widget
+  // questions before delegation) pass their own generator so item ids
+  // stay unique across both phases. Defaults to a fresh generator.
+  idGen?: IdGen;
 }
 
 export function extractFromContainers(
   containers: ParentNode[],
   options: ExtractFromContainersOptions = {},
 ): ExtractedField[] {
-  const idGen = makeIdGen();
+  const idGen = options.idGen ?? makeIdGen();
   const fields: ExtractedField[] = [];
   const handled = new WeakSet<HTMLElement>();
 
