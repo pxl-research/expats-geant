@@ -143,16 +143,28 @@ button:disabled {
   margin: 8px 0;
 }
 
-#suggestions dt {
-  font-weight: 600;
-  margin-top: 8px;
+.suggestion-slot {
+  margin-top: 10px;
 }
 
-#suggestions dd {
+.suggestion-slot .prompt {
+  font-weight: 600;
+}
+
+.suggestion-slot .answer {
   margin: 2px 0 0 0;
 }
 
-#suggestions dd.no-answer {
+.suggestion-slot.pending {
+  opacity: 0.65;
+}
+
+.suggestion-slot .answer.pending-answer {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.suggestion-slot .answer.no-answer {
   color: var(--muted);
   font-style: italic;
 }
@@ -193,6 +205,13 @@ button:disabled {
   font-style: italic;
   padding-left: 0;
   display: list-item;
+}
+
+#document-list li.uploading {
+  list-style: none;
+  color: var(--muted);
+  font-style: italic;
+  padding-left: 0;
 }
 
 #document-list .doc-remove {

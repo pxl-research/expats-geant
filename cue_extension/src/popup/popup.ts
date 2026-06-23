@@ -224,11 +224,16 @@ async function onLogin(): Promise<void> {
 
 async function onUpload(): Promise<void> {
   const input = byId('file-input') as HTMLInputElement;
+  const button = byId('upload-btn') as HTMLButtonElement;
   const file = input.files?.[0];
   if (!file) {
     showError('Choose a file first.');
     return;
   }
+  const originalLabel = button.textContent ?? 'Upload';
+  button.disabled = true;
+  button.textContent = 'Uploading…';
+  showUploadingPlaceholder(file.name);
   try {
     await client.uploadDocument(file);
     input.value = '';
@@ -236,7 +241,26 @@ async function onUpload(): Promise<void> {
     await refreshDocumentList();
   } catch (err) {
     showError((err as Error).message);
+    // Refresh so the placeholder row is replaced with the truth from the
+    // server — usually the failed upload won't appear.
+    await refreshDocumentList();
+  } finally {
+    button.disabled = false;
+    button.textContent = originalLabel;
   }
+}
+
+// Insert a temporary "uploading filename" row at the top of the document
+// list so the user sees the action is in flight. refreshDocumentList()
+// replaces this with the real list once the upload completes.
+function showUploadingPlaceholder(filename: string): void {
+  const list = byId('document-list');
+  const placeholder = list.querySelector('li.placeholder');
+  if (placeholder) placeholder.remove();
+  const li = document.createElement('li');
+  li.className = 'uploading';
+  li.textContent = `⏳ ${filename}`;
+  list.prepend(li);
 }
 
 async function onTrigger(): Promise<void> {
@@ -269,6 +293,10 @@ async function onTrigger(): Promise<void> {
       `Extractor: ${response.extractorName} — ${items.length} field(s). Streaming suggestions…`,
       run,
     );
+    // Pre-render one card per item in DOM order so the popup mirrors the
+    // form layout. Streamed suggestions then fill their matching slot in
+    // place rather than appending in completion order.
+    renderItemSlots(items);
 
     let received = 0;
     await client.suggestStream(
@@ -277,7 +305,7 @@ async function onTrigger(): Promise<void> {
         onSuggestion: (suggestion) => {
           received += 1;
           run.suggestions.push(suggestion);
-          renderSuggestion(items, suggestion);
+          fillSuggestionSlot(suggestion);
           void persistRun(run);
           void browser.tabs.sendMessage(tabId, { type: 'writeBack', suggestion });
         },
@@ -323,28 +351,61 @@ async function getActiveTabId(): Promise<number> {
   return tab.id;
 }
 
-function renderSuggestion(items: BatchSuggestItem[], suggestion: ItemSuggestion): void {
-  const dl = byId('suggestions');
-  const item = items.find((i) => i.id === suggestion.item_id);
-  const dt = document.createElement('dt');
-  dt.textContent = item?.prompt ?? suggestion.item_id;
-  dl.append(dt);
+// Pre-allocate a slot per item in DOM order. Each slot has a stable id we
+// look up by item_id when a suggestion arrives, so streamed responses fill
+// their matching slot regardless of arrival order.
+function renderItemSlots(items: BatchSuggestItem[]): void {
+  const container = byId('suggestions');
+  container.innerHTML = '';
+  for (const item of items) {
+    const slot = document.createElement('div');
+    slot.className = 'suggestion-slot pending';
+    slot.dataset.itemId = item.id;
+    slot.id = slotIdFor(item.id);
 
-  const dd = document.createElement('dd');
-  const answerText = readableAnswer(suggestion);
-  if (answerText === null) {
-    dd.className = 'no-answer';
-    dd.textContent = '(no answer)';
-  } else {
-    dd.textContent = answerText;
+    const prompt = document.createElement('div');
+    prompt.className = 'prompt';
+    prompt.textContent = item.prompt;
+    slot.append(prompt);
+
+    const answer = document.createElement('div');
+    answer.className = 'answer pending-answer';
+    answer.textContent = '…';
+    slot.append(answer);
+
+    container.append(slot);
   }
-  dl.append(dd);
+}
+
+function fillSuggestionSlot(suggestion: ItemSuggestion): void {
+  const slot = document.getElementById(slotIdFor(suggestion.item_id));
+  if (!slot) return; // suggestion arrived for an item we didn't pre-render
+  slot.classList.remove('pending');
+
+  const answer = slot.querySelector<HTMLElement>('.answer');
+  if (answer) {
+    answer.classList.remove('pending-answer');
+    const text = readableAnswer(suggestion);
+    if (text === null) {
+      answer.classList.add('no-answer');
+      answer.textContent = '(no answer)';
+    } else {
+      answer.classList.remove('no-answer');
+      answer.textContent = text;
+    }
+  }
+
+  // Strip any previous reasoning / citations on the slot (in case of a
+  // re-render via rehydrate) so we don't accumulate duplicates.
+  for (const node of slot.querySelectorAll('.reasoning, .citation')) {
+    node.remove();
+  }
 
   if (suggestion.reasoning && suggestion.reasoning.trim()) {
     const reasoning = document.createElement('div');
     reasoning.className = 'reasoning';
     reasoning.textContent = suggestion.reasoning.trim();
-    dl.append(reasoning);
+    slot.append(reasoning);
   }
 
   for (const citation of suggestion.citations) {
@@ -352,8 +413,12 @@ function renderSuggestion(items: BatchSuggestItem[], suggestion: ItemSuggestion)
     note.className = 'citation';
     const positionPct = (citation.position * 100).toFixed(0);
     note.textContent = `${citation.source} · ${positionPct}%: ${citation.excerpt}`;
-    dl.append(note);
+    slot.append(note);
   }
+}
+
+function slotIdFor(itemId: string): string {
+  return `suggestion-slot-${itemId}`;
 }
 
 function readableAnswer(suggestion: ItemSuggestion): string | null {
@@ -399,8 +464,11 @@ async function rehydrateLastRun(): Promise<void> {
     return;
   }
   if (run.status) byId('status').textContent = run.status;
-  for (const suggestion of run.suggestions) {
-    renderSuggestion(run.items, suggestion);
+  if (run.items.length > 0) {
+    renderItemSlots(run.items);
+    for (const suggestion of run.suggestions) {
+      fillSuggestionSlot(suggestion);
+    }
   }
 }
 
