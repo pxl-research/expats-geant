@@ -39,6 +39,19 @@ describe('googleFormsExtractor.detect', () => {
       ),
     ).toBe(false);
   });
+
+  it('rejects the editor URL even when listitem containers are present', () => {
+    // Editor pages have listitems too, but they contain option-editor inputs
+    // with aria-label="optiewaarde" that would poison the generic resolver.
+    // Respondent form is /viewform; editor is /edit.
+    document.documentElement.innerHTML = `<div role="listitem"><input type="text" /></div>`;
+    expect(
+      googleFormsExtractor.detect(
+        'https://docs.google.com/forms/d/1FAIpQ/edit',
+        document,
+      ),
+    ).toBe(false);
+  });
 });
 
 describe('googleFormsExtractor.extract', () => {
@@ -112,5 +125,21 @@ describe('googleFormsExtractor.extract', () => {
     const fields = await googleFormsExtractor.extract(document, {});
     expect(fields.length).toBe(1);
     expect(fields[0].item.prompt).toBe('Telefoonnummer');
+  });
+
+  it('skips an empty leading heading and uses the next non-empty one', async () => {
+    // Regression: live Google Forms sometimes renders an empty jsname-only
+    // heading before the real question heading inside the same listitem.
+    // Picking the first non-empty heading keeps the prompt meaningful.
+    document.documentElement.innerHTML = `
+      <div role="listitem">
+        <div role="heading" jsname="uwkwCe"></div>
+        <div role="heading">Echte vraag</div>
+        <input type="text" />
+      </div>
+    `;
+    const fields = await googleFormsExtractor.extract(document, {});
+    expect(fields.length).toBe(1);
+    expect(fields[0].item.prompt).toBe('Echte vraag');
   });
 });

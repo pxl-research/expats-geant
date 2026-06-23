@@ -1,7 +1,10 @@
 import type { Extractor, ExtractedField } from './base.js';
 import { extractFromContainers } from './semantic-html.js';
 
-const GOOGLE_FORMS_URL_RE = /^https:\/\/docs\.google\.com\/forms\//;
+// Only viewform (respondent) pages — the editor URL
+// (docs.google.com/forms/d/<id>/edit) renders option-editor inputs with
+// aria-label="optiewaarde" that would poison the generic prompt resolver.
+const GOOGLE_FORMS_URL_RE = /^https:\/\/docs\.google\.com\/forms\/.*\/viewform/;
 
 export const googleFormsExtractor: Extractor = {
   name: 'google-forms',
@@ -26,12 +29,17 @@ export const googleFormsExtractor: Extractor = {
 // through to the input placeholder text — for Dutch forms that's
 // "Jouw antwoord" ("your answer"), a meaningless prompt for retrieval.
 //
-// Trust the heading directly. Strip the trailing required-asterisk that
-// Google Forms appends to required questions.
+// Trust the heading directly. The first heading inside a container is
+// sometimes an empty jsname slot; walk until we find one with text. Strip
+// the trailing required-asterisk that Google Forms appends to required
+// questions.
 export function googleFormsHeadingPrompt(container: ParentNode): string | undefined {
-  const heading = (container as ParentNode).querySelector?.('[role="heading"]');
-  const text = heading?.textContent?.trim();
-  return text ? stripRequiredMarker(text) : undefined;
+  const headings = (container as ParentNode).querySelectorAll?.('[role="heading"]') ?? [];
+  for (const heading of Array.from(headings)) {
+    const text = heading.textContent?.trim();
+    if (text) return stripRequiredMarker(text);
+  }
+  return undefined;
 }
 
 function stripRequiredMarker(text: string): string {
