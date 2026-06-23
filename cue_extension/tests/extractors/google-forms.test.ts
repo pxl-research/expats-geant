@@ -127,6 +127,60 @@ describe('googleFormsExtractor.extract', () => {
     expect(fields[0].item.prompt).toBe('Telefoonnummer');
   });
 
+  it('extracts a role="radio" widget question as single_choice (Google Forms shape)', async () => {
+    document.documentElement.innerHTML = `
+      <div role="listitem">
+        <div role="heading">Kun je deelnemen?</div>
+        <div role="radiogroup">
+          <div role="radio" data-value="Ja, ik zal er zijn"></div>
+          <div role="radio" data-value="Helaas, gaat me niet lukken"></div>
+        </div>
+      </div>
+    `;
+    const fields = await googleFormsExtractor.extract(document, {});
+    expect(fields.length).toBe(1);
+    expect(fields[0].item.type).toBe('single_choice');
+    expect(fields[0].item.prompt).toBe('Kun je deelnemen?');
+    const ids = fields[0].item.choices?.map((c) => c.id);
+    expect(ids).toEqual(['Ja, ik zal er zijn', 'Helaas, gaat me niet lukken']);
+  });
+
+  it('extracts a role="checkbox" widget question as multiple_choice', async () => {
+    document.documentElement.innerHTML = `
+      <div role="listitem">
+        <div role="heading">Wat neem je mee?</div>
+        <div role="list">
+          <div role="checkbox" data-answer-value="Hoofdgerecht"></div>
+          <div role="checkbox" data-answer-value="Dessert"></div>
+          <div role="checkbox" data-answer-value="Drankjes"></div>
+        </div>
+      </div>
+    `;
+    const fields = await googleFormsExtractor.extract(document, {});
+    expect(fields.length).toBe(1);
+    expect(fields[0].item.type).toBe('multiple_choice');
+    expect(fields[0].item.choices?.map((c) => c.id)).toEqual([
+      'Hoofdgerecht',
+      'Dessert',
+      'Drankjes',
+    ]);
+  });
+
+  it('routes the dispatcher to the first widget element of a role="radio" group', async () => {
+    document.documentElement.innerHTML = `
+      <div role="listitem">
+        <div role="heading">Kun je deelnemen?</div>
+        <div role="radiogroup">
+          <div role="radio" data-value="Ja"></div>
+          <div role="radio" data-value="Nee"></div>
+        </div>
+      </div>
+    `;
+    const fields = await googleFormsExtractor.extract(document, {});
+    expect(fields[0].element.getAttribute('role')).toBe('radio');
+    expect(fields[0].element.getAttribute('data-value')).toBe('Ja');
+  });
+
   it('skips an empty leading heading and uses the next non-empty one', async () => {
     // Regression: live Google Forms sometimes renders an empty jsname-only
     // heading before the real question heading inside the same listitem.

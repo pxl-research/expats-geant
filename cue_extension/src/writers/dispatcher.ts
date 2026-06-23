@@ -5,6 +5,13 @@ import type { ItemSuggestion } from '../types.js';
 // Returns true when a value was applied; false when nothing could be written
 // (e.g. radio target value not present in the group).
 export function applySuggestion(element: HTMLElement, suggestion: ItemSuggestion): boolean {
+  // ARIA widget surfaces (Google Forms radio/checkbox divs, similar SPA
+  // patterns) — check by role before instance because these are plain
+  // <div>s carrying role + data-value attributes, not real inputs.
+  const role = element.getAttribute('role');
+  if (role === 'radio' || role === 'checkbox') {
+    return applyToAriaWidget(element, suggestion, role);
+  }
   if (element instanceof HTMLInputElement) {
     return applyToInput(element, suggestion);
   }
@@ -18,6 +25,58 @@ export function applySuggestion(element: HTMLElement, suggestion: ItemSuggestion
     return applyToContentEditable(element, suggestion);
   }
   return false;
+}
+
+// Click the role=radio / role=checkbox sibling whose label matches the
+// suggestion. The "value" used by the extractor is the data-value /
+// data-answer-value / aria-label / textContent in that priority — see
+// ariaChoiceLabel in google-forms.ts. We resolve siblings inside the
+// nearest meaningful group container (radiogroup / list / group /
+// listitem); falling back to listitem keeps Google Forms checkboxes
+// (which sit inside a plain role=list) reachable.
+function applyToAriaWidget(
+  element: HTMLElement,
+  suggestion: ItemSuggestion,
+  role: 'radio' | 'checkbox',
+): boolean {
+  const targets =
+    role === 'radio'
+      ? suggestion.selected_id
+        ? [suggestion.selected_id]
+        : []
+      : (suggestion.selected_ids ?? []);
+  if (targets.length === 0) return false;
+
+  const group =
+    element.closest('[role="radiogroup"], [role="list"], [role="group"], [role="listitem"]') ??
+    element.ownerDocument;
+  const siblings = Array.from(group.querySelectorAll<HTMLElement>(`[role="${role}"]`));
+
+  let applied = false;
+  for (const sibling of siblings) {
+    const label = ariaWidgetLabel(sibling);
+    const wanted = targets.includes(label);
+    if (role === 'checkbox' || wanted) {
+      const checked = sibling.getAttribute('aria-checked') === 'true';
+      if (checked !== wanted) {
+        sibling.click();
+        applied = true;
+      } else if (wanted) {
+        applied = true;
+      }
+    }
+  }
+  return applied;
+}
+
+function ariaWidgetLabel(widget: HTMLElement): string {
+  return (
+    widget.getAttribute('data-value')?.trim() ||
+    widget.getAttribute('data-answer-value')?.trim() ||
+    widget.getAttribute('aria-label')?.trim() ||
+    widget.textContent?.trim() ||
+    ''
+  );
 }
 
 function isContentEditable(el: HTMLElement): boolean {

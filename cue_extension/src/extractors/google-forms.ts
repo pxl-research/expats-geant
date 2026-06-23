@@ -1,4 +1,6 @@
+import type { BatchChoice, BatchSuggestItem } from '../types.js';
 import type { Extractor, ExtractedField } from './base.js';
+import { makeIdGen } from './dom-mapping.js';
 import { extractFromContainers } from './semantic-html.js';
 
 // Only viewform (respondent) pages — the editor URL
@@ -15,12 +17,77 @@ export const googleFormsExtractor: Extractor = {
   },
 
   async extract(document: Document): Promise<ExtractedField[]> {
-    const containers = Array.from(document.querySelectorAll('[role="listitem"]'));
-    return extractFromContainers(containers, {
+    const containers = Array.from(document.querySelectorAll<HTMLElement>('[role="listitem"]'));
+    const idGen = makeIdGen();
+
+    // Google Forms renders multiple-choice / single-choice questions as
+    // ARIA widget divs (role=radio, role=checkbox), not real inputs. Pluck
+    // those out first so extractFromContainers doesn't also try to map
+    // their inner controls (the "Other" textbox is a sibling input).
+    const ariaFields: ExtractedField[] = [];
+    const ariaContainers = new WeakSet<HTMLElement>();
+    for (const container of containers) {
+      const field = extractAriaChoiceField(container, idGen);
+      if (field) {
+        ariaFields.push(field);
+        ariaContainers.add(container);
+      }
+    }
+
+    const remaining = containers.filter((c) => !ariaContainers.has(c));
+    const otherFields = extractFromContainers(remaining, {
       promptForContainer: googleFormsHeadingPrompt,
     });
+    return [...ariaFields, ...otherFields];
   },
 };
+
+function extractAriaChoiceField(
+  container: HTMLElement,
+  idGen: () => string,
+): ExtractedField | null {
+  const radios = Array.from(container.querySelectorAll<HTMLElement>('[role="radio"]'));
+  if (radios.length > 0) {
+    return buildAriaField(container, radios, 'single_choice', idGen);
+  }
+  const checkboxes = Array.from(container.querySelectorAll<HTMLElement>('[role="checkbox"]'));
+  if (checkboxes.length > 0) {
+    return buildAriaField(container, checkboxes, 'multiple_choice', idGen);
+  }
+  return null;
+}
+
+function buildAriaField(
+  container: HTMLElement,
+  widgets: HTMLElement[],
+  type: 'single_choice' | 'multiple_choice',
+  idGen: () => string,
+): ExtractedField | null {
+  const prompt = googleFormsHeadingPrompt(container);
+  if (!prompt) return null;
+  const choices: BatchChoice[] = [];
+  for (const widget of widgets) {
+    const label = ariaChoiceLabel(widget);
+    if (!label) continue;
+    choices.push({ id: label, label });
+  }
+  if (choices.length === 0) return null;
+  const item: BatchSuggestItem = { id: idGen(), type, prompt, choices };
+  return { item, element: widgets[0] };
+}
+
+// Choice labels live in either `data-value` (radio) or `data-answer-value`
+// (checkbox). Fall back to aria-label and textContent for robustness against
+// future markup changes.
+export function ariaChoiceLabel(widget: HTMLElement): string {
+  return (
+    widget.getAttribute('data-value')?.trim() ||
+    widget.getAttribute('data-answer-value')?.trim() ||
+    widget.getAttribute('aria-label')?.trim() ||
+    widget.textContent?.trim() ||
+    ''
+  );
+}
 
 // Google Forms always renders the question text in a `[role="heading"]`
 // element near the top of each `[role="listitem"]` container. The generic

@@ -95,6 +95,47 @@ describe('applySuggestion', () => {
     expect(radios[1].checked).toBe(true);
   });
 
+  it('clicks the matching role="radio" sibling on Google-Forms-shaped widgets', () => {
+    document.body.innerHTML = `
+      <div role="listitem">
+        <div role="radiogroup">
+          <div id="a" role="radio" data-value="Ja" aria-checked="false"></div>
+          <div id="b" role="radio" data-value="Nee" aria-checked="false"></div>
+        </div>
+      </div>
+    `;
+    const first = document.getElementById('a')!;
+    const clicked: string[] = [];
+    document.getElementById('b')!.addEventListener('click', () => clicked.push('b'));
+    document.getElementById('a')!.addEventListener('click', () => clicked.push('a'));
+    const applied = applySuggestion(first, makeSuggestion({ selected_id: 'Nee' }));
+    expect(applied).toBe(true);
+    expect(clicked).toEqual(['b']);
+  });
+
+  it('clicks every matching role="checkbox" sibling on Google-Forms-shaped widgets', () => {
+    document.body.innerHTML = `
+      <div role="listitem">
+        <div role="list">
+          <div id="a" role="checkbox" data-answer-value="Hoofdgerecht" aria-checked="false"></div>
+          <div id="b" role="checkbox" data-answer-value="Salade" aria-checked="false"></div>
+          <div id="c" role="checkbox" data-answer-value="Dessert" aria-checked="false"></div>
+        </div>
+      </div>
+    `;
+    const first = document.getElementById('a')!;
+    const clicked: string[] = [];
+    for (const id of ['a', 'b', 'c']) {
+      document.getElementById(id)!.addEventListener('click', () => clicked.push(id));
+    }
+    const applied = applySuggestion(
+      first,
+      makeSuggestion({ selected_ids: ['Hoofdgerecht', 'Dessert'] }),
+    );
+    expect(applied).toBe(true);
+    expect(clicked.sort()).toEqual(['a', 'c']);
+  });
+
   it('checks multiple checkboxes in a group', () => {
     document.body.innerHTML = `
       <form>
