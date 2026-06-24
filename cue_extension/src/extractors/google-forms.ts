@@ -19,27 +19,27 @@ export const googleFormsExtractor: Extractor = {
   async extract(document: Document): Promise<ExtractedField[]> {
     const containers = Array.from(document.querySelectorAll<HTMLElement>('[role="listitem"]'));
     const idGen = makeIdGen();
+    const fields: ExtractedField[] = [];
 
-    // Google Forms renders multiple-choice / single-choice questions as
-    // ARIA widget divs (role=radio, role=checkbox), not real inputs. Pluck
-    // those out first so extractFromContainers doesn't also try to map
-    // their inner controls (the "Other" textbox is a sibling input).
-    const ariaFields: ExtractedField[] = [];
-    const ariaContainers = new WeakSet<HTMLElement>();
+    // Iterate once in DOM order. Per container, if it carries an ARIA
+    // radio/checkbox widget emit that field; otherwise delegate that one
+    // container to extractFromContainers so its inputs/textareas pick up
+    // the Google Forms heading prompt. This keeps the popup's slot order
+    // mirroring the on-page order even when choice and open-ended
+    // questions interleave.
     for (const container of containers) {
-      const field = extractAriaChoiceField(container, idGen);
-      if (field) {
-        ariaFields.push(field);
-        ariaContainers.add(container);
+      const ariaField = extractAriaChoiceField(container, idGen);
+      if (ariaField) {
+        fields.push(ariaField);
+        continue;
       }
+      const inputFields = extractFromContainers([container], {
+        promptForContainer: googleFormsHeadingPrompt,
+        idGen,
+      });
+      fields.push(...inputFields);
     }
-
-    const remaining = containers.filter((c) => !ariaContainers.has(c));
-    const otherFields = extractFromContainers(remaining, {
-      promptForContainer: googleFormsHeadingPrompt,
-      idGen,
-    });
-    return [...ariaFields, ...otherFields];
+    return fields;
   },
 };
 

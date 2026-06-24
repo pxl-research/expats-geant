@@ -175,6 +175,35 @@ describe('googleFormsExtractor.extract', () => {
     ]);
   });
 
+  it('emits fields in DOM order even when ARIA widgets interleave with text inputs', async () => {
+    // Regression: ARIA widgets used to all bubble to the top regardless
+    // of where they sit on the page (the audit showed Kun je deelnemen?
+    // and Wat neem je mee? as q1/q2 ahead of Wat is je naam?). Iterating
+    // per container in DOM order keeps the popup mirroring the form.
+    document.documentElement.innerHTML = `
+      <div role="listitem">
+        <div role="heading">Wat is je naam?</div>
+        <input type="text" />
+      </div>
+      <div role="listitem">
+        <div role="heading">Kun je deelnemen?</div>
+        <div role="radiogroup">
+          <div role="radio" data-value="Ja"></div>
+          <div role="radio" data-value="Nee"></div>
+        </div>
+      </div>
+      <div role="listitem">
+        <div role="heading">Wat is je e-mail?</div>
+        <input type="email" />
+      </div>
+    `;
+    const fields = await googleFormsExtractor.extract(document, {});
+    const prompts = fields.map((f) => f.item.prompt);
+    expect(prompts).toEqual(['Wat is je naam?', 'Kun je deelnemen?', 'Wat is je e-mail?']);
+    expect(fields.map((f) => f.item.id)).toEqual(['q1', 'q2', 'q3']);
+    expect(fields[1].item.type).toBe('single_choice');
+  });
+
   it('emits unique sequential ids across ARIA widget and input phases', async () => {
     // Regression: before this fix the ARIA-widget pass and the
     // extractFromContainers pass each ran their own idGen, so q1 and q2
