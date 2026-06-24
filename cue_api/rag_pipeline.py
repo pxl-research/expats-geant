@@ -310,7 +310,25 @@ class RAGPipeline:
         if choices:
             choice_lines = "\n".join(f"- {c.id}: {c.label}" for c in choices)
             choice_block = f"\nAVAILABLE CHOICES:\n{choice_lines}\n"
-            selected_field = '  "selected": "<choice id from the list above, or null if you cannot determine. If the excerpts lack sufficient information, prefer a choice that expresses uncertainty (e.g. I don\'t know, N/A) over returning null>",\n'
+            # Unified list shape for both single- and multiple-choice. The
+            # question_type drives the multiplicity expectation in the
+            # guidance text rather than the schema shape itself, so the
+            # parser only has one path to test.
+            if question_type == QuestionType.MULTIPLE_CHOICE.value:
+                choice_guidance = (
+                    "This question accepts MULTIPLE answers. "
+                    "Include every choice id that the excerpts support."
+                )
+            else:
+                choice_guidance = (
+                    "This question accepts ONE answer. " "Include exactly one choice id."
+                )
+            selected_field = (
+                '  "selected": <JSON array of choice ids — '
+                f"{choice_guidance} "
+                "Use an empty list [] only if no choice is even partially "
+                "supported by the excerpts>,\n"
+            )
         else:
             selected_field = ""
 
@@ -378,30 +396,65 @@ class RAGPipeline:
             return raw, None, None
 
     def _parse_selected_id(
-        self, selected_raw: str | None, choices: list, multi: bool
+        self, selected_raw, choices: list, multi: bool
     ) -> tuple[str | None, list[str] | None]:
-        """Validate a SELECTED value against the available choices.
+        """Validate the SELECTED value against the available choices.
+
+        The current prompt asks the LLM to emit a JSON array of choice ids
+        for both single- and multi-choice questions; the multiplicity is
+        enforced in guidance text rather than the schema. We additionally
+        accept a bare string and a JSON-array-encoded string so the parser
+        is robust to models that don't follow the list shape on the first
+        try.
 
         Args:
-            selected_raw: Bare selected value extracted by _parse_structured_response,
-                          or None if the LLM returned no selection.
-            choices: List of BatchChoice objects to validate against
-            multi: True for multiple_choice, False for single_choice
+            selected_raw: Raw "selected" value from the parsed LLM response
+                          (list, JSON-encoded list string, bare string, or None).
+            choices: List of BatchChoice objects to validate against.
+            multi: True for multiple_choice, False for single_choice.
 
         Returns:
-            Tuple of (selected_id, selected_ids) — only one is set based on multi
+            Tuple of (selected_id, selected_ids) — only one is set based on multi.
+            single_choice returns the first matched id when the LLM emitted
+            several; multi_choice returns every matched id in order.
         """
         if not selected_raw:
             return None, None
 
+        candidates: list[str]
+        if isinstance(selected_raw, list):
+            candidates = [s for s in selected_raw if isinstance(s, str)]
+        elif isinstance(selected_raw, str):
+            # JSON-encoded list (`'["c1","c3"]'`) is the schema-correct shape;
+            # bare string (`'c1'`) is a legacy fallback for models that ignore
+            # the list shape.
+            try:
+                parsed = json.loads(selected_raw)
+            except (json.JSONDecodeError, ValueError):
+                parsed = selected_raw
+            if isinstance(parsed, list):
+                candidates = [s for s in parsed if isinstance(s, str)]
+            elif isinstance(parsed, str):
+                candidates = [parsed]
+            else:
+                return None, None
+        else:
+            return None, None
+
         valid_ids = {c.id for c in choices}
+        matched = [s for s in candidates if s in valid_ids]
+        if not matched:
+            return None, None
 
         if multi:
-            candidates = [s.strip().strip(",") for s in selected_raw.replace(",", " ").split()]
-            matched = [s for s in candidates if s in valid_ids]
-            return None, matched if matched else None
-        else:
-            return (selected_raw if selected_raw in valid_ids else None), None
+            return None, matched
+        if len(matched) > 1:
+            logger.info(
+                "LLM returned %d choices for single_choice; using first (%s)",
+                len(matched),
+                matched[0],
+            )
+        return matched[0], None
 
     def format_citations(
         self,
