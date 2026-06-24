@@ -1,4 +1,4 @@
-import { choiceIdFor } from '../extractors/dom-mapping.js';
+import { choiceMatchToken } from '../extractors/dom-mapping.js';
 import type { ItemSuggestion } from '../types.js';
 
 // Write a suggestion's resolved value back into its originating DOM element.
@@ -170,7 +170,7 @@ function clickGroupedInput(member: HTMLInputElement, targetValues: string[]): bo
     // Match by the same id the extractor emitted (value || label) so groups
     // with empty `value` attributes — common on Google Forms and many SPA
     // radio renderers — still resolve back to their click target.
-    const candidateId = choiceIdFor(candidate);
+    const candidateId = choiceMatchToken(candidate);
     const wanted = targetValues.includes(candidateId);
     if (member.type === 'checkbox' || wanted) {
       if (candidate.checked !== wanted) {

@@ -122,10 +122,12 @@ describe('microsoftFormsExtractor.extract', () => {
     const dietField = fields.find((f) => f.item.prompt.startsWith('Dieet'));
     expect(dietField).toBeDefined();
     expect(dietField?.item.type).toBe('single_choice');
-    const choiceIds = dietField?.item.choices?.map((c) => c.id) ?? [];
-    expect(choiceIds).toContain('Geen');
-    expect(choiceIds).toContain('Vegetarisch');
-    expect(choiceIds).toContain('Vegan');
+    // choice.id is synthetic (c1..cN); the user-facing token lives on label.
+    const choiceLabels = dietField?.item.choices?.map((c) => c.label) ?? [];
+    expect(choiceLabels).toContain('Geen');
+    expect(choiceLabels).toContain('Vegetarisch');
+    expect(choiceLabels).toContain('Vegan');
+    expect(dietField?.item.choices?.map((c) => c.id)).toEqual(['c1', 'c2', 'c3', 'c4']);
   });
 });
 

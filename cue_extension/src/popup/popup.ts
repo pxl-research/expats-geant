@@ -305,7 +305,7 @@ async function onTrigger(): Promise<void> {
         onSuggestion: (suggestion) => {
           received += 1;
           run.suggestions.push(suggestion);
-          fillSuggestionSlot(suggestion);
+          fillSuggestionSlot(items, suggestion);
           void persistRun(run);
           void browser.tabs.sendMessage(tabId, { type: 'writeBack', suggestion });
         },
@@ -377,7 +377,7 @@ function renderItemSlots(items: BatchSuggestItem[]): void {
   }
 }
 
-function fillSuggestionSlot(suggestion: ItemSuggestion): void {
+function fillSuggestionSlot(items: BatchSuggestItem[], suggestion: ItemSuggestion): void {
   const slot = document.getElementById(slotIdFor(suggestion.item_id));
   if (!slot) return; // suggestion arrived for an item we didn't pre-render
   slot.classList.remove('pending');
@@ -385,7 +385,8 @@ function fillSuggestionSlot(suggestion: ItemSuggestion): void {
   const answer = slot.querySelector<HTMLElement>('.answer');
   if (answer) {
     answer.classList.remove('pending-answer');
-    const text = readableAnswer(suggestion);
+    const item = items.find((i) => i.id === suggestion.item_id);
+    const text = readableAnswer(suggestion, item);
     if (text === null) {
       answer.classList.add('no-answer');
       answer.textContent = '(no answer)';
@@ -421,15 +422,21 @@ function slotIdFor(itemId: string): string {
   return `suggestion-slot-${itemId}`;
 }
 
-function readableAnswer(suggestion: ItemSuggestion): string | null {
+function readableAnswer(suggestion: ItemSuggestion, item?: BatchSuggestItem): string | null {
   if (suggestion.suggestion !== null && suggestion.suggestion.trim()) {
     return suggestion.suggestion;
   }
+  // The server echoes synthetic ids (c1, c2, …) back in selected_id /
+  // selected_ids. Look them up in item.choices to recover the human
+  // label; if the id isn't in the choices (defensive), fall back to the
+  // bare id so the user sees something rather than nothing.
+  const labelFor = (id: string): string =>
+    item?.choices?.find((c) => c.id === id)?.label ?? id;
   if (suggestion.selected_ids && suggestion.selected_ids.length > 0) {
-    return suggestion.selected_ids.join(', ');
+    return suggestion.selected_ids.map(labelFor).join(', ');
   }
   if (suggestion.selected_id) {
-    return suggestion.selected_id;
+    return labelFor(suggestion.selected_id);
   }
   return null;
 }
@@ -467,7 +474,7 @@ async function rehydrateLastRun(): Promise<void> {
   if (run.items.length > 0) {
     renderItemSlots(run.items);
     for (const suggestion of run.suggestions) {
-      fillSuggestionSlot(suggestion);
+      fillSuggestionSlot(run.items, suggestion);
     }
   }
 }

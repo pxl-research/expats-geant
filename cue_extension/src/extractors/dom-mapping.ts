@@ -156,20 +156,26 @@ export function mapSelect(
   const prompt = promptOverride || resolvePrompt(sel);
   if (!prompt) return null;
   const choices: BatchChoice[] = [];
+  const tokens: Record<string, string> = {};
+  let n = 0;
   for (const opt of Array.from(sel.options)) {
     if (opt.disabled) continue;
     if (opt.value === '' && !opt.text.trim()) continue;
     if (opt.value === '') continue; // skip "— select —" style placeholders
-    choices.push({
-      id: opt.value || opt.text.trim(),
-      label: opt.text.trim() || opt.value,
-    });
+    n += 1;
+    const id = `c${n}`;
+    // For <select>, the dispatcher sets `sel.value = option.value` to make
+    // the selection, so option.value is the actionable token. Display
+    // prefers option.text and falls back to option.value when no text.
+    choices.push({ id, label: opt.text.trim() || opt.value });
+    tokens[id] = opt.value;
   }
   if (choices.length === 0) return null;
   const type: BatchSuggestItem['type'] = sel.multiple ? 'multiple_choice' : 'single_choice';
   return {
     item: { id: idGen(), type, prompt, choices },
     element: sel,
+    choiceTokens: tokens,
   };
 }
 
@@ -182,11 +188,12 @@ export function mapRadioGroup(
   if (visible.length === 0) return null;
   const prompt = promptOverride || groupPrompt(visible[0]);
   if (!prompt) return null;
-  const choices = collectChoiceLabels(visible);
+  const { choices, tokens } = collectChoiceLabels(visible);
   if (choices.length === 0) return null;
   return {
     item: { id: idGen(), type: 'single_choice', prompt, choices },
     element: visible[0],
+    choiceTokens: tokens,
   };
 }
 
@@ -202,11 +209,12 @@ export function mapCheckboxGroup(
   if (visible.length === 1) return null;
   const prompt = promptOverride || groupPrompt(visible[0]);
   if (!prompt) return null;
-  const choices = collectChoiceLabels(visible);
+  const { choices, tokens } = collectChoiceLabels(visible);
   if (choices.length === 0) return null;
   return {
     item: { id: idGen(), type: 'multiple_choice', prompt, choices },
     element: visible[0],
+    choiceTokens: tokens,
   };
 }
 
@@ -220,25 +228,38 @@ function groupPrompt(member: HTMLInputElement): string {
   return resolvePrompt(member);
 }
 
-function collectChoiceLabels(inputs: HTMLInputElement[]): BatchChoice[] {
+export interface CollectedChoices {
+  // What the server / LLM / popup display sees: id is a synthetic c1..cN
+  // token, label is the human-readable display value.
+  choices: BatchChoice[];
+  // What the dispatcher needs at write-back time: synthetic id → the
+  // DOM-side actionable token to match against (input.value if set, else
+  // the label text). Kept off the wire because the server has no use for
+  // it — it only matters when translating a returned suggestion back into
+  // a DOM click.
+  tokens: Record<string, string>;
+}
+
+export function collectChoiceLabels(inputs: HTMLInputElement[]): CollectedChoices {
   const choices: BatchChoice[] = [];
+  const tokens: Record<string, string> = {};
+  let n = 0;
   for (const input of inputs) {
     const label = choiceLabelFor(input);
     if (!label) continue;
-    choices.push({
-      id: choiceIdFor(input, label),
-      label,
-    });
+    n += 1;
+    const id = `c${n}`;
+    choices.push({ id, label });
+    tokens[id] = choiceMatchToken(input, label);
   }
-  return choices;
+  return { choices, tokens };
 }
 
-// The synthetic id we emit for a radio/checkbox choice. Inputs with a
-// meaningful `value` attribute use that; inputs without one (common on
-// Google Forms, MS Forms, and many SPA frameworks) fall back to the label
-// text. Shared with the writer dispatcher so write-back matches what
-// extraction produced.
-export function choiceIdFor(input: HTMLInputElement, label?: string): string {
+// The DOM-side token the writer dispatcher uses to find the right
+// radio/checkbox to click. Inputs with a meaningful `value` attribute use
+// that; inputs without one (common on Google Forms, MS Forms, and many SPA
+// frameworks) fall back to the label text.
+export function choiceMatchToken(input: HTMLInputElement, label?: string): string {
   if (input.value) return input.value;
   const resolved = label ?? choiceLabelFor(input);
   return resolved;

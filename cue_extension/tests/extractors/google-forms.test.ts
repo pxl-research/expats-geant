@@ -142,7 +142,15 @@ describe('googleFormsExtractor.extract', () => {
     expect(fields[0].item.type).toBe('single_choice');
     expect(fields[0].item.prompt).toBe('Kun je deelnemen?');
     const ids = fields[0].item.choices?.map((c) => c.id);
-    expect(ids).toEqual(['Ja, ik zal er zijn', 'Helaas, gaat me niet lukken']);
+    const labels = fields[0].item.choices?.map((c) => c.label);
+    expect(ids).toEqual(['c1', 'c2']);
+    expect(labels).toEqual(['Ja, ik zal er zijn', 'Helaas, gaat me niet lukken']);
+    // The dispatcher side-table maps synthetic ids back to the DOM-side
+    // token used to find the matching ARIA widget on write-back.
+    expect(fields[0].choiceTokens).toEqual({
+      c1: 'Ja, ik zal er zijn',
+      c2: 'Helaas, gaat me niet lukken',
+    });
   });
 
   it('extracts a role="checkbox" widget question as multiple_choice', async () => {
@@ -159,7 +167,8 @@ describe('googleFormsExtractor.extract', () => {
     const fields = await googleFormsExtractor.extract(document, {});
     expect(fields.length).toBe(1);
     expect(fields[0].item.type).toBe('multiple_choice');
-    expect(fields[0].item.choices?.map((c) => c.id)).toEqual([
+    expect(fields[0].item.choices?.map((c) => c.id)).toEqual(['c1', 'c2', 'c3']);
+    expect(fields[0].item.choices?.map((c) => c.label)).toEqual([
       'Hoofdgerecht',
       'Dessert',
       'Drankjes',

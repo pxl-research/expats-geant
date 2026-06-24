@@ -33,7 +33,18 @@ describe('semanticHtmlExtractor', () => {
     const fields = await semanticHtmlExtractor.extract(document, {});
     const shift = fields.find((f) => f.item.prompt.toLowerCase().includes('shift'));
     expect(shift?.item.type).toBe('single_choice');
-    expect(shift?.item.choices?.map((c) => c.id)).toEqual(['morning', 'afternoon', 'evening']);
+    expect(shift?.item.choices?.map((c) => c.id)).toEqual(['c1', 'c2', 'c3']);
+    expect(shift?.item.choices?.map((c) => c.label)).toEqual([
+      'Morning',
+      'Afternoon',
+      'Evening',
+    ]);
+    // Side-table preserves the DOM-side input.value tokens for write-back.
+    expect(shift?.choiceTokens).toEqual({
+      c1: 'morning',
+      c2: 'afternoon',
+      c3: 'evening',
+    });
   });
 
   it('emits multiple_choice for checkbox groups with multiple options', async () => {
@@ -49,8 +60,12 @@ describe('semanticHtmlExtractor', () => {
     const fields = await semanticHtmlExtractor.extract(document, {});
     const role = fields.find((f) => f.item.prompt.toLowerCase().includes('role'));
     expect(role?.item.type).toBe('single_choice');
-    expect(role?.item.choices?.map((c) => c.id)).toContain('host');
-    expect(role?.item.choices?.map((c) => c.id)).not.toContain('');
+    const labels = role?.item.choices?.map((c) => c.label);
+    expect(labels).toContain('Host');
+    expect(labels).not.toContain('');
+    // The side-table maps the synthetic id back to option.value so the
+    // dispatcher can set sel.value when applying.
+    expect(Object.values(role?.choiceTokens ?? {})).toContain('host');
   });
 
   it('emits slider for range inputs', async () => {

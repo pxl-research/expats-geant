@@ -67,14 +67,22 @@ function buildAriaField(
   const prompt = googleFormsHeadingPrompt(container);
   if (!prompt) return null;
   const choices: BatchChoice[] = [];
+  const tokens: Record<string, string> = {};
+  let n = 0;
   for (const widget of widgets) {
     const label = ariaChoiceLabel(widget);
     if (!label) continue;
-    choices.push({ id: label, label });
+    n += 1;
+    const id = `c${n}`;
+    choices.push({ id, label });
+    // For ARIA widgets the actionable token IS the label (the dispatcher
+    // matches on data-value/data-answer-value/aria-label/textContent —
+    // see ariaWidgetLabel in writers/dispatcher.ts).
+    tokens[id] = label;
   }
   if (choices.length === 0) return null;
   const item: BatchSuggestItem = { id: idGen(), type, prompt, choices };
-  return { item, element: widgets[0] };
+  return { item, element: widgets[0], choiceTokens: tokens };
 }
 
 // Choice labels live in either `data-value` (radio) or `data-answer-value`
