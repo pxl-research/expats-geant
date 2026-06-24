@@ -310,19 +310,13 @@ class RAGPipeline:
         if choices:
             choice_lines = "\n".join(f"- {c.id}: {c.label}" for c in choices)
             choice_block = f"\nAVAILABLE CHOICES:\n{choice_lines}\n"
-            # Unified list shape for both single- and multiple-choice. The
-            # question_type drives the multiplicity expectation in the
-            # guidance text rather than the schema shape itself, so the
-            # parser only has one path to test.
             if question_type == QuestionType.MULTIPLE_CHOICE.value:
                 choice_guidance = (
                     "This question accepts MULTIPLE answers. "
                     "Include every choice id that the excerpts support."
                 )
             else:
-                choice_guidance = (
-                    "This question accepts ONE answer. " "Include exactly one choice id."
-                )
+                choice_guidance = "This question accepts ONE answer. Include exactly one choice id."
             selected_field = (
                 '  "selected": <JSON array of choice ids — '
                 f"{choice_guidance} "
@@ -400,23 +394,13 @@ class RAGPipeline:
     ) -> tuple[str | None, list[str] | None]:
         """Validate the SELECTED value against the available choices.
 
-        The current prompt asks the LLM to emit a JSON array of choice ids
-        for both single- and multi-choice questions; the multiplicity is
-        enforced in guidance text rather than the schema. We additionally
-        accept a bare string and a JSON-array-encoded string so the parser
-        is robust to models that don't follow the list shape on the first
-        try.
-
         Args:
-            selected_raw: Raw "selected" value from the parsed LLM response
-                          (list, JSON-encoded list string, bare string, or None).
-            choices: List of BatchChoice objects to validate against.
+            selected_raw: List, JSON-encoded list string, bare string, or None.
+            choices: BatchChoice objects whose ``id`` defines the valid set.
             multi: True for multiple_choice, False for single_choice.
 
         Returns:
             Tuple of (selected_id, selected_ids) — only one is set based on multi.
-            single_choice returns the first matched id when the LLM emitted
-            several; multi_choice returns every matched id in order.
         """
         if not selected_raw:
             return None, None
@@ -425,9 +409,6 @@ class RAGPipeline:
         if isinstance(selected_raw, list):
             candidates = [s for s in selected_raw if isinstance(s, str)]
         elif isinstance(selected_raw, str):
-            # JSON-encoded list (`'["c1","c3"]'`) is the schema-correct shape;
-            # bare string (`'c1'`) is a legacy fallback for models that ignore
-            # the list shape.
             try:
                 parsed = json.loads(selected_raw)
             except (json.JSONDecodeError, ValueError):

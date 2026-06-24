@@ -94,12 +94,8 @@ function handleWriteBack(request: WriteBackRequest): WriteBackResponse {
   }
 }
 
-// Suggestions arrive with synthetic choice ids (c1..cN) so the LLM only
-// ever echoes short tokens, never the original label strings. The
-// dispatcher matches against DOM tokens (input.value, data-value, etc.),
-// so we swap synthetic ids back to the DOM-side tokens here.
-// Unknown ids pass through unchanged so the dispatcher's existing
-// matchers stay usable for callers that didn't go through synthetic ids.
+// Swap synthetic choice ids (c1, c2, …) back to the DOM-side tokens the
+// dispatcher matches on. Unknown ids pass through unchanged.
 function translateChoiceIds(
   suggestion: ItemSuggestion,
   tokens: Record<string, string>,

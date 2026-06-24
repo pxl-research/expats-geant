@@ -164,9 +164,6 @@ export function mapSelect(
     if (opt.value === '') continue; // skip "— select —" style placeholders
     n += 1;
     const id = `c${n}`;
-    // For <select>, the dispatcher sets `sel.value = option.value` to make
-    // the selection, so option.value is the actionable token. Display
-    // prefers option.text and falls back to option.value when no text.
     choices.push({ id, label: opt.text.trim() || opt.value });
     tokens[id] = opt.value;
   }
@@ -229,14 +226,7 @@ function groupPrompt(member: HTMLInputElement): string {
 }
 
 export interface CollectedChoices {
-  // What the server / LLM / popup display sees: id is a synthetic c1..cN
-  // token, label is the human-readable display value.
   choices: BatchChoice[];
-  // What the dispatcher needs at write-back time: synthetic id → the
-  // DOM-side actionable token to match against (input.value if set, else
-  // the label text). Kept off the wire because the server has no use for
-  // it — it only matters when translating a returned suggestion back into
-  // a DOM click.
   tokens: Record<string, string>;
 }
 
@@ -255,14 +245,25 @@ export function collectChoiceLabels(inputs: HTMLInputElement[]): CollectedChoice
   return { choices, tokens };
 }
 
-// The DOM-side token the writer dispatcher uses to find the right
-// radio/checkbox to click. Inputs with a meaningful `value` attribute use
-// that; inputs without one (common on Google Forms, MS Forms, and many SPA
-// frameworks) fall back to the label text.
+// Used by both the extractor and the writer dispatcher. Inputs without a
+// `value` attribute (common on Google Forms, MS Forms, many SPA radios)
+// fall back to the label text.
 export function choiceMatchToken(input: HTMLInputElement, label?: string): string {
   if (input.value) return input.value;
-  const resolved = label ?? choiceLabelFor(input);
-  return resolved;
+  return label ?? choiceLabelFor(input);
+}
+
+// Same role as choiceMatchToken but for ARIA widget elements (Google Forms
+// radio/checkbox <div>s). The four-way fallback is the priority observed
+// in the live DOM; data-answer-value appears on checkboxes only.
+export function ariaChoiceLabel(widget: HTMLElement): string {
+  return (
+    widget.getAttribute('data-value')?.trim() ||
+    widget.getAttribute('data-answer-value')?.trim() ||
+    widget.getAttribute('aria-label')?.trim() ||
+    widget.textContent?.trim() ||
+    ''
+  );
 }
 
 function choiceLabelFor(input: HTMLInputElement): string {

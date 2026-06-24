@@ -241,8 +241,7 @@ async function onUpload(): Promise<void> {
     await refreshDocumentList();
   } catch (err) {
     showError((err as Error).message);
-    // Refresh so the placeholder row is replaced with the truth from the
-    // server — usually the failed upload won't appear.
+    // Drop the optimistic "uploading…" row when the server didn't accept it.
     await refreshDocumentList();
   } finally {
     button.disabled = false;
@@ -250,9 +249,6 @@ async function onUpload(): Promise<void> {
   }
 }
 
-// Insert a temporary "uploading filename" row at the top of the document
-// list so the user sees the action is in flight. refreshDocumentList()
-// replaces this with the real list once the upload completes.
 function showUploadingPlaceholder(filename: string): void {
   const list = byId('document-list');
   const placeholder = list.querySelector('li.placeholder');
@@ -351,9 +347,8 @@ async function getActiveTabId(): Promise<number> {
   return tab.id;
 }
 
-// Pre-allocate a slot per item in DOM order. Each slot has a stable id we
-// look up by item_id when a suggestion arrives, so streamed responses fill
-// their matching slot regardless of arrival order.
+// Pre-allocate slots so streamed suggestions can fill them in DOM order
+// regardless of LLM completion order.
 function renderItemSlots(items: BatchSuggestItem[]): void {
   const container = byId('suggestions');
   container.innerHTML = '';
@@ -396,8 +391,7 @@ function fillSuggestionSlot(items: BatchSuggestItem[], suggestion: ItemSuggestio
     }
   }
 
-  // Strip any previous reasoning / citations on the slot (in case of a
-  // re-render via rehydrate) so we don't accumulate duplicates.
+  // Avoid duplicates if the slot is being re-filled (e.g. via rehydrate).
   for (const node of slot.querySelectorAll('.reasoning, .citation')) {
     node.remove();
   }
@@ -426,10 +420,7 @@ function readableAnswer(suggestion: ItemSuggestion, item?: BatchSuggestItem): st
   if (suggestion.suggestion !== null && suggestion.suggestion.trim()) {
     return suggestion.suggestion;
   }
-  // The server echoes synthetic ids (c1, c2, …) back in selected_id /
-  // selected_ids. Look them up in item.choices to recover the human
-  // label; if the id isn't in the choices (defensive), fall back to the
-  // bare id so the user sees something rather than nothing.
+  // Recover the human label for the synthetic id; fall back to the id itself.
   const labelFor = (id: string): string =>
     item?.choices?.find((c) => c.id === id)?.label ?? id;
   if (suggestion.selected_ids && suggestion.selected_ids.length > 0) {

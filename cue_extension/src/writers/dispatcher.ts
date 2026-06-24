@@ -1,13 +1,9 @@
-import { choiceMatchToken } from '../extractors/dom-mapping.js';
+import { ariaChoiceLabel, choiceMatchToken } from '../extractors/dom-mapping.js';
 import type { ItemSuggestion } from '../types.js';
 
-// Write a suggestion's resolved value back into its originating DOM element.
-// Returns true when a value was applied; false when nothing could be written
-// (e.g. radio target value not present in the group).
+// Returns true when a value was applied; false when nothing could be written.
 export function applySuggestion(element: HTMLElement, suggestion: ItemSuggestion): boolean {
-  // ARIA widget surfaces (Google Forms radio/checkbox divs, similar SPA
-  // patterns) — check by role before instance because these are plain
-  // <div>s carrying role + data-value attributes, not real inputs.
+  // role check first: ARIA widgets are plain <div>s, not HTMLInputElement.
   const role = element.getAttribute('role');
   if (role === 'radio' || role === 'checkbox') {
     return applyToAriaWidget(element, suggestion, role);
@@ -27,13 +23,6 @@ export function applySuggestion(element: HTMLElement, suggestion: ItemSuggestion
   return false;
 }
 
-// Click the role=radio / role=checkbox sibling whose label matches the
-// suggestion. The "value" used by the extractor is the data-value /
-// data-answer-value / aria-label / textContent in that priority — see
-// ariaChoiceLabel in google-forms.ts. We resolve siblings inside the
-// nearest meaningful group container (radiogroup / list / group /
-// listitem); falling back to listitem keeps Google Forms checkboxes
-// (which sit inside a plain role=list) reachable.
 function applyToAriaWidget(
   element: HTMLElement,
   suggestion: ItemSuggestion,
@@ -47,6 +36,8 @@ function applyToAriaWidget(
       : (suggestion.selected_ids ?? []);
   if (targets.length === 0) return false;
 
+  // The fallback to ownerDocument keeps checkboxes inside Google Forms'
+  // plain role="list" reachable even when no recognised group wraps them.
   const group =
     element.closest('[role="radiogroup"], [role="list"], [role="group"], [role="listitem"]') ??
     element.ownerDocument;
@@ -54,8 +45,7 @@ function applyToAriaWidget(
 
   let applied = false;
   for (const sibling of siblings) {
-    const label = ariaWidgetLabel(sibling);
-    const wanted = targets.includes(label);
+    const wanted = targets.includes(ariaChoiceLabel(sibling));
     if (role === 'checkbox' || wanted) {
       const checked = sibling.getAttribute('aria-checked') === 'true';
       if (checked !== wanted) {
@@ -67,16 +57,6 @@ function applyToAriaWidget(
     }
   }
   return applied;
-}
-
-function ariaWidgetLabel(widget: HTMLElement): string {
-  return (
-    widget.getAttribute('data-value')?.trim() ||
-    widget.getAttribute('data-answer-value')?.trim() ||
-    widget.getAttribute('aria-label')?.trim() ||
-    widget.textContent?.trim() ||
-    ''
-  );
 }
 
 function isContentEditable(el: HTMLElement): boolean {
@@ -157,9 +137,8 @@ function applyToContentEditable(el: HTMLElement, suggestion: ItemSuggestion): bo
   return true;
 }
 
-// Toggle one or more inputs in the same radio/checkbox group. The provided
-// `member` is any element from the group; siblings are located by the shared
-// `name` attribute on the form, or by querying the document if no form scope.
+// Siblings are located by the shared `name` attribute. Matching by
+// choiceMatchToken (value || label) covers groups with empty value attrs.
 function clickGroupedInput(member: HTMLInputElement, targetValues: string[]): boolean {
   if (!member.name) return false;
   const root = member.form ?? member.ownerDocument;
@@ -167,11 +146,7 @@ function clickGroupedInput(member: HTMLInputElement, targetValues: string[]): bo
   const candidates = Array.from(root.querySelectorAll<HTMLInputElement>(selector));
   let applied = false;
   for (const candidate of candidates) {
-    // Match by the same id the extractor emitted (value || label) so groups
-    // with empty `value` attributes — common on Google Forms and many SPA
-    // radio renderers — still resolve back to their click target.
-    const candidateId = choiceMatchToken(candidate);
-    const wanted = targetValues.includes(candidateId);
+    const wanted = targetValues.includes(choiceMatchToken(candidate));
     if (member.type === 'checkbox' || wanted) {
       if (candidate.checked !== wanted) {
         candidate.click();
