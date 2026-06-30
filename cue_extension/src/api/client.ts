@@ -72,7 +72,7 @@ export class CueApiClient {
   async login(apiSecret: string): Promise<void> {
     if (!this.baseUrl) throw new Error('Cue base URL not configured');
     if (!this.userId) throw new Error('Account ID is missing');
-    const response = await fetch(`${this.baseUrl}/auth/token`, {
+    const response = await this.cueFetch(`${this.baseUrl}/auth/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: this.userId, api_secret: apiSecret }),
@@ -91,7 +91,7 @@ export class CueApiClient {
 
   async getSessionStats(): Promise<SessionStatsResponse> {
     this.requireAuth();
-    const response = await fetch(`${this.baseUrl}/session/stats`, {
+    const response = await this.cueFetch(`${this.baseUrl}/session/stats`, {
       headers: { Authorization: `Bearer ${this.jwt!}` },
     });
     return this.unwrapJson<SessionStatsResponse>(response, 'Could not fetch session stats');
@@ -99,7 +99,7 @@ export class CueApiClient {
 
   async removeDocument(name: string): Promise<RemoveSourceResponse> {
     this.requireAuth();
-    const response = await fetch(
+    const response = await this.cueFetch(
       `${this.baseUrl}/session/documents/${encodeURIComponent(name)}`,
       { method: 'DELETE', headers: { Authorization: `Bearer ${this.jwt!}` } },
     );
@@ -115,7 +115,7 @@ export class CueApiClient {
     this.requireAuth();
     const oldSessionId = decodeJwtSessionId(this.jwt!);
     if (oldSessionId) {
-      const delResponse = await fetch(
+      const delResponse = await this.cueFetch(
         `${this.baseUrl}/sessions/${encodeURIComponent(oldSessionId)}`,
         { method: 'DELETE', headers: { Authorization: `Bearer ${this.jwt!}` } },
       );
@@ -124,7 +124,7 @@ export class CueApiClient {
         if (body.token) this.jwt = body.token;
       }
     }
-    const newResponse = await fetch(`${this.baseUrl}/sessions/new`, {
+    const newResponse = await this.cueFetch(`${this.baseUrl}/sessions/new`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${this.jwt!}` },
     });
@@ -142,7 +142,7 @@ export class CueApiClient {
     this.requireAuth();
     const form = new FormData();
     form.append('file', file);
-    const response = await fetch(`${this.baseUrl}/upload`, {
+    const response = await this.cueFetch(`${this.baseUrl}/upload`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${this.jwt!}` },
       body: form,
@@ -152,7 +152,7 @@ export class CueApiClient {
 
   async extractForm(pageText: string, url: string): Promise<BatchSuggestItem[]> {
     this.requireAuth();
-    const response = await fetch(`${this.baseUrl}/extract-form`, {
+    const response = await this.cueFetch(`${this.baseUrl}/extract-form`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -165,7 +165,7 @@ export class CueApiClient {
 
   async suggestBatch(request: BatchSuggestRequest): Promise<BatchSuggestResponse> {
     this.requireAuth();
-    const response = await fetch(`${this.baseUrl}/suggest/batch`, {
+    const response = await this.cueFetch(`${this.baseUrl}/suggest/batch`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -181,7 +181,7 @@ export class CueApiClient {
   // mid-stream error is delivered to `callbacks.onError` and the stream ends.
   async suggestStream(request: BatchSuggestRequest, callbacks: StreamCallbacks): Promise<void> {
     this.requireAuth();
-    const response = await fetch(`${this.baseUrl}/suggest/stream`, {
+    const response = await this.cueFetch(`${this.baseUrl}/suggest/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -212,7 +212,7 @@ export class CueApiClient {
 
   async getAuditReport(format = 'json'): Promise<string> {
     this.requireAuth();
-    const response = await fetch(
+    const response = await this.cueFetch(
       `${this.baseUrl}/audit-report?format=${encodeURIComponent(format)}`,
       {
         method: 'GET',
@@ -228,6 +228,25 @@ export class CueApiClient {
   private requireAuth(): void {
     if (!this.baseUrl) throw new Error('Cue base URL not configured');
     if (!this.jwt) throw new Error('Not authenticated');
+  }
+
+  // Native fetch throws an opaque TypeError ("Failed to fetch") for
+  // network-level failures — host unreachable, DNS, CORS preflight blocked.
+  // Translate into a message the user can act on.
+  private async cueFetch(
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ): Promise<Response> {
+    try {
+      return await fetch(input, init);
+    } catch (err) {
+      if (err instanceof TypeError) {
+        throw new Error(
+          `Cue instance not reachable at ${this.baseUrl}. Is the server running?`,
+        );
+      }
+      throw err;
+    }
   }
 
   private async unwrapJson<T>(response: Response, errorPrefix: string): Promise<T> {
