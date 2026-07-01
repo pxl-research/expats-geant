@@ -277,6 +277,81 @@ describe('googleFormsExtractor.extract', () => {
     expect(fields[0].element.getAttribute('data-value')).toBe('Ja');
   });
 
+  it('extracts a star rating as single_choice, falling back to aria-label for icon-only widgets', async () => {
+    // Rating widgets (stars/hearts/thumbs) render as role="radio" like Linear
+    // Scale, but the icon itself carries no data-value/text — only aria-label.
+    document.documentElement.innerHTML = `
+      <div role="listitem">
+        <div role="heading">Hoe zou je onze service beoordelen?</div>
+        <div role="radiogroup">
+          <div role="radio" aria-label="1 ster"></div>
+          <div role="radio" aria-label="2 sterren"></div>
+          <div role="radio" aria-label="3 sterren"></div>
+          <div role="radio" aria-label="4 sterren"></div>
+          <div role="radio" aria-label="5 sterren"></div>
+        </div>
+      </div>
+    `;
+    const fields = await googleFormsExtractor.extract(document, {});
+    expect(fields.length).toBe(1);
+    expect(fields[0].item.type).toBe('single_choice');
+    expect(fields[0].item.prompt).toBe('Hoe zou je onze service beoordelen?');
+    expect(fields[0].item.choices?.map((c) => c.label)).toEqual([
+      '1 ster',
+      '2 sterren',
+      '3 sterren',
+      '4 sterren',
+      '5 sterren',
+    ]);
+    expect(fields[0].item.choices?.map((c) => c.id)).toEqual(['c1', 'c2', 'c3', 'c4', 'c5']);
+  });
+
+  it('extracts a linear scale as single_choice with numeric choice ids', async () => {
+    document.documentElement.innerHTML = `
+      <div role="listitem">
+        <div role="heading">Hoe tevreden ben je?</div>
+        <div role="radiogroup">
+          <div role="radio" data-value="1"></div>
+          <div role="radio" data-value="2"></div>
+          <div role="radio" data-value="3"></div>
+          <div role="radio" data-value="4"></div>
+          <div role="radio" data-value="5"></div>
+        </div>
+      </div>
+    `;
+    const fields = await googleFormsExtractor.extract(document, {});
+    expect(fields.length).toBe(1);
+    expect(fields[0].item.type).toBe('single_choice');
+    expect(fields[0].item.prompt).toBe('Hoe tevreden ben je?');
+    expect(fields[0].item.choices?.map((c) => c.label)).toEqual(['1', '2', '3', '4', '5']);
+    expect(fields[0].item.choices?.map((c) => c.id)).toEqual(['c1', 'c2', 'c3', 'c4', 'c5']);
+  });
+
+  it('extracts a dropdown (role="listbox") as single_choice', async () => {
+    document.documentElement.innerHTML = `
+      <div role="listitem">
+        <div role="heading">Wat is je afdeling?</div>
+        <div role="combobox" aria-haspopup="listbox" aria-expanded="false">Kies</div>
+        <div role="listbox" aria-hidden="true">
+          <div role="option">Engineering</div>
+          <div role="option">Design</div>
+          <div role="option">Marketing</div>
+        </div>
+      </div>
+    `;
+    const fields = await googleFormsExtractor.extract(document, {});
+    expect(fields.length).toBe(1);
+    expect(fields[0].item.type).toBe('single_choice');
+    expect(fields[0].item.prompt).toBe('Wat is je afdeling?');
+    expect(fields[0].item.choices?.map((c) => c.label)).toEqual([
+      'Engineering',
+      'Design',
+      'Marketing',
+    ]);
+    expect(fields[0].item.choices?.map((c) => c.id)).toEqual(['c1', 'c2', 'c3']);
+    expect(fields[0].element.getAttribute('role')).toBe('combobox');
+  });
+
   it('skips an empty leading heading and uses the next non-empty one', async () => {
     // Regression: live Google Forms sometimes renders an empty jsname-only
     // heading before the real question heading inside the same listitem.

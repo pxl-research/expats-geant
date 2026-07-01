@@ -8,6 +8,9 @@ export function applySuggestion(element: HTMLElement, suggestion: ItemSuggestion
   if (role === 'radio' || role === 'checkbox') {
     return applyToAriaWidget(element, suggestion, role);
   }
+  if (role === 'combobox' || role === 'listbox') {
+    return applyToAriaListbox(element, suggestion);
+  }
   if (element instanceof HTMLInputElement) {
     return applyToInput(element, suggestion);
   }
@@ -59,6 +62,33 @@ function applyToAriaWidget(
     }
   }
   return applied;
+}
+
+function applyToAriaListbox(trigger: HTMLElement, suggestion: ItemSuggestion): boolean {
+  const target = suggestion.selected_id;
+  if (!target) return false;
+
+  // The combobox trigger and the listbox may be siblings or the trigger IS the listbox.
+  const listbox: HTMLElement | null =
+    trigger.getAttribute('role') === 'listbox'
+      ? trigger
+      : (trigger.parentElement?.querySelector<HTMLElement>('[role="listbox"]') ?? null);
+  if (!listbox) return false;
+
+  // Open the dropdown if it isn't already.
+  const isOpen =
+    trigger.getAttribute('aria-expanded') === 'true' ||
+    listbox.getAttribute('aria-hidden') !== 'true';
+  if (!isOpen) trigger.click();
+
+  const options = Array.from(listbox.querySelectorAll<HTMLElement>('[role="option"]'));
+  for (const option of options) {
+    if (ariaChoiceLabel(option) === target) {
+      option.click();
+      return true;
+    }
+  }
+  return false;
 }
 
 function isContentEditable(el: HTMLElement): boolean {

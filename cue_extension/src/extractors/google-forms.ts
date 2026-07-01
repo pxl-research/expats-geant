@@ -53,6 +53,15 @@ function extractAriaChoiceField(container: HTMLElement, idGen: IdGen): Extracted
   if (checkboxes.length > 0) {
     return buildAriaField(container, checkboxes, 'multiple_choice', idGen);
   }
+  const listbox = container.querySelector<HTMLElement>('[role="listbox"]');
+  if (listbox) {
+    const options = Array.from(listbox.querySelectorAll<HTMLElement>('[role="option"]'));
+    if (options.length > 0) {
+      const trigger =
+        container.querySelector<HTMLElement>('[role="combobox"]') ?? listbox;
+      return buildAriaField(container, options, 'single_choice', idGen, trigger);
+    }
+  }
   return null;
 }
 
@@ -61,6 +70,7 @@ function buildAriaField(
   widgets: HTMLElement[],
   type: 'single_choice' | 'multiple_choice',
   idGen: IdGen,
+  elementOverride?: HTMLElement,
 ): ExtractedField | null {
   const prompt = googleFormsHeadingPrompt(container);
   if (!prompt) return null;
@@ -77,7 +87,7 @@ function buildAriaField(
   }
   if (choices.length === 0) return null;
   const item: BatchSuggestItem = { id: idGen(), type, prompt, choices };
-  return { item, element: widgets[0], choiceTokens: tokens };
+  return { item, element: elementOverride ?? widgets[0], choiceTokens: tokens };
 }
 
 // Google Forms heading lookup. The generic semantic resolver would fall

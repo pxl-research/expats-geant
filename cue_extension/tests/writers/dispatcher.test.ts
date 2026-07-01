@@ -195,6 +195,47 @@ describe('applySuggestion', () => {
     expect(document.querySelectorAll<HTMLInputElement>('input:checked').length).toBe(0);
   });
 
+  it('opens a closed combobox and clicks the matching option', () => {
+    document.body.innerHTML = `
+      <div>
+        <div id="trigger" role="combobox" aria-haspopup="listbox" aria-expanded="false">Kies</div>
+        <div id="listbox" role="listbox" aria-hidden="true">
+          <div id="o1" role="option">Engineering</div>
+          <div id="o2" role="option">Design</div>
+          <div id="o3" role="option">Marketing</div>
+        </div>
+      </div>
+    `;
+    const trigger = document.getElementById('trigger')!;
+    const clicked: string[] = [];
+    trigger.addEventListener('click', () => {
+      trigger.setAttribute('aria-expanded', 'true');
+      clicked.push('trigger');
+    });
+    document.getElementById('o2')!.addEventListener('click', () => clicked.push('o2'));
+    const applied = applySuggestion(trigger, makeSuggestion({ selected_id: 'Design' }));
+    expect(applied).toBe(true);
+    expect(clicked).toEqual(['trigger', 'o2']);
+  });
+
+  it('skips the trigger click when the listbox is already open', () => {
+    document.body.innerHTML = `
+      <div>
+        <div id="trigger" role="combobox" aria-haspopup="listbox" aria-expanded="true">Design</div>
+        <div id="listbox" role="listbox">
+          <div id="o1" role="option">Engineering</div>
+          <div id="o2" role="option">Design</div>
+        </div>
+      </div>
+    `;
+    const trigger = document.getElementById('trigger')!;
+    const triggerClicks: number[] = [];
+    trigger.addEventListener('click', () => triggerClicks.push(1));
+    const applied = applySuggestion(trigger, makeSuggestion({ selected_id: 'Engineering' }));
+    expect(applied).toBe(true);
+    expect(triggerClicks.length).toBe(0);
+  });
+
   it('does not click checkboxes when selected_ids is empty', () => {
     document.body.innerHTML = `
       <form>
