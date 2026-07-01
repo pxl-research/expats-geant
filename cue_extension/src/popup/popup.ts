@@ -15,6 +15,13 @@ interface CachedRun {
   status: string;
   items: BatchSuggestItem[];
   suggestions: ItemSuggestion[];
+  applied: Record<string, boolean>;
+}
+
+interface WriteBackResponse {
+  ok: boolean;
+  applied?: boolean;
+  error?: string;
 }
 
 interface ExtractFormApiMessage {
@@ -264,7 +271,7 @@ async function onTrigger(): Promise<void> {
   trigger.disabled = true;
   clearError();
   clearSuggestions();
-  const run: CachedRun = { ts: Date.now(), status: '', items: [], suggestions: [] };
+  const run: CachedRun = { ts: Date.now(), status: '', items: [], suggestions: [], applied: {} };
   await setStatus('Locating active tab…', run);
   try {
     const tabId = await getActiveTabId();
@@ -295,6 +302,7 @@ async function onTrigger(): Promise<void> {
     renderItemSlots(items);
 
     let received = 0;
+    const writeBacks: Promise<void>[] = [];
     await client.suggestStream(
       { assessment_id: `cue-extension-${Date.now().toString(36)}`, items },
       {
@@ -303,11 +311,29 @@ async function onTrigger(): Promise<void> {
           run.suggestions.push(suggestion);
           fillSuggestionSlot(items, suggestion);
           void persistRun(run);
-          void browser.tabs.sendMessage(tabId, { type: 'writeBack', suggestion });
+          writeBacks.push(
+            browser.tabs
+              .sendMessage(tabId, { type: 'writeBack', suggestion })
+              .then((response) => {
+                const applied = Boolean((response as WriteBackResponse | undefined)?.applied);
+                run.applied[suggestion.item_id] = applied;
+                markWriteBackResult(suggestion.item_id, applied);
+                void persistRun(run);
+              }),
+          );
         },
         onError: (detail) => showError(`Stream error: ${detail}`),
-        onDone: () =>
-          void setStatus(`Done — ${received}/${items.length} suggestion(s) delivered.`, run),
+        onDone: () => {
+          void (async () => {
+            await Promise.all(writeBacks);
+            const appliedCount = Object.values(run.applied).filter(Boolean).length;
+            await setStatus(
+              `Done — ${received}/${items.length} suggestion(s). ` +
+                `${appliedCount} filled in automatically, ${items.length - appliedCount} need your attention.`,
+              run,
+            );
+          })();
+        },
       },
     );
   } catch (err) {
@@ -348,20 +374,29 @@ async function getActiveTabId(): Promise<number> {
 }
 
 // Pre-allocate slots so streamed suggestions can fill them in DOM order
-// regardless of LLM completion order.
+// regardless of LLM completion order. Rendered as <details> so a field that
+// gets filled in automatically can collapse to a single line, while fields
+// needing manual attention stay open by default.
 function renderItemSlots(items: BatchSuggestItem[]): void {
   const container = byId('suggestions');
   container.innerHTML = '';
   for (const item of items) {
-    const slot = document.createElement('div');
+    const slot = document.createElement('details');
     slot.className = 'suggestion-slot pending';
     slot.dataset.itemId = item.id;
     slot.id = slotIdFor(item.id);
+    slot.open = true;
 
-    const prompt = document.createElement('div');
+    const summary = document.createElement('summary');
+    const icon = document.createElement('span');
+    icon.className = 'status-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    summary.append(icon);
+    const prompt = document.createElement('span');
     prompt.className = 'prompt';
     prompt.textContent = item.prompt;
-    slot.append(prompt);
+    summary.append(prompt);
+    slot.append(summary);
 
     const answer = document.createElement('div');
     answer.className = 'answer pending-answer';
@@ -370,6 +405,19 @@ function renderItemSlots(items: BatchSuggestItem[]): void {
 
     container.append(slot);
   }
+}
+
+// Reflects whether the content script could actually write the suggestion
+// into the page. Applied fields collapse with a checkmark; fields that need
+// the user to act (unsupported widget, no match found) stay expanded.
+function markWriteBackResult(itemId: string, applied: boolean): void {
+  const slot = document.getElementById(slotIdFor(itemId)) as HTMLDetailsElement | null;
+  if (!slot) return;
+  slot.classList.toggle('applied', applied);
+  slot.classList.toggle('needs-attention', !applied);
+  const icon = slot.querySelector<HTMLElement>('.status-icon');
+  if (icon) icon.textContent = applied ? '✓' : '';
+  slot.open = !applied;
 }
 
 function fillSuggestionSlot(items: BatchSuggestItem[], suggestion: ItemSuggestion): void {
@@ -466,6 +514,7 @@ async function rehydrateLastRun(): Promise<void> {
     renderItemSlots(run.items);
     for (const suggestion of run.suggestions) {
       fillSuggestionSlot(run.items, suggestion);
+      markWriteBackResult(suggestion.item_id, run.applied?.[suggestion.item_id] ?? false);
     }
   }
 }

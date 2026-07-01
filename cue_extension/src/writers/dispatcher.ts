@@ -64,30 +64,15 @@ function applyToAriaWidget(
   return applied;
 }
 
-function applyToAriaListbox(trigger: HTMLElement, suggestion: ItemSuggestion): boolean {
-  const target = suggestion.selected_id;
-  if (!target) return false;
-
-  // The combobox trigger and the listbox may be siblings or the trigger IS the listbox.
-  const listbox: HTMLElement | null =
-    trigger.getAttribute('role') === 'listbox'
-      ? trigger
-      : (trigger.parentElement?.querySelector<HTMLElement>('[role="listbox"]') ?? null);
-  if (!listbox) return false;
-
-  // Open the dropdown if it isn't already.
-  const isOpen =
-    trigger.getAttribute('aria-expanded') === 'true' ||
-    listbox.getAttribute('aria-hidden') !== 'true';
-  if (!isOpen) trigger.click();
-
-  const options = Array.from(listbox.querySelectorAll<HTMLElement>('[role="option"]'));
-  for (const option of options) {
-    if (ariaChoiceLabel(option) === target) {
-      option.click();
-      return true;
-    }
-  }
+// Deliberate no-op. Live testing against Google Forms showed these widgets
+// only accept genuine OS-level clicks — selection never registers for any
+// script-dispatched event (click, full mouse sequence, or keyboard), which
+// points at the widget gating on event.isTrusted. Content scripts cannot
+// produce a trusted event, and the only browser API that can (chrome.debugger)
+// carries a persistent "this extension is debugging this browser" banner and
+// a heavy permission ask — not a reasonable trade for filling a dropdown.
+// The item is still extracted and suggested; the user applies it manually.
+function applyToAriaListbox(_trigger: HTMLElement, _suggestion: ItemSuggestion): boolean {
   return false;
 }
 

@@ -6,6 +6,7 @@
   --border: #ddd;
   --error: #b3261e;
   --error-bg: #fdecea;
+  --warn: #b58105;
 }
 
 * {
@@ -145,10 +146,26 @@ button:disabled {
 
 .suggestion-slot {
   margin-top: 10px;
+  border-left: 3px solid var(--border);
+  padding-left: 8px;
+}
+
+.suggestion-slot summary {
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
 }
 
 .suggestion-slot .prompt {
   font-weight: 600;
+}
+
+.suggestion-slot .status-icon {
+  color: #1a7f37;
+  font-weight: 700;
+  width: 12px;
+  flex: none;
 }
 
 .suggestion-slot .answer {
@@ -157,6 +174,14 @@ button:disabled {
 
 .suggestion-slot.pending {
   opacity: 0.65;
+}
+
+.suggestion-slot.applied {
+  border-left-color: #1a7f37;
+}
+
+.suggestion-slot.needs-attention {
+  border-left-color: var(--warn);
 }
 
 .suggestion-slot .answer.pending-answer {

@@ -195,7 +195,12 @@ describe('applySuggestion', () => {
     expect(document.querySelectorAll<HTMLInputElement>('input:checked').length).toBe(0);
   });
 
-  it('opens a closed combobox and clicks the matching option', () => {
+  it('does not attempt to click a combobox/listbox — Google Forms selection only registers on genuinely trusted events', () => {
+    // Confirmed via live testing: script-dispatched click/mouse/keyboard events
+    // never select an option on Google Forms' dropdown widget, no matter the
+    // sequence or timing. A content script cannot produce a trusted event, so
+    // we deliberately no-op and let the popup surface the suggestion for the
+    // user to apply by hand instead of leaving the widget half-opened.
     document.body.innerHTML = `
       <div>
         <div id="trigger" role="combobox" aria-haspopup="listbox" aria-expanded="false">Kies</div>
@@ -208,32 +213,11 @@ describe('applySuggestion', () => {
     `;
     const trigger = document.getElementById('trigger')!;
     const clicked: string[] = [];
-    trigger.addEventListener('click', () => {
-      trigger.setAttribute('aria-expanded', 'true');
-      clicked.push('trigger');
-    });
+    trigger.addEventListener('click', () => clicked.push('trigger'));
     document.getElementById('o2')!.addEventListener('click', () => clicked.push('o2'));
     const applied = applySuggestion(trigger, makeSuggestion({ selected_id: 'Design' }));
-    expect(applied).toBe(true);
-    expect(clicked).toEqual(['trigger', 'o2']);
-  });
-
-  it('skips the trigger click when the listbox is already open', () => {
-    document.body.innerHTML = `
-      <div>
-        <div id="trigger" role="combobox" aria-haspopup="listbox" aria-expanded="true">Design</div>
-        <div id="listbox" role="listbox">
-          <div id="o1" role="option">Engineering</div>
-          <div id="o2" role="option">Design</div>
-        </div>
-      </div>
-    `;
-    const trigger = document.getElementById('trigger')!;
-    const triggerClicks: number[] = [];
-    trigger.addEventListener('click', () => triggerClicks.push(1));
-    const applied = applySuggestion(trigger, makeSuggestion({ selected_id: 'Engineering' }));
-    expect(applied).toBe(true);
-    expect(triggerClicks.length).toBe(0);
+    expect(applied).toBe(false);
+    expect(clicked).toEqual([]);
   });
 
   it('does not click checkboxes when selected_ids is empty', () => {
