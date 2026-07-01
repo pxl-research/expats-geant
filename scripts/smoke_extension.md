@@ -1,8 +1,9 @@
 # Cue Browser Extension — Smoke Checklist
 
 A five-to-ten-minute manual run that proves the end-to-end loop works in real
-Chrome before merging extension changes. Run this at every phase boundary
-(see `~/.claude/plans/kind-churning-lovelace.md` for phase definitions).
+Chrome before merging extension changes. Run this before merging any
+extension change that touches extraction, write-back, or the auth/session
+lifecycle.
 
 The flow is deliberately manual; Chrome extension testing in Playwright is
 painful and the maintenance cost dwarfs the benefit for a PoC.
