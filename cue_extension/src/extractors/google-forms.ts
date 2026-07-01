@@ -20,6 +20,11 @@ export const googleFormsExtractor: Extractor = {
     const idGen = makeIdGen();
     const fields: ExtractedField[] = [];
     for (const container of containers) {
+      // Nested heading-less listitems are Google Forms' per-option wrappers
+      // and the "Andere antwoord" text input it injects under choice
+      // questions — never real questions. Top-level listitems fall through
+      // to the semantic-html fallback (test fixtures rely on this).
+      if (!googleFormsHeadingPrompt(container) && isNestedListitem(container)) continue;
       const ariaField = extractAriaChoiceField(container, idGen);
       if (ariaField) {
         fields.push(ariaField);
@@ -34,6 +39,10 @@ export const googleFormsExtractor: Extractor = {
     return fields;
   },
 };
+
+function isNestedListitem(container: HTMLElement): boolean {
+  return Boolean(container.parentElement?.closest('[role="listitem"], [role="list"]'));
+}
 
 function extractAriaChoiceField(container: HTMLElement, idGen: IdGen): ExtractedField | null {
   const radios = Array.from(container.querySelectorAll<HTMLElement>('[role="radio"]'));

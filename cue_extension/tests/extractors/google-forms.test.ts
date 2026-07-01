@@ -204,6 +204,36 @@ describe('googleFormsExtractor.extract', () => {
     expect(fields[1].item.type).toBe('single_choice');
   });
 
+  it('skips the "Andere antwoord" text input Google injects under choice questions', async () => {
+    // Regression: Google Forms renders the "Other" option as a nested
+    // listitem holding a checkbox AND a text input for the user's custom
+    // answer. The nested listitem has no [role="heading"], so it must NOT
+    // be emitted as its own question — otherwise the popup shows an extra
+    // "Andere antwoord" entry and the LLM tries to answer it in isolation.
+    document.documentElement.innerHTML = `
+      <div role="listitem">
+        <div role="heading">Wat neem je mee?</div>
+        <div role="list">
+          <div role="listitem">
+            <div role="checkbox" data-answer-value="Hoofdgerecht"></div>
+          </div>
+          <div role="listitem">
+            <div role="checkbox" data-answer-value="Dessert"></div>
+          </div>
+          <div role="listitem">
+            <div role="checkbox" data-answer-value="__other_option__"></div>
+            <input type="text" aria-label="Andere antwoord" />
+          </div>
+        </div>
+      </div>
+    `;
+    const fields = await googleFormsExtractor.extract(document, {});
+    expect(fields.length).toBe(1);
+    expect(fields[0].item.type).toBe('multiple_choice');
+    expect(fields[0].item.prompt).toBe('Wat neem je mee?');
+    expect(fields.map((f) => f.item.prompt)).not.toContain('Andere antwoord');
+  });
+
   it('emits unique sequential ids across ARIA widget and input phases', async () => {
     // Regression: before this fix the ARIA-widget pass and the
     // extractFromContainers pass each ran their own idGen, so q1 and q2
