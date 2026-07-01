@@ -1,6 +1,17 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { googleFormsExtractor } from '../../src/extractors/google-forms.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const checkboxFixturePath = path.resolve(
+  __dirname,
+  '../../../tests/test_data/html_forms/google_forms_checkbox_sample.html',
+);
+const checkboxFixtureHtml = readFileSync(checkboxFixturePath, 'utf8');
 
 describe('googleFormsExtractor.detect', () => {
   beforeEach(() => {
@@ -366,5 +377,29 @@ describe('googleFormsExtractor.extract', () => {
     const fields = await googleFormsExtractor.extract(document, {});
     expect(fields.length).toBe(1);
     expect(fields[0].item.prompt).toBe('Echte vraag');
+  });
+
+  it('extracts multiple_choice with all real choices from an actual Google Forms checkbox question', async () => {
+    // Regression fixture for the "does our checkbox extraction really emit
+    // multiple_choice?" question raised while debugging why multi-select
+    // answers weren't landing. This is the verbatim outerHTML captured from
+    // a live Google Form (google_forms_checkbox_sample.html) — real
+    // jsaction/class noise included — not a hand-simplified approximation.
+    document.documentElement.innerHTML = checkboxFixtureHtml;
+    const fields = await googleFormsExtractor.extract(document, {});
+    expect(fields.length).toBe(1);
+    expect(fields[0].item.type).toBe('multiple_choice');
+    expect(fields[0].item.prompt).toBe('Voorkennis vakinhoud Statistics for IT');
+    expect(fields[0].item.choices?.map((c) => c.label)).toEqual([
+      'Geen voorkennis',
+      'Beschrijvende statistiek : datarepresentatie / frequentieverdelingen / centrummaten / spreidingsmaten / ...',
+      'Kansverdelingen: de normale verdeling',
+      'Betrouwbaarheidsintervallen',
+      'Hypothesetoetsen',
+      'Relaties tussen variabelen (correlatie / regressie / ...)',
+    ]);
+    // The "Anders:" (other) checkbox is a nested heading-less listitem and
+    // must not appear as a 7th choice or a spurious second question.
+    expect(fields.map((f) => f.item.prompt)).not.toContain('Andere antwoord');
   });
 });

@@ -44,12 +44,24 @@ function isNestedListitem(container: HTMLElement): boolean {
   return Boolean(container.parentElement?.closest('[role="listitem"], [role="list"]'));
 }
 
+// Google marks the synthetic "Other:" radio/checkbox with this attribute.
+// It pairs with a free-text input we can't route an LLM answer into, so it
+// must not appear as a selectable choice — otherwise it leaks in with the
+// internal sentinel value ("__other_option__") as its label.
+function isOtherOption(widget: HTMLElement): boolean {
+  return widget.getAttribute('data-other-checkbox') === 'true';
+}
+
 function extractAriaChoiceField(container: HTMLElement, idGen: IdGen): ExtractedField | null {
-  const radios = Array.from(container.querySelectorAll<HTMLElement>('[role="radio"]'));
+  const radios = Array.from(container.querySelectorAll<HTMLElement>('[role="radio"]')).filter(
+    (w) => !isOtherOption(w),
+  );
   if (radios.length > 0) {
     return buildAriaField(container, radios, 'single_choice', idGen);
   }
-  const checkboxes = Array.from(container.querySelectorAll<HTMLElement>('[role="checkbox"]'));
+  const checkboxes = Array.from(
+    container.querySelectorAll<HTMLElement>('[role="checkbox"]'),
+  ).filter((w) => !isOtherOption(w));
   if (checkboxes.length > 0) {
     return buildAriaField(container, checkboxes, 'multiple_choice', idGen);
   }
