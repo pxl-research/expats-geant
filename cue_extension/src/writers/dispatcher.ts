@@ -36,10 +36,12 @@ function applyToAriaWidget(
       : (suggestion.selected_ids ?? []);
   if (targets.length === 0) return false;
 
-  // The fallback to ownerDocument keeps checkboxes inside Google Forms'
-  // plain role="list" reachable even when no recognised group wraps them.
+  // Container roles win over [role="listitem"] because Google Forms wraps
+  // each checkbox option in its own listitem, and closest() would otherwise
+  // resolve to the per-option wrapper instead of the question's list.
   const group =
-    element.closest('[role="radiogroup"], [role="list"], [role="group"], [role="listitem"]') ??
+    element.closest('[role="radiogroup"], [role="list"], [role="group"]') ??
+    element.closest('[role="listitem"]') ??
     element.ownerDocument;
   const siblings = Array.from(group.querySelectorAll<HTMLElement>(`[role="${role}"]`));
 
