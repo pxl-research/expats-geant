@@ -378,6 +378,35 @@ class TestParseSelectedId:
         selected_id, selected_ids = pipeline._parse_selected_id(None, choices, multi=True)
         assert (selected_id, selected_ids) == (None, None)
 
+    # --- Bare-ordinal ints (LLM drops the "c" prefix from cN-style ids) ---
+
+    @pytest.fixture
+    def cn_choices(self):
+        return [
+            BatchChoice(id="c1", label="Gaming"),
+            BatchChoice(id="c2", label="Uitgaan"),
+            BatchChoice(id="c3", label="Jeugdbeweging"),
+        ]
+
+    def test_multi_choice_bare_ints_normalize_to_cn_ids(self, pipeline, cn_choices):
+        # Regression: the LLM sometimes returns [1, 3] instead of ["c1", "c3"]
+        # for cN-style choice ids. Silently dropping these left every
+        # checkbox unticked even though the model picked the right answers.
+        _, selected_ids = pipeline._parse_selected_id([1, 3], cn_choices, multi=True)
+        assert selected_ids == ["c1", "c3"]
+
+    def test_single_choice_bare_int_normalizes_to_cn_id(self, pipeline, cn_choices):
+        selected_id, _ = pipeline._parse_selected_id([2], cn_choices, multi=False)
+        assert selected_id == "c2"
+
+    def test_bare_int_out_of_range_is_dropped(self, pipeline, cn_choices):
+        _, selected_ids = pipeline._parse_selected_id([1, 99], cn_choices, multi=True)
+        assert selected_ids == ["c1"]
+
+    def test_mixed_string_and_int_selections(self, pipeline, cn_choices):
+        _, selected_ids = pipeline._parse_selected_id(["c1", 3], cn_choices, multi=True)
+        assert selected_ids == ["c1", "c3"]
+
 
 # ---------------------------------------------------------------------------
 # API error-branch coverage for /suggest/batch

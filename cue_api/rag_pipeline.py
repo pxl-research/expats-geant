@@ -405,25 +405,37 @@ class RAGPipeline:
         if not selected_raw:
             return None, None
 
-        candidates: list[str]
+        valid_ids = {c.id for c in choices}
+
+        def normalize(value) -> str | None:
+            # Our choice ids are always "c" + a 1-based index. The LLM
+            # occasionally drops the "c" prefix and returns the bare ordinal
+            # (int, or a numeric string) instead of the literal id — tolerate
+            # that by re-adding the prefix, but only accept the result if it
+            # actually names one of the offered choices.
+            if isinstance(value, str):
+                if value in valid_ids:
+                    return value
+                candidate = f"c{value}"
+            elif isinstance(value, int):
+                candidate = f"c{value}"
+            else:
+                return None
+            return candidate if candidate in valid_ids else None
+
+        raw_values: list
         if isinstance(selected_raw, list):
-            candidates = [s for s in selected_raw if isinstance(s, str)]
+            raw_values = selected_raw
         elif isinstance(selected_raw, str):
             try:
                 parsed = json.loads(selected_raw)
             except (json.JSONDecodeError, ValueError):
                 parsed = selected_raw
-            if isinstance(parsed, list):
-                candidates = [s for s in parsed if isinstance(s, str)]
-            elif isinstance(parsed, str):
-                candidates = [parsed]
-            else:
-                return None, None
+            raw_values = parsed if isinstance(parsed, list) else [parsed]
         else:
             return None, None
 
-        valid_ids = {c.id for c in choices}
-        matched = [s for s in candidates if s in valid_ids]
+        matched = [c for c in (normalize(v) for v in raw_values) if c is not None]
         if not matched:
             return None, None
 
