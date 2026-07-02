@@ -27,6 +27,14 @@ class BatchSuggestItem(BaseModel):
         max_length=100,
         description="Predefined choices (required for single_choice and multiple_choice types)",
     )
+    label: str | None = Field(
+        default=None,
+        max_length=500,
+        description=(
+            "Short display label for audit/report UIs, e.g. 'Basic Security, Andere'. "
+            "Never sent to the LLM — only 'prompt' is used for generation."
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_choices_for_type(self) -> "BatchSuggestItem":

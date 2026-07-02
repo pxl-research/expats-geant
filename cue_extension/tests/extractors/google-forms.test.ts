@@ -251,6 +251,7 @@ describe('googleFormsExtractor.extract', () => {
     expect(fields[1].isOptionalOther).toBe(true);
     expect(fields[1].item.prompt).toContain('Wat neem je mee?');
     expect(fields[1].item.prompt).toContain('Hoofdgerecht');
+    expect(fields[1].item.label).toBe('Wat neem je mee?, Andere');
     expect(fields[1].element.getAttribute('aria-label')).toBe('Andere antwoord');
   });
 

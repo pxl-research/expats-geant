@@ -85,12 +85,12 @@ def _cache_suggestion(session_path: Path, suggestion: ItemSuggestion) -> None:
             raise
 
 
-def _build_report_entries(raw_responses: list[dict], item_prompts: dict) -> list[dict]:
+def _build_report_entries(raw_responses: list[dict], item_labels: dict) -> list[dict]:
     """Build answer report entries from raw RAG responses."""
     return [
         {
             "question_id": r["item_id"],
-            "question": item_prompts.get(r["item_id"], ""),
+            "question": item_labels.get(r["item_id"], ""),
             "answer": r["suggestion"],
             "reasoning": r.get("reasoning"),
             "citations": [
@@ -176,9 +176,11 @@ async def suggest_answer_batch(
     responses = [_to_item_suggestion(r) for r in raw_responses]
 
     session_path = session_manager._get_session_path(session.session_id, user_id=session.user_id)
-    item_prompts = {item.id: item.prompt for section in sections for item in section.items}
+    item_labels = {
+        item.id: item.label or item.prompt for section in sections for item in section.items
+    }
     try:
-        _append_to_answer_report(session_path, _build_report_entries(raw_responses, item_prompts))
+        _append_to_answer_report(session_path, _build_report_entries(raw_responses, item_labels))
     except Exception as exc:
         logger.warning("Failed to persist batch answer report: %s", exc)
     try:
@@ -217,7 +219,7 @@ async def suggest_answer_stream(request: Request, batch_request: BatchSuggestReq
     for section in sections:
         section.items = [i for i in section.items if i.type != QuestionType.DESCRIPTIVE]
     sections = [s for s in sections if s.items]
-    item_prompts = {item.id: item.prompt for sec in sections for item in sec.items}
+    item_labels = {item.id: item.label or item.prompt for sec in sections for item in sec.items}
 
     async def event_generator():
         session_path = session_manager._get_session_path(
@@ -237,7 +239,7 @@ async def suggest_answer_stream(request: Request, batch_request: BatchSuggestReq
                     await asyncio.to_thread(
                         _append_to_answer_report,
                         session_path,
-                        _build_report_entries([r], item_prompts),
+                        _build_report_entries([r], item_labels),
                     )
                 except Exception as exc:
                     logger.warning("Failed to persist stream answer report entry: %s", exc)

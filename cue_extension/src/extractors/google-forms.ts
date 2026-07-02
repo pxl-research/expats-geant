@@ -135,8 +135,10 @@ function buildOtherCompanionField(
     `The listed choices already cover:\n${labels}\n` +
     'Only answer if the correct response is NOT one of the choices above; ' +
     'leave it blank if one of the listed choices already covers it.';
+  // Short display label for audit/report UIs — never sent to the LLM.
+  const label = `${parentItem.prompt}, Andere`;
   return {
-    item: { id: idGen(), type: 'open_ended', prompt },
+    item: { id: idGen(), type: 'open_ended', prompt, label },
     element: input,
     isOptionalOther: true,
   };

@@ -18,6 +18,9 @@ export interface BatchSuggestItem {
   type: QuestionType;
   prompt: string;
   choices?: BatchChoice[];
+  // Short display label for audit/report UIs (e.g. "Basic Security, Andere").
+  // Never used as LLM input — the LLM only ever sees `prompt`.
+  label?: string;
 }
 
 export interface BatchSuggestRequest {

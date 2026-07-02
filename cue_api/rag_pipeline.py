@@ -586,7 +586,7 @@ class RAGPipeline:
             if self.audit_logger:
                 self.audit_logger.log_suggestion(
                     session_id=session_id,
-                    question=item.prompt,
+                    question=item.label or item.prompt,
                     suggested_answer=no_match_reasoning,
                     sources_used=[],
                     model=client.model_name,
@@ -651,7 +651,7 @@ class RAGPipeline:
             ]
             self.audit_logger.log_suggestion(
                 session_id=session_id,
-                question=item.prompt,
+                question=item.label or item.prompt,
                 suggested_answer=answer or "",
                 sources_used=[c.source_id for c in citations],
                 model=client.model_name,
