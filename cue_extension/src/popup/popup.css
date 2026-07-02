@@ -7,6 +7,7 @@
   --error: #b3261e;
   --error-bg: #fdecea;
   --warn: #b58105;
+  --neutral: #999;
 }
 
 * {
@@ -182,6 +183,11 @@ button:disabled {
 
 .suggestion-slot.needs-attention {
   border-left-color: var(--warn);
+}
+
+.suggestion-slot.optional-empty {
+  border-left-color: var(--neutral);
+  opacity: 0.7;
 }
 
 .suggestion-slot .answer.pending-answer {

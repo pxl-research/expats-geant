@@ -215,12 +215,14 @@ describe('googleFormsExtractor.extract', () => {
     expect(fields[1].item.type).toBe('single_choice');
   });
 
-  it('skips the "Andere antwoord" text input Google injects under choice questions', async () => {
+  it('excludes "Andere antwoord" from choices and extracts it as an Other companion question', async () => {
     // Regression: Google Forms renders the "Other" option as a nested
     // listitem holding a checkbox AND a text input for the user's custom
-    // answer. The nested listitem has no [role="heading"], so it must NOT
-    // be emitted as its own question — otherwise the popup shows an extra
-    // "Andere antwoord" entry and the LLM tries to answer it in isolation.
+    // answer. It must not appear as a selectable choice (its label is just
+    // Google's internal sentinel), and it must not be dropped either — it
+    // becomes a second, separate open_ended question pointing at the real
+    // text input, so the LLM can still supply an answer when the fixed
+    // choices don't cover it.
     document.documentElement.innerHTML = `
       <div role="listitem">
         <div role="heading">Wat neem je mee?</div>
@@ -232,17 +234,65 @@ describe('googleFormsExtractor.extract', () => {
             <div role="checkbox" data-answer-value="Dessert"></div>
           </div>
           <div role="listitem">
-            <div role="checkbox" data-answer-value="__other_option__"></div>
+            <div role="checkbox" data-other-checkbox="true" data-answer-value="__other_option__"></div>
             <input type="text" aria-label="Andere antwoord" />
           </div>
         </div>
       </div>
     `;
     const fields = await googleFormsExtractor.extract(document, {});
-    expect(fields.length).toBe(1);
+    expect(fields.length).toBe(2);
     expect(fields[0].item.type).toBe('multiple_choice');
     expect(fields[0].item.prompt).toBe('Wat neem je mee?');
+    expect(fields[0].item.choices?.map((c) => c.label)).toEqual(['Hoofdgerecht', 'Dessert']);
     expect(fields.map((f) => f.item.prompt)).not.toContain('Andere antwoord');
+
+    expect(fields[1].item.type).toBe('open_ended');
+    expect(fields[1].isOptionalOther).toBe(true);
+    expect(fields[1].item.prompt).toContain('Wat neem je mee?');
+    expect(fields[1].item.prompt).toContain('Hoofdgerecht');
+    expect(fields[1].element.getAttribute('aria-label')).toBe('Andere antwoord');
+  });
+
+  it('does not fabricate an Other companion when no Other widget is present', async () => {
+    document.documentElement.innerHTML = `
+      <div role="listitem">
+        <div role="heading">Kun je deelnemen?</div>
+        <div role="radiogroup">
+          <div role="radio" data-value="Ja"></div>
+          <div role="radio" data-value="Nee"></div>
+        </div>
+      </div>
+    `;
+    const fields = await googleFormsExtractor.extract(document, {});
+    expect(fields.length).toBe(1);
+  });
+
+  it('extracts a radio-based "Anders" option as an Other companion, excluded from choices', async () => {
+    // Verified real shape: unlike checkbox options, radio options are not
+    // individually wrapped in role="listitem", and the "Anders" radio
+    // carries only data-value="__other_option__" — no data-other-checkbox
+    // attribute at all (confirmed via live DOM capture).
+    document.documentElement.innerHTML = `
+      <div role="listitem">
+        <div role="heading">Type middelbaar onderwijs</div>
+        <div role="radiogroup">
+          <div role="radio" data-value="TSO"></div>
+          <div role="radio" data-value="ASO"></div>
+          <div role="radio" data-value="__other_option__"></div>
+          <input type="text" aria-label="Andere antwoord" />
+        </div>
+      </div>
+    `;
+    const fields = await googleFormsExtractor.extract(document, {});
+    expect(fields.length).toBe(2);
+    expect(fields[0].item.type).toBe('single_choice');
+    expect(fields[0].item.choices?.map((c) => c.label)).toEqual(['TSO', 'ASO']);
+
+    expect(fields[1].item.type).toBe('open_ended');
+    expect(fields[1].isOptionalOther).toBe(true);
+    expect(fields[1].item.prompt).toContain('Type middelbaar onderwijs');
+    expect(fields[1].element.getAttribute('aria-label')).toBe('Andere antwoord');
   });
 
   it('emits unique sequential ids across ARIA widget and input phases', async () => {
@@ -387,7 +437,7 @@ describe('googleFormsExtractor.extract', () => {
     // jsaction/class noise included — not a hand-simplified approximation.
     document.documentElement.innerHTML = checkboxFixtureHtml;
     const fields = await googleFormsExtractor.extract(document, {});
-    expect(fields.length).toBe(1);
+    expect(fields.length).toBe(2);
     expect(fields[0].item.type).toBe('multiple_choice');
     expect(fields[0].item.prompt).toBe('Voorkennis vakinhoud Statistics for IT');
     expect(fields[0].item.choices?.map((c) => c.label)).toEqual([
@@ -398,8 +448,15 @@ describe('googleFormsExtractor.extract', () => {
       'Hypothesetoetsen',
       'Relaties tussen variabelen (correlatie / regressie / ...)',
     ]);
-    // The "Anders:" (other) checkbox is a nested heading-less listitem and
-    // must not appear as a 7th choice or a spurious second question.
+    // The "Anders:" (other) checkbox must not appear as a 7th choice.
     expect(fields.map((f) => f.item.prompt)).not.toContain('Andere antwoord');
+
+    // It's extracted as a separate Other companion question instead, pointed
+    // at the real "Andere antwoord" input from the fixture.
+    expect(fields[1].item.type).toBe('open_ended');
+    expect(fields[1].isOptionalOther).toBe(true);
+    expect(fields[1].item.prompt).toContain('Voorkennis vakinhoud Statistics for IT');
+    expect(fields[1].item.prompt).toContain('Geen voorkennis');
+    expect(fields[1].element.getAttribute('aria-label')).toBe('Andere antwoord');
   });
 });

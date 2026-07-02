@@ -25,9 +25,9 @@ export const googleFormsExtractor: Extractor = {
       // questions — never real questions. Top-level listitems fall through
       // to the semantic-html fallback (test fixtures rely on this).
       if (!googleFormsHeadingPrompt(container) && isNestedListitem(container)) continue;
-      const ariaField = extractAriaChoiceField(container, idGen);
-      if (ariaField) {
-        fields.push(ariaField);
+      const ariaFields = extractAriaChoiceField(container, idGen);
+      if (ariaFields.length > 0) {
+        fields.push(...ariaFields);
         continue;
       }
       const inputFields = extractFromContainers([container], {
@@ -44,37 +44,102 @@ function isNestedListitem(container: HTMLElement): boolean {
   return Boolean(container.parentElement?.closest('[role="listitem"], [role="list"]'));
 }
 
-// Google marks the synthetic "Other:" radio/checkbox with this attribute.
-// It pairs with a free-text input we can't route an LLM answer into, so it
-// must not appear as a selectable choice — otherwise it leaks in with the
-// internal sentinel value ("__other_option__") as its label.
+// Google marks the synthetic "Other:" radio/checkbox with the internal
+// sentinel value "__other_option__", but on a different attribute depending
+// on widget type: radios carry only data-value="__other_option__" (no
+// data-other-checkbox at all — confirmed via live capture); checkboxes carry
+// data-answer-value="__other_option__" alongside data-other-checkbox="true".
+// It pairs with a free-text input, extracted separately as a companion
+// open_ended question (see buildOtherCompanionField) — it must not appear as
+// a selectable choice itself, or it leaks in with the sentinel as its label.
 function isOtherOption(widget: HTMLElement): boolean {
-  return widget.getAttribute('data-other-checkbox') === 'true';
+  return (
+    widget.getAttribute('data-value') === '__other_option__' ||
+    widget.getAttribute('data-answer-value') === '__other_option__' ||
+    widget.getAttribute('data-other-checkbox') === 'true'
+  );
 }
 
-function extractAriaChoiceField(container: HTMLElement, idGen: IdGen): ExtractedField | null {
-  const radios = Array.from(container.querySelectorAll<HTMLElement>('[role="radio"]')).filter(
-    (w) => !isOtherOption(w),
-  );
+function extractAriaChoiceField(container: HTMLElement, idGen: IdGen): ExtractedField[] {
+  const allRadios = Array.from(container.querySelectorAll<HTMLElement>('[role="radio"]'));
+  const radios = allRadios.filter((w) => !isOtherOption(w));
   if (radios.length > 0) {
-    return buildAriaField(container, radios, 'single_choice', idGen);
+    return buildChoiceFieldWithOtherCompanion(
+      container,
+      radios,
+      'single_choice',
+      idGen,
+      allRadios.find(isOtherOption),
+    );
   }
-  const checkboxes = Array.from(
-    container.querySelectorAll<HTMLElement>('[role="checkbox"]'),
-  ).filter((w) => !isOtherOption(w));
+  const allCheckboxes = Array.from(container.querySelectorAll<HTMLElement>('[role="checkbox"]'));
+  const checkboxes = allCheckboxes.filter((w) => !isOtherOption(w));
   if (checkboxes.length > 0) {
-    return buildAriaField(container, checkboxes, 'multiple_choice', idGen);
+    return buildChoiceFieldWithOtherCompanion(
+      container,
+      checkboxes,
+      'multiple_choice',
+      idGen,
+      allCheckboxes.find(isOtherOption),
+    );
   }
   const listbox = container.querySelector<HTMLElement>('[role="listbox"]');
   if (listbox) {
     const options = Array.from(listbox.querySelectorAll<HTMLElement>('[role="option"]'));
     if (options.length > 0) {
-      const trigger =
-        container.querySelector<HTMLElement>('[role="combobox"]') ?? listbox;
-      return buildAriaField(container, options, 'single_choice', idGen, trigger);
+      // Google Forms dropdowns don't support a free-text "Other" option, so
+      // there's never a companion question to build here.
+      const trigger = container.querySelector<HTMLElement>('[role="combobox"]') ?? listbox;
+      const field = buildAriaField(container, options, 'single_choice', idGen, trigger);
+      return field ? [field] : [];
     }
   }
-  return null;
+  return [];
+}
+
+function buildChoiceFieldWithOtherCompanion(
+  container: HTMLElement,
+  widgets: HTMLElement[],
+  type: 'single_choice' | 'multiple_choice',
+  idGen: IdGen,
+  otherWidget: HTMLElement | undefined,
+): ExtractedField[] {
+  const primary = buildAriaField(container, widgets, type, idGen);
+  if (!primary) return [];
+  if (!otherWidget) return [primary];
+  const companion = buildOtherCompanionField(container, primary.item, idGen);
+  return companion ? [primary, companion] : [primary];
+}
+
+// The "Other" checkbox/radio and its paired free-text <input> are extracted
+// as a separate open_ended question rather than folded into the parent's
+// choices — the parent's write-back can only select from a fixed id set, but
+// filling this input (via the same native-value-setter path every open_ended
+// field already uses) is what actually produces an answer, and Google's own
+// JS ticks the paired checkbox/radio as a side effect of that input event.
+// In both real DOM shapes observed (checkbox: each option incl. Other in its
+// own listitem; radio: options not wrapped in listitems at all) there is
+// exactly one input[type="text"] anywhere inside the question container, and
+// no unrelated text input can appear there — so no shape-specific traversal
+// is needed.
+function buildOtherCompanionField(
+  container: HTMLElement,
+  parentItem: BatchSuggestItem,
+  idGen: IdGen,
+): ExtractedField | null {
+  const input = container.querySelector<HTMLInputElement>('input[type="text"]');
+  if (!input) return null;
+  const labels = (parentItem.choices ?? []).map((c) => `- ${c.label}`).join('\n');
+  const prompt =
+    `This is the free-text "Other" answer for the question: "${parentItem.prompt}"\n` +
+    `The listed choices already cover:\n${labels}\n` +
+    'Only answer if the correct response is NOT one of the choices above; ' +
+    'leave it blank if one of the listed choices already covers it.';
+  return {
+    item: { id: idGen(), type: 'open_ended', prompt },
+    element: input,
+    isOptionalOther: true,
+  };
 }
 
 function buildAriaField(

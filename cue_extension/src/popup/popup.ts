@@ -2,6 +2,7 @@ import browser from 'webextension-polyfill';
 
 import { CueApiClient } from '../api/client.js';
 import type { BatchSuggestItem, ItemSuggestion } from '../types.js';
+import { classifyWriteBackState } from './writeback-state.js';
 
 const PRIVACY_ACK_KEY = 'cue.privacyAck';
 const LAST_RUN_KEY = 'cue.lastRun';
@@ -16,6 +17,7 @@ interface CachedRun {
   items: BatchSuggestItem[];
   suggestions: ItemSuggestion[];
   applied: Record<string, boolean>;
+  optional: Record<string, boolean>;
 }
 
 interface WriteBackResponse {
@@ -34,6 +36,7 @@ interface ContentExtractResponse {
   ok: boolean;
   extractorName?: string;
   items?: BatchSuggestItem[];
+  optionalItemIds?: string[];
   error?: string;
 }
 
@@ -271,7 +274,14 @@ async function onTrigger(): Promise<void> {
   trigger.disabled = true;
   clearError();
   clearSuggestions();
-  const run: CachedRun = { ts: Date.now(), status: '', items: [], suggestions: [], applied: {} };
+  const run: CachedRun = {
+    ts: Date.now(),
+    status: '',
+    items: [],
+    suggestions: [],
+    applied: {},
+    optional: {},
+  };
   await setStatus('Locating active tab…', run);
   try {
     const tabId = await getActiveTabId();
@@ -292,6 +302,8 @@ async function onTrigger(): Promise<void> {
       await setStatus('No form fields detected on this page.', run);
       return;
     }
+    const optionalIds = new Set(response.optionalItemIds ?? []);
+    run.optional = Object.fromEntries(items.map((i) => [i.id, optionalIds.has(i.id)]));
     await setStatus(
       `Extractor: ${response.extractorName} — ${items.length} field(s). Streaming suggestions…`,
       run,
@@ -309,7 +321,7 @@ async function onTrigger(): Promise<void> {
         onSuggestion: (suggestion) => {
           received += 1;
           run.suggestions.push(suggestion);
-          fillSuggestionSlot(items, suggestion);
+          fillSuggestionSlot(items, suggestion, run.optional[suggestion.item_id] ?? false);
           void persistRun(run);
           writeBacks.push(
             browser.tabs
@@ -317,7 +329,11 @@ async function onTrigger(): Promise<void> {
               .then((response) => {
                 const applied = Boolean((response as WriteBackResponse | undefined)?.applied);
                 run.applied[suggestion.item_id] = applied;
-                markWriteBackResult(suggestion.item_id, applied);
+                markWriteBackResult(
+                  suggestion.item_id,
+                  applied,
+                  run.optional[suggestion.item_id] ?? false,
+                );
                 void persistRun(run);
               }),
           );
@@ -327,9 +343,15 @@ async function onTrigger(): Promise<void> {
           void (async () => {
             await Promise.all(writeBacks);
             const appliedCount = Object.values(run.applied).filter(Boolean).length;
+            const optionalEmptyCount = Object.keys(run.optional).filter(
+              (id) => run.optional[id] && run.applied[id] === false,
+            ).length;
+            const needsAttention = items.length - appliedCount - optionalEmptyCount;
             await setStatus(
               `Done — ${received}/${items.length} suggestion(s). ` +
-                `${appliedCount} filled in automatically, ${items.length - appliedCount} need your attention.`,
+                `${appliedCount} filled in automatically, ${needsAttention} need your attention` +
+                (optionalEmptyCount ? `, ${optionalEmptyCount} optional (nothing extra found)` : '') +
+                '.',
               run,
             );
           })();
@@ -409,18 +431,26 @@ function renderItemSlots(items: BatchSuggestItem[]): void {
 
 // Reflects whether the content script could actually write the suggestion
 // into the page. Applied fields collapse with a checkmark; fields that need
-// the user to act (unsupported widget, no match found) stay expanded.
-function markWriteBackResult(itemId: string, applied: boolean): void {
+// the user to act (unsupported widget, no match found) stay expanded; the
+// "Other" companion's empty case collapses quietly since that's the expected
+// default outcome, not something to flag.
+function markWriteBackResult(itemId: string, applied: boolean, isOptional: boolean): void {
   const slot = document.getElementById(slotIdFor(itemId)) as HTMLDetailsElement | null;
   if (!slot) return;
-  slot.classList.toggle('applied', applied);
-  slot.classList.toggle('needs-attention', !applied);
+  const state = classifyWriteBackState(applied, isOptional);
+  slot.classList.toggle('applied', state === 'applied');
+  slot.classList.toggle('needs-attention', state === 'needs-attention');
+  slot.classList.toggle('optional-empty', state === 'optional-empty');
   const icon = slot.querySelector<HTMLElement>('.status-icon');
-  if (icon) icon.textContent = applied ? '✓' : '';
-  slot.open = !applied;
+  if (icon) icon.textContent = state === 'applied' ? '✓' : '';
+  slot.open = state === 'needs-attention';
 }
 
-function fillSuggestionSlot(items: BatchSuggestItem[], suggestion: ItemSuggestion): void {
+function fillSuggestionSlot(
+  items: BatchSuggestItem[],
+  suggestion: ItemSuggestion,
+  isOptional = false,
+): void {
   const slot = document.getElementById(slotIdFor(suggestion.item_id));
   if (!slot) return; // suggestion arrived for an item we didn't pre-render
   slot.classList.remove('pending');
@@ -432,7 +462,7 @@ function fillSuggestionSlot(items: BatchSuggestItem[], suggestion: ItemSuggestio
     const text = readableAnswer(suggestion, item);
     if (text === null) {
       answer.classList.add('no-answer');
-      answer.textContent = '(no answer)';
+      answer.textContent = isOptional ? '(nothing extra found)' : '(no answer)';
     } else {
       answer.classList.remove('no-answer');
       answer.textContent = text;
@@ -513,8 +543,12 @@ async function rehydrateLastRun(): Promise<void> {
   if (run.items.length > 0) {
     renderItemSlots(run.items);
     for (const suggestion of run.suggestions) {
-      fillSuggestionSlot(run.items, suggestion);
-      markWriteBackResult(suggestion.item_id, run.applied?.[suggestion.item_id] ?? false);
+      fillSuggestionSlot(run.items, suggestion, run.optional?.[suggestion.item_id] ?? false);
+      markWriteBackResult(
+        suggestion.item_id,
+        run.applied?.[suggestion.item_id] ?? false,
+        run.optional?.[suggestion.item_id] ?? false,
+      );
     }
   }
 }

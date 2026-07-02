@@ -12,6 +12,7 @@ interface ExtractResponse {
   ok: boolean;
   extractorName?: string;
   items?: BatchSuggestItem[];
+  optionalItemIds?: string[];
   error?: string;
 }
 interface WriteBackRequest {
@@ -63,14 +64,17 @@ async function handleExtract(request: ExtractRequest): Promise<ExtractResponse> 
         return response.items;
       },
     });
+    const optionalItemIds: string[] = [];
     for (const field of result.fields) {
       elementMap.set(field.item.id, field.element);
       if (field.choiceTokens) tokenMap.set(field.item.id, field.choiceTokens);
+      if (field.isOptionalOther) optionalItemIds.push(field.item.id);
     }
     return {
       ok: true,
       extractorName: result.extractorName,
       items: result.fields.map((f) => f.item),
+      optionalItemIds,
     };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
