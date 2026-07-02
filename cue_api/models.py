@@ -27,6 +27,14 @@ class BatchSuggestItem(BaseModel):
         max_length=100,
         description="Predefined choices (required for single_choice and multiple_choice types)",
     )
+    label: str | None = Field(
+        default=None,
+        max_length=500,
+        description=(
+            "Short display label for audit/report UIs, e.g. 'Basic Security, Andere'. "
+            "Never sent to the LLM — only 'prompt' is used for generation."
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_choices_for_type(self) -> "BatchSuggestItem":
@@ -292,6 +300,20 @@ class ReviewStateResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Session management
 # ---------------------------------------------------------------------------
+
+
+class ExtractFormRequest(BaseModel):
+    """Request body for /extract-form (LLM-assisted form-field extraction)."""
+
+    url: str = Field(
+        ..., min_length=1, max_length=4096, description="Source page URL the form lives on"
+    )
+    page_text: str = Field(
+        ...,
+        min_length=1,
+        max_length=200_000,
+        description="Plain-text content of the page (no HTML); supplied by the caller",
+    )
 
 
 class WebPreviewRequest(BaseModel):

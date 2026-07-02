@@ -1,0 +1,279 @@
+:root {
+  --fg: #111;
+  --muted: #666;
+  --bg: #fff;
+  --accent: #2065d1;
+  --border: #ddd;
+  --error: #b3261e;
+  --error-bg: #fdecea;
+  --warn: #b58105;
+  --neutral: #999;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: 420px;
+  margin: 0;
+  padding: 16px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--bg);
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  background: #f5f5f5;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 12px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 18px;
+}
+
+h2 {
+  margin: 12px 0 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+section {
+  margin-bottom: 16px;
+}
+
+label {
+  display: block;
+  margin-bottom: 8px;
+}
+
+label > span {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+input[type='url'],
+input[type='text'],
+input[type='password'],
+input[type='file'] {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+button {
+  font-size: 13px;
+  padding: 6px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--fg);
+}
+
+button.primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+button.danger {
+  background: transparent;
+  color: var(--error);
+  border-color: var(--error);
+}
+
+button.danger:hover {
+  background: var(--error-bg);
+}
+
+button.ghost {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  padding: 0;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 4px 0 8px;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.error {
+  background: var(--error-bg);
+  border: 1px solid var(--error);
+  color: var(--error);
+  padding: 6px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+#suggestions {
+  margin: 8px 0;
+}
+
+.suggestion-slot {
+  margin-top: 10px;
+  border-left: 3px solid var(--border);
+  padding-left: 8px;
+}
+
+.suggestion-slot summary {
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.suggestion-slot .prompt {
+  font-weight: 600;
+}
+
+.suggestion-slot .status-icon {
+  color: #1a7f37;
+  font-weight: 700;
+  width: 12px;
+  flex: none;
+}
+
+.suggestion-slot .answer {
+  margin: 2px 0 0 0;
+}
+
+.suggestion-slot.pending {
+  opacity: 0.65;
+}
+
+.suggestion-slot.applied {
+  border-left-color: #1a7f37;
+}
+
+.suggestion-slot.needs-attention {
+  border-left-color: var(--warn);
+}
+
+.suggestion-slot.optional-empty {
+  border-left-color: var(--neutral);
+  opacity: 0.7;
+}
+
+.suggestion-slot .answer.pending-answer {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.suggestion-slot .answer.no-answer {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.reasoning {
+  font-size: 12px;
+  color: var(--fg);
+  background: #f7f7f7;
+  margin: 4px 0 0 0;
+  padding: 4px 8px;
+  border-left: 2px solid var(--accent);
+  border-radius: 2px;
+}
+
+.citation {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 4px 0 0 0;
+  padding-left: 8px;
+  border-left: 2px solid var(--border);
+}
+
+#document-list {
+  margin: 6px 0 8px 0;
+  padding-left: 14px;
+}
+
+#document-list li {
+  list-style: disc;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+
+#document-list li.placeholder {
+  list-style: none;
+  font-style: italic;
+  padding-left: 0;
+  display: list-item;
+}
+
+#document-list li.uploading {
+  list-style: none;
+  color: var(--muted);
+  font-style: italic;
+  padding-left: 0;
+}
+
+#document-list .doc-remove {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+#document-list .doc-remove:hover {
+  color: var(--error);
+}
+
+dialog {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 16px;
+  max-width: 380px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  font-size: 13px;
+  color: var(--fg);
+}
+
+dialog p {
+  margin: 0 0 10px;
+}
+
+dialog button {
+  margin-top: 4px;
+}

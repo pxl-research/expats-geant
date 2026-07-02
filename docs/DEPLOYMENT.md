@@ -14,6 +14,8 @@ This guide covers deploying the Expats platform using Docker.
 
 All five services start together via `docker-compose up`. Keycloak auto-imports the `expats` realm on first start.
 
+The **Cue Browser Extension** (Chromium + Firefox MV3) is a separate frontend that ships from `cue_extension/` and talks to `cue-api` from the user's browser via CORS. It does not run as a Docker service. See the [Cue Browser Extension](#cue-browser-extension) section below for install, configuration, and the `EXTENSION_ALLOWED_ORIGINS` allow-list.
+
 ## Prerequisites
 
 - Docker & Docker Compose installed
@@ -190,6 +192,112 @@ Shape UI is the browser-based frontend for the questionnaire design co-pilot.
 ```bash
 open http://localhost:8812
 ```
+
+---
+
+## Cue Browser Extension
+
+The Cue Browser Extension is a Manifest V3 add-on for Chrome, Edge, and Firefox that fills web forms with evidence-backed answers from a configured Cue API instance. It is the third Cue frontend alongside Cue UI and Shape UI.
+
+- **Source**: `cue_extension/`
+- **Talks to**: any reachable `cue-api` deployment (via the URL the user configures in the popup)
+- **Runtime**: runs in the user's browser; not a Docker service
+- **Targets**: Chrome / Chromium / Edge (Chrome Web Store, Phase F unlisted), Firefox 121+ (AMO, Phase F unlisted)
+- **API contract**: see [CUE_API.md → `POST /extract-form`](CUE_API.md#extract-form-fields-llm-fallback)
+
+The extension is user-triggered: nothing leaves the browser without a click on the **Analyse this page** button. It uses the `activeTab` permission (no `<all_urls>` install warning) and requests host permission for the operator-entered Cue origin at runtime.
+
+### Required Configuration: `EXTENSION_ALLOWED_ORIGINS`
+
+The Cue API rejects requests from any browser-extension origin not listed in `EXTENSION_ALLOWED_ORIGINS`. This is the one mandatory deployment knob.
+
+| Variable | Default | Description |
+|---|---|---|
+| `EXTENSION_ALLOWED_ORIGINS` | _(unset)_ | Comma-separated list of `chrome-extension://<id>` and/or `moz-extension://<id>` origins permitted by CORS. Wildcards (`*`) are rejected at startup; entries with other schemes are dropped with a warning. Leave unset to disable extension access entirely. |
+
+The active allow-list is logged once at cue-api startup (`allowing extension origins: …`).
+
+```bash
+# .env at the repo root
+EXTENSION_ALLOWED_ORIGINS=chrome-extension://abcdefghijklmnopqrstuvwxyz012345,moz-extension://cue-form-filler@your-org.example
+```
+
+Re-create the container after editing:
+
+```bash
+docker compose up -d cue-api
+```
+
+Chrome assigns a 32-character hex extension ID per-machine for unpacked installs; published listings carry a stable ID. Firefox uses the `gecko.id` from the manifest (default `cue-form-filler@expat-geant.local`).
+
+### Development build & local install
+
+The extension uses a tiny esbuild pipeline. No Docker required.
+
+```bash
+cd cue_extension
+npm install
+npm run build:chrome    # → dist/chrome/
+npm run build:firefox   # → dist/firefox/
+npm run build:all       # both at once
+npm run typecheck       # tsc --noEmit
+npm test                # vitest run
+```
+
+**Chrome / Edge:**
+
+1. `chrome://extensions` → enable Developer mode → **Load unpacked** → select `cue_extension/dist/chrome/`.
+2. Copy the extension ID shown on the card.
+3. Add `chrome-extension://<id>` to `EXTENSION_ALLOWED_ORIGINS` in `.env`, then `docker compose up -d cue-api`.
+4. Click the toolbar icon, enter your Cue URL (e.g. `http://localhost:8801`), grant the host-permission prompt, log in via API secret.
+
+**Firefox 121+:**
+
+1. `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…** → `cue_extension/dist/firefox/manifest.json`.
+2. The extension ID is fixed by the manifest's `gecko.id` (see `manifest.json`). Add `moz-extension://<gecko-id>` to `EXTENSION_ALLOWED_ORIGINS`, restart cue-api.
+3. Same popup flow as Chrome.
+
+Temporary Firefox add-ons are wiped on browser restart; this path is for development and smoke testing. Signed AMO distribution is the publication path documented below.
+
+### Privacy posture
+
+- The extension sends three things to cue-api: an OIDC/API-secret login, uploaded source documents, and — when the local extractors return nothing — the active page's `innerText` to `POST /extract-form` for LLM-assisted field detection.
+- Audit-log entries for extension calls record **URL + item count + model name only**. Form-field values and page text are not persisted to the audit trail. This is enforced server-side (`tests/test_extract_form_api.py::TestAudit`).
+- JWTs are stored in `browser.storage.local`. There is no token refresh in v1: on 401 the user logs in again.
+- CORS preflights `OPTIONS` requests on protected paths bypass the session middleware so the browser sees a 200 from the CORS layer, not a 401. This is intentional and covered by `tests/test_cors.py::TestPreflightOnProtectedPaths`.
+
+### Production publication (unlisted)
+
+Both stores accept "unlisted" listings, visible only via direct URL — appropriate for pilot deployments and internal-org distribution.
+
+**Chrome Web Store (unlisted):**
+
+1. Register a developer account at <https://chrome.google.com/webstore/devconsole/> (one-time $5 fee).
+2. Zip the contents of `dist/chrome/` (not the parent directory). The zip's root must contain `manifest.json` directly.
+3. Upload as a new item, choose **Unlisted**, fill the privacy disclosure (justification for `activeTab`, `storage`, and `scripting`).
+4. Submit for review. Unlisted reviews are typically faster than public ones because there is no store-search exposure.
+5. After publication, the stable extension ID is shown on the listing. Distribute the listing URL to pilot users and add the corresponding `chrome-extension://<id>` to `EXTENSION_ALLOWED_ORIGINS` on the API deployment.
+
+**Mozilla AMO (unlisted, signed `.xpi`):**
+
+1. Register a developer account at <https://addons.mozilla.org/developers/>.
+2. From `cue_extension/`, zip the contents of `dist/firefox/` into `cue-form-filler.xpi`.
+3. Upload via **Submit a New Add-on** → **On your own**. Mozilla signs the package and emails back the signed `.xpi`.
+4. Distribute the signed `.xpi` URL to pilot users. Firefox installs it via direct download; no further allow-listing required at the OS level.
+5. The `moz-extension://<gecko-id>` origin matches the manifest's `browser_specific_settings.gecko.id` — this is the value to add to `EXTENSION_ALLOWED_ORIGINS`. No trailing slash: browsers send `Origin: moz-extension://<gecko-id>` and CORS uses exact-match.
+
+### Enterprise force-install (optional)
+
+For organisations distributing the extension as part of a managed deployment:
+
+- **Chrome** — `ExtensionInstallForcelist` policy referencing the Chrome Web Store ID and an update URL.
+- **Firefox** — `ExtensionSettings` policy with `installation_mode: force_installed` pointing at the signed `.xpi`.
+
+See the [Chrome Enterprise docs](https://support.google.com/chrome/a/answer/9296680) and [Firefox Policy Templates](https://github.com/mozilla/policy-templates/blob/master/README.md) for the precise JSON shapes; both stores' publication URLs are the only values that need filling in.
+
+### Smoke testing
+
+The full per-browser smoke checklist lives at `scripts/smoke_extension.md` and is the canonical pre-merge validation for extension changes.
 
 ---
 

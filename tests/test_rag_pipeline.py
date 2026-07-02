@@ -335,13 +335,14 @@ def test_extract_excerpt_no_breaks(rag_pipeline):
 # ============================================================================
 
 
-def _make_item(item_id, prompt, item_type="open_ended", choices=None):
+def _make_item(item_id, prompt, item_type="open_ended", choices=None, label=None):
     """Helper to create item-like objects for rewriting tests."""
     return SimpleNamespace(
         id=item_id,
         prompt=prompt,
         type=SimpleNamespace(value=item_type),
         choices=choices or [],
+        label=label,
     )
 
 
@@ -642,6 +643,7 @@ class TestRewriteAuditLogging:
             prompt="Verbose question?",
             type=QuestionType.OPEN_ENDED,
             choices=[],
+            label=None,
         )
         pipeline._process_item(
             item,
@@ -686,11 +688,101 @@ class TestRewriteAuditLogging:
             prompt="Question?",
             type=QuestionType.OPEN_ENDED,
             choices=[],
+            label=None,
         )
         pipeline._process_item(item, "", [], "sess", "assess", None)
 
         call_kwargs = mock_audit.log_suggestion.call_args[1]
         assert call_kwargs["rewritten_query"] is None
+
+
+class TestAuditQuestionLabel:
+    """Audit logging should prefer item.label over item.prompt for the
+    display 'question' field, without ever using it for LLM generation."""
+
+    def test_label_used_for_audit_question_when_present(
+        self, mock_session_manager, mock_llm_client
+    ):
+        mock_store = mock_session_manager.get_vector_store.return_value
+        mock_store.query.return_value = [
+            {
+                "id": "c1",
+                "document": "Text.",
+                "metadata": {"source": "doc.pdf", "chunk_index": 0},
+                "distance": 0.1,
+            }
+        ]
+        mock_llm_client.create_completion.return_value = '{"answer": "Answer", "reasoning": null}'
+        mock_llm_client.temperature = 0.4
+        mock_llm_client.model_name = "test-model"
+        mock_audit = Mock()
+
+        pipeline = RAGPipeline(
+            session_manager=mock_session_manager,
+            llm_client=mock_llm_client,
+            audit_logger=mock_audit,
+            query_rewrite=False,
+        )
+
+        from m_shared.models.question import QuestionType
+
+        item = SimpleNamespace(
+            id="q1",
+            prompt=(
+                'This is the free-text "Other" answer for the question: "Basic Security"\n'
+                "The listed choices already cover:\n- Geen voorkennis\n"
+                "Only answer if the correct response is NOT one of the choices above."
+            ),
+            type=QuestionType.OPEN_ENDED,
+            choices=[],
+            label="Basic Security, Andere",
+        )
+        pipeline._process_item(item, "", [], "sess", "assess", None)
+
+        call_kwargs = mock_audit.log_suggestion.call_args[1]
+        assert call_kwargs["question"] == "Basic Security, Andere"
+        # The LLM call itself must still receive the full verbose prompt.
+        llm_messages = mock_llm_client.create_completion.call_args[1]["messages"]
+        user_message = next(m["content"] for m in llm_messages if m["role"] == "user")
+        assert "The listed choices already cover" in user_message
+
+    def test_prompt_used_for_audit_question_when_no_label(
+        self, mock_session_manager, mock_llm_client
+    ):
+        mock_store = mock_session_manager.get_vector_store.return_value
+        mock_store.query.return_value = [
+            {
+                "id": "c1",
+                "document": "Text.",
+                "metadata": {"source": "doc.pdf", "chunk_index": 0},
+                "distance": 0.1,
+            }
+        ]
+        mock_llm_client.create_completion.return_value = '{"answer": "Answer", "reasoning": null}'
+        mock_llm_client.temperature = 0.4
+        mock_llm_client.model_name = "test-model"
+        mock_audit = Mock()
+
+        pipeline = RAGPipeline(
+            session_manager=mock_session_manager,
+            llm_client=mock_llm_client,
+            audit_logger=mock_audit,
+            query_rewrite=False,
+        )
+
+        from m_shared.models.question import QuestionType
+
+        item = SimpleNamespace(
+            id="q1",
+            prompt="Voornaam",
+            type=QuestionType.OPEN_ENDED,
+            choices=[],
+            label=None,
+        )
+        pipeline._process_item(item, "", [], "sess", "assess", None)
+
+        call_kwargs = mock_audit.log_suggestion.call_args[1]
+        assert call_kwargs["question"] == "Voornaam"
 
 
 class TestRewriteEdgeCases:

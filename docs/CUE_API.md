@@ -938,12 +938,80 @@ available at suggestion-generation time. Use the existing per-question
 **Regenerate** or bulk **Regenerate untouched** buttons to refresh
 suggestions against the trimmed source set.
 
+#### Extract Form Fields (LLM Fallback)
+
+```bash
+POST /extract-form
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "url": "https://example.com/contact",
+  "page_text": "Full name:\n\nEmail address:\n\nHow did you hear about us?\n- Friend\n- Search engine\n- Other"
+}
+```
+
+Reserved for the Cue Browser Extension's third-tier fallback: when deterministic extractors (known-platform DOM scrapes, semantic-HTML walkers) return zero items, the extension sends the active page's plain text here so the LLM can identify field labels and choice lists. Rate-limited at **10 requests/minute per authenticated user** (the shared limiter keys on `user_id` from the JWT, falling back to client IP for unauthenticated callers) and gated by `EXTENSION_ALLOWED_ORIGINS` (see [DEPLOYMENT.md → Cue Browser Extension](DEPLOYMENT.md#cue-browser-extension)).
+
+**Request body:**
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `url` | string | 1–4096 chars | Source page URL the form lives on. Recorded in the audit trail. |
+| `page_text` | string | 1–200 000 chars | Plain-text content of the page (no HTML). Supplied by the caller; **not persisted** to audit or session storage. |
+
+**Response (200):** an array of `BatchSuggestItem` entries — the same wire DTO consumed by `/suggest/stream` and `/suggest/batch`, so the extension can pass items straight through without re-mapping.
+
+```json
+[
+  {
+    "id": "q1",
+    "type": "open_ended",
+    "prompt": "Full name",
+    "choices": []
+  },
+  {
+    "id": "q2",
+    "type": "open_ended",
+    "prompt": "Email address",
+    "choices": []
+  },
+  {
+    "id": "q3",
+    "type": "single_choice",
+    "prompt": "How did you hear about us?",
+    "choices": [
+      {"id": "c1", "label": "Friend"},
+      {"id": "c2", "label": "Search engine"},
+      {"id": "c3", "label": "Other"}
+    ]
+  }
+]
+```
+
+Item-level rules (enforced by `BatchSuggestItem` validation server-side):
+
+- `type` is one of `open_ended`, `single_choice`, `multiple_choice`, `slider`.
+- `choices` is required and non-empty for `single_choice` and `multiple_choice`; required to be empty for `open_ended` and `slider`.
+- Items that fail validation are silently dropped from the response; the warning is logged server-side, never echoed to the client.
+
+**Response (502):** the LLM call failed or returned unparseable output. The body is `{"detail": "Form extraction failed"}`. The client SHOULD fall back to a no-suggestion UX rather than retrying immediately — the same prompt is unlikely to succeed on retry without a model change.
+
+**Response (503):** the deployment has no LLM client configured (`DEFAULT_LLM_MODEL` unset and no per-service override). Distinct from 502 so operators can diagnose configuration vs. model failure.
+
+**Response (429):** rate limit exceeded (10/minute per authenticated user). Client SHOULD back off and surface a "try again in a minute" message.
+
+**Audit (`EXTRACT_FORM` event):** records `url`, `item_count`, and `model` only. The supplied `page_text` and the extracted item labels are deliberately NOT persisted to the audit trail — a PII-preserving posture verified by `tests/test_extract_form_api.py::TestAudit`. Operators looking for usage metrics get URL + counts; they do not get the form contents.
+
 #### Audit Event Types
 
 `UPLOAD`, `SUGGEST`, `EDIT_SUGGESTION`, `SESSION_START`, `SESSION_END`,
-`CONSENT_ACCEPTED`, `WEB_FETCH`, `SOURCE_REMOVED`. The `SOURCE_REMOVED`
-event records `name`, `source_kind`, and `source_mime` for the removed
-collection.
+`CONSENT_ACCEPTED`, `WEB_FETCH`, `SOURCE_REMOVED`, `EXTRACT_FORM`. The
+`SOURCE_REMOVED` event records `name`, `source_kind`, and `source_mime` for
+the removed collection. The `EXTRACT_FORM` event records `url`,
+`item_count`, and `model` (the LLM identifier) for the extension's
+third-tier fallback — it intentionally does NOT record the page text
+supplied to the LLM or the extracted field labels.
 
 ---
 

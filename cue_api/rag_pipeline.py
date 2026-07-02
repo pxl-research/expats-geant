@@ -310,7 +310,19 @@ class RAGPipeline:
         if choices:
             choice_lines = "\n".join(f"- {c.id}: {c.label}" for c in choices)
             choice_block = f"\nAVAILABLE CHOICES:\n{choice_lines}\n"
-            selected_field = '  "selected": "<choice id from the list above, or null if you cannot determine. If the excerpts lack sufficient information, prefer a choice that expresses uncertainty (e.g. I don\'t know, N/A) over returning null>",\n'
+            if question_type == QuestionType.MULTIPLE_CHOICE.value:
+                choice_guidance = (
+                    "This question accepts MULTIPLE answers. "
+                    "Include every choice id that the excerpts support."
+                )
+            else:
+                choice_guidance = "This question accepts ONE answer. Include exactly one choice id."
+            selected_field = (
+                '  "selected": <JSON array of choice ids — '
+                f"{choice_guidance} "
+                "Use an empty list [] only if no choice is even partially "
+                "supported by the excerpts>,\n"
+            )
         else:
             selected_field = ""
 
@@ -378,30 +390,64 @@ class RAGPipeline:
             return raw, None, None
 
     def _parse_selected_id(
-        self, selected_raw: str | None, choices: list, multi: bool
+        self, selected_raw, choices: list, multi: bool
     ) -> tuple[str | None, list[str] | None]:
-        """Validate a SELECTED value against the available choices.
+        """Validate the SELECTED value against the available choices.
 
         Args:
-            selected_raw: Bare selected value extracted by _parse_structured_response,
-                          or None if the LLM returned no selection.
-            choices: List of BatchChoice objects to validate against
-            multi: True for multiple_choice, False for single_choice
+            selected_raw: List, JSON-encoded list string, bare string, or None.
+            choices: BatchChoice objects whose ``id`` defines the valid set.
+            multi: True for multiple_choice, False for single_choice.
 
         Returns:
-            Tuple of (selected_id, selected_ids) — only one is set based on multi
+            Tuple of (selected_id, selected_ids) — only one is set based on multi.
         """
         if not selected_raw:
             return None, None
 
         valid_ids = {c.id for c in choices}
 
-        if multi:
-            candidates = [s.strip().strip(",") for s in selected_raw.replace(",", " ").split()]
-            matched = [s for s in candidates if s in valid_ids]
-            return None, matched if matched else None
+        def normalize(value) -> str | None:
+            # Our choice ids are always "c" + a 1-based index. The LLM
+            # occasionally drops the "c" prefix and returns the bare ordinal
+            # (int, or a numeric string) instead of the literal id — tolerate
+            # that by re-adding the prefix, but only accept the result if it
+            # actually names one of the offered choices.
+            if isinstance(value, str):
+                if value in valid_ids:
+                    return value
+                candidate = f"c{value}"
+            elif isinstance(value, int):
+                candidate = f"c{value}"
+            else:
+                return None
+            return candidate if candidate in valid_ids else None
+
+        raw_values: list
+        if isinstance(selected_raw, list):
+            raw_values = selected_raw
+        elif isinstance(selected_raw, str):
+            try:
+                parsed = json.loads(selected_raw)
+            except (json.JSONDecodeError, ValueError):
+                parsed = selected_raw
+            raw_values = parsed if isinstance(parsed, list) else [parsed]
         else:
-            return (selected_raw if selected_raw in valid_ids else None), None
+            return None, None
+
+        matched = [c for c in (normalize(v) for v in raw_values) if c is not None]
+        if not matched:
+            return None, None
+
+        if multi:
+            return None, matched
+        if len(matched) > 1:
+            logger.info(
+                "LLM returned %d choices for single_choice; using first (%s)",
+                len(matched),
+                matched[0],
+            )
+        return matched[0], None
 
     def format_citations(
         self,
@@ -536,25 +582,28 @@ class RAGPipeline:
         chunks = self._filter_chunks_by_distance(self.retrieve(search_query, session_id))
 
         if not chunks:
-            no_match_answer = "No relevant information found in your documents for this question."
+            no_match_reasoning = "No document chunks matched this question. Please answer manually."
             if self.audit_logger:
                 self.audit_logger.log_suggestion(
                     session_id=session_id,
-                    question=item.prompt,
-                    suggested_answer=no_match_answer,
+                    question=item.label or item.prompt,
+                    suggested_answer=no_match_reasoning,
                     sources_used=[],
                     model=client.model_name,
                     user_id=user_id,
                     question_id=item.id,
                     rewritten_query=rewritten_query,
                 )
+            # Return suggestion=None so the client neither writes anything
+            # back to the form nor renders a misleading boilerplate string.
+            # The reasoning carries the explanation for the popup.
             return {
                 "item_id": item.id,
                 "type": item.type.value,
-                "suggestion": no_match_answer,
+                "suggestion": None,
                 "selected_id": None,
                 "selected_ids": None,
-                "reasoning": "No document chunks matched this question. Please answer manually.",
+                "reasoning": no_match_reasoning,
                 "citations": [],
             }
 
@@ -576,10 +625,10 @@ class RAGPipeline:
             return {
                 "item_id": item.id,
                 "type": item.type.value,
-                "suggestion": "Generation failed.",
+                "suggestion": None,
                 "selected_id": None,
                 "selected_ids": None,
-                "reasoning": str(e),
+                "reasoning": f"Generation failed: {e}",
                 "citations": [],
             }
 
@@ -602,7 +651,7 @@ class RAGPipeline:
             ]
             self.audit_logger.log_suggestion(
                 session_id=session_id,
-                question=item.prompt,
+                question=item.label or item.prompt,
                 suggested_answer=answer or "",
                 sources_used=[c.source_id for c in citations],
                 model=client.model_name,
@@ -612,10 +661,22 @@ class RAGPipeline:
                 source_details=source_details,
             )
 
+        # Normalise an empty / whitespace-only answer with no choice
+        # selection to None so the client renders it as a "no answer" entry
+        # rather than blanking a field that the user already filled.
+        normalised_answer: str | None = answer
+        if (
+            normalised_answer is not None
+            and not normalised_answer.strip()
+            and selected_id is None
+            and not selected_ids
+        ):
+            normalised_answer = None
+
         return {
             "item_id": item.id,
             "type": item.type.value,
-            "suggestion": answer,
+            "suggestion": normalised_answer,
             "selected_id": selected_id,
             "selected_ids": selected_ids,
             "reasoning": reasoning,

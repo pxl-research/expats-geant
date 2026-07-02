@@ -1,0 +1,27 @@
+{
+  "name": "cue-extension",
+  "version": "0.1.0",
+  "description": "Cue browser extension — evidence-backed form filling using the Cue API.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "build:chrome": "CUE_EXT_TARGET=chrome node build.mjs",
+    "build:firefox": "CUE_EXT_TARGET=firefox node build.mjs",
+    "build:all": "CUE_EXT_TARGET=all node build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "webextension-polyfill": "^0.12.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "@types/webextension-polyfill": "^0.12.1",
+    "esbuild": "^0.28.1",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.6.3",
+    "vitest": "^3.0.0"
+  }
+}

@@ -31,6 +31,7 @@ class AuditEventType(str, Enum):
     CONSENT_ACCEPTED = "CONSENT_ACCEPTED"
     WEB_FETCH = "WEB_FETCH"
     SOURCE_REMOVED = "SOURCE_REMOVED"
+    EXTRACT_FORM = "EXTRACT_FORM"
 
 
 class AuditLogEntry(BaseModel):
@@ -458,6 +459,40 @@ class AuditLogger:
                 "name": name,
                 "source_kind": source_kind,
                 "source_mime": source_mime,
+            },
+        )
+        self._add_entry(entry)
+
+    def log_extract_form(
+        self,
+        session_id: str,
+        *,
+        url: str,
+        item_count: int,
+        model: str,
+        user_id: str | None = None,
+    ) -> None:
+        """Log an LLM-assisted form-extraction call.
+
+        Records only the source URL, item count, and LLM model name. The page
+        text supplied by the caller and the extracted form fields are NOT
+        recorded, to keep PII out of the audit trail.
+
+        Args:
+            session_id: Session identifier
+            url: Source page URL the extraction was run against
+            item_count: Number of BatchSuggestItem entries returned
+            model: LLM model identifier used for extraction
+            user_id: Optional user identifier
+        """
+        entry = AuditLogEntry(
+            event_type=AuditEventType.EXTRACT_FORM,
+            session_id=session_id,
+            user_id=user_id,
+            details={
+                "url": url,
+                "item_count": item_count,
+                "model": model,
             },
         )
         self._add_entry(entry)

@@ -304,27 +304,108 @@ class TestParseSelectedId:
             BatchChoice(id="partial", label="Partially"),
         ]
 
-    def test_single_choice_valid_id(self, pipeline, choices):
-        selected_id, selected_ids = pipeline._parse_selected_id("yes", choices, multi=False)
+    # --- List-shaped input (the schema the LLM is now asked to emit) ---
+
+    def test_single_choice_from_list_with_one_id(self, pipeline, choices):
+        selected_id, selected_ids = pipeline._parse_selected_id(["yes"], choices, multi=False)
         assert selected_id == "yes"
         assert selected_ids is None
 
+    def test_single_choice_from_list_with_multiple_ids_picks_first(self, pipeline, choices, caplog):
+        import logging
+
+        caplog.set_level(logging.INFO, logger="cue_api.rag_pipeline")
+        selected_id, selected_ids = pipeline._parse_selected_id(
+            ["partial", "yes"], choices, multi=False
+        )
+        assert selected_id == "partial"
+        assert selected_ids is None
+        assert any("using first (partial)" in r.message for r in caplog.records)
+
+    def test_multi_choice_from_list(self, pipeline, choices):
+        selected_id, selected_ids = pipeline._parse_selected_id(
+            ["yes", "partial"], choices, multi=True
+        )
+        assert selected_id is None
+        assert selected_ids == ["yes", "partial"]
+
+    def test_empty_list_returns_no_selection(self, pipeline, choices):
+        single_id, single_ids = pipeline._parse_selected_id([], choices, multi=False)
+        multi_id, multi_ids = pipeline._parse_selected_id([], choices, multi=True)
+        assert (single_id, single_ids) == (None, None)
+        assert (multi_id, multi_ids) == (None, None)
+
+    def test_list_drops_invalid_ids(self, pipeline, choices):
+        # Multi: drop the bogus entry, keep the valid ones.
+        _, multi_ids = pipeline._parse_selected_id(["yes", "maybe", "partial"], choices, multi=True)
+        assert multi_ids == ["yes", "partial"]
+        # Single: skip the bogus entry, pick the first valid one.
+        single_id, _ = pipeline._parse_selected_id(["maybe", "yes"], choices, multi=False)
+        assert single_id == "yes"
+
+    def test_list_with_no_valid_ids_returns_none(self, pipeline, choices):
+        _, multi_ids = pipeline._parse_selected_id(["foo", "bar"], choices, multi=True)
+        assert multi_ids is None
+
+    # --- JSON-encoded-list string (defensive: model emits the list as a string) ---
+
+    def test_json_string_list_parses(self, pipeline, choices):
+        _, multi_ids = pipeline._parse_selected_id('["yes", "partial"]', choices, multi=True)
+        assert multi_ids == ["yes", "partial"]
+
+    # --- Legacy bare-string input (model ignores the list shape) ---
+
+    def test_legacy_bare_string_single_choice(self, pipeline, choices):
+        selected_id, _ = pipeline._parse_selected_id("yes", choices, multi=False)
+        assert selected_id == "yes"
+
+    def test_legacy_bare_string_multi_choice(self, pipeline, choices):
+        # Single string against a multi question: still surfaces it.
+        _, multi_ids = pipeline._parse_selected_id("yes", choices, multi=True)
+        assert multi_ids == ["yes"]
+
+    def test_legacy_bare_string_invalid_id_returns_none(self, pipeline, choices):
+        selected_id, _ = pipeline._parse_selected_id("maybe", choices, multi=False)
+        assert selected_id is None
+
+    # --- None / falsy / wrong-type inputs ---
+
     def test_single_choice_none(self, pipeline, choices):
         selected_id, selected_ids = pipeline._parse_selected_id(None, choices, multi=False)
-        assert selected_id is None
-
-    def test_single_choice_invalid_id_falls_back_to_none(self, pipeline, choices):
-        selected_id, selected_ids = pipeline._parse_selected_id("maybe", choices, multi=False)
-        assert selected_id is None
-
-    def test_multi_choice_valid_ids(self, pipeline, choices):
-        selected_id, selected_ids = pipeline._parse_selected_id("yes, partial", choices, multi=True)
-        assert selected_id is None
-        assert set(selected_ids) == {"yes", "partial"}
+        assert (selected_id, selected_ids) == (None, None)
 
     def test_multi_choice_none(self, pipeline, choices):
         selected_id, selected_ids = pipeline._parse_selected_id(None, choices, multi=True)
-        assert selected_ids is None
+        assert (selected_id, selected_ids) == (None, None)
+
+    # --- Bare-ordinal ints (LLM drops the "c" prefix from cN-style ids) ---
+
+    @pytest.fixture
+    def cn_choices(self):
+        return [
+            BatchChoice(id="c1", label="Gaming"),
+            BatchChoice(id="c2", label="Uitgaan"),
+            BatchChoice(id="c3", label="Jeugdbeweging"),
+        ]
+
+    def test_multi_choice_bare_ints_normalize_to_cn_ids(self, pipeline, cn_choices):
+        # Regression: the LLM sometimes returns [1, 3] instead of ["c1", "c3"]
+        # for cN-style choice ids. Silently dropping these left every
+        # checkbox unticked even though the model picked the right answers.
+        _, selected_ids = pipeline._parse_selected_id([1, 3], cn_choices, multi=True)
+        assert selected_ids == ["c1", "c3"]
+
+    def test_single_choice_bare_int_normalizes_to_cn_id(self, pipeline, cn_choices):
+        selected_id, _ = pipeline._parse_selected_id([2], cn_choices, multi=False)
+        assert selected_id == "c2"
+
+    def test_bare_int_out_of_range_is_dropped(self, pipeline, cn_choices):
+        _, selected_ids = pipeline._parse_selected_id([1, 99], cn_choices, multi=True)
+        assert selected_ids == ["c1"]
+
+    def test_mixed_string_and_int_selections(self, pipeline, cn_choices):
+        _, selected_ids = pipeline._parse_selected_id(["c1", 3], cn_choices, multi=True)
+        assert selected_ids == ["c1", "c3"]
 
 
 # ---------------------------------------------------------------------------

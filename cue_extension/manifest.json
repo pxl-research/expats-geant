@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "Cue — Form Filler",
+  "version": "0.1.0",
+  "description": "Fill web forms with evidence-backed answers from your uploaded documents, via a configurable Cue API instance.",
+  "action": {
+    "default_title": "Cue — Form Filler",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "background": {
+    "service_worker": "sw.js",
+    "type": "module"
+  },
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "cue-form-filler@expat-geant.local",
+      "strict_min_version": "121.0"
+    }
+  }
+}

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SPA-style Test Form (no semantic labels)</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; max-width: 480px; margin: 24px; }
+    .question { margin: 12px 0; }
+    .question div { margin-bottom: 4px; color: #444; }
+    input, textarea { width: 100%; padding: 6px 8px; font-size: 14px; box-sizing: border-box; }
+    .actions { margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <h1>Project sign-up</h1>
+
+  <p>
+    Fixture for testing the LLM-assisted extractor. The text labels live as plain
+    <code>&lt;div&gt;</code>s next to inputs — no <code>&lt;label&gt;</code> elements,
+    no <code>for=</code>, no <code>aria-label</code>, no <code>placeholder</code>,
+    no <code>name</code>. The semantic-HTML extractor SHOULD return zero items
+    here, causing the registry to fall through to the LLM tier.
+  </p>
+
+  <div class="question">
+    <div>What is your full name?</div>
+    <input id="q1" type="text" />
+  </div>
+
+  <div class="question">
+    <div>Which programme are you enrolling in?</div>
+    <input id="q2" type="text" />
+  </div>
+
+  <div class="question">
+    <div>How many years of experience do you have?</div>
+    <input id="q3" type="text" />
+  </div>
+
+  <div class="question">
+    <div>Briefly describe your motivation for joining.</div>
+    <textarea id="q4" rows="4"></textarea>
+  </div>
+
+  <div class="actions">
+    <button>Submit</button>
+  </div>
+</body>
+</html>

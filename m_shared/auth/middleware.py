@@ -56,6 +56,13 @@ class SessionMiddleware(BaseHTTPMiddleware):
         """
         from fastapi.responses import JSONResponse
 
+        # CORS preflight requests never carry an Authorization header, so they
+        # must bypass auth and reach CORSMiddleware (or the router) downstream.
+        # Gating them here would always return 401 and block the browser from
+        # ever attempting the actual request.
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         # Skip authentication for public endpoints
         if self._is_public_endpoint(request.url.path):
             return await call_next(request)

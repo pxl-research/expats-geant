@@ -71,6 +71,11 @@ class ScheduledCleanupRunner:
 def main():
     """Initialize and run the Cue API."""
 
+    logging.basicConfig(
+        level=os.getenv("LOG_LEVEL", "INFO"),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
     check_secrets()
 
     # Configuration from environment
